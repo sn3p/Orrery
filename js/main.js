@@ -22,7 +22,7 @@ function ajaxGet (url, callback) {
 }
 
 const MPC_DATA_URL = 'data/mpcs.json';
-const PIXELS_PER_AU = 50;
+const PIXELS_PER_AU = 100;
 
 // Init Orrery
 const orrery = new Orrery({

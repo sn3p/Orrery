@@ -1,9 +1,10 @@
 // TODO:
-// - Show MPCs after they've been discovered
+// - Render MPCs from the moment they've been discovered
 // - Init Graphics once to improve performance
+// - Draw orbits (for planets)
 // - GUI: mpc count, etc.
-// - Controls: zoom, speed, etc.
-// - Add 3D/Anagluph mode
+// - Controls: speed, etc.
+// - Add 3D/Anaglyph mode
 // - Add Sound (optional), e.g. The Dig OST :)
 
 class Orrery {
@@ -19,11 +20,13 @@ class Orrery {
     this.planets = [];
     this.asteroids = [];
 
-    this.setupGui();
-
     // Create star system
     this.createSystem();
     this.createStar();
+
+    // Setup GUI and controls
+    this.setupGui();
+    this.controls = new Controls(this);
 
     // Start rendering
     this.tick();
@@ -48,13 +51,14 @@ class Orrery {
 
   createSystem() {
     this.renderer = new PIXI.CanvasRenderer(this.width, this.height, {
-      backgroundColor : 0x000000
+      backgroundColor : 0x000000,
+      // transparent: true,
+      // antialias: true
     });
 
     this.stage = new PIXI.Container();
     this.stage.x = this.width / 2;
     this.stage.y = this.height / 2;
-    this.stage.scale.set(2);
 
     const orrery = document.getElementById('orrery');
     orrery.appendChild(this.renderer.view);
@@ -101,18 +105,16 @@ class Orrery {
     this.stats.begin();
 
     this.jed += this.jedDelta;
-    this.render();
+
+    // Render
+    this.planets.forEach(planet => planet.render(this.jed));
+    this.asteroids.forEach(asteroid => asteroid.render(this.jed));
+    this.renderer.render(this.stage);
+
     this.updateGui();
 
     this.stats.end();
     requestAnimationFrame(this.tick.bind(this));
-  }
-
-  render() {
-    this.planets.forEach(planet => planet.render(this.jed));
-    this.asteroids.forEach(asteroid => asteroid.render(this.jed));
-
-    this.renderer.render(this.stage);
   }
 
   resize(width, height) {

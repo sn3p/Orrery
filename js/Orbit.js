@@ -6,6 +6,8 @@ class Orbit {
   }
 
   // Get position at time for Julian Date
+  // https://github.com/typpo/asterank/blob/master/static/js/3d/ellipse.js#L45
+  // http://nbodyphysics.com/blog/2016/05/29/planetary-orbits-in-javascript/
   getPosAtTime(jed) {
     const pi = Math.PI;
     const d2r = this.d2r;
