@@ -11,12 +11,18 @@ body {
   top: 0;
 }
 
-.orrery-date {
+.orrery-date,
+.orrery-fps {
   color: #fff;
   font-size: 0.8em;
   left: 0;
-  opacity: 0.7;
+  opacity: 0.3;
   padding: 5px;
   position: fixed;
-  top: 0;
+  bottom: 0;
+}
+
+.orrery-fps {
+  left: auto;
+  right: 0;
 }

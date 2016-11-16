@@ -1,7 +1,8 @@
 // TODO:
 // - Show MPCs after they've been discovered
 // - Init Graphics once to improve performance
-// - Add GUI and mouse controls (ftp, zoom, speed, etc.)
+// - GUI: mpc count, etc.
+// - Controls: zoom, speed, etc.
 // - Add 3D/Anagluph mode
 // - Add Sound (optional), e.g. The Dig OST :)
 
@@ -18,12 +19,31 @@ class Orrery {
     this.planets = [];
     this.asteroids = [];
 
+    this.setupGui();
+
     // Create star system
     this.createSystem();
     this.createStar();
 
     // Start rendering
-    this.animate();
+    this.tick();
+  }
+
+  setupGui() {
+    this.gui = {};
+    this.gui.date = document.getElementById('orrery-date');
+
+    this.stats = new Stats();
+    this.gui.fps = document.getElementById('orrery-fps');
+  }
+
+  updateGui() {
+    // Update current date
+    const date = this.fromJED(this.jed).toISOString().slice(0, 10);
+    this.gui.date.textContent = date;
+
+    // Update FPS
+    this.gui.fps.textContent = `${this.stats.fps} FPS`;
   }
 
   createSystem() {
@@ -77,20 +97,22 @@ class Orrery {
     });
   }
 
-  animate() {
-    requestAnimationFrame(this.animate.bind(this));
+  tick() {
+    this.stats.begin();
 
     this.jed += this.jedDelta;
+    this.render();
+    this.updateGui();
 
+    this.stats.end();
+    requestAnimationFrame(this.tick.bind(this));
+  }
+
+  render() {
     this.planets.forEach(planet => planet.render(this.jed));
     this.asteroids.forEach(asteroid => asteroid.render(this.jed));
 
     this.renderer.render(this.stage);
-
-    // Display current date
-    const date = this.fromJED(this.jed).toISOString().slice(0, 10);
-    document.getElementById('orrery-date').textContent = date;
-
   }
 
   resize(width, height) {
