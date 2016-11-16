@@ -1,0 +1,22 @@
+body {
+  background: #000;
+  margin: 0;
+}
+
+.orrery {
+  bottom: 0;
+  left: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
+}
+
+.orrery-date {
+  color: #fff;
+  font-size: 0.8em;
+  left: 0;
+  opacity: 0.7;
+  padding: 5px;
+  position: fixed;
+  top: 0;
+}
