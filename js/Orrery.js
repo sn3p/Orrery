@@ -1,6 +1,9 @@
 // TODO:
-// - Add GUI and mouse controls (zoom, speed, etc.)
+// - Show MPCs after they've been discovered
+// - Init Graphics once to improve performance
+// - Add GUI and mouse controls (ftp, zoom, speed, etc.)
 // - Add 3D/Anagluph mode
+// - Add Sound (optional), e.g. The Dig OST :)
 
 class Orrery {
   constructor(options) {
@@ -13,6 +16,7 @@ class Orrery {
     this.jed = this.toJED(this.startDate);
 
     this.planets = [];
+    this.asteroids = [];
 
     // Create star system
     this.createSystem();
@@ -24,14 +28,13 @@ class Orrery {
 
   createSystem() {
     this.renderer = new PIXI.CanvasRenderer(this.width, this.height, {
-      backgroundColor : 0x000000,
-      // autoResize: true
+      backgroundColor : 0x000000
     });
 
     this.stage = new PIXI.Container();
     this.stage.x = this.width / 2;
     this.stage.y = this.height / 2;
-    // this.stage.scale.set(2);
+    this.stage.scale.set(2);
 
     const orrery = document.getElementById('orrery');
     orrery.appendChild(this.renderer.view);
@@ -39,9 +42,15 @@ class Orrery {
 
   createStar() {
     const star = new PIXI.Graphics();
-    star.beginFill(0xfbbc05);
-    star.drawCircle(0, 0, 6);
+    star.beginFill(0xfff2ac);
+    star.drawCircle(0, 0, 5);
     star.endFill();
+
+    const blurFilter = new PIXI.filters.BlurFilter();
+    blurFilter.passes = 1;
+    blurFilter.blur = 20;
+    star.filters = [blurFilter];
+
     this.star = star;
     this.stage.addChild(this.star);
   }
@@ -59,14 +68,22 @@ class Orrery {
     });
   }
 
+  addAsteroids(mpcData) {
+    mpcData.forEach(data => {
+      const asteroid = new Asteroid(data);
+      this.asteroids.push(asteroid);
+      this.stage.addChild(asteroid.body);
+      asteroid.render(this.jed);
+    });
+  }
+
   animate() {
     requestAnimationFrame(this.animate.bind(this));
 
     this.jed += this.jedDelta;
 
-    this.planets.forEach(planet => {
-      planet.render(this.jed);
-    });
+    this.planets.forEach(planet => planet.render(this.jed));
+    this.asteroids.forEach(asteroid => asteroid.render(this.jed));
 
     this.renderer.render(this.stage);
 

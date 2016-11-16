@@ -104,7 +104,7 @@ def main(argv):
     if args.compact:
         output = mpcs
     else:
-        keys = ['disc', 'epoch', 'M', 'w', 'W', 'i', 'e', 'n', 'a']
+        keys = ['disc', 'epoch', 'a', 'e', 'i', 'W', 'w', 'M', 'n']
         output = [dict(izip(keys, mpc)) for mpc in mpcs]
 
     with open(outputfile, 'w') as outfile:
