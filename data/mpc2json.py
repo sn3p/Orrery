@@ -41,6 +41,7 @@ def pd2jd(pd):
 def main(argv):
     # Parse argumanets
     parser = argparse.ArgumentParser(description='Parse orbital and discovery data to json.')
+    parser.add_argument('amount', metavar='N', type=int, nargs='?', help='maximum number of results')
     parser.add_argument('-c', '--compact', action='store_true', dest='compact', help='output as compact json format')
     args = parser.parse_args()
 
@@ -79,6 +80,7 @@ def main(argv):
     """
 
     mpcs = []
+    count = 0
 
     for line in open(mpcorbfile):
         nr = line[167:173].strip().replace('(', '')
@@ -95,6 +97,10 @@ def main(argv):
         mpc = (mpcs_disc[nr], pd2jd(epoch), float(a), float(e), float(i), float(W), float(w), float(M), float(n))
         mpcs.append(mpc)
 
+        # Maximum requested reached?
+        count += 1
+        if count == args.amount: break
+
     if args.compact:
         output = mpcs
     else:
@@ -103,6 +109,7 @@ def main(argv):
 
     with open(outputfile, 'w') as outfile:
         json.dump(output, outfile)
+        # json.dump(output, outfile, indent=2, separators=(',', ':'))
 
     print 'Finished extracting %d MPCs in %s seconds.' % (len(mpcs), time()-start_time)
 
