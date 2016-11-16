@@ -6,7 +6,7 @@
 // http://mgvez.github.io/jsorrery/
 // https://lord.io/blog/2014/kepler/
 
-function ajaxGet(url, callback) {
+function ajaxGet (url, callback) {
   const xhr = window.XMLHttpRequest ? new XMLHttpRequest()
                                     : new ActiveXObject('Microsoft.XMLHTTP');
   xhr.open('GET', url);
@@ -21,6 +21,7 @@ function ajaxGet(url, callback) {
   return xhr;
 }
 
+const MPC_DATA_URL = 'data/mpcs.json';
 const PIXELS_PER_AU = 50;
 
 // Init Orrery
@@ -33,7 +34,7 @@ const orrery = new Orrery({
 orrery.addPlanets(planetData);
 
 // Load MPCs
-ajaxGet('data/mpcs.json', (data) => {
+ajaxGet(MPC_DATA_URL, (data) => {
   const asteroids = JSON.parse(data);
   orrery.addAsteroids(asteroids);
 });
