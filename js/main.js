@@ -16,7 +16,6 @@ function ajaxGet (url, callback) {
     }
   };
   xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-  xhr.setRequestHeader('Cache-Control', 'max-age=0');
   xhr.send();
   return xhr;
 }
@@ -33,10 +32,11 @@ const orrery = new Orrery({
 // Add planets
 orrery.addPlanets(planetData);
 
-// Load MPCs
+// Load asteroids
 ajaxGet(MPC_DATA_URL, (data) => {
-  const asteroids = JSON.parse(data);
-  orrery.addAsteroids(asteroids);
+  const asteroidData = JSON.parse(data);
+  // asteroids.sort((a, b) => a.disc - b.disc);
+  orrery.setAsteroids(asteroidData);
 });
 
 // Resize orrery

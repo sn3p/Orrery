@@ -2,8 +2,8 @@ class Asteroid {
   constructor(ephemeris, options) {
     this.ephemeris = ephemeris;
     options = options || {};
-    this.size = options.size || 0.2;
-    this.color = options.color || 0xcccccc;
+    this.size = options.size || 0.5;
+    this.color = options.color || 0xffffff;
 
     // Asteroid orbit
     this.orbit = new Orbit(this.ephemeris);

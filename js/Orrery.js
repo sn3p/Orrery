@@ -4,6 +4,7 @@
 // - Draw orbits (for planets)
 // - GUI: mpc count, etc.
 // - Controls: speed, etc.
+// - Create React app
 // - Add 3D/Anaglyph mode
 // - Add Sound (optional), e.g. The Dig OST :)
 
@@ -12,13 +13,15 @@ class Orrery {
     options = options || {};
     this.width = options.width || 800;
     this.height = options.height || 800;
-    this.startDate = options.startDate || new Date(1981);
+    this.startDate = options.startDate || new Date(1980, 1);
     this.endDate = options.endDate || new Date();
-    this.jedDelta = options.jedDelta || 1;
+    this.jedDelta = options.jedDelta || 1.5;
     this.jed = this.toJED(this.startDate);
 
     this.planets = [];
+    this.undiscoveredAsteroids = [];
     this.asteroids = [];
+    this.asteroidCount = 0;
 
     // Create star system
     this.createSystem();
@@ -38,6 +41,8 @@ class Orrery {
 
     this.stats = new Stats();
     this.gui.fps = document.getElementById('orrery-fps');
+
+    this.gui.count = document.getElementById('orrery-count');
   }
 
   updateGui() {
@@ -45,13 +50,16 @@ class Orrery {
     const date = this.fromJED(this.jed).toISOString().slice(0, 10);
     this.gui.date.textContent = date;
 
-    // Update FPS
     this.gui.fps.textContent = `${this.stats.fps} FPS`;
+    this.gui.count.textContent = this.asteroidCount;
   }
 
   createSystem() {
+    // this.renderer = new PIXI.autoDetectRenderer(this.width, this.height, {
     this.renderer = new PIXI.CanvasRenderer(this.width, this.height, {
+    // this.renderer = new PIXI.WebGLRenderer(this.width, this.height, {
       backgroundColor : 0x000000,
+      // autoResize: true,
       // transparent: true,
       // antialias: true
     });
@@ -70,11 +78,6 @@ class Orrery {
     star.drawCircle(0, 0, 5);
     star.endFill();
 
-    const blurFilter = new PIXI.filters.BlurFilter();
-    blurFilter.passes = 1;
-    blurFilter.blur = 20;
-    star.filters = [blurFilter];
-
     this.star = star;
     this.stage.addChild(this.star);
   }
@@ -92,19 +95,45 @@ class Orrery {
     });
   }
 
-  addAsteroids(mpcData) {
-    mpcData.forEach(data => {
-      const asteroid = new Asteroid(data);
-      this.asteroids.push(asteroid);
-      this.stage.addChild(asteroid.body);
-      asteroid.render(this.jed);
-    });
+  setAsteroids(asteroidData) {
+    this.undiscoveredAsteroids = asteroidData;
+
+    // Add all asteroids at once (for debugging/performance testing)
+    // asteroidData.forEach(data => this.addAsteroid(data));
+  }
+
+  discoverAsteroids(jed) {
+    let discoveryCount = 0;
+
+    for (let data of this.undiscoveredAsteroids) {
+      if (data.disc > jed) {
+        break;
+      }
+
+      discoveryCount++;
+      this.addAsteroid(data);
+    }
+
+    if (discoveryCount > 0) {
+      this.undiscoveredAsteroids.splice(0, discoveryCount);
+    }
+  }
+
+  addAsteroid(data) {
+    const asteroid = new Asteroid(data);
+    this.asteroids.push(asteroid);
+    this.stage.addChild(asteroid.body);
+    this.asteroidCount++;
+    asteroid.render(this.jed);
   }
 
   tick() {
     this.stats.begin();
 
     this.jed += this.jedDelta;
+
+    // Discover new asteroids
+    this.discoverAsteroids(this.jed);
 
     // Render
     this.planets.forEach(planet => planet.render(this.jed));
