@@ -1,3 +1,5 @@
+// Extend Orbit
+
 class Planet {
   constructor(ephemeris, options) {
     this.ephemeris = ephemeris;

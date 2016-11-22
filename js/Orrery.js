@@ -7,6 +7,7 @@
 // - Create React app
 // - Add 3D/Anaglyph mode
 // - Add Sound (optional), e.g. The Dig OST :)
+// - Create layers: planets above asteroids
 
 class Orrery {
   constructor(options) {
@@ -19,7 +20,6 @@ class Orrery {
     this.jed = this.toJED(this.startDate);
 
     this.planets = [];
-    this.undiscoveredAsteroids = [];
     this.asteroids = [];
     this.asteroidCount = 0;
 
@@ -63,10 +63,9 @@ class Orrery {
       // transparent: true,
       // antialias: true
     });
-
-    this.stage = new PIXI.Container();
-    this.stage.x = this.width / 2;
-    this.stage.y = this.height / 2;
+    this.graphics = new PIXI.Graphics();
+    this.graphics.x = this.width / 2;
+    this.graphics.y = this.height / 2;
 
     const orrery = document.getElementById('orrery');
     orrery.appendChild(this.renderer.view);
@@ -79,7 +78,7 @@ class Orrery {
     star.endFill();
 
     this.star = star;
-    this.stage.addChild(this.star);
+    this.graphics.addChild(this.star);
   }
 
   addPlanets(planetData) {
@@ -90,55 +89,46 @@ class Orrery {
         color: data.color
       });
       this.planets.push(planet);
-      this.stage.addChild(planet.body);
+      this.graphics.addChild(planet.body);
       planet.render(this.jed);
     });
   }
 
   setAsteroids(asteroidData) {
-    this.undiscoveredAsteroids = asteroidData;
-
-    // Add all asteroids at once (for debugging/performance testing)
-    // asteroidData.forEach(data => this.addAsteroid(data));
+    this.asteroids = asteroidData;
   }
 
-  discoverAsteroids(jed) {
-    let discoveryCount = 0;
+  drawAsteroids(jed) {
+    this.asteroidCount = 0;
 
-    for (let data of this.undiscoveredAsteroids) {
-      if (data.disc > jed) {
-        break;
+    for (let asteroid of this.asteroids) {
+      if (asteroid.disc <= jed) {
+        this.drawAsteroid(asteroid);
+        this.asteroidCount++;
       }
-
-      discoveryCount++;
-      this.addAsteroid(data);
-    }
-
-    if (discoveryCount > 0) {
-      this.undiscoveredAsteroids.splice(0, discoveryCount);
     }
   }
 
-  addAsteroid(data) {
-    const asteroid = new Asteroid(data);
-    this.asteroids.push(asteroid);
-    this.stage.addChild(asteroid.body);
-    this.asteroidCount++;
-    asteroid.render(this.jed);
+  drawAsteroid(data) {
+    const orbit = new Orbit(data);
+    const {x, y} = orbit.getPosAtTime(this.jed);
+    this.graphics.beginFill(0xffffff);
+    this.graphics.drawCircle(x, y, 0.5);
+    this.graphics.endFill();
   }
 
   tick() {
     this.stats.begin();
 
+    this.graphics.clear();
     this.jed += this.jedDelta;
 
-    // Discover new asteroids
-    this.discoverAsteroids(this.jed);
+    // Draw asteroids
+    this.drawAsteroids(this.jed);
 
     // Render
     this.planets.forEach(planet => planet.render(this.jed));
-    this.asteroids.forEach(asteroid => asteroid.render(this.jed));
-    this.renderer.render(this.stage);
+    this.renderer.render(this.graphics);
 
     this.updateGui();
 
@@ -148,8 +138,8 @@ class Orrery {
 
   resize(width, height) {
     this.renderer.resize(width, height);
-    this.stage.x = width / 2;
-    this.stage.y = height / 2;
+    this.graphics.x = width / 2;
+    this.graphics.y = height / 2;
   }
 
   // Gregorian to Julian date
