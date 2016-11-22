@@ -14,7 +14,7 @@ class Controls {
     const delta = event.wheelDelta || -event.detail;
     const multiplier = this.options.multiplier;
     const factor = (delta > 0 ? multiplier : 1 / multiplier);
-    const scale = this.orrery.stage.scale;
+    const scale = this.orrery.graphics.scale;
 
     scale.set(scale.x * factor);
   }
