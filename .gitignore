@@ -2,5 +2,8 @@
 /data/MPCORB.DAT*
 /data/NumberedMPs.txt
 
+# Dependancies
+node_modules/
+
 # OS files
 .DS_Store

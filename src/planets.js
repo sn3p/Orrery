@@ -16,7 +16,7 @@
 // M     = Mean anomaly (degrees, L - ϖ)
 // P     = Period to complete one orbit
 
-const planetData = [
+export default [
   {
     name: "Mercury",
     size: 1.6,

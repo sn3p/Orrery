@@ -8,7 +8,13 @@
 // - Add 3D/Anaglyph mode
 // - Create layers: planets above asteroids
 
-class Orrery {
+import * as PIXI from "pixi.js";
+import Controls from "./Controls.js";
+import Stats from "./Stats.js";
+import Planet from "./Planet.js";
+import Asteroid from "./Asteroid.js";
+
+export default class Orrery {
   constructor(options) {
     options = options || {};
     this.width = options.width || 800;
