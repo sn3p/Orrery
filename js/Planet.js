@@ -8,10 +8,13 @@ class Planet {
     this.orbit = new Orbit(ephemeris);
 
     // Planet body
-    this.body = new PIXI.Sprite(PIXI.Texture.WHITE);
-    this.body.anchor.set(0.5, 0.5);
-    this.body.width = this.size;
-    this.body.height = this.size;
+    const sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+    sprite.tint = this.color;
+    sprite.width = this.size;
+    sprite.height = this.size;
+    sprite.anchor.x = 0.5;
+    sprite.anchor.y = 0.5;
+    this.body = sprite;
   }
 
   render(jed) {

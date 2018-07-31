@@ -6,7 +6,7 @@
 // - Controls: speed, etc.
 // - Create React app
 // - Add 3D/Anaglyph mode
-// - Add Sound (optional), e.g. The Dig OST :)
+// - Create layers: planets above asteroids
 
 class Orrery {
   constructor(options) {

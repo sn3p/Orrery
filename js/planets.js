@@ -19,7 +19,7 @@
 const planetData = [
   {
     name: "Mercury",
-    size: 0.8,
+    size: 1.6,
     color: 0xeccd9e,
     ephemeris: {
       epoch: 2451545.0,
@@ -36,7 +36,7 @@ const planetData = [
   },
   {
     name: "Venus",
-    size: 0.9,
+    size: 1.8,
     color: 0xeccd9e,
     ephemeris: {
       epoch: 2451545.0,
@@ -53,7 +53,7 @@ const planetData = [
   },
   {
     name: "Earth",
-    size: 1.4,
+    size: 2.8,
     color: 0x98c0ff,
     ephemeris: {
       epoch: 2451545.0,
@@ -70,7 +70,7 @@ const planetData = [
   },
   {
     name: "Mars",
-    size: 1.1,
+    size: 2.2,
     color: 0xffbc83,
     ephemeris: {
       epoch: 2451545.0,
@@ -87,7 +87,7 @@ const planetData = [
   },
   {
     name: "Jupiter",
-    size: 2,
+    size: 4,
     color: 0xc5c3bd,
     ephemeris: {
       epoch: 2451545.0,
@@ -104,7 +104,7 @@ const planetData = [
   },
   {
     name: "Saturn",
-    size: 1.6,
+    size: 3.2,
     color: 0xeccd9e,
     ephemeris: {
       epoch: 2451545.0,
