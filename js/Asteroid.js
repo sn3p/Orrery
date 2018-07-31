@@ -1,25 +1,20 @@
 class Asteroid {
-  constructor(ephemeris, options) {
-    this.ephemeris = ephemeris;
-    options = options || {};
+  constructor(ephemeris, options = {}) {
     this.size = options.size || 0.5;
-    this.color = options.color || 0xffffff;
 
     // Asteroid orbit
-    this.orbit = new Orbit(this.ephemeris);
+    this.orbit = new Orbit(ephemeris);
 
     // Asteroid body
-    const body = new PIXI.Graphics();
-    body.beginFill(this.color);
-    // TODO: would drawRect be more efficient?
-    body.drawCircle(0, 0, this.size);
-    body.endFill();
-    this.body = body;
+    this.body = new PIXI.Sprite(PIXI.Texture.WHITE);
+    this.body.anchor.set(0.5, 0.5);
+    this.body.width = this.size;
+    this.body.height = this.size;
   }
 
   render(jed) {
-    const pos = this.orbit.getPosAtTime(jed);
-    this.body.x = pos.x;
-    this.body.y = pos.y;
+    const { x, y } = this.orbit.getPosAtTime(jed);
+    this.body.position.x = x;
+    this.body.position.y = y;
   }
 }
