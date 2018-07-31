@@ -1,4 +1,7 @@
-class Planet {
+import * as PIXI from "pixi.js";
+import Orbit from "./Orbit.js";
+
+export default class Planet {
   constructor(ephemeris, options = {}) {
     this.name = options.name;
     this.size = options.size || 4;

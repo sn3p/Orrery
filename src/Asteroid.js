@@ -1,4 +1,7 @@
-class Asteroid {
+import * as PIXI from "pixi.js";
+import Orbit from "./Orbit.js";
+
+export default class Asteroid {
   constructor(ephemeris, options = {}) {
     this.size = options.size || 1;
     this.color = options.color || 0xffffff;

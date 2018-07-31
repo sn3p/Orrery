@@ -1,4 +1,4 @@
-class Controls {
+export default class Controls {
   constructor(orrery, options) {
     options = options || {};
     options.multiplier = options.multiplier || 1.04;
