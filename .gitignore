@@ -1,3 +1,6 @@
-# mpc dara files
+# MPC data files
 /data/MPCORB.DAT*
 /data/NumberedMPs.txt
+
+# OS files
+.DS_Store

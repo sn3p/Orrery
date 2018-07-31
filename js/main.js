@@ -6,21 +6,22 @@
 // http://mgvez.github.io/jsorrery/
 // https://lord.io/blog/2014/kepler/
 
-function ajaxGet (url, callback) {
-  const xhr = window.XMLHttpRequest ? new XMLHttpRequest()
-                                    : new ActiveXObject('Microsoft.XMLHTTP');
-  xhr.open('GET', url);
+function ajaxGet(url, callback) {
+  const xhr = window.XMLHttpRequest
+    ? new XMLHttpRequest()
+    : new ActiveXObject("Microsoft.XMLHTTP");
+  xhr.open("GET", url);
   xhr.onreadystatechange = () => {
     if (xhr.readyState > 3 && xhr.status === 200) {
       callback(xhr.responseText);
     }
   };
-  xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+  xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
   xhr.send();
   return xhr;
 }
 
-const MPC_DATA_URL = 'data/mpcs.json';
+const MPC_DATA_URL = "data/mpcs.json";
 const PIXELS_PER_AU = 100;
 
 // Init Orrery
@@ -33,13 +34,13 @@ const orrery = new Orrery({
 orrery.addPlanets(planetData);
 
 // Load asteroids
-ajaxGet(MPC_DATA_URL, (data) => {
+ajaxGet(MPC_DATA_URL, data => {
   const asteroidData = JSON.parse(data);
   // asteroids.sort((a, b) => a.disc - b.disc);
   orrery.setAsteroids(asteroidData);
 });
 
 // Resize orrery
-window.addEventListener('resize', () => {
+window.addEventListener("resize", () => {
   orrery.resize(window.innerWidth, window.innerHeight);
 });

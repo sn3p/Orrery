@@ -6,7 +6,7 @@
 
 class Stats {
   constructor() {
-    this.performance = (performance || Date);
+    this.performance = performance || Date;
     this.fps = 0;
     this.frames = 0;
     this.beginTime = this.performance.now();
@@ -18,7 +18,7 @@ class Stats {
   }
 
   end() {
-    this.frames ++;
+    this.frames++;
     const time = this.performance.now();
 
     if (time > this.prevTime + 1000) {
@@ -33,4 +33,4 @@ class Stats {
   update() {
     this.beginTime = this.end();
   }
-};
+}

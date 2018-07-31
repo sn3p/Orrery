@@ -37,17 +37,19 @@ class Orrery {
 
   setupGui() {
     this.gui = {};
-    this.gui.date = document.getElementById('orrery-date');
+    this.gui.date = document.getElementById("orrery-date");
 
     this.stats = new Stats();
-    this.gui.fps = document.getElementById('orrery-fps');
+    this.gui.fps = document.getElementById("orrery-fps");
 
-    this.gui.count = document.getElementById('orrery-count');
+    this.gui.count = document.getElementById("orrery-count");
   }
 
   updateGui() {
     // Update current date
-    const date = this.fromJED(this.jed).toISOString().slice(0, 10);
+    const date = this.fromJED(this.jed)
+      .toISOString()
+      .slice(0, 10);
     this.gui.date.textContent = date;
 
     this.gui.fps.textContent = `${this.stats.fps} FPS`;
@@ -57,8 +59,8 @@ class Orrery {
   createSystem() {
     // this.renderer = new PIXI.autoDetectRenderer(this.width, this.height, {
     this.renderer = new PIXI.CanvasRenderer(this.width, this.height, {
-    // this.renderer = new PIXI.WebGLRenderer(this.width, this.height, {
-      backgroundColor : 0x000000,
+      // this.renderer = new PIXI.WebGLRenderer(this.width, this.height, {
+      backgroundColor: 0x000000
       // autoResize: true,
       // transparent: true,
       // antialias: true
@@ -68,7 +70,7 @@ class Orrery {
     this.stage.x = this.width / 2;
     this.stage.y = this.height / 2;
 
-    const orrery = document.getElementById('orrery');
+    const orrery = document.getElementById("orrery");
     orrery.appendChild(this.renderer.view);
   }
 
@@ -153,7 +155,7 @@ class Orrery {
   }
 
   // Gregorian to Julian date
-  toJED(d){
+  toJED(d) {
     return d / 86400000 + 2440587.5;
   }
 
