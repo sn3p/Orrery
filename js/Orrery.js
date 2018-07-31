@@ -57,9 +57,7 @@ class Orrery {
   }
 
   createSystem() {
-    // this.renderer = new PIXI.autoDetectRenderer(this.width, this.height, {
-    this.renderer = new PIXI.CanvasRenderer(this.width, this.height, {
-      // this.renderer = new PIXI.WebGLRenderer(this.width, this.height, {
+    this.renderer = new PIXI.WebGLRenderer(this.width, this.height, {
       backgroundColor: 0x000000
       // autoResize: true,
       // transparent: true,
