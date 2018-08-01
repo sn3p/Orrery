@@ -17,5 +17,12 @@ module.exports = {
         }
       }
     ]
+  },
+  devServer: {
+    port: 8080,
+    publicPath: "/dist",
+    watchOptions: {
+      ignored: /node_modules/
+    }
   }
 };
