@@ -1,25 +1,44 @@
 #!/usr/bin/env python
 """
-Extract MPC discovery dates and orbital elements.
-
-Discovery dates are extracted from the file NumberedMPs.txt:
-http://www.minorplanetcenter.net/iau/lists/NumberedMPs.txt
+Extract minor planet orbital elements and discovery dates to json.
 
 Orbital elements are extracted from the file MPCORB.DAT:
-http://www.minorplanetcenter.net/iau/MPCORB/MPCORB.DAT
+https://minorplanetcenter.net/iau/MPCORB/MPCORB.DAT
+Discovery dates are extracted from the file NumberedMPs.txt:
+https://minorplanetcenter.net/iau/lists/NumberedMPs.txt
+
+Usage:
+======
+./data_to_json.py [-h] [-c] [N]
+
+Parse orbital and discovery data to json.
+
+positional arguments:
+  N              maximum number of results
+
+optional arguments:
+  -h, --help     show this help message and exit
+  -c, --compact  output as compact json format
 
 TODO:
-- Get maximum amount of results
+=====
 - Get range between discovery dates
 - Create an API (python server)
 """
 
-import sys, json, argparse
+OUTPUT_FILE = 'mpcs.json'
+MPCORB_FILE = 'MPCORB.DAT'
+NUMMPS_FILE = 'NumberedMPs.txt'
+
+import os, sys, json, argparse
 from time import time
 from datetime import datetime
 from itertools import izip
 # from jdcal import gcal2jd, jd2gcal
 # from astropy.time import Time
+
+# Change working directory to the module path
+os.chdir(os.path.dirname(os.path.realpath(__file__)))
 
 # Datetime to Julian date
 def dt2jd(dt):
@@ -45,19 +64,15 @@ def main(argv):
     parser.add_argument('-c', '--compact', action='store_true', dest='compact', help='output as compact json format')
     args = parser.parse_args()
 
-    mpcorbfile = 'MPCORB.DAT'
-    nummpsfile = 'NumberedMPs.txt'
-    outputfile = 'mpcs.json'
-
     print 'Extracting MPC discovery dates and orbital elements ...'
     start_time = time()
 
     # Extract the discovery dates from NumberedMPs.txt
-    # For a description of the format see http://www.minorplanetcenter.net/iau/lists/NumberedMPs000001.html
+    # For a description of the format see https://minorplanetcenter.net/iau/lists/NumberedMPs000001.html
 
     mpcs_disc = {}
 
-    for line in open(nummpsfile):
+    for line in open(NUMMPS_FILE):
         nr = int(line[1:7].strip().replace('(', ''))
         # Extract the discovery date (YYYY MM DD) and convert it to Julian date
         date = datetime.strptime(line[41:51], '%Y %m %d')
@@ -65,7 +80,7 @@ def main(argv):
 
     """
     Extract the orbital elements from MPCORB.DAT
-    For a description of the format see http://www.minorplanetcenter.net/iau/info/MPOrbitFormat.html
+    For a description of the format see https://minorplanetcenter.net/iau/info/MPOrbitFormat.html
 
     The following columns are extracted:
 
@@ -82,7 +97,7 @@ def main(argv):
     mpcs = []
     count = 0
 
-    for line in open(mpcorbfile):
+    for line in open(MPCORB_FILE):
         nr = line[167:173].strip().replace('(', '')
         if not nr: continue
         nr = int(nr)
@@ -107,7 +122,7 @@ def main(argv):
         keys = ['disc', 'epoch', 'a', 'e', 'i', 'W', 'w', 'M', 'n']
         output = [dict(izip(keys, mpc)) for mpc in mpcs]
 
-    with open(outputfile, 'w') as outfile:
+    with open(OUTPUT_FILE, 'w') as outfile:
         json.dump(output, outfile)
         # json.dump(output, outfile, indent=2, separators=(',', ':'))
 

@@ -2,19 +2,36 @@
 
 [Visualization](https://sn3p.github.io/Orrery) showing the orbits of [minor planets](https://en.wikipedia.org/wiki/Minor_planet) and their discovery over time.
 
-The data is extracted from:
+The data we use is maintained by [The Minor Planet Center (MPC)](https://minorplanetcenter.net/). We use two separate datasets (which are updated daily) to extract the orbital elements and discovery circumstances of minor planets:
 
-- [The MPC Orbit (MPCORB) Database](https://minorplanetcenter.net/iau/MPCORB.html)
-  The MPC Orbit (MPCORB) database contains orbital elements of minor planets that have been published in the Minor Planet Circulars, the Minor Planet Orbit Supplement and the Minor Planet Electronic Circulars.
+- [The MPC Orbit (MPCORB) Database](https://minorplanetcenter.net/iau/MPCORB.html) Database containing orbital elements of minor planets.
 
-- [NumberedMPs.txt](http://www.minorplanetcenter.net/iau/lists/NumberedMPs.txt) Discovery circumstances of the numbered minor planets.
+- [NumberedMPs.txt](http://www.minorplanetcenter.net/iau/lists/NumberedMPs.txt) Discovery circumstances of the minor planets.
 
-## How to build
+## How to start
 
 Install dependencies using `npm install` or `yarn install`.  
 Start server using `npm run start` or `yarn start`.  
 Build and bundle using `npm run build` or `yarn build`.  
 Watch changes and rebuild using `npm run watch` or `yarn watch`.
+
+## Download en parse data
+
+Data files are stored in the `data` directory.
+You can either download the data files manually using the links above, or use the download script:
+
+Download the data and parse it to json:
+
+```bash
+cd data
+./download_data.sh && ./data_to_json.py
+```
+
+There are over 500k results, so the output json file will be rather large and will be heavy to render. You can limit the maximum amount of results by passing a number as an argument:
+
+```bash
+./data_to_json.sh 9999
+```
 
 ## Screenshot
 
