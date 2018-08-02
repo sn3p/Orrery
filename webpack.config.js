@@ -24,6 +24,8 @@ module.exports = {
   devServer: {
     port: 8080,
     publicPath: "/dist",
+    contentBase: "./",
+    watchContentBase: true,
     watchOptions: {
       ignored: /node_modules/
     }
