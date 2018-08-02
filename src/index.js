@@ -1,3 +1,11 @@
+// TODO:
+// - Highlight MPCs the moment they are discovered
+// - Draw orbits (for planets)
+// - Controls: speed, etc.
+// - Create React app
+// - Add 3D/Anaglyph mode
+// - Create layers: planets above asteroids
+//
 // Inspiration:
 // https://www.youtube.com/watch?v=BKKg4lZ_o-Y
 // https://github.com/typpo/asterank
@@ -38,7 +46,6 @@ orrery.addPlanets(planetData);
 // Load asteroids
 ajaxGet(MPC_DATA_URL, data => {
   const asteroidData = JSON.parse(data);
-  // asteroids.sort((a, b) => a.disc - b.disc);
   orrery.setAsteroids(asteroidData);
 });
 

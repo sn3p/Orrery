@@ -1,13 +1,3 @@
-// TODO:
-// - Render MPCs from the moment they've been discovered
-// - Init Graphics once to improve performance
-// - Draw orbits (for planets)
-// - GUI: mpc count, etc.
-// - Controls: speed, etc.
-// - Create React app
-// - Add 3D/Anaglyph mode
-// - Create layers: planets above asteroids
-
 import * as PIXI from "pixi.js";
 import Controls from "./Controls.js";
 import Stats from "./Stats.js";
@@ -25,13 +15,11 @@ export default class Orrery {
     this.jed = this.toJED(this.startDate);
 
     this.planets = [];
-    this.undiscoveredAsteroids = [];
+    this.asteroidData = [];
     this.asteroids = [];
-    this.asteroidCount = 0;
 
     // Create star system
     this.createSystem();
-    this.createStar();
 
     // Setup GUI and controls
     this.setupGui();
@@ -59,7 +47,7 @@ export default class Orrery {
     this.gui.date.textContent = date;
 
     this.gui.fps.textContent = `${this.stats.fps} FPS`;
-    this.gui.count.textContent = this.asteroidCount;
+    this.gui.count.textContent = this.asteroids.length;
   }
 
   createSystem() {
@@ -70,22 +58,29 @@ export default class Orrery {
       // antialias: true
     });
 
+    // Container for graphics
     this.stage = new PIXI.Container();
     this.stage.x = this.width / 2;
     this.stage.y = this.height / 2;
+
+    // Add star
+    this.addStar();
+
+    // Container for particles
+    this.particles = new PIXI.particles.ParticleContainer();
+    this.stage.addChild(this.particles);
 
     const orrery = document.getElementById("orrery");
     orrery.appendChild(this.renderer.view);
   }
 
-  createStar() {
+  addStar() {
     const star = new PIXI.Graphics();
     star.beginFill(0xfff2ac);
     star.drawCircle(0, 0, 5);
     star.endFill();
 
-    this.star = star;
-    this.stage.addChild(this.star);
+    this.stage.addChild(star);
   }
 
   addPlanets(planetData) {
@@ -96,22 +91,23 @@ export default class Orrery {
         color: data.color
       });
       this.planets.push(planet);
-      this.stage.addChild(planet.body);
+      this.particles.addChild(planet.body);
       planet.render(this.jed);
     });
   }
 
   setAsteroids(asteroidData) {
-    this.undiscoveredAsteroids = asteroidData;
+    this.asteroidData = asteroidData;
 
     // Add all asteroids at once (for debugging/performance testing)
+    // this.asteroidData = [];
     // asteroidData.forEach(data => this.addAsteroid(data));
   }
 
   discoverAsteroids(jed) {
     let discoveryCount = 0;
 
-    for (let data of this.undiscoveredAsteroids) {
+    for (let data of this.asteroidData) {
       if (data.disc > jed) {
         break;
       }
@@ -121,16 +117,15 @@ export default class Orrery {
     }
 
     if (discoveryCount > 0) {
-      this.undiscoveredAsteroids.splice(0, discoveryCount);
+      this.asteroidData.splice(0, discoveryCount);
     }
   }
 
   addAsteroid(data) {
     const asteroid = new Asteroid(data);
     this.asteroids.push(asteroid);
-    this.stage.addChild(asteroid.body);
+    this.particles.addChild(asteroid.body);
     this.asteroidCount++;
-    asteroid.render(this.jed);
   }
 
   tick() {
@@ -138,7 +133,7 @@ export default class Orrery {
 
     this.jed += this.jedDelta;
 
-    // Discover new asteroids
+    // Add asteroids
     this.discoverAsteroids(this.jed);
 
     // Render
@@ -149,10 +144,13 @@ export default class Orrery {
     this.updateGui();
 
     this.stats.end();
+
     requestAnimationFrame(this.tick.bind(this));
   }
 
   resize(width, height) {
+    this.width = width;
+    this.height = height;
     this.renderer.resize(width, height);
     this.stage.x = width / 2;
     this.stage.y = height / 2;

@@ -1,6 +1,5 @@
 export default class Controls {
-  constructor(orrery, options) {
-    options = options || {};
+  constructor(orrery, options = {}) {
     options.multiplier = options.multiplier || 1.04;
     this.options = options;
     this.orrery = orrery;
