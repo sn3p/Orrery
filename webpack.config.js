@@ -7,6 +7,9 @@ module.exports = {
     path: path.resolve(__dirname, "dist"),
     filename: "bundle.js"
   },
+  externals: {
+    "pixi.js": "PIXI"
+  },
   module: {
     rules: [
       {

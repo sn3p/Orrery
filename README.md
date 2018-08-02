@@ -15,7 +15,7 @@ Start server using `npm run start` or `yarn start`.
 Build and bundle using `npm run build` or `yarn build`.  
 Watch changes and rebuild using `npm run watch` or `yarn watch`.
 
-## Download en parse data
+## Get updated data
 
 Data files are stored in the `data` directory.
 You can either download the data files manually using the links above, or use the download script:
