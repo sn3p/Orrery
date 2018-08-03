@@ -67,9 +67,22 @@ export default class Orrery {
     this.addStar();
 
     // Container for particles
-    this.particles = new PIXI.particles.ParticleContainer();
+    this.planetContainer = new PIXI.particles.ParticleContainer(10);
+    this.stage.addChild(this.planetContainer);
+
+    // this.particles = new PIXI.Container();
+    this.particles = new PIXI.particles.ParticleContainer(
+      999999,
+      { scale: true, tint: true },
+      16384,
+      true
+    );
     this.stage.addChild(this.particles);
 
+    // Create asteroid sprite
+    this.asteroidTexture = this.createAsteroidTexture();
+
+    // Render the view
     const orrery = document.getElementById("orrery");
     orrery.appendChild(this.renderer.view);
   }
@@ -90,10 +103,19 @@ export default class Orrery {
         size: data.size,
         color: data.color
       });
+
       this.planets.push(planet);
-      this.particles.addChild(planet.body);
-      planet.render(this.jed);
+      this.planetContainer.addChild(planet.body);
     });
+  }
+
+  createAsteroidTexture() {
+    const graphics = new PIXI.Graphics();
+    graphics.beginFill(0xffffff);
+    graphics.drawCircle(0, 0, 4);
+    graphics.endFill();
+
+    return this.renderer.generateTexture(graphics);
   }
 
   setAsteroids(asteroidData) {
@@ -122,7 +144,7 @@ export default class Orrery {
   }
 
   addAsteroid(data) {
-    const asteroid = new Asteroid(data);
+    const asteroid = new Asteroid(data, this.asteroidTexture);
     this.asteroids.push(asteroid);
     this.particles.addChild(asteroid.body);
     this.asteroidCount++;
