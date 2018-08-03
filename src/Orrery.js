@@ -67,11 +67,33 @@ export default class Orrery {
     this.addStar();
 
     // Container for particles
-    this.particles = new PIXI.particles.ParticleContainer();
-    this.stage.addChild(this.particles);
+    this.planetContainer = new PIXI.particles.ParticleContainer(10);
+    this.stage.addChild(this.planetContainer);
 
+    // this.particles = new PIXI.Container();
+    this.particleContainer = new PIXI.particles.ParticleContainer(
+      999999,
+      { scale: true, tint: true },
+      16384,
+      true
+    );
+    this.stage.addChild(this.particleContainer);
+
+    // Create textures
+    this.cirleTexture = this.createCirleTexture();
+
+    // Render the view
     const orrery = document.getElementById("orrery");
     orrery.appendChild(this.renderer.view);
+  }
+
+  createCirleTexture(radius = 5) {
+    const graphics = new PIXI.Graphics();
+    graphics.beginFill(0xffffff);
+    graphics.drawCircle(0, 0, radius);
+    graphics.endFill();
+
+    return this.renderer.generateTexture(graphics);
   }
 
   addStar() {
@@ -85,14 +107,14 @@ export default class Orrery {
 
   addPlanets(planetData) {
     planetData.forEach(data => {
-      const planet = new Planet(data.ephemeris, {
+      const planet = new Planet(data.ephemeris, this.cirleTexture, {
         name: data.name,
         size: data.size,
         color: data.color
       });
+
       this.planets.push(planet);
-      this.particles.addChild(planet.body);
-      planet.render(this.jed);
+      this.planetContainer.addChild(planet.body);
     });
   }
 
@@ -122,9 +144,9 @@ export default class Orrery {
   }
 
   addAsteroid(data) {
-    const asteroid = new Asteroid(data);
+    const asteroid = new Asteroid(data, this.cirleTexture);
     this.asteroids.push(asteroid);
-    this.particles.addChild(asteroid.body);
+    this.particleContainer.addChild(asteroid.body);
     this.asteroidCount++;
   }
 

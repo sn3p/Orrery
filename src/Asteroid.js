@@ -2,24 +2,50 @@ import * as PIXI from "pixi.js";
 import Orbit from "./Orbit.js";
 
 export default class Asteroid {
-  constructor(ephemeris, options = {}) {
-    this.size = options.size || 1;
-    this.color = options.color || 0xffffff;
+  static defaultOptions = {
+    size: 1,
+    color: 0xaaaaaa,
+    discoveryColor: 0x00ff00,
+    discoveryScale: 3
+  };
 
-    // Asteroid orbit
+  constructor(ephemeris, texture, options = {}) {
+    this.options = Object.assign({}, Asteroid.defaultOptions, options);
+
+    // Orbital elements
     this.orbit = new Orbit(ephemeris);
 
-    // Asteroid body
-    const sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
-    sprite.tint = this.color;
-    sprite.width = this.size;
-    sprite.height = this.size;
-    sprite.anchor.x = 0.5;
-    sprite.anchor.y = 0.5;
+    // Sprite
+    const sprite = new PIXI.Sprite(texture);
+    sprite.width = sprite.height = this.options.size;
+    sprite.anchor.x = sprite.anchor.y = 0.5;
+    sprite.tint = this.options.discoveryColor;
+
+    // Set scale
+    this.originalScale = sprite.scale.x;
+    sprite.scale.x = sprite.scale.y *= this.options.discoveryScale;
+
     this.body = sprite;
   }
 
   render(jed) {
+    this.renderPosition(jed);
+
+    this.body.scale.x = this.body.scale.y -= 0.01;
+
+    if (this.body.scale.x <= this.originalScale) {
+      this.body.tint = this.options.color;
+
+      // Revert to original scale
+      this.body.scale.x = this.body.scale.y = this.originalScale;
+      delete this.originalScale;
+
+      // Overwrite render function
+      this.render = this.renderPosition;
+    }
+  }
+
+  renderPosition(jed) {
     const { x, y } = this.orbit.getPosAtTime(jed);
     this.body.position.x = x;
     this.body.position.y = y;
