@@ -52,13 +52,13 @@ export default class Orrery {
 
   createSystem() {
     this.renderer = new PIXI.WebGLRenderer(this.width, this.height, {
-      backgroundColor: 0x000000
+      backgroundColor: 0x000000,
       // autoResize: true,
       // transparent: true,
-      // antialias: true
+      antialias: true
     });
 
-    // Container for graphics
+    // Main container
     this.stage = new PIXI.Container();
     this.stage.x = this.width / 2;
     this.stage.y = this.height / 2;
@@ -66,11 +66,11 @@ export default class Orrery {
     // Add star
     this.addStar();
 
-    // Container for particles
+    // Container for planets
     this.planetContainer = new PIXI.particles.ParticleContainer(10);
     this.stage.addChild(this.planetContainer);
 
-    // this.particles = new PIXI.Container();
+    // Container for asteroids
     this.particleContainer = new PIXI.particles.ParticleContainer(
       999999,
       { scale: true, tint: true },
@@ -113,6 +113,11 @@ export default class Orrery {
         color: data.color
       });
 
+      // Draw orbit
+      const orbit = planet.orbit.createOrbit(this.jed);
+      this.stage.addChild(orbit);
+
+      // Add planet
       this.planets.push(planet);
       this.planetContainer.addChild(planet.body);
     });

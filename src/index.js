@@ -2,7 +2,6 @@
 // - Highlight MPCs the moment they are discovered
 // - Draw orbits (for planets)
 // - Controls: speed, etc.
-// - Create React app
 // - Add 3D/Anaglyph mode
 // - Create layers: planets above asteroids
 //

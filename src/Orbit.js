@@ -64,4 +64,32 @@ export default class Orbit {
     // const z = r * (sin(v + p - o) * sin(i))
     // return { x: x, y: y, z: z };
   }
+
+  createOrbit(jed = 2451545.0) {
+    const parts = 360;
+    const period = this.getPeriodInDays();
+    const delta = period / parts;
+
+    const line = new PIXI.Graphics();
+    line.lineStyle(0.2, 0x555555);
+
+    for (let i = 0; i <= parts; i++) {
+      jed += delta;
+      const pos = this.getPosAtTime(jed);
+
+      if (i === 0) {
+        line.moveTo(pos.x, pos.y);
+      } else {
+        line.lineTo(pos.x, pos.y);
+      }
+    }
+
+    line.endFill();
+
+    return line;
+  }
+
+  getPeriodInDays() {
+    return Math.sqrt(Math.pow(this.ephemeris.a, 3)) * 365.25;
+  }
 }
