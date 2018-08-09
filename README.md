@@ -30,7 +30,7 @@ cd data
 There are over 500k results, so the output json file will be rather large and will be heavy to render. You can limit the maximum amount of results by passing a number as an argument:
 
 ```bash
-./data_to_json.sh 9999
+./data_to_json.py 9999
 ```
 
 ## Screenshot

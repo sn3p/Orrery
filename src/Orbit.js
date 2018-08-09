@@ -9,7 +9,6 @@ export default class Orbit {
   // https://github.com/typpo/asterank/blob/master/static/js/3d/ellipse.js#L45
   // http://nbodyphysics.com/blog/2016/05/29/planetary-orbits-in-javascript/
   getPosAtTime(jed) {
-    const pi = Math.PI;
     const sin = Math.sin;
     const cos = Math.cos;
 
@@ -28,13 +27,9 @@ export default class Orbit {
     if (eph.n) {
       n = eph.n * DEG_TO_RAD;
     } else {
-      n = (2 * pi) / eph.P;
+      n = (2 * Math.PI) / eph.P;
     }
-
     const d = jed - epoch;
-    //L = ma + p;
-
-    // const M = n * -d + L - p;
     const M = ma + n * d;
 
     // estimate eccentric and true anom using iterative approx
@@ -46,7 +41,6 @@ export default class Orbit {
       lastdiff = Math.abs(E1 - E0);
       E0 = E1;
     } while (lastdiff > 0.0000001);
-    //} while(lastdiff > 0.00001);
 
     const E = E0;
     const v = 2 * Math.atan(Math.sqrt((1 + e) / (1 - e)) * Math.tan(E / 2));
@@ -57,9 +51,8 @@ export default class Orbit {
     // heliocentric coords
     const x = r * (cos(o) * cos(v + p - o) + sin(o) * sin(v + p - o) * cos(i));
     const y = r * (sin(o) * cos(v + p - o) - cos(o) * sin(v + p - o) * cos(i));
+
     return { x: x, y: y };
-    // const z = r * (sin(v + p - o) * sin(i))
-    // return { x: x, y: y, z: z };
   }
 
   createOrbit(jed = J2000) {
