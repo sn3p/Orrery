@@ -1,4 +1,5 @@
 import * as PIXI from "pixi.js";
+import { toJED, fromJED } from "./utils";
 import Controls from "./Controls.js";
 import Stats from "./Stats.js";
 import Planet from "./Planet.js";
@@ -12,7 +13,7 @@ export default class Orrery {
     this.startDate = options.startDate || new Date(1980, 1);
     this.endDate = options.endDate || new Date();
     this.jedDelta = options.jedDelta || 1.5;
-    this.jed = this.toJED(this.startDate);
+    this.jed = toJED(this.startDate);
 
     this.planets = [];
     this.asteroidData = [];
@@ -41,7 +42,7 @@ export default class Orrery {
 
   updateGui() {
     // Update current date
-    const date = this.fromJED(this.jed)
+    const date = fromJED(this.jed)
       .toISOString()
       .slice(0, 10);
     this.gui.date.textContent = date;
@@ -181,15 +182,5 @@ export default class Orrery {
     this.renderer.resize(width, height);
     this.stage.x = width / 2;
     this.stage.y = height / 2;
-  }
-
-  // Gregorian to Julian date
-  toJED(d) {
-    return d / 86400000 + 2440587.5;
-  }
-
-  // Julian to Gregorian date
-  fromJED(jed) {
-    return new Date(86400000 * (-2440587.5 + jed));
   }
 }
