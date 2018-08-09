@@ -4,19 +4,13 @@ export default class Controls {
     this.options = options;
     this.orrery = orrery;
 
-    orrery.renderer.view.addEventListener(
-      "DOMMouseScroll",
-      this.onScroll.bind(this),
-      false
-    ); // Firefox
-    orrery.renderer.view.addEventListener(
-      "mousewheel",
-      this.onScroll.bind(this),
-      false
-    ); // Other
+    // Firefox
+    orrery.renderer.view.addEventListener("DOMMouseScroll", this.onScroll);
+    // Other
+    orrery.renderer.view.addEventListener("mousewheel", this.onScroll);
   }
 
-  onScroll(event) {
+  onScroll = event => {
     // Firefox has `detail` prop with opposite sign to `wheelDelta`
     const delta = event.wheelDelta || -event.detail;
     const multiplier = this.options.multiplier;
@@ -24,5 +18,5 @@ export default class Controls {
     const scale = this.orrery.stage.scale;
 
     scale.set(scale.x * factor);
-  }
+  };
 }
