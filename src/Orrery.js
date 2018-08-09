@@ -10,7 +10,7 @@ export default class Orrery {
     options = options || {};
     this.width = options.width || 800;
     this.height = options.height || 800;
-    this.startDate = options.startDate || new Date(1980, 1);
+    this.startDate = options.startDate || new Date(1990, 1);
     this.endDate = options.endDate || new Date();
     this.jedDelta = options.jedDelta || 1.5;
     this.jed = toJED(this.startDate);

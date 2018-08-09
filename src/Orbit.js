@@ -21,7 +21,7 @@ export default class Orbit {
     const p = (eph.wbar || eph.w + eph.W) * DEG_TO_RAD; // longitude of perihelion
     const ma = eph.M * DEG_TO_RAD; // mean anomaly at J2000
 
-    // mean motion
+    // Mean motion
     // eph.n is provided for asteroids but not for planets
     let n;
     if (eph.n) {
@@ -32,7 +32,7 @@ export default class Orbit {
     const d = jed - epoch;
     const M = ma + n * d;
 
-    // estimate eccentric and true anom using iterative approx
+    // Estimate eccentric and true anom using iterative approx
     let E0 = M;
     let lastdiff;
 
@@ -42,15 +42,14 @@ export default class Orbit {
       E0 = E1;
     } while (lastdiff > 0.0000001);
 
-    const E = E0;
-    const v = 2 * Math.atan(Math.sqrt((1 + e) / (1 - e)) * Math.tan(E / 2));
+    const v = 2 * Math.atan(Math.sqrt((1 + e) / (1 - e)) * Math.tan(E0 / 2));
 
-    // radius vector in AU
+    // Radius vector in AU
     const r = ((a * (1 - e * e)) / (1 + e * cos(v))) * PIXELS_PER_AU;
 
-    // heliocentric coords
-    const x = r * (cos(o) * cos(v + p - o) + sin(o) * sin(v + p - o) * cos(i));
-    const y = r * (sin(o) * cos(v + p - o) - cos(o) * sin(v + p - o) * cos(i));
+    // Heliocentric coords
+    const x = r * (cos(o) * cos(v + p - o) - sin(o) * sin(v + p - o) * cos(i));
+    const y = r * (sin(o) * cos(v + p - o) + cos(o) * sin(v + p - o) * cos(i));
 
     return { x: x, y: y };
   }

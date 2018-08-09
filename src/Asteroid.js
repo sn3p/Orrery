@@ -31,7 +31,7 @@ export default class Asteroid {
   render(jed) {
     this.renderPosition(jed);
 
-    this.body.scale.x = this.body.scale.y -= 0.01;
+    this.body.scale.x = this.body.scale.y -= 0.005;
 
     if (this.body.scale.x <= this.originalScale) {
       this.body.tint = this.options.color;
