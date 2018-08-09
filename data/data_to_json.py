@@ -26,7 +26,7 @@ TODO:
 - Create an API (python server)
 """
 
-OUTPUT_FILE = 'mpcs.json'
+OUTPUT_FILE = 'catalog.json'
 MPCORB_FILE = 'MPCORB.DAT'
 NUMMPS_FILE = 'NumberedMPs.txt'
 
@@ -34,8 +34,6 @@ import os, sys, json, argparse
 from time import time
 from datetime import datetime
 from itertools import izip
-# from jdcal import gcal2jd, jd2gcal
-# from astropy.time import Time
 
 # Change working directory to the module path
 os.chdir(os.path.dirname(os.path.realpath(__file__)))

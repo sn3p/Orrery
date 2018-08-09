@@ -31,7 +31,7 @@ function ajaxGet(url, callback) {
   return xhr;
 }
 
-const MPC_DATA_URL = "data/mpcs.json";
+const MPC_DATA_URL = "data/catalog.json";
 
 // Init Orrery
 const orrery = new Orrery({
