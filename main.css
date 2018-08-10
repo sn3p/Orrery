@@ -1,44 +1,5 @@
-body {
-  background: #000;
-  font-family: Lucida Console, Courier, monospace;
-  margin: 0;
-  -webkit-transform: scale(1);
-          transform: scale(1);
-}
-
-.orrery {
-  bottom: 0;
-  left: 0;
-  position: fixed;
-  right: 0;
-  top: 0;
-}
-
-.orrery-date,
-.orrery-fps,
-.orrery-count {
-  color: #666;
-  padding: 5px;
-  position: fixed;
-}
-
-.orrery-fps {
-  left: 0;
-  top: 0;
-}
-
-.orrery-date {
-  bottom: 0;
-  left: 0;
-}
-
-.orrery-count {
-  bottom: 0;
-  right: 0;
-}
-
 /*
-dat.GUI
+dat.GUI overrides
 */
 
 .dg,
@@ -90,5 +51,51 @@ dat.GUI
 
 .dg .c:hover input {
   color: #999 !important;
+}
+
+/*
+Main
+*/
+
+:root {
+  --text-color: #666;
+}
+
+body {
+  background: #000;
+  font-family: Lucida Console, Courier, monospace;
+  margin: 0;
+}
+
+.orrery {
+  bottom: 0;
+  left: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
+}
+
+.orrery-date,
+.orrery-fps,
+.orrery-count {
+  color: #666;
+  color: var(--text-color);
+  padding: 5px;
+  position: fixed;
+}
+
+.orrery-fps {
+  left: 0;
+  top: 0;
+}
+
+.orrery-date {
+  bottom: 0;
+  left: 0;
+}
+
+.orrery-count {
+  bottom: 0;
+  right: 0;
 }
 
