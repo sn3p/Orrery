@@ -34,7 +34,7 @@ module.exports = {
           {
             loader: "file-loader",
             options: {
-              name: "[name].[ext]"
+              name: "data/[name].[ext]"
             }
           }
         ]
