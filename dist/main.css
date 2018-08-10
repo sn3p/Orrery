@@ -2,6 +2,8 @@ body {
   background: #000;
   font-family: Lucida Console, Courier, monospace;
   margin: 0;
+  -webkit-transform: scale(1);
+          transform: scale(1);
 }
 
 .orrery {

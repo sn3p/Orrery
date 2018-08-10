@@ -16,7 +16,7 @@
 import Orrery from "./Orrery.js";
 import planetData from "./planets.js";
 import catalog from "../../data/catalog.json";
-import "../style.css";
+import "../css/main.css";
 
 const MPC_DATA_URL = catalog;
 

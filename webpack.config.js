@@ -25,7 +25,12 @@ module.exports = {
       },
       {
         test: /\.css$/,
-        use: ["style-loader", MiniCssExtractPlugin.loader, "css-loader"]
+        use: [
+          "style-loader",
+          MiniCssExtractPlugin.loader,
+          { loader: "css-loader", options: { importLoaders: 1 } },
+          "postcss-loader"
+        ]
       },
       {
         test: /\.json$/,
@@ -42,7 +47,7 @@ module.exports = {
     ]
   },
   plugins: [
-    new MiniCssExtractPlugin({ filename: "style.css" }),
+    new MiniCssExtractPlugin({ filename: "[name].css" }),
     new HtmlWebpackPlugin({
       inject: false,
       hash: true,
