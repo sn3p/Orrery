@@ -2,6 +2,7 @@ import * as PIXI from "pixi.js";
 import { toJED, fromJED } from "./utils";
 import Controls from "./Controls.js";
 import Stats from "./Stats.js";
+import Gui from "./Gui.js";
 import Planet from "./Planet.js";
 import Asteroid from "./Asteroid.js";
 
@@ -11,7 +12,6 @@ export default class Orrery {
     this.width = options.width || 800;
     this.height = options.height || 800;
     this.startDate = options.startDate || new Date(1990, 1);
-    this.endDate = options.endDate || new Date();
     this.jedDelta = options.jedDelta || 1.5;
     this.jed = toJED(this.startDate);
 
@@ -38,13 +38,16 @@ export default class Orrery {
     this.gui.fps = document.getElementById("orrery-fps");
 
     this.gui.count = document.getElementById("orrery-count");
+
+    this.gui.controls = new Gui(this);
   }
 
   updateGui() {
-    // Update current date
+    // Update the date
     const date = fromJED(this.jed)
       .toISOString()
       .slice(0, 10);
+
     this.gui.date.textContent = date;
 
     this.gui.fps.textContent = `${this.stats.fps} FPS`;

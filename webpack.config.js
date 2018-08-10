@@ -8,6 +8,7 @@ module.exports = {
     filename: "bundle.js"
   },
   externals: {
+    "dat.gui": "dat",
     "pixi.js": "PIXI"
   },
   module: {
