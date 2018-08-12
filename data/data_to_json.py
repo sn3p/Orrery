@@ -34,6 +34,7 @@ import os, sys, json, argparse
 from time import time
 from datetime import datetime
 from itertools import izip
+from operator import itemgetter
 
 # Change working directory to the module path
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
@@ -113,6 +114,9 @@ def main(argv):
         # Maximum requested reached?
         count += 1
         if count == args.amount: break
+
+    # Sort by discovery date
+    mpcs.sort(key=itemgetter(0))
 
     if args.compact:
         output = mpcs
