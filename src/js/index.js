@@ -13,27 +13,13 @@
 // http://mgvez.github.io/jsorrery/
 // https://lord.io/blog/2014/kepler/
 
+import { ajaxGet } from "./utils";
 import Orrery from "./Orrery.js";
 import planetData from "./planets.js";
 import catalog from "../../data/catalog.json";
 import "../css/main.css";
 
 const MPC_DATA_URL = catalog;
-
-function ajaxGet(url, callback) {
-  const xhr = window.XMLHttpRequest
-    ? new XMLHttpRequest()
-    : new ActiveXObject("Microsoft.XMLHTTP");
-  xhr.open("GET", url);
-  xhr.onreadystatechange = () => {
-    if (xhr.readyState > 3 && xhr.status === 200) {
-      callback(xhr.responseText);
-    }
-  };
-  xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-  xhr.send();
-  return xhr;
-}
 
 // Init Orrery
 const orrery = new Orrery({
