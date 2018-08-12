@@ -9,8 +9,7 @@ export default class Orbit {
   // https://github.com/typpo/asterank/blob/master/static/js/3d/ellipse.js#L45
   // http://nbodyphysics.com/blog/2016/05/29/planetary-orbits-in-javascript/
   getPosAtTime(jed) {
-    const sin = Math.sin;
-    const cos = Math.cos;
+    const { cos, sin } = Math;
 
     const eph = this.ephemeris;
     const epoch = eph.epoch;
@@ -51,7 +50,7 @@ export default class Orbit {
     const x = r * (cos(o) * cos(v + p - o) - sin(o) * sin(v + p - o) * cos(i));
     const y = r * (sin(o) * cos(v + p - o) + cos(o) * sin(v + p - o) * cos(i));
 
-    return { x: x, y: y };
+    return { x: -x, y: y };
   }
 
   createOrbit(jed = J2000) {
