@@ -11,7 +11,7 @@ export default class Orrery {
     options = options || {};
     this.width = options.width || 800;
     this.height = options.height || 800;
-    this.startDate = options.startDate || new Date(1990, 1);
+    this.startDate = options.startDate || new Date(1980, 1);
     this.jedDelta = options.jedDelta || 1.5;
     this.jed = toJED(this.startDate);
 
@@ -60,6 +60,7 @@ export default class Orrery {
       // autoResize: true,
       // transparent: true,
       antialias: true
+      // forceFXAA: true
     });
 
     // Main container
@@ -136,19 +137,31 @@ export default class Orrery {
   }
 
   discoverAsteroids(jed) {
-    let discoveryCount = 0;
+    if (this.jedDelta > 0) {
+      // Forward in time
+      for (let i = this.asteroids.length; i < this.asteroidData.length; ++i) {
+        const data = this.asteroidData[i];
 
-    for (let data of this.asteroidData) {
-      if (data.disc > jed) {
-        break;
+        if (data.disc > jed) {
+          break;
+        }
+
+        // Add asteroid
+        this.addAsteroid(data);
       }
+    } else {
+      // Backward in time
+      for (let i = this.asteroids.length - 1; i >= 0; --i) {
+        const asteroid = this.asteroids[i];
 
-      discoveryCount++;
-      this.addAsteroid(data);
-    }
+        if (asteroid.disc < jed) {
+          this.asteroids.splice(i + 1);
+          break;
+        }
 
-    if (discoveryCount > 0) {
-      this.asteroidData.splice(0, discoveryCount);
+        // Remove asteroid
+        this.particleContainer.removeChild(asteroid.body);
+      }
     }
   }
 
@@ -156,28 +169,29 @@ export default class Orrery {
     const asteroid = new Asteroid(data, this.cirleTexture);
     this.asteroids.push(asteroid);
     this.particleContainer.addChild(asteroid.body);
-    this.asteroidCount++;
   }
 
-  tick() {
+  tick = () => {
     this.stats.begin();
 
-    this.jed += this.jedDelta;
+    if (this.jedDelta !== 0) {
+      this.jed += this.jedDelta;
 
-    // Add asteroids
-    this.discoverAsteroids(this.jed);
+      // Discover asteroids
+      this.discoverAsteroids(this.jed);
 
-    // Render
-    this.planets.forEach(planet => planet.render(this.jed));
-    this.asteroids.forEach(asteroid => asteroid.render(this.jed));
-    this.renderer.render(this.stage);
+      // Render everything
+      this.planets.forEach(planet => planet.render(this.jed));
+      this.asteroids.forEach(asteroid => asteroid.render(this.jed));
+      this.renderer.render(this.stage);
 
-    this.updateGui();
+      this.updateGui();
+    }
 
     this.stats.end();
 
-    requestAnimationFrame(this.tick.bind(this));
-  }
+    requestAnimationFrame(this.tick);
+  };
 
   resize(width, height) {
     this.width = width;

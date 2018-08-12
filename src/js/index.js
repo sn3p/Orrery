@@ -47,6 +47,10 @@ orrery.addPlanets(planetData);
 // Load asteroids
 ajaxGet(MPC_DATA_URL, data => {
   const asteroidData = JSON.parse(data);
+
+  // Sort by discovery date
+  asteroidData.sort((a, b) => a.disc - b.disc);
+
   orrery.setAsteroids(asteroidData);
 });
 

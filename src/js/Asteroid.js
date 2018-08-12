@@ -9,11 +9,12 @@ export default class Asteroid {
     discoveryScale: 3
   };
 
-  constructor(ephemeris, texture, options = {}) {
+  constructor(data, texture, options = {}) {
     this.options = Object.assign({}, Asteroid.defaultOptions, options);
+    this.disc = data.disc;
 
-    // Orbital elements
-    this.orbit = new Orbit(ephemeris);
+    // Orbit
+    this.orbit = new Orbit(data);
 
     // Sprite
     const sprite = new PIXI.Sprite(texture);
