@@ -52,7 +52,7 @@ module.exports = {
       inject: false,
       hash: true,
       template: "./src/index.html",
-      filename: "./index.html"
+      filename: "index.html"
     })
   ],
   devServer: {

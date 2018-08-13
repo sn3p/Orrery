@@ -7,8 +7,7 @@ import Planet from "./Planet.js";
 import Asteroid from "./Asteroid.js";
 
 export default class Orrery {
-  constructor(options) {
-    options = options || {};
+  constructor(options = {}) {
     this.width = options.width || 800;
     this.height = options.height || 800;
     this.startDate = options.startDate || new Date(1980, 1);
@@ -132,17 +131,16 @@ export default class Orrery {
     this.asteroidData = asteroidData;
 
     // Add all asteroids at once (for debugging/performance testing)
-    // this.asteroidData = [];
     // asteroidData.forEach(data => this.addAsteroid(data));
   }
 
-  discoverAsteroids(jed) {
+  discoverAsteroids() {
     if (this.jedDelta > 0) {
       // Forward in time
       for (let i = this.asteroids.length; i < this.asteroidData.length; ++i) {
         const data = this.asteroidData[i];
 
-        if (data.disc > jed) {
+        if (data.disc > this.jed) {
           break;
         }
 
@@ -154,7 +152,7 @@ export default class Orrery {
       for (let i = this.asteroids.length - 1; i >= 0; --i) {
         const asteroid = this.asteroids[i];
 
-        if (asteroid.disc < jed) {
+        if (asteroid.disc < this.jed) {
           this.asteroids.splice(i + 1);
           break;
         }
@@ -172,13 +170,15 @@ export default class Orrery {
   }
 
   tick = () => {
+    requestAnimationFrame(this.tick);
+
     this.stats.begin();
 
     if (this.jedDelta !== 0) {
       this.jed += this.jedDelta;
 
       // Discover asteroids
-      this.discoverAsteroids(this.jed);
+      this.discoverAsteroids();
 
       // Render everything
       this.planets.forEach(planet => planet.render(this.jed));
@@ -189,8 +189,6 @@ export default class Orrery {
     }
 
     this.stats.end();
-
-    requestAnimationFrame(this.tick);
   };
 
   resize(width, height) {
