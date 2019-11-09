@@ -1,6 +1,6 @@
 {
   "name": "Orrery",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Asteroid discovery visualization",
   "main": "src/js/index.js",
   "repository": "git@github.com:sn3p/Orrery.git",
