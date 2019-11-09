@@ -54,7 +54,9 @@ export default class Orrery {
   }
 
   createSystem() {
-    this.renderer = new PIXI.WebGLRenderer(this.width, this.height, {
+    this.renderer = new PIXI.Renderer({
+      width: this.width,
+      height: this.height,
       backgroundColor: 0x000000,
       // autoResize: true,
       // transparent: true,
@@ -71,11 +73,11 @@ export default class Orrery {
     this.addStar();
 
     // Container for planets
-    this.planetContainer = new PIXI.particles.ParticleContainer(10);
+    this.planetContainer = new PIXI.ParticleContainer(10);
     this.stage.addChild(this.planetContainer);
 
     // Container for asteroids
-    this.particleContainer = new PIXI.particles.ParticleContainer(
+    this.particleContainer = new PIXI.ParticleContainer(
       999999,
       { scale: true, tint: true },
       16384,
