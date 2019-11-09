@@ -31,7 +31,7 @@
     "webpack-dev-server": "^3.9.0"
   },
   "peerDependencies": {
-    "dat.gui": "^0.7.2",
-    "pixi.js": "^4.8.1"
+    "dat.gui": "^0.7.6",
+    "pixi.js": "^4.8.8"
   }
 }
