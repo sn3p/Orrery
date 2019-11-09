@@ -1,3 +1,4 @@
+import * as PIXI from "pixi.js";
 import { PIXELS_PER_AU, J2000, YEAR, DEG_TO_RAD } from "./constants.js";
 
 export default class Orbit {

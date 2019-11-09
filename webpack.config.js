@@ -10,10 +10,6 @@ module.exports = {
     path: path.resolve(__dirname, "dist"),
     filename: "bundle.js"
   },
-  externals: {
-    "dat.gui": "dat",
-    "pixi.js": "PIXI"
-  },
   module: {
     rules: [
       {

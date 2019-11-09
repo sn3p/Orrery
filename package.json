@@ -12,6 +12,10 @@
     "watch": "webpack --mode development --watch",
     "start": "webpack-dev-server --mode development --open"
   },
+  "dependencies": {
+    "dat.gui": "^0.7.6",
+    "pixi.js": "^5.2.0"
+  },
   "devDependencies": {
     "@babel/core": "^7.7.2",
     "@babel/plugin-proposal-class-properties": "^7.7.0",
@@ -29,9 +33,5 @@
     "webpack": "^4.41.2",
     "webpack-cli": "^3.3.10",
     "webpack-dev-server": "^3.9.0"
-  },
-  "peerDependencies": {
-    "dat.gui": "^0.7.6",
-    "pixi.js": "^4.8.8"
   }
 }
