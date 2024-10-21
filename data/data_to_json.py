@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Extract minor planet orbital elements and discovery dates to json.
 
@@ -33,7 +33,7 @@ NUMMPS_FILE = 'NumberedMPs.txt'
 import os, sys, json, argparse
 from time import time
 from datetime import datetime
-from itertools import izip
+from itertools import zip_longest
 from operator import itemgetter
 
 # Change working directory to the module path
@@ -63,19 +63,31 @@ def main(argv):
     parser.add_argument('-c', '--compact', action='store_true', dest='compact', help='output as compact json format')
     args = parser.parse_args()
 
-    print 'Extracting MPC discovery dates and orbital elements ...'
+    print('Extracting MPC discovery dates and orbital elements ...')
     start_time = time()
 
-    # Extract the discovery dates from NumberedMPs.txt
-    # For a description of the format see https://minorplanetcenter.net/iau/lists/NumberedMPs000001.html
+    """
+    Extract the discovery dates from NumberedMPs.txt
+    For a description of the format see https://minorplanetcenter.net/iau/lists/NumberedMPs000001.html
+    """
 
     mpcs_disc = {}
 
     for line in open(NUMMPS_FILE):
-        nr = int(line[1:7].strip().replace('(', ''))
-        # Extract the discovery date (YYYY MM DD) and convert it to Julian date
-        date = datetime.strptime(line[41:51], '%Y %m %d')
-        mpcs_disc[nr] = dt2jd(date)
+        nr_str = line[1:7].strip().replace('(', '')
+        if not nr_str.isdigit():
+            print(f"Skipping line for invalid number: {nr_str}")
+            continue
+        nr = int(nr_str)
+
+        # Extract the discovery date (YYYY MM DD)
+        date_str = line[41:51]
+        try:
+            # Convert it to Julian date
+            date = datetime.strptime(date_str, '%Y %m %d')
+            mpcs_disc[nr] = dt2jd(date)
+        except ValueError:
+            print(f"Skipping invalid date: {date_str} for MP #{nr}")
 
     """
     Extract the orbital elements from MPCORB.DAT
@@ -93,17 +105,20 @@ def main(argv):
     n     = Mean daily motion (degrees per day)
     """
 
+    mpcs_disc_len = len(mpcs_disc)
     mpcs = []
-    count = 0
+    found = 0
 
     for line in open(MPCORB_FILE):
-        nr = line[167:173].strip().replace('(', '')
-        if not nr: continue
-        nr = int(nr)
+        nr_str = line[167:173].strip().replace('(', '')
+        if not nr_str.isdigit():
+            print(f"Skipping line for invalid number: {nr_str}")
+            continue
+        nr = int(nr_str)
 
         # Skip if discovery date is missing
         if nr not in mpcs_disc:
-            print 'Skipping MPC #%d (no discovery date found)' % (nr)
+            print(f'Skipping MP #{nr} (no discovery date found)')
             continue
 
         # Extract the orbital elements
@@ -112,8 +127,11 @@ def main(argv):
         mpcs.append(mpc)
 
         # Maximum requested reached?
-        count += 1
-        if count == args.amount: break
+        found += 1
+        if found == args.amount:
+            break
+        if found == mpcs_disc_len:
+            break
 
     # Sort by discovery date
     mpcs.sort(key=itemgetter(0))
@@ -122,13 +140,13 @@ def main(argv):
         output = mpcs
     else:
         keys = ['disc', 'epoch', 'a', 'e', 'i', 'W', 'w', 'M', 'n']
-        output = [dict(izip(keys, mpc)) for mpc in mpcs]
+        output = [dict(zip(keys, mpc)) for mpc in mpcs]
 
     with open(OUTPUT_FILE, 'w') as outfile:
         json.dump(output, outfile)
         # json.dump(output, outfile, indent=2, separators=(',', ':'))
 
-    print 'Finished extracting %d MPCs in %s seconds.' % (len(mpcs), time()-start_time)
+    print('Finished extracting %d MPCs in %s seconds.' % (len(mpcs), time()-start_time))
 
 if __name__ == '__main__':
     main(sys.argv[1:])
