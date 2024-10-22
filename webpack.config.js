@@ -4,11 +4,11 @@ const HtmlWebpackPlugin = require("html-webpack-plugin");
 
 module.exports = {
   entry: {
-    main: "./src/js/index.js"
+    main: "./src/js/index.js",
   },
   output: {
     path: path.resolve(__dirname, "dist"),
-    filename: "bundle.js"
+    filename: "bundle.js",
   },
   module: {
     rules: [
@@ -16,17 +16,16 @@ module.exports = {
         test: /\.js$/,
         exclude: /node_modules/,
         use: {
-          loader: "babel-loader"
-        }
+          loader: "babel-loader",
+        },
       },
       {
         test: /\.css$/,
         use: [
-          "style-loader",
           MiniCssExtractPlugin.loader,
           { loader: "css-loader", options: { importLoaders: 1 } },
-          "postcss-loader"
-        ]
+          "postcss-loader",
+        ],
       },
       {
         test: /\.json$/,
@@ -35,12 +34,12 @@ module.exports = {
           {
             loader: "file-loader",
             options: {
-              name: "data/[name].[ext]"
-            }
-          }
-        ]
-      }
-    ]
+              name: "data/[name].[ext]",
+            },
+          },
+        ],
+      },
+    ],
   },
   plugins: [
     new MiniCssExtractPlugin({ filename: "[name].css" }),
@@ -48,14 +47,19 @@ module.exports = {
       inject: false,
       hash: true,
       template: "./src/index.html",
-      filename: "index.html"
-    })
+    }),
   ],
   devServer: {
-    port: 8080,
-    watchContentBase: true,
-    watchOptions: {
-      ignored: /node_modules/
-    }
-  }
+    port: 3000,
+    open: true,
+    static: {
+      directory: path.join(__dirname, "dist"),
+    },
+    watchFiles: {
+      paths: ["src/**/*"],
+      options: {
+        ignored: /node_modules/,
+      },
+    },
+  },
 };
