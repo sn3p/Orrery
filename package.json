@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "dat.gui": "^0.7.6",
-    "pixi.js": "^5.3.12"
+    "pixi.js": "^7.4.2"
   },
   "devDependencies": {
     "@babel/core": "^7.25.8",
