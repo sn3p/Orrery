@@ -8,10 +8,7 @@ export default class Planet {
   };
 
   constructor(ephemeris, texture, options = {}) {
-    // console.log("-----");
-    // console.log(Planet.defaultOptions.color);
     this.options = Object.assign({}, Planet.defaultOptions, options);
-    // console.log(this.options.color);
 
     // Planet orbit
     this.orbit = new Orbit(ephemeris);

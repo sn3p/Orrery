@@ -67,6 +67,7 @@ export default class Orbit {
       jed += delta;
       const pos = this.getPosAtTime(jed);
 
+      // TODO: doesn't look like a dashed line
       if (i === 0) {
         line.moveTo(pos.x, pos.y);
       } else {
