@@ -1,4 +1,4 @@
-import { Particle } from "pixi.js";
+import { Color, Particle, Graphics } from "pixi.js";
 import Orbit from "./Orbit.js";
 
 export default class Planet {
@@ -8,7 +8,10 @@ export default class Planet {
   };
 
   constructor(ephemeris, texture, options = {}) {
+    // console.log("-----");
+    // console.log(Planet.defaultOptions.color);
     this.options = Object.assign({}, Planet.defaultOptions, options);
+    // console.log(this.options.color);
 
     // Planet orbit
     this.orbit = new Orbit(ephemeris);
@@ -16,8 +19,10 @@ export default class Planet {
     // Planet body
     const particle = new Particle(texture);
     particle.scaleX = particle.scaleY = this.options.size / texture.width;
-    particle.anchorX = particle.anchorY = 0.5;
-    particle.tint = this.options.color;
+    // particle.anchorX = particle.anchorY = 0.5; // TODO: is this correct/required?
+    // particle.color = new Color(this.options.color);
+    particle.tint = new Color(this.options.color);
+
     this.body = particle;
   }
 

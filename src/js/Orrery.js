@@ -13,16 +13,9 @@ export default class Orrery {
     this.jedDelta = options.jedDelta || 1.5;
     this.jed = toJED(this.startDate);
 
-    // Create star system
-    // this.createSystem();
-
     // Setup GUI and controls
     // this.setupGui();
     // this.controls = new Controls(this);
-
-    // Start rendering
-    // this.tick();
-    // this.app.ticker.add(this.tick.bind(this));
   }
 
   async init() {
@@ -55,32 +48,8 @@ export default class Orrery {
     this.asteroidData = [];
     this.asteroids = [];
 
-    // Add sun
-    this.addSun();
-
-    // Container for planets
-    this.planetContainer = new ParticleContainer(10);
-    this.stage.addChild(this.planetContainer);
-
-    //
+    // Create texture
     this.cirleTexture = this.createCirleTexture();
-
-    return;
-
-    this.renderer = new autoDetectRenderer({
-      width: this.width,
-      height: this.height,
-      backgroundColor: 0x000000,
-      // autoResize: true,
-      // transparent: true,
-      antialias: true,
-      // forceFXAA: true
-    });
-
-    // Main container
-    this.stage = new Container();
-    this.stage.x = this.width / 2;
-    this.stage.y = this.height / 2;
 
     // Add sun
     this.addSun();
@@ -90,6 +59,7 @@ export default class Orrery {
     this.stage.addChild(this.planetContainer);
 
     // Container for asteroids
+    // TODO: rename to asteroidContainer
     this.particleContainer = new ParticleContainer(
       999999,
       { scale: true, tint: true },
@@ -97,13 +67,6 @@ export default class Orrery {
       true
     );
     this.stage.addChild(this.particleContainer);
-
-    // Create textures
-    this.cirleTexture = this.createCirleTexture();
-
-    // Render the view
-    // const orrery = document.getElementById("orrery");
-    orrery.appendChild(this.renderer.view);
   }
 
   // setupGui() {
@@ -128,7 +91,6 @@ export default class Orrery {
   //   this.gui.count.textContent = this.asteroids.length;
   // }
 
-  // createCirleTexture(radius = 1) {
   createCirleTexture(radius = 5) {
     const gfx = new Graphics();
     gfx.circle(0, 0, radius).fill({ color: 0xffffff });
@@ -198,23 +160,21 @@ export default class Orrery {
   addAsteroid(data) {
     const asteroid = new Asteroid(data, this.cirleTexture);
     this.asteroids.push(asteroid);
-    this.particleContainer.addChild(asteroid.body);
+    this.particleContainer.addParticle(asteroid.body);
   }
 
   tick(ticker) {
-    // console.log(ticker);
-
     // this.stats.begin();
 
     if (this.jedDelta !== 0) {
       this.jed += this.jedDelta;
 
       // Discover asteroids
-      // this.discoverAsteroids();
+      this.discoverAsteroids();
 
       // Render planets and asteroids
       this.planets.forEach((planet) => planet.render(this.jed));
-      // this.asteroids.forEach((asteroid) => asteroid.render(this.jed));
+      this.asteroids.forEach((asteroid) => asteroid.render(this.jed));
       // this.renderer.render(this.stage);
 
       // this.updateGui();

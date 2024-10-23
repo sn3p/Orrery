@@ -1,4 +1,4 @@
-import * as PIXI from "pixi.js";
+import { Particle } from "pixi.js";
 import Orbit from "./Orbit.js";
 
 export default class Asteroid {
@@ -6,7 +6,7 @@ export default class Asteroid {
     size: 1,
     color: 0xaaaaaa,
     discoveryColor: 0x00ff00,
-    discoveryScale: 3
+    discoveryScale: 3,
   };
 
   constructor(data, texture, options = {}) {
@@ -16,30 +16,28 @@ export default class Asteroid {
     // Orbit
     this.orbit = new Orbit(data);
 
-    // Sprite
-    const sprite = new PIXI.Sprite(texture);
-    sprite.width = sprite.height = this.options.size;
-    sprite.anchor.x = sprite.anchor.y = 0.5;
-    sprite.tint = this.options.discoveryColor;
-
-    // Set scale
-    this.originalScale = sprite.scale.x;
-    sprite.scale.x = sprite.scale.y *= this.options.discoveryScale;
-
-    this.body = sprite;
+    // Asteroid body
+    // TODO: create a custom texture for asteroids of 1px size?
+    const particle = new Particle(texture);
+    this.originalScale = this.options.size / texture.width;
+    particle.scaleX = particle.scaleY = this.originalScale * this.options.discoveryScale;
+    // particle.anchorX = particle.anchorY = 0.5; // TODO: is this correct/required?
+    particle.tint = this.options.discoveryColor;
+    this.body = particle;
   }
 
   render(jed) {
     this.renderPosition(jed);
 
-    this.body.scale.x = this.body.scale.y -= 0.005;
+    this.body.scaleX = this.body.scaleY -= 0.005;
 
-    if (this.body.scale.x <= this.originalScale) {
-      this.body.tint = this.options.color;
-
-      // Revert to original scale
-      this.body.scale.x = this.body.scale.y = this.originalScale;
+    if (this.body.scaleX <= this.originalScale) {
+      // Set original scale
+      this.body.scaleX = this.body.scaleY = this.originalScale;
       delete this.originalScale;
+
+      // Set original color
+      this.body.tint = this.options.color;
 
       // Overwrite render function
       this.render = this.renderPosition;
@@ -48,7 +46,7 @@ export default class Asteroid {
 
   renderPosition(jed) {
     const { x, y } = this.orbit.getPosAtTime(jed);
-    this.body.position.x = x;
-    this.body.position.y = y;
+    this.body.x = x;
+    this.body.y = y;
   }
 }

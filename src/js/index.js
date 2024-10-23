@@ -28,14 +28,14 @@ orrery.init().then(() => {
   orrery.addPlanets(planetData);
 
   // Load asteroids
-  // fetch(MPC_DATA_URL)
-  //   .then((response) => response.json())
-  //   .then((data) => {
-  //     // Sort by discovery date
-  //     data.sort((a, b) => a.disc - b.disc);
+  fetch(MPC_DATA_URL)
+    .then((response) => response.json())
+    .then((data) => {
+      // Sort by discovery date
+      data.sort((a, b) => a.disc - b.disc);
 
-  //     orrery.setAsteroids(data);
-  //   });
+      orrery.setAsteroids(data);
+    });
 
   // Resize orrery
   window.addEventListener("resize", () => {

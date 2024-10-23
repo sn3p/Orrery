@@ -31,8 +31,8 @@ export default [
       wbar: 77.45645,
       L: 252.25084, // never used?
       M: 174.79439,
-      P: 87.969
-    }
+      P: 87.969,
+    },
   },
   {
     name: "Venus",
@@ -48,13 +48,14 @@ export default [
       wbar: 131.53298,
       L: 181.97973,
       M: 50.44675,
-      P: 224.701
-    }
+      P: 224.701,
+    },
   },
   {
     name: "Earth",
     size: 2.8,
     color: 0x98c0ff,
+    // color: "#98c0ff",
     ephemeris: {
       epoch: 2451545.0,
       a: 1.00000011,
@@ -65,8 +66,8 @@ export default [
       wbar: 102.94719,
       L: 100.46435,
       M: -2.47311027,
-      P: 365.256
-    }
+      P: 365.256,
+    },
   },
   {
     name: "Mars",
@@ -82,8 +83,8 @@ export default [
       wbar: 336.04084,
       L: 355.45332,
       M: 19.41248,
-      P: 686.98
-    }
+      P: 686.98,
+    },
   },
   {
     name: "Jupiter",
@@ -99,8 +100,8 @@ export default [
       wbar: 14.75385,
       L: 34.40438,
       M: 19.65053,
-      P: 4332.589
-    }
+      P: 4332.589,
+    },
   },
   {
     name: "Saturn",
@@ -116,9 +117,9 @@ export default [
       wbar: 92.43194,
       L: 49.94432,
       M: 42.48762,
-      P: 10759.22
-    }
-  }
+      P: 10759.22,
+    },
+  },
 ];
 
 // // Calculate Mean Anomalies
