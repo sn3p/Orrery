@@ -1,4 +1,4 @@
-import { Application, Container, ParticleContainer, Graphics } from "pixi.js";
+import { Application, Container, ParticleContainer, Graphics, log2 } from "pixi.js";
 import { toJED, fromJED } from "./utils";
 import Controls from "./Controls.js";
 import Stats from "./Stats.js";
@@ -8,8 +8,7 @@ import Asteroid from "./Asteroid.js";
 
 export default class Orrery {
   constructor(options = {}) {
-    this.width = options.width || 800;
-    this.height = options.height || 800;
+    this.container = options.container || document.body;
     this.startDate = options.startDate || new Date(1980, 1);
     this.jedDelta = options.jedDelta || 1.5;
     this.jed = toJED(this.startDate);
@@ -29,25 +28,20 @@ export default class Orrery {
   async init() {
     // Create PIXI application
     this.app = new Application();
-    this.stage = this.app.stage;
-
     await this.app.init({
-      width: this.width,
-      height: this.height,
+      resizeTo: window,
       backgroundColor: 0x000000,
       antialias: true,
-      // autoResize: true,
-      // transparent: true,
-      // forceFXAA: true,
-      // resizeTo: window,
     });
 
-    // TODO: append to document.body
-    const orrery = document.getElementById("orrery");
-    orrery.appendChild(this.app.canvas);
+    this.stage = this.app.stage;
+    this.canvas = this.app.canvas;
+
+    // Add canvas to container
+    this.container.appendChild(this.canvas);
 
     // Center the stage
-    this.stage.position.set(this.width / 2, this.height / 2);
+    this.stage.position.set(this.canvas.width / 2, this.canvas.height / 2);
 
     // Create star system
     this.createSystem();
@@ -251,11 +245,9 @@ export default class Orrery {
   //   this.stats.end();
   // };
 
-  resize(width, height) {
-    this.width = width;
-    this.height = height;
-    this.renderer.resize(width, height);
-    this.stage.x = width / 2;
-    this.stage.y = height / 2;
+  resize() {
+    const { width, height } = this.canvas;
+    this.app.renderer.resize(width, height);
+    this.stage.position.set(width / 2, height / 2);
   }
 }

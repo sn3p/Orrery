@@ -20,8 +20,7 @@ const MPC_DATA_URL = catalog;
 
 // Init Orrery
 const orrery = new Orrery({
-  width: window.innerWidth,
-  height: window.innerHeight,
+  container: document.getElementById("orrery"),
 });
 
 orrery.init().then(() => {
@@ -40,6 +39,6 @@ orrery.init().then(() => {
 
   // Resize orrery
   window.addEventListener("resize", () => {
-    orrery.resize(window.innerWidth, window.innerHeight);
+    orrery.resize();
   });
 });
