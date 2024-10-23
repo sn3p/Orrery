@@ -1,7 +1,9 @@
-import * as PIXI from "pixi.js";
+import { Graphics } from "pixi.js";
 import { PIXELS_PER_AU, J2000, YEAR, DEG_TO_RAD } from "./constants.js";
 
 export default class Orbit {
+  // TODO: Add options for line style
+
   constructor(ephemeris) {
     this.ephemeris = ephemeris;
   }
@@ -54,13 +56,12 @@ export default class Orbit {
     return { x: -x, y: y };
   }
 
-  createOrbit(jed = J2000) {
+  drawOrbit(jed = J2000) {
     const parts = 360;
     const period = this.getPeriodInDays();
     const delta = period / parts;
 
-    const line = new PIXI.Graphics();
-    line.lineStyle(0.2, 0x555555);
+    const line = new Graphics();
 
     for (let i = 0; i <= parts; i++) {
       jed += delta;
@@ -73,7 +74,7 @@ export default class Orbit {
       }
     }
 
-    line.endFill();
+    line.stroke({ width: 0.2, color: 0x555555 });
 
     return line;
   }

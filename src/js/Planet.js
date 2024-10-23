@@ -1,10 +1,10 @@
-import * as PIXI from "pixi.js";
+import { Particle } from "pixi.js";
 import Orbit from "./Orbit.js";
 
 export default class Planet {
   static defaultOptions = {
     size: 4,
-    color: 0xffffff
+    color: 0xffffff,
   };
 
   constructor(ephemeris, texture, options = {}) {
@@ -14,17 +14,16 @@ export default class Planet {
     this.orbit = new Orbit(ephemeris);
 
     // Planet body
-    const sprite = new PIXI.Sprite(texture);
-    sprite.width = sprite.height = this.options.size;
-    sprite.anchor.x = sprite.anchor.y = 0.5;
-    sprite.tint = this.options.color;
-
-    this.body = sprite;
+    const particle = new Particle(texture);
+    particle.scaleX = particle.scaleY = this.options.size / texture.width;
+    particle.anchorX = particle.anchorY = 0.5;
+    particle.tint = this.options.color;
+    this.body = particle;
   }
 
   render(jed) {
     const { x, y } = this.orbit.getPosAtTime(jed);
-    this.body.position.x = x;
-    this.body.position.y = y;
+    this.body.x = x;
+    this.body.y = y;
   }
 }

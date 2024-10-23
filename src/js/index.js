@@ -1,7 +1,7 @@
 // TODO:
 // - Draw orbits (for planets)
 // - Create layers: planets above asteroids
-// - Support conpact JSON data for asteroids
+// - Support compact JSON data for asteroids
 //
 // Inspiration:
 // https://www.youtube.com/watch?v=BKKg4lZ_o-Y
@@ -24,20 +24,22 @@ const orrery = new Orrery({
   height: window.innerHeight,
 });
 
-// Add planets
-orrery.addPlanets(planetData);
+orrery.init().then(() => {
+  // Add planets
+  orrery.addPlanets(planetData);
 
-// Load asteroids
-fetch(MPC_DATA_URL)
-  .then((response) => response.json())
-  .then((data) => {
-    // Sort by discovery date
-    data.sort((a, b) => a.disc - b.disc);
+  // Load asteroids
+  // fetch(MPC_DATA_URL)
+  //   .then((response) => response.json())
+  //   .then((data) => {
+  //     // Sort by discovery date
+  //     data.sort((a, b) => a.disc - b.disc);
 
-    orrery.setAsteroids(data);
+  //     orrery.setAsteroids(data);
+  //   });
+
+  // Resize orrery
+  window.addEventListener("resize", () => {
+    orrery.resize(window.innerWidth, window.innerHeight);
   });
-
-// Resize orrery
-window.addEventListener("resize", () => {
-  orrery.resize(window.innerWidth, window.innerHeight);
 });
