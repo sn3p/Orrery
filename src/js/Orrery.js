@@ -1,4 +1,4 @@
-import * as PIXI from "pixi.js";
+import { Application, Container, ParticleContainer, Graphics, log2 } from "pixi.js";
 import { toJED, fromJED } from "./utils";
 import Controls from "./Controls.js";
 import Stats from "./Stats.js";
@@ -8,124 +8,111 @@ import Asteroid from "./Asteroid.js";
 
 export default class Orrery {
   constructor(options = {}) {
-    this.width = options.width || 800;
-    this.height = options.height || 800;
+    this.container = options.container || document.body;
     this.startDate = options.startDate || new Date(1980, 1);
     this.jedDelta = options.jedDelta || 1.5;
     this.jed = toJED(this.startDate);
+  }
 
-    this.planets = [];
-    this.asteroidData = [];
-    this.asteroids = [];
+  async init() {
+    // Create PIXI application
+    this.app = new Application();
+    await this.app.init({
+      resizeTo: window,
+      backgroundColor: 0x000000,
+      antialias: true,
+    });
 
-    // Create star system
-    this.createSystem();
+    this.stage = this.app.stage;
+    this.canvas = this.app.canvas;
+
+    // Add canvas to container
+    this.container.appendChild(this.canvas);
+
+    // Center the stage
+    this.stage.position.set(this.canvas.width / 2, this.canvas.height / 2);
 
     // Setup GUI and controls
     this.setupGui();
     this.controls = new Controls(this);
 
-    // Start rendering
-    this.tick();
+    // Create star system
+    this.createSystem();
+
+    // Start the ticker
+    this.app.ticker.add(this.tick.bind(this));
   }
 
-  setupGui() {
-    this.gui = {};
-    this.gui.date = document.getElementById("orrery-date");
+  async createSystem() {
+    this.planets = [];
+    this.asteroidData = [];
+    this.asteroids = [];
 
-    this.stats = new Stats();
-    this.gui.fps = document.getElementById("orrery-fps");
+    // Create texture
+    // TODO: create a custom texture for asteroids of 1px size?
+    this.circleTexture = this.createCircleTexture();
 
-    this.gui.count = document.getElementById("orrery-count");
-
-    this.gui.controls = new Gui(this);
-  }
-
-  updateGui() {
-    // Update the date
-    const date = fromJED(this.jed)
-      .toISOString()
-      .slice(0, 10);
-
-    this.gui.date.textContent = date;
-
-    this.gui.fps.textContent = `${this.stats.fps} FPS`;
-    this.gui.count.textContent = this.asteroids.length;
-  }
-
-  createSystem() {
-    this.renderer = new PIXI.Renderer({
-      width: this.width,
-      height: this.height,
-      backgroundColor: 0x000000,
-      // autoResize: true,
-      // transparent: true,
-      antialias: true
-      // forceFXAA: true
-    });
-
-    // Main container
-    this.stage = new PIXI.Container();
-    this.stage.x = this.width / 2;
-    this.stage.y = this.height / 2;
-
-    // Add star
-    this.addStar();
+    // Add sun
+    this.addSun();
 
     // Container for planets
-    this.planetContainer = new PIXI.ParticleContainer(10);
+    this.planetContainer = new ParticleContainer(10);
     this.stage.addChild(this.planetContainer);
 
     // Container for asteroids
-    this.particleContainer = new PIXI.ParticleContainer(
+    this.asteroidContainer = new ParticleContainer(
       999999,
       { scale: true, tint: true },
       16384,
       true
     );
-    this.stage.addChild(this.particleContainer);
-
-    // Create textures
-    this.cirleTexture = this.createCirleTexture();
-
-    // Render the view
-    const orrery = document.getElementById("orrery");
-    orrery.appendChild(this.renderer.view);
+    this.stage.addChild(this.asteroidContainer);
   }
 
-  createCirleTexture(radius = 5) {
-    const graphics = new PIXI.Graphics();
-    graphics.beginFill(0xffffff);
-    graphics.drawCircle(0, 0, radius);
-    graphics.endFill();
-
-    return this.renderer.generateTexture(graphics);
+  setupGui() {
+    this.gui = {};
+    this.gui.date = document.getElementById("orrery-date");
+    this.stats = new Stats();
+    this.gui.fps = document.getElementById("orrery-fps");
+    this.gui.count = document.getElementById("orrery-count");
+    this.gui.controls = new Gui(this);
   }
 
-  addStar() {
-    const star = new PIXI.Graphics();
-    star.beginFill(0xfff2ac);
-    star.drawCircle(0, 0, 5);
-    star.endFill();
-
-    this.stage.addChild(star);
+  updateGui() {
+    // Update the date
+    const date = fromJED(this.jed).toISOString().slice(0, 10);
+    this.gui.date.textContent = date;
+    this.gui.fps.textContent = `${this.stats.fps} FPS`;
+    this.gui.count.textContent = this.asteroids.length;
   }
 
-  addPlanets(planetData) {
-    planetData.forEach(data => {
-      const planet = new Planet(data.ephemeris, this.cirleTexture, {
+  createCircleTexture(radius = 5) {
+    const gfx = new Graphics();
+    gfx.circle(0, 0, radius).fill({ color: 0xffffff });
+    return this.app.renderer.generateTexture(gfx);
+  }
+
+  addSun() {
+    const sun = new Graphics();
+    sun.circle(0, 0, 5).fill({ color: 0xfff2ac });
+    this.stage.addChild(sun);
+  }
+
+  addPlanets(planets) {
+    planets.forEach((data) => {
+      const planet = new Planet(data.ephemeris, this.circleTexture, {
         name: data.name,
         size: data.size,
-        color: data.color
+        color: data.color,
       });
 
       // Draw orbit
-      const orbit = planet.orbit.createOrbit(this.jed);
+      const orbit = planet.orbit.drawOrbit(this.jed);
       this.stage.addChild(orbit);
 
       // Add planet
       this.planets.push(planet);
-      this.planetContainer.addChild(planet.body);
+      this.planetContainer.addParticle(planet.body);
     });
   }
 
@@ -160,20 +147,18 @@ export default class Orrery {
         }
 
         // Remove asteroid
-        this.particleContainer.removeChild(asteroid.body);
+        this.asteroidContainer.removeParticle(asteroid.body);
       }
     }
   }
 
   addAsteroid(data) {
-    const asteroid = new Asteroid(data, this.cirleTexture);
+    const asteroid = new Asteroid(data, this.circleTexture);
     this.asteroids.push(asteroid);
-    this.particleContainer.addChild(asteroid.body);
+    this.asteroidContainer.addParticle(asteroid.body);
   }
 
-  tick = () => {
-    requestAnimationFrame(this.tick);
-
+  tick() {
     this.stats.begin();
 
     if (this.jedDelta !== 0) {
@@ -182,22 +167,19 @@ export default class Orrery {
       // Discover asteroids
       this.discoverAsteroids();
 
-      // Render everything
-      this.planets.forEach(planet => planet.render(this.jed));
-      this.asteroids.forEach(asteroid => asteroid.render(this.jed));
-      this.renderer.render(this.stage);
+      // Render planets and asteroids
+      this.planets.forEach((planet) => planet.render(this.jed));
+      this.asteroids.forEach((asteroid) => asteroid.render(this.jed));
 
       this.updateGui();
     }
 
     this.stats.end();
-  };
+  }
 
-  resize(width, height) {
-    this.width = width;
-    this.height = height;
-    this.renderer.resize(width, height);
-    this.stage.x = width / 2;
-    this.stage.y = height / 2;
+  resize() {
+    const { width, height } = this.canvas;
+    this.app.renderer.resize(width, height);
+    this.stage.position.set(width / 2, height / 2);
   }
 }

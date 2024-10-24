@@ -1,6 +1,6 @@
 {
   "name": "Orrery",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "description": "Asteroid discovery visualization",
   "main": "src/js/index.js",
   "repository": "git@github.com:sn3p/Orrery.git",
@@ -11,11 +11,11 @@
     "build": "webpack --mode production",
     "deploy": "git subtree push --prefix dist origin gh-pages",
     "watch": "webpack --mode development --watch",
-    "start": "NODE_OPTIONS=--openssl-legacy-provider webpack-dev-server --mode development --open"
+    "start": "webpack-dev-server --mode development --open"
   },
   "dependencies": {
     "dat.gui": "^0.7.9",
-    "pixi.js": "^7.4.2"
+    "pixi.js": "^8.5.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.8",

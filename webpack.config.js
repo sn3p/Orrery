@@ -10,6 +10,7 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, "dist"),
     filename: "bundle.js",
+    chunkFormat: false,
   },
   module: {
     rules: [
@@ -51,6 +52,7 @@ module.exports = {
     }),
   ],
   optimization: {
+    splitChunks: false,
     minimize: true,
     minimizer: [
       new TerserPlugin({
