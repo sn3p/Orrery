@@ -17,11 +17,10 @@ export default class Asteroid {
     this.orbit = new Orbit(data);
 
     // Asteroid body
-    // TODO: create a custom texture for asteroids of 1px size?
     const particle = new Particle(texture);
     this.originalScale = this.options.size / texture.width;
     particle.scaleX = particle.scaleY = this.originalScale * this.options.discoveryScale;
-    // particle.anchorX = particle.anchorY = 0.5; // TODO: is this correct/required?
+    particle.anchorX = particle.anchorY = 0.5;
     particle.tint = this.options.discoveryColor;
     this.body = particle;
   }

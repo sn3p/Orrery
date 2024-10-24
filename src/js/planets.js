@@ -55,7 +55,6 @@ export default [
     name: "Earth",
     size: 2.8,
     color: 0x98c0ff,
-    // color: "#98c0ff",
     ephemeris: {
       epoch: 2451545.0,
       a: 1.00000011,

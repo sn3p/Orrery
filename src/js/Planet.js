@@ -16,8 +16,7 @@ export default class Planet {
     // Planet body
     const particle = new Particle(texture);
     particle.scaleX = particle.scaleY = this.options.size / texture.width;
-    // particle.anchorX = particle.anchorY = 0.5; // TODO: is this correct/required?
-    // particle.color = new Color(this.options.color);
+    particle.anchorX = particle.anchorY = 0.5;
     particle.tint = new Color(this.options.color);
 
     this.body = particle;

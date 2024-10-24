@@ -49,7 +49,8 @@ export default class Orrery {
     this.asteroids = [];
 
     // Create texture
-    this.cirleTexture = this.createCirleTexture();
+    // TODO: create a custom texture for asteroids of 1px size?
+    this.circleTexture = this.createCircleTexture();
 
     // Add sun
     this.addSun();
@@ -59,15 +60,13 @@ export default class Orrery {
     this.stage.addChild(this.planetContainer);
 
     // Container for asteroids
-    // TODO: rename to asteroidContainer
-    // TODO: check available options (https://api.pixijs.io/@pixi/particle-container/PIXI/ParticleContainer.html)
-    this.particleContainer = new ParticleContainer(
+    this.asteroidContainer = new ParticleContainer(
       999999,
       { scale: true, tint: true },
       16384,
       true
     );
-    this.stage.addChild(this.particleContainer);
+    this.stage.addChild(this.asteroidContainer);
   }
 
   setupGui() {
@@ -87,7 +86,7 @@ export default class Orrery {
     this.gui.count.textContent = this.asteroids.length;
   }
 
-  createCirleTexture(radius = 5) {
+  createCircleTexture(radius = 5) {
     const gfx = new Graphics();
     gfx.circle(0, 0, radius).fill({ color: 0xffffff });
     return this.app.renderer.generateTexture(gfx);
@@ -101,7 +100,7 @@ export default class Orrery {
 
   addPlanets(planets) {
     planets.forEach((data) => {
-      const planet = new Planet(data.ephemeris, this.cirleTexture, {
+      const planet = new Planet(data.ephemeris, this.circleTexture, {
         name: data.name,
         size: data.size,
         color: data.color,
@@ -148,18 +147,18 @@ export default class Orrery {
         }
 
         // Remove asteroid
-        this.particleContainer.removeParticle(asteroid.body);
+        this.asteroidContainer.removeParticle(asteroid.body);
       }
     }
   }
 
   addAsteroid(data) {
-    const asteroid = new Asteroid(data, this.cirleTexture);
+    const asteroid = new Asteroid(data, this.circleTexture);
     this.asteroids.push(asteroid);
-    this.particleContainer.addParticle(asteroid.body);
+    this.asteroidContainer.addParticle(asteroid.body);
   }
 
-  tick(ticker) {
+  tick() {
     this.stats.begin();
 
     if (this.jedDelta !== 0) {
