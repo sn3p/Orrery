@@ -2,8 +2,6 @@ import { Graphics } from "pixi.js";
 import { PIXELS_PER_AU, J2000, YEAR, DEG_TO_RAD } from "./constants.js";
 
 export default class Orbit {
-  // TODO: Add options for line style
-
   constructor(ephemeris) {
     this.ephemeris = ephemeris;
   }
@@ -67,7 +65,6 @@ export default class Orbit {
       jed += delta;
       const pos = this.getPosAtTime(jed);
 
-      // TODO: doesn't look like a dashed line
       if (i === 0) {
         line.moveTo(pos.x, pos.y);
       } else {
