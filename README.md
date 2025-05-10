@@ -12,10 +12,11 @@ The data we use is maintained by [The Minor Planet Center (MPC)](https://minorpl
 
 ## How to start
 
-Install dependencies using `npm install`.  
-Start server using `npm run start`.  
-Build and bundle using `npm run build`.  
+Install dependencies using `npm install`.
+Start server using `npm run start`.
+Build and bundle using `npm run build`.
 Watch changes and rebuild using `npm run watch`.
+Deploy to gh-pages using `npm run deploy`.
 
 ## Get updated data
 
