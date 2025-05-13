@@ -2,21 +2,42 @@
 
 [Visualization](https://sn3p.github.io/Orrery) showing the orbits of [minor planets](https://en.wikipedia.org/wiki/Minor_planet) and their discovery over time.
 
-![Orrery screenshot](screenshot.png)
-
-The data we use is maintained by [The Minor Planet Center (MPC)](https://minorplanetcenter.net/). We use two separate datasets (which are updated daily) to extract the orbital elements and discovery circumstances of minor planets:
+Two daily updated datasets are used to extract the orbital elements and discovery circumstances of minor planets. The data used is maintained by [The Minor Planet Center (MPC)](https://minorplanetcenter.net/):
 
 - [The MPC Orbit (MPCORB) Database](https://minorplanetcenter.net/iau/MPCORB.html) Database containing orbital elements of minor planets.
-
 - [NumberedMPs.txt](http://www.minorplanetcenter.net/iau/lists/NumberedMPs.txt) Discovery circumstances of the minor planets.
 
-## How to start
+## How to use
 
-Install dependencies using `npm install`.
-Start server using `npm run start`.
-Build and bundle using `npm run build`.
-Watch changes and rebuild using `npm run watch`.
-Deploy to gh-pages using `npm run deploy`.
+Install dependencies:
+
+```bash
+npm install
+```
+
+Start server:
+
+```bash
+npm run start
+```
+
+Build and bundle:
+
+```bash
+npm run build
+```
+
+Watch changes and rebuild:
+
+```bash
+npm run watch
+```
+
+Deploy to gh-pages:
+
+```bash
+npm run deploy
+```
 
 ## Get updated data
 
@@ -35,3 +56,7 @@ There are over 500k results, so the output JSON file will be rather large and wi
 ```bash
 ./data_to_json.py 9999
 ```
+
+## Screenshot
+
+![Orrery screenshot](screenshot.png)
