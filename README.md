@@ -1,5 +1,7 @@
 # Orrery
 
+**Also check out [Orrery3D](https://github.com/sn3p/Orrery3D) ✨**
+
 [Visualization](https://sn3p.github.io/Orrery) showing the orbits of [minor planets](https://en.wikipedia.org/wiki/Minor_planet) and their discovery over time.
 
 Two daily updated datasets are used to extract the orbital elements and discovery circumstances of minor planets. The data used is maintained by [The Minor Planet Center (MPC)](https://minorplanetcenter.net/):
