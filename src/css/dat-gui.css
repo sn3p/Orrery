@@ -4,7 +4,11 @@ dat.GUI overrides
 
 .dg,
 .dg .c input {
-  font-family: Lucida Console, Courier, monospace !important;
+  font-family: var(--font-ui) !important;
+}
+
+.dg {
+  font-size: var(--font-ui-size) !important;
 }
 
 .dg.a {
@@ -33,7 +37,8 @@ dat.GUI overrides
 }
 
 .dg .slider {
-  width: 76% !important;
+  margin-left: 0 !important;
+  width: calc(76% - 5px) !important;
 }
 
 .dg .slider-fg {
@@ -46,6 +51,10 @@ dat.GUI overrides
 
 .dg .c input {
   color: #777 !important;
+  font-size: 12px !important;
+  height: 19px !important;
+  line-height: 19px !important;
+  padding: 0 3px !important;
   width: 20% !important;
 }
 

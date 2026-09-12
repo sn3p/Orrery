@@ -1,13 +1,28 @@
 @import "dat-gui.css";
 
+@font-face {
+  font-family: "JetBrains Mono Variable";
+  src: url("../fonts/JetBrainsMono-Variable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+}
+
+:root {
+  --font-ui: "JetBrains Mono Variable", "Lucida Console", Courier, monospace;
+  --font-ui-size: 14px;
+}
+
 /*
 Main
 */
 
 body {
   background: #000;
-  font-family: Lucida Console, Courier, monospace;
+  font-family: var(--font-ui);
+  font-size: var(--font-ui-size);
   margin: 0;
+  overflow: hidden;
 }
 
 .orrery {
@@ -16,6 +31,10 @@ body {
   position: fixed;
   right: 0;
   top: 0;
+}
+
+.orrery canvas {
+  display: block;
 }
 
 .orrery-date,
