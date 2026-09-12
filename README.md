@@ -47,9 +47,15 @@ npm run deploy
 ### Conductor
 
 Setup installs the locked dependencies with `npm ci`. When asdf is installed,
-it also installs the Node.js version pinned in `.tool-versions`.
+it adds the Node.js plugin if needed and installs the version pinned in `.tool-versions`.
 Run starts the development server on the workspace's assigned port; use Open
 to view the app. Each workspace can run its own server concurrently.
+
+Test the setup script with Python 3.11 or later:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
 
 ## Get updated data
 

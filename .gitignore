@@ -5,6 +5,9 @@
 # Dependancies
 node_modules/
 
+# Python test bytecode
+__pycache__/
+
 # Conductor settings for this machine
 .conductor/settings.local.toml
 

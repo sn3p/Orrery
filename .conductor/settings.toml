@@ -8,6 +8,9 @@ url = "http://127.0.0.1:$CONDUCTOR_PORT"
 setup = """
 set -e
 if command -v asdf >/dev/null 2>&1; then
+  if ! asdf plugin list | grep -qx nodejs; then
+    asdf plugin add nodejs https://github.com/asdf-vm/asdf-nodejs.git
+  fi
   asdf install nodejs
 fi
 npm ci --engine-strict
