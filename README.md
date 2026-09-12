@@ -38,6 +38,18 @@ Watch changes and rebuild:
 npm run watch
 ```
 
+Run the production UI checks with Google Chrome installed:
+
+```bash
+npm test
+```
+
+These checks cover font loading, desktop/mobile layout and playback controls.
+Screenshots and results are saved in `.context/font-qa/`.
+
+The UI uses self-hosted [JetBrains Mono Variable](src/fonts/README.md),
+distributed with its SIL Open Font License.
+
 Deploy to gh-pages:
 
 ```bash
