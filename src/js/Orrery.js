@@ -20,10 +20,24 @@ export default class Orrery {
     this.loadVersion = 0;
     this.destroyed = false;
     this.contextLost = false;
+    // Tests and benchmarks can own a finite scheduler explicitly.
+    this.autoRender = options.autoRender ?? true;
+    this.animationFrame = null;
+    this.initialized = false;
     this.tick = this.tick.bind(this);
+    this.render = this.render.bind(this);
     this.resize = this.resize.bind(this);
-    this.onVisibilityChange = () => this.clock.reset();
-    this.onContextLost = event => { event.preventDefault(); this.contextLost = true; this.clock.reset(); };
+    this.onVisibilityChange = () => {
+      this.clock.reset();
+      if (document.hidden) this.cancelRender();
+      else this.requestRender();
+    };
+    this.onContextLost = event => {
+      event.preventDefault();
+      this.contextLost = true;
+      this.cancelRender();
+      this.clock.reset();
+    };
     this.onContextRestored = () => {
       if (this.destroyed) return;
       // Render textures contain GPU-only pixels. Pixi restores buffers/programs,
@@ -37,6 +51,7 @@ export default class Orrery {
       previous.destroy(true);
       this.contextLost = false;
       this.clock.reset();
+      this.requestRender();
     };
   }
 
@@ -44,6 +59,10 @@ export default class Orrery {
     // Create PIXI application
     this.app = new Application();
     await this.app.init({
+      // Pixi registers app.render separately from tick. Its automatic ticker
+      // must stay stopped: Orrery's RAF is the sole automatic frame owner.
+      autoStart: false,
+      sharedTicker: false,
       preference: "webgl",
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
@@ -71,13 +90,15 @@ export default class Orrery {
     // Create star system
     this.createSystem();
 
-    // Start the ticker
+    // Retain explicit ticker.update() support for deterministic GPU tests.
     this.app.ticker.add(this.tick);
     window.addEventListener("resize", this.resize);
     document.addEventListener("visibilitychange", this.onVisibilityChange);
     this.canvas.addEventListener("webglcontextlost", this.onContextLost);
     this.canvas.addEventListener("webglcontextrestored", this.onContextRestored);
+    this.initialized = true;
     this.updateGui();
+    this.requestRender();
   }
 
   createSystem() {
@@ -185,7 +206,27 @@ export default class Orrery {
     if (status) status.textContent = message;
   }
 
-  tick(ticker = this.app.ticker) {
+  requestRender() {
+    if (!this.autoRender || !this.initialized || this.destroyed || document.hidden || this.contextLost || this.animationFrame !== null) return;
+    this.animationFrame = requestAnimationFrame(this.render);
+  }
+
+  cancelRender() {
+    if (this.animationFrame !== null) cancelAnimationFrame(this.animationFrame);
+    this.animationFrame = null;
+  }
+
+  render(timestamp = performance.now()) {
+    // An explicit render also consumes any previously requested frame.
+    this.cancelRender();
+    if (this.destroyed || !this.initialized) return;
+    if (document.hidden || this.contextLost) { this.clock.reset(); return; }
+    this.tick(timestamp);
+    this.app.render();
+    this.requestRender();
+  }
+
+  tick(ticker = performance.now()) {
     if (this.destroyed) return;
     if (document.hidden || this.contextLost) { this.clock.reset(); return; }
     // Moving a window between screens can change DPR without changing its size.
@@ -193,7 +234,8 @@ export default class Orrery {
     this.stats.begin();
     // Pixi updates lastTime *after* invoking listeners; elapsedMS is raw,
     // unlike its capped/scaled deltaMS. Reconstruct this callback's timestamp.
-    const advance = this.clock.advance(ticker.lastTime + (ticker.elapsedMS ?? 0), this.jedDelta);
+    const timestamp = typeof ticker === "number" ? ticker : ticker.lastTime + (ticker.elapsedMS ?? 0);
+    const advance = this.clock.advance(timestamp, this.jedDelta);
     if (validDate(this.jed + advance)) this.jed += advance;
     this.elapsed += this.clock.seconds;
     this.asteroidsDiscovered = this.asteroids?.update(this.jed, this.elapsed) ?? 0;
@@ -214,6 +256,7 @@ export default class Orrery {
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.cancelRender();
     this.loadVersion++;
     this.loadController?.abort();
     window.removeEventListener("resize", this.resize);
