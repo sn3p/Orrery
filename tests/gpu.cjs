@@ -26,7 +26,9 @@ async function exercise(page) {
     app.jedDelta = 0; const paused = app.jed, elapsed = app.elapsed;
     app.tick({ lastTime: 2000 });
     check(app.jed === paused && app.elapsed === elapsed, "Pause freezes both orbits and markers");
-    app.jedDelta = -1.5; app.tick({ lastTime: 2016.6666667 });
+    app.jedDelta = -1.5; app.tick({ lastTime: 200000 });
+    check(app.jed === paused && app.elapsed === elapsed, "First reverse frame excludes paused time");
+    app.tick({ lastTime: 200016.6666667 });
     check(app.jed < paused && app.elapsed > elapsed, "Reverse moves time backward while markers age");
     const before = app.jed;
     Object.defineProperty(document, "hidden", { configurable: true, value: true });
@@ -110,7 +112,7 @@ async function pixels(page) {
     // A replay must flash again even after all earlier particles were hidden.
     app.asteroids.update(d.disc - 1, epoch + 1);
     app.asteroids.update(d.disc, epoch + 1);
-    check(app.asteroids.geometry.getBuffer("aDiscovery").data[0] === epoch + 1 - app.asteroids.markerEpoch, "Replay resets discovery age");
+    check(app.asteroids.geometry.getBuffer("aDiscovery").data[0] === Math.fround(epoch + 1 - app.asteroids.markerEpoch), "Replay resets discovery age");
     // Force a partial marker upload before clock rebasing, then verify the
     // entire refresh reaches the GPU (Pixi retains the previous update size).
     app.elapsed = epoch + 4096.1; app.asteroids.update(d.disc, app.elapsed);

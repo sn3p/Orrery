@@ -21,7 +21,17 @@ window.initialized = app.init().then(() => {
       probe.frames.push({ jed: app.jed, elapsed: app.elapsed });
     } else probe.textureDraws++;
     const result = render(options);
-    if (scene && probe.capture) probe.image = app.canvas.toDataURL();
+    if (scene && probe.capture) {
+      probe.image = app.canvas.toDataURL();
+      const gl = app.app.renderer.gl, data = new Uint8Array(app.canvas.width * app.canvas.height * 4);
+      gl.readPixels(0, 0, app.canvas.width, app.canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, data);
+      let green = 0, gray = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 1] > 20 && data[i + 1] > data[i] * 2) green++;
+        else if (data[i] > 20 && Math.abs(data[i] - data[i + 1]) < 2) gray++;
+      }
+      probe.pixels = { green, gray };
+    }
     return result;
   };
   if (!options.has("empty")) app.addPlanets(planets);

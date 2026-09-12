@@ -12,8 +12,8 @@ export default class Orrery {
   constructor(options = {}) {
     this.container = options.container || document.body;
     this.startDate = options.startDate ?? new Date(1980, 1);
-    this.jedDelta = options.jedDelta ?? 1.5;
-    this.jed = toJED(this.startDate);
+    this._jedDelta = options.jedDelta ?? 1.5;
+    this._jed = toJED(this.startDate);
     if (!validDate(this.jed) || !Number.isFinite(this.jedDelta)) throw new Error("Invalid initial playback time.");
     this.clock = new PlaybackClock();
     this.elapsed = 0;
@@ -27,8 +27,9 @@ export default class Orrery {
     this.tick = this.tick.bind(this);
     this.render = this.render.bind(this);
     this.resize = this.resize.bind(this);
+    this.onResolutionChange = () => this.resize();
     this.onVisibilityChange = () => {
-      this.clock.reset();
+      this.resetClock();
       if (document.hidden) this.cancelRender();
       else this.requestRender();
     };
@@ -36,7 +37,7 @@ export default class Orrery {
       event.preventDefault();
       this.contextLost = true;
       this.cancelRender();
-      this.clock.reset();
+      this.resetClock();
     };
     this.onContextRestored = () => {
       if (this.destroyed) return;
@@ -50,9 +51,37 @@ export default class Orrery {
       this.asteroids?.setTexture(this.circleTexture);
       previous.destroy(true);
       this.contextLost = false;
-      this.clock.reset();
+      this.resetClock();
       this.requestRender();
     };
+  }
+
+  get jed() { return this._jed; }
+
+  set jed(value) {
+    if (this.destroyed || Object.is(value, this._jed)) return;
+    if (!validDate(value)) throw new Error("Invalid playback date.");
+    this._jed = value;
+    this.requestRender();
+  }
+
+  get jedDelta() { return this._jedDelta; }
+
+  set jedDelta(value) {
+    if (this.destroyed || Object.is(value, this._jedDelta)) return;
+    if (!Number.isFinite(value)) throw new Error("Invalid playback speed.");
+    const wasPlaying = this.isPlaying;
+    this._jedDelta = value;
+    if (!wasPlaying || !this.isPlaying) this.resetClock();
+    this.requestRender();
+  }
+
+  get isPlaying() { return this.jedDelta !== 0; }
+
+  resetClock() {
+    this.clock.reset();
+    this.stats?.reset();
+    if (this.initialized && !this.destroyed) this.updateGui();
   }
 
   async init() {
@@ -97,6 +126,7 @@ export default class Orrery {
     this.canvas.addEventListener("webglcontextlost", this.onContextLost);
     this.canvas.addEventListener("webglcontextrestored", this.onContextRestored);
     this.initialized = true;
+    this.watchResolution();
     this.updateGui();
     this.requestRender();
   }
@@ -150,6 +180,7 @@ export default class Orrery {
   }
 
   addPlanets(planets) {
+    if (this.destroyed) return;
     planets.forEach((data) => {
       const planet = new Planet(data.ephemeris, this.circleTexture, {
         name: data.name,
@@ -166,9 +197,11 @@ export default class Orrery {
       this.planetContainer.addParticle(planet.body);
       planet.render(this.jed);
     });
+    this.requestRender();
   }
 
   setAsteroids(data) {
+    if (this.destroyed) return;
     // Validate/allocate before touching the current catalogue or pending load.
     const next = new Asteroids(data, this.circleTexture, this.jed, this.elapsed, this.app.renderer.context.webGLVersion === 2);
     const previous = this.asteroids;
@@ -180,9 +213,11 @@ export default class Orrery {
     previous?.destroy();
     this.setStatus("");
     this.updateGui();
+    this.requestRender();
   }
 
   async loadAsteroids(url) {
+    if (this.destroyed) return false;
     this.loadController?.abort();
     const controller = this.loadController = new AbortController();
     const version = ++this.loadVersion;
@@ -220,15 +255,15 @@ export default class Orrery {
     // An explicit render also consumes any previously requested frame.
     this.cancelRender();
     if (this.destroyed || !this.initialized) return;
-    if (document.hidden || this.contextLost) { this.clock.reset(); return; }
+    if (document.hidden || this.contextLost) { this.resetClock(); return; }
     this.tick(timestamp);
     this.app.render();
-    this.requestRender();
+    if (this.isPlaying) this.requestRender();
   }
 
   tick(ticker = performance.now()) {
     if (this.destroyed) return;
-    if (document.hidden || this.contextLost) { this.clock.reset(); return; }
+    if (document.hidden || this.contextLost) { this.resetClock(); return; }
     // Moving a window between screens can change DPR without changing its size.
     if (this.app.renderer.resolution !== (window.devicePixelRatio || 1)) this.resize();
     this.stats.begin();
@@ -236,21 +271,33 @@ export default class Orrery {
     // unlike its capped/scaled deltaMS. Reconstruct this callback's timestamp.
     const timestamp = typeof ticker === "number" ? ticker : ticker.lastTime + (ticker.elapsedMS ?? 0);
     const advance = this.clock.advance(timestamp, this.jedDelta);
-    if (validDate(this.jed + advance)) this.jed += advance;
+    // Advancing playback is not an external scene invalidation.
+    if (validDate(this.jed + advance)) this._jed += advance;
     this.elapsed += this.clock.seconds;
     this.asteroidsDiscovered = this.asteroids?.update(this.jed, this.elapsed) ?? 0;
     for (const planet of this.planets) planet.render(this.jed);
+    if (this.isPlaying) this.stats.end();
+    else this.stats.reset();
     this.updateGui();
-    this.stats.end();
+  }
+
+  watchResolution() {
+    this.resolutionQuery?.removeEventListener("change", this.onResolutionChange);
+    this.resolutionQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+    this.resolutionQuery.addEventListener("change", this.onResolutionChange);
   }
 
   resize() {
+    if (this.destroyed || !this.initialized) return;
     const width = window.innerWidth, height = window.innerHeight;
     this.app.renderer.resize(width, height, window.devicePixelRatio || 1);
     this.stage.position.x += (width - this.viewWidth) / 2;
     this.stage.position.y += (height - this.viewHeight) / 2;
     this.viewWidth = width;
     this.viewHeight = height;
+    // Re-arm against the new DPR; a second screen move must also wake us.
+    this.watchResolution();
+    this.requestRender();
   }
 
   destroy() {
@@ -260,6 +307,7 @@ export default class Orrery {
     this.loadVersion++;
     this.loadController?.abort();
     window.removeEventListener("resize", this.resize);
+    this.resolutionQuery?.removeEventListener("change", this.onResolutionChange);
     document.removeEventListener("visibilitychange", this.onVisibilityChange);
     this.canvas.removeEventListener("webglcontextlost", this.onContextLost);
     this.canvas.removeEventListener("webglcontextrestored", this.onContextRestored);
