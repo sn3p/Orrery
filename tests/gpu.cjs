@@ -52,7 +52,8 @@ async function exercise(page) {
     check(cloud.uniforms.uOrbitTime === 0, "Time is relative after rebase");
     check(buffers.every((b, i) => b._updateID === versions[i] + (b === cloud.geometry.getBuffer("aElements") ? 1 : 0)), "Only phase buffer changes at rebase");
 
-    for (const data of [null, new Array(1), [catalog[0], , catalog[1]], [{ ...catalog[0], e: 1 }], [{ ...catalog[0], wbar: false }]]) {
+    for (const data of [null, new Array(1), [catalog[0], , catalog[1]], [{ ...catalog[0], e: 1 }], [{ ...catalog[0], wbar: false }],
+      [{ ...catalog[0], n: 1e40 }], [{ ...catalog[0], n: null, P: 1e-37 }]]) {
       let rejected = false; try { app.setAsteroids(data); } catch { rejected = true; }
       check(rejected && app.asteroids === cloud, "Invalid replacement preserves visible data");
     }

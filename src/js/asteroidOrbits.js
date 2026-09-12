@@ -2,6 +2,9 @@ import { DEG_TO_RAD, PIXELS_PER_AU } from "./constants.js";
 
 export const REFERENCE_JED = 2458600.5;
 export const REBASE_DAYS = 256;
+// Bound accumulated phase, not just the stored motion: float32-finite n can
+// overflow n*time. This also keeps fractional radians in phase reduction.
+export const MAX_PHASE_ADVANCE = 1024;
 export const DISCOVERY_SECONDS = 2 / 3;
 const TAU = 2 * Math.PI;
 export const wrap = value => value - TAU * Math.floor((value + Math.PI) / TAU);
@@ -63,6 +66,7 @@ export function prepareOrbits(data, jed) {
     dates[index] = d.disc;
     radius = Math.max(radius, a * (1 + d.e));
     if (!Number.isFinite(Math.fround(radius)) || !(Math.fround(a) > 0) || !(elements[index * 3 + 2] > 0)
+      || elements[index * 3 + 2] * REBASE_DAYS > MAX_PHASE_ADVANCE
       || !bases.subarray(index * 4, index * 4 + 4).every(Number.isFinite)
       || !elements.subarray(index * 3, index * 3 + 3).every(Number.isFinite)) {
       throw new Error(`Orbit exceeds rendering precision at catalogue entry ${index + 1}.`);

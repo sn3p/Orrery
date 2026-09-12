@@ -97,9 +97,10 @@ API uses WebGL2. There is no CPU asteroid renderer setting or fallback.
 
 Catalogue replacement validates finite, float32-representable elliptic orbits
 and discovery dates before replacing valid data. Positive `n` is required when
-supplied; absent/null `n` can use a positive period `P`. Failed loads retain the
-current catalogue. Context recovery recreates the generated particle texture
-as well as restoring GPU resources.
+supplied; absent/null `n` can use a positive period `P`. Packed motion must advance
+at most 1024 radians across the 256-day rebase interval to keep shader arithmetic
+bounded. Failed loads retain the current catalogue. Context recovery recreates
+the generated particle texture as well as restoring GPU resources.
 
 Run the production-class benchmark with Chrome:
 

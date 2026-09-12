@@ -1,5 +1,5 @@
 import Asteroids from "../src/js/Asteroids";
-import { orbitGLSL, REFERENCE_JED, REBASE_DAYS } from "../src/js/asteroidOrbits";
+import { orbitGLSL, REFERENCE_JED, REBASE_DAYS, MAX_PHASE_ADVANCE } from "../src/js/asteroidOrbits";
 
 const check = (condition, message) => { if (!condition) throw new Error(message); };
 
@@ -74,8 +74,13 @@ export function shaderAccuracy(texture, catalog, planets = []) {
       a: 1, e, M, i: 0, W: 0, wbar: 0, n: 1, epoch: REFERENCE_JED, disc: REFERENCE_JED,
     })));
   const samples = catalog;
+  const motionLimit = MAX_PHASE_ADVANCE / REBASE_DAYS;
+  const fastest = [0, 0.99, 0.99999994].flatMap(e => [0, 45].flatMap(M =>
+    [{ n: motionLimit * 180 / Math.PI }, { P: 2 * Math.PI / motionLimit }].map(motion => ({
+      a: 1, e, M, i: 0, W: 0, wbar: 0, ...motion, epoch: REFERENCE_JED, disc: REFERENCE_JED,
+    }))));
   const report = [];
-  for (const [label, data] of [["catalogue", samples], ["high-e", special], ["planets", planets.map(p => ({ ...p.ephemeris, disc: REFERENCE_JED }))]]) {
+  for (const [label, data] of [["catalogue", samples], ["high-e", special], ["motion-limit", fastest], ["planets", planets.map(p => ({ ...p.ephemeris, disc: REFERENCE_JED }))]]) {
     const sorted = data.slice().sort((a, b) => a.disc - b.disc);
     const cloud = new Asteroids(data, texture, REFERENCE_JED);
     let maxWorldError = 0, worst;

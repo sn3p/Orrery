@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { prepareOrbits, discoveryCount, REFERENCE_JED, validDate } from "../src/js/asteroidOrbits.js";
+import { prepareOrbits, discoveryCount, REFERENCE_JED, REBASE_DAYS, MAX_PHASE_ADVANCE, validDate } from "../src/js/asteroidOrbits.js";
 import PlaybackClock from "../src/js/PlaybackClock.js";
 
 const sample = { a: 2, e: 0.2, i: 10, W: 25, w: 40, M: 80, n: 0.3, epoch: REFERENCE_JED, disc: REFERENCE_JED };
@@ -37,6 +37,21 @@ test("real catalogue packs without mutation; discoveries are inclusive in both d
   }
   assert.equal(discoveryCount(packed.dates, -1e6), 0);
   assert.equal(discoveryCount(packed.dates, 1e7), 100000);
+});
+
+test("motion and period fallbacks stay within the shader's full rebase interval", () => {
+  const limit = MAX_PHASE_ADVANCE / REBASE_DAYS;
+  for (const motion of [{ n: 1e40 }, { n: null, P: 1e-37 }]) {
+    const n = motion.n == null ? 2 * Math.PI / motion.P : motion.n * Math.PI / 180;
+    assert(Number.isFinite(Math.fround(n)), "The stored float alone used to pass validation");
+    assert(!Number.isFinite(Math.fround(Math.fround(n) * REBASE_DAYS)));
+    assert.throws(() => prepareOrbits([{ ...sample, ...motion }], REFERENCE_JED), /rendering precision/);
+  }
+  for (const fallback of [false, true]) {
+    const motion = n => fallback ? { n: null, P: 2 * Math.PI / n } : { n: n * 180 / Math.PI };
+    assert.equal(prepareOrbits([{ ...sample, ...motion(limit) }], REFERENCE_JED).elements[2], limit);
+    assert.throws(() => prepareOrbits([{ ...sample, ...motion(limit * (1 + 1e-6)) }], REFERENCE_JED), /rendering precision/);
+  }
 });
 
 test("elapsed playback, pause, reverse, invalid clocks and stall cap", () => {
