@@ -61,7 +61,8 @@ body {
 }
 
 .orrery-status {
-  color: #666;
+  color: #777;
+  background: #000;
   position: absolute;
   bottom: 44px;
   left: 20px;

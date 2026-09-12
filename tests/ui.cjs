@@ -63,6 +63,28 @@ async function setSpeed(page, value) {
   assert.equal(await input.inputValue(), String(value));
 }
 
+async function checkStatusContrast(page, expected) {
+  const status = await page.getByRole("status").evaluate(element => {
+    const { x, y, width, height } = element.getBoundingClientRect();
+    return { text: element.textContent, color: getComputedStyle(element).color,
+      background: getComputedStyle(element).backgroundColor,
+      fits: width > 0 && height > 0 && x >= 0 && y >= 0 && x + width <= innerWidth && y + height <= innerHeight };
+  });
+  assert.equal(status.text, expected);
+  const luminance = color => {
+    const channels = color.match(/[\d.]+/g).map(Number);
+    assert(channels.length === 3 || channels[3] === 1, "Status colors remain opaque over the visualization");
+    return channels.slice(0, 3).map(value => value / 255)
+      .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
+      .reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+  };
+  const light = luminance(status.color), dark = luminance(status.background);
+  status.contrast = (Math.max(light, dark) + 0.05) / (Math.min(light, dark) + 0.05);
+  assert(status.contrast >= 4.5, `Status contrast ${status.contrast}:1 must reach 4.5:1`);
+  assert(status.fits, "Status message fits the viewport");
+  return status;
+}
+
 async function main() {
   fs.mkdirSync(output, { recursive: true });
   // Serve the actual production files at the GitHub Pages subpath.
@@ -125,7 +147,8 @@ async function main() {
     await page.waitForFunction(() => document.querySelector("#orrery-count").textContent === "0");
     report.push({ width: 360, state: "font-loading", ui: await checkTypography(page, { fontLoaded: false, waitForFont: false }) });
     releaseFont();
-    report.push({ width: 360, state: "catalog-loading", ui: await checkTypography(page) });
+    report.push({ width: 360, state: "catalog-loading", ui: await checkTypography(page),
+      status: await checkStatusContrast(page, "Loading asteroids…") });
     await page.screenshot({ path: path.join(output, "loading-360.png") });
     releaseCatalog();
     await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent) > 0);
@@ -144,6 +167,15 @@ async function main() {
     await setSpeed(page, 0);
     await page.screenshot({ path: path.join(output, "fallback-360.png") });
     assert.deepEqual(errors, [], "No JavaScript errors during loading or font fallback");
+
+    await page.unroute("**/*.woff2");
+    await page.route("**/data/catalog.json", route => route.fulfill({ status: 503, body: "Unavailable" }));
+    await page.reload();
+    await page.waitForFunction(() => document.querySelector("#orrery-status").textContent.startsWith("Unable to load"));
+    report.push({ width: 360, state: "catalog-error", ui: await checkTypography(page),
+      status: await checkStatusContrast(page, "Unable to load asteroids. Reload to try again.") });
+    await page.screenshot({ path: path.join(output, "error-360.png") });
+    assert.deepEqual(errors, [], "No JavaScript errors during catalogue failure");
     fs.writeFileSync(path.join(output, "results.json"), JSON.stringify(report, null, 2) + "\n");
     console.log("UI checks passed: production font/license delivery, desktop/mobile typography, keyboard and slider playback, reload, delayed loading and font fallback.");
   } finally {
