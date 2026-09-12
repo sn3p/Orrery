@@ -123,6 +123,35 @@ async function pixels(page) {
   });
 }
 
+async function instancePixels(page) {
+  return page.evaluate(() => {
+    const { app, REFERENCE_JED, reference } = fixture;
+    const hidden = app.stage.children.filter(c => c !== app.asteroids);
+    hidden.forEach(c => { c.visible = false; });
+    const data = [0, 90, 180, 270].map((M, i) => ({ a: 0.1, e: 0, i: 0, W: 0, wbar: 0, M, n: 1, epoch: REFERENCE_JED, disc: REFERENCE_JED - 3 + i }));
+    app.jedDelta = 0; app.jed = REFERENCE_JED - 1;
+    app.stage.scale.set(12); app.stage.position.set(app.viewWidth / 2, app.viewHeight / 2);
+    app.setAsteroids(data); app.elapsed += 1; app.tick(); app.app.render();
+    app.jed = REFERENCE_JED; app.tick(); app.app.render();
+    const read = () => data.map(d => {
+      const [x, y] = reference(d, app.jed), rgba = new Uint8Array(4);
+      const gl = app.app.renderer.gl, r = app.app.renderer.resolution;
+      gl.readPixels(Math.floor((app.stage.x + x * 12) * r), app.canvas.height - 1 - Math.floor((app.stage.y + y * 12) * r), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+      return Array.from(rgba);
+    });
+    const colors = read();
+    colors.forEach(([r, g, b], i) => {
+      if (!(i === 3 ? r === 0 && g > 200 && b === 0 : r > 100 && r === g && g === b)) throw new Error("Per-instance position or partial discovery timestamp upload failed");
+    });
+    app.elapsed += 4096.1; app.tick(); app.app.render();
+    const rebased = read();
+    if (!rebased.every(([r, g, b]) => r > 100 && r === g && g === b)) throw new Error("Full timestamp refresh after a partial upload failed");
+    hidden.forEach(c => { c.visible = true; });
+    app.stage.scale.set(1); app.setAsteroids(fixture.catalog); app.elapsed += 1; app.tick(); app.app.render();
+    return { colors, rebased };
+  });
+}
+
 async function contextRecovery(page) {
   for (let i = 0; i < 2; i++) {
     const available = await page.evaluate(() => {
@@ -169,7 +198,7 @@ async function main() {
         page.on("pageerror", error => errors.push(error.message));
         page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
         await page.goto(server.url + "/fixture/");
-        const result = { browser: name, version: browser.version(), ...await exercise(page), pixels: await pixels(page), recovery: await contextRecovery(page) };
+        const result = { browser: name, version: browser.version(), ...await exercise(page), pixels: await pixels(page), instances: await instancePixels(page), recovery: await contextRecovery(page) };
         await page.screenshot({ path: path.join(output, `${name}-desktop.png`) });
         const scale = await page.evaluate(() => fixture.app.stage.scale.x);
         await page.mouse.move(500, 400); await page.mouse.wheel(0, -100);
@@ -250,6 +279,7 @@ async function main() {
             return { version: 1, discovered: app.asteroidsDiscovered };
           });
           result.webgl1.pixels = await pixels(webgl1);
+          result.webgl1.instances = await instancePixels(webgl1);
           await webgl1.close();
         }
         report.push(result);
