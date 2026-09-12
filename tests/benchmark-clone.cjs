@@ -33,6 +33,10 @@ const execute = promisify(execFile);
       fs.symlinkSync(path.join(root, 'node_modules', name), path.join(clone, 'node_modules', name));
     }
     assert.equal((await git('status', '--porcelain')).stdout, '');
+    // The full suite also runs the real dev-server regression. Its generated
+    // entry/probe files must not taint a subsequent benchmark's source stamp.
+    await execute(process.execPath, ['tests/hmr.cjs'], { cwd: clone, env, timeout: 60000 });
+    assert.equal((await git('status', '--porcelain')).stdout, '', 'HMR test outputs leave the source clean');
     await execute('npm', ['run', 'benchmark'], { cwd: clone, env, timeout: 30000 });
     const report = JSON.parse(fs.readFileSync(path.join(clone, '.context/gpu-orbits/benchmark/results.json')));
     assert.equal(report.complete, true);
@@ -43,6 +47,6 @@ const execute = promisify(execFile);
     fs.writeFileSync(path.join(clone, 'src/provenance-probe.txt'), 'real untracked source');
     assert.match((await git('status', '--porcelain')).stdout, /src\/provenance-probe.txt/);
     fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify(report, null, 2) + '\n');
-    console.log('Default benchmark in a clean ordinary clone retains verified source attribution.');
+    console.log('Default benchmark after HMR tests in a clean ordinary clone retains verified source attribution.');
   } finally { fs.rmSync(clone, { recursive: true, force: true }); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
