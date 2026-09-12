@@ -4,6 +4,7 @@ const path = require('node:path');
 const browsers = require('playwright');
 const { build, serve } = require('./support.cjs');
 const lifecycle = require('./rendering-lifecycle.cjs');
+const initialization = require('./initialization.cjs');
 const output = '.context/paused-rendering/checks';
 const settle = page => page.evaluate(async () => {
   for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
@@ -179,6 +180,7 @@ async function markers(page, url) {
 async function main() {
   await build('./tests/rendering-fixture.js', path.join(output, 'fixture'));
   await build('./src/js/index.js', path.join(output, 'production'));
+  await build('./tests/init-fixture.js', path.join(output, 'init'));
   const server = await serve(output), report = [];
   const fixtureURL = server.url + '/fixture';
   try {
@@ -201,6 +203,8 @@ async function main() {
         result.manualRecovery = await lifecycle.recovery(page, { manual: true });
         result.manualDisposal = await lifecycle.disposal(page, server.url);
         result.production = await lifecycle.production(browser, server.url + '/production/', output, name);
+        await page.goto(server.url + '/init/');
+        result.initialization = await initialization(page);
         assert.deepEqual(errors, [], 'No browser, shader or WebGL errors');
         report.push(result); console.log(JSON.stringify(result));
       } finally { await browser.close(); }

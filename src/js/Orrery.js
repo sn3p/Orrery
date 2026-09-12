@@ -24,6 +24,7 @@ export default class Orrery {
     this.autoRender = options.autoRender ?? true;
     this.animationFrame = null;
     this.initialized = false;
+    this.pixiInitialized = false;
     this.tick = this.tick.bind(this);
     this.render = this.render.bind(this);
     this.resize = this.resize.bind(this);
@@ -84,7 +85,14 @@ export default class Orrery {
     if (this.initialized && !this.destroyed) this.updateGui();
   }
 
-  async init() {
+  init() {
+    if (this.destroyed) return Promise.resolve();
+    // Concurrent callers share the same initialization and its owned resources.
+    this.initialization ??= this.initialize();
+    return this.initialization;
+  }
+
+  async initialize() {
     // Create PIXI application
     this.app = new Application();
     await this.app.init({
@@ -100,6 +108,14 @@ export default class Orrery {
       backgroundColor: 0x000000,
       antialias: true,
     });
+
+    // Pixi cannot be torn down partway through its asynchronous init. If
+    // disposal won the race, release it now before attaching any Orrery UI.
+    if (this.destroyed) {
+      this.app.destroy(true, { children: true });
+      return;
+    }
+    this.pixiInitialized = true;
 
     this.stage = this.app.stage;
     this.canvas = this.app.canvas;
@@ -309,13 +325,15 @@ export default class Orrery {
     window.removeEventListener("resize", this.resize);
     this.resolutionQuery?.removeEventListener("change", this.onResolutionChange);
     document.removeEventListener("visibilitychange", this.onVisibilityChange);
-    this.canvas.removeEventListener("webglcontextlost", this.onContextLost);
-    this.canvas.removeEventListener("webglcontextrestored", this.onContextRestored);
-    this.app.ticker.remove(this.tick);
-    this.controls.destroy();
-    this.gui.controls.destroy();
+    this.canvas?.removeEventListener("webglcontextlost", this.onContextLost);
+    this.canvas?.removeEventListener("webglcontextrestored", this.onContextRestored);
+    this.app?.ticker?.remove(this.tick);
+    this.controls?.destroy();
+    this.gui?.controls?.destroy();
     this.asteroids?.destroy();
-    this.circleTexture.destroy(true);
-    this.app.destroy(true, { children: true });
+    this.circleTexture?.destroy(true);
+    if (this.pixiInitialized) this.app.destroy(true, { children: true });
+    this.pixiInitialized = false;
+    this.initialized = false;
   }
 }
