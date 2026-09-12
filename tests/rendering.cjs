@@ -5,6 +5,7 @@ const browsers = require('playwright');
 const { build, serve } = require('./support.cjs');
 const lifecycle = require('./rendering-lifecycle.cjs');
 const initialization = require('./initialization.cjs');
+const status = require('./status.cjs');
 const output = '.context/paused-rendering/checks';
 const settle = page => page.evaluate(async () => {
   for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
@@ -205,6 +206,7 @@ async function main() {
         result.production = await lifecycle.production(browser, server.url + '/production/', output, name);
         await page.goto(server.url + '/init/');
         result.initialization = await initialization(page);
+        result.status = await status(browser, server.url + '/production/', output, name);
         assert.deepEqual(errors, [], 'No browser, shader or WebGL errors');
         report.push(result); console.log(JSON.stringify(result));
       } finally { await browser.close(); }
