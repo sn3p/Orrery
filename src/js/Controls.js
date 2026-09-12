@@ -11,6 +11,7 @@ export default class Controls {
   destroy() { this.orrery.canvas.removeEventListener("wheel", this.onScroll); }
 
   onScroll(event) {
+    if (event.deltaY === 0) return;
     event.preventDefault();
     const delta = -event.deltaY;
     const multiplier = this.options.multiplier;

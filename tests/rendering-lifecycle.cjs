@@ -178,6 +178,16 @@ exports.production = async (browser, url, output, name) => {
     const canvas = page.locator('canvas');
     const previous = await canvas.screenshot();
     const draws = await page.evaluate(() => window.draws);
+    await page.evaluate(() => {
+      window.horizontalWheel = false;
+      document.querySelector('canvas').addEventListener('wheel', event => {
+        window.horizontalWheel = event.deltaX !== 0 && event.deltaY === 0;
+      }, { once: true });
+    });
+    await page.mouse.move(600, 400); await page.mouse.wheel(200, 0);
+    await page.waitForFunction(() => window.horizontalWheel);
+    assert.equal(await idle(), draws, 'Horizontal-only wheel input leaves the paused renderer asleep');
+    assert(previous.equals(await canvas.screenshot()), 'Horizontal-only wheel input preserves the framebuffer');
     await page.mouse.move(600, 400); await page.mouse.wheel(0, -200);
     await page.waitForFunction(n => window.draws > n, draws);
     await idle();
@@ -209,7 +219,7 @@ exports.production = async (browser, url, output, name) => {
       await page.screenshot({ path: path.join(output, `${name}-production-${width}.png`) });
     }
     assert.deepEqual(errors, []);
-    return { recurringWebGLSubmissions: 0, pausedLoading: 'passed', keyboardSliderZoom: 'passed',
+    return { recurringWebGLSubmissions: 0, pausedLoading: 'passed', horizontalWheelIgnored: true, keyboardSliderZoom: 'passed',
       viewports: ['1280x800 DPR2', '390x844 DPR2', '360x844 DPR2'], consoleErrors: 0 };
   } finally { release(); await page.close(); }
 };
