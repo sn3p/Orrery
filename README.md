@@ -112,6 +112,8 @@ time and available JS heap measurements. Runs interrupted by focus, visibility,
 context or resolution changes are rejected. Only a report with `complete: true`
 is a completed matrix. The million-record case repeats the bundled records and
 overlaps their positions; it does not represent a larger unique catalogue.
+`COUNTS` (comma-separated) and `REPEATS` must be positive safe integers; invalid
+inputs fail before building or launching Chrome and leave an incomplete report.
 JS heap is not total process/GPU memory, and submission timing is not GPU time.
 Frame errors terminate the run, restore measurement hooks and leave an incomplete
 error report. Reports fingerprint the served bundle and catalogue. Local builds

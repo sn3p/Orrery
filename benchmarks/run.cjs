@@ -83,30 +83,41 @@ async function sample({ count, warmupMs, sampleMs }) {
     heapBytes: performance.memory?.usedJSHeapSize ?? null, intervals };
 }
 
+function positiveInteger(value, name) {
+  const number = Number(value);
+  if (!Number.isSafeInteger(number) || number <= 0) throw new Error(`${name} must be a positive safe integer.`);
+  return number;
+}
+
 async function main() {
   const output = path.resolve(process.env.OUTPUT || ".context/gpu-orbits/benchmark");
   const bundle = process.env.BUNDLE || path.join(output, "app");
   fs.mkdirSync(output, { recursive: true });
-  const runnerSource = await checkoutSource();
-  if (!process.env.BUNDLE) {
-    await build("./tests/fixture.js", bundle);
-    // Do not claim a revision if the checkout changed while webpack ran.
-    const stable = JSON.stringify(runnerSource) === JSON.stringify(await checkoutSource());
-    recordSource(bundle, stable ? runnerSource : {});
-  }
-  const source = bundleSource(bundle);
-  const server = await serve(bundle);
-  let browser;
-  const report = { complete: false, recordedAt: new Date().toISOString(), ...source,
-    runnerRevision: runnerSource.revision, label: process.env.LABEL || "benchmark", browser: null,
+  let browser, server;
+  const report = { complete: false, recordedAt: new Date().toISOString(),
+    label: process.env.LABEL || "benchmark", browser: null,
     viewport: { width: 1280, height: 800 }, dpr: 1, jed: 2458600.5, daysPerSecond: 90,
     warmupMs: 3000, sampleMs: 5000, headless: process.env.HEADLESS !== "0", runs: [] };
   try {
+    const counts = (process.env.COUNTS ?? "100000,1000000").split(",").map(value => positiveInteger(value, "COUNTS entry"));
+    const repeats = positiveInteger(process.env.REPEATS ?? "3", "REPEATS");
+    Object.assign(report, { counts, repeats });
+    const runnerSource = await checkoutSource();
+    report.runnerRevision = runnerSource.revision;
+    if (!process.env.BUNDLE) {
+      await build("./tests/fixture.js", bundle);
+      // Do not claim a revision if the checkout changed while webpack ran.
+      const stable = JSON.stringify(runnerSource) === JSON.stringify(await checkoutSource());
+      recordSource(bundle, stable ? runnerSource : {});
+    }
+    const source = bundleSource(bundle);
+    Object.assign(report, source);
+    server = await serve(bundle);
     browser = await chromium.launch({ channel: "chrome", headless: process.env.HEADLESS !== "0", args: ["--enable-precise-memory-info"] });
     report.browser = browser.version();
     fs.writeFileSync(path.join(output, "results.json"), JSON.stringify(report, null, 2) + "\n");
-    for (const count of (process.env.COUNTS || "100000,1000000").split(",").map(Number)) {
-      for (let repetition = 0; repetition < Number(process.env.REPEATS || 3); repetition++) {
+    for (const count of counts) {
+      for (let repetition = 0; repetition < repeats; repetition++) {
         const page = await browser.newPage({ viewport: report.viewport, deviceScaleFactor: report.dpr });
         const errors = [];
         page.on("pageerror", error => errors.push(error.message));
@@ -130,7 +141,7 @@ async function main() {
     throw error;
   } finally {
     await browser?.close();
-    await server.close();
+    await server?.close();
     fs.writeFileSync(path.join(output, "results.json"), JSON.stringify(report, null, 2) + "\n");
   }
 }

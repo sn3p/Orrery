@@ -13,6 +13,24 @@ const hash = value => crypto.createHash("sha256").update(value).digest("hex");
 
 (async () => {
   const directory = ".context/gpu-orbits/benchmark-test";
+  const invalidOutput = path.join(directory, "invalid-input");
+  fs.mkdirSync(invalidOutput, { recursive: true });
+  for (const name of ["COUNTS", "REPEATS"]) {
+    const invalid = ["0", "-1", "NaN", "1.5", "", " ", "Infinity", "9007199254740992"];
+    if (name === "COUNTS") invalid.push("1000,", "1000,,2000", "1000,-1", "1000,1.5");
+    for (const value of invalid) {
+      const file = path.join(invalidOutput, "results.json");
+      fs.writeFileSync(file, JSON.stringify({ complete: true, runs: ["previous run"] }));
+      const env = { ...process.env, COUNTS: "1000", REPEATS: "1", [name]: value,
+        BUNDLE: path.join(directory, "missing-bundle"), OUTPUT: invalidOutput };
+      await assert.rejects(execute(process.execPath, ["benchmarks/run.cjs"], { env, timeout: 5000 }), error =>
+        error.code === 1 && !error.killed && new RegExp(`${name}.*positive safe integer`).test(error.stderr));
+      const report = JSON.parse(fs.readFileSync(file));
+      assert.equal(report.complete, false, "Invalid input replaces any previous completed report");
+      assert.deepEqual(report.runs, []);
+      assert.match(report.error, new RegExp(name));
+    }
+  }
   await build("./tests/fixture.js", directory);
   const server = await serve(directory);
   const browser = await chromium.launch({ channel: "chrome" });
@@ -106,6 +124,9 @@ const hash = value => crypto.createHash("sha256").update(value).digest("hex");
   await execute(process.execPath, ["benchmarks/run.cjs"], { env, timeout: 30000 });
   const report = JSON.parse(fs.readFileSync(path.join(output, "results.json")));
   assert.equal(report.complete, true);
+  assert.deepEqual(report.counts, [1000]);
+  assert.equal(report.repeats, 1);
+  assert.equal(report.runs.length, 1, "A valid matrix runs the requested number of samples");
   assert.equal(report.revision, null, "Unknown external source is not the runner checkout");
   assert.equal(report.sourceDirty, null);
   assert.equal(report.runnerRevision, source.revision);
