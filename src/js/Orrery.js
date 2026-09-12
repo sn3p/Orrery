@@ -1,24 +1,54 @@
-import { Application, Container, ParticleContainer, Graphics, log2 } from "pixi.js";
+import { Application, ParticleContainer, Graphics } from "pixi.js";
 import { toJED, fromJED } from "./utils";
 import Controls from "./Controls.js";
 import Stats from "./Stats.js";
 import Gui from "./Gui.js";
 import Planet from "./Planet.js";
-import Asteroid from "./Asteroid.js";
+import Asteroids from "./Asteroids.js";
+import PlaybackClock from "./PlaybackClock.js";
+import { validDate } from "./asteroidOrbits.js";
 
 export default class Orrery {
   constructor(options = {}) {
     this.container = options.container || document.body;
-    this.startDate = options.startDate || new Date(1980, 1);
-    this.jedDelta = options.jedDelta || 1.5;
+    this.startDate = options.startDate ?? new Date(1980, 1);
+    this.jedDelta = options.jedDelta ?? 1.5;
     this.jed = toJED(this.startDate);
+    if (!validDate(this.jed) || !Number.isFinite(this.jedDelta)) throw new Error("Invalid initial playback time.");
+    this.clock = new PlaybackClock();
+    this.elapsed = 0;
+    this.loadVersion = 0;
+    this.destroyed = false;
+    this.contextLost = false;
+    this.tick = this.tick.bind(this);
+    this.resize = this.resize.bind(this);
+    this.onVisibilityChange = () => this.clock.reset();
+    this.onContextLost = event => { event.preventDefault(); this.contextLost = true; this.clock.reset(); };
+    this.onContextRestored = () => {
+      if (this.destroyed) return;
+      // Render textures contain GPU-only pixels. Pixi restores buffers/programs,
+      // but the generated circle must be drawn again after every context loss.
+      const previous = this.circleTexture;
+      this.circleTexture = this.createCircleTexture();
+      for (const planet of this.planets) planet.body.texture = this.circleTexture;
+      this.planetContainer.texture = this.circleTexture;
+      this.planetContainer.update();
+      this.asteroids?.setTexture(this.circleTexture);
+      previous.destroy(true);
+      this.contextLost = false;
+      this.clock.reset();
+    };
   }
 
   async init() {
     // Create PIXI application
     this.app = new Application();
     await this.app.init({
-      resizeTo: window,
+      preference: "webgl",
+      resolution: window.devicePixelRatio || 1,
+      autoDensity: true,
+      width: window.innerWidth,
+      height: window.innerHeight,
       backgroundColor: 0x000000,
       antialias: true,
     });
@@ -30,7 +60,9 @@ export default class Orrery {
     this.container.appendChild(this.canvas);
 
     // Center the stage
-    this.stage.position.set(this.canvas.width / 2, this.canvas.height / 2);
+    this.viewWidth = window.innerWidth;
+    this.viewHeight = window.innerHeight;
+    this.stage.position.set(this.viewWidth / 2, this.viewHeight / 2);
 
     // Setup GUI and controls
     this.setupGui();
@@ -40,13 +72,18 @@ export default class Orrery {
     this.createSystem();
 
     // Start the ticker
-    this.app.ticker.add(this.tick.bind(this));
+    this.app.ticker.add(this.tick);
+    window.addEventListener("resize", this.resize);
+    document.addEventListener("visibilitychange", this.onVisibilityChange);
+    this.canvas.addEventListener("webglcontextlost", this.onContextLost);
+    this.canvas.addEventListener("webglcontextrestored", this.onContextRestored);
+    this.updateGui();
   }
 
-  async createSystem() {
+  createSystem() {
     this.planets = [];
-    this.asteroidData = [];
-    this.asteroids = [];
+    this.asteroids = null;
+    this.asteroidsDiscovered = 0;
 
     // Create texture
     // TODO: create a custom texture for asteroids of 1px size?
@@ -55,18 +92,9 @@ export default class Orrery {
     // Add sun
     this.addSun();
 
-    // Container for planets
-    this.planetContainer = new ParticleContainer(10);
+    // Planets keep the existing CPU orbit path and particle rendering.
+    this.planetContainer = new ParticleContainer({ texture: this.circleTexture });
     this.stage.addChild(this.planetContainer);
-
-    // Container for asteroids
-    this.asteroidContainer = new ParticleContainer(
-      999999,
-      { scale: true, tint: true },
-      16384,
-      true
-    );
-    this.stage.addChild(this.asteroidContainer);
   }
 
   setupGui() {
@@ -83,13 +111,15 @@ export default class Orrery {
     const date = fromJED(this.jed).toISOString().slice(0, 10);
     this.gui.date.textContent = date;
     this.gui.fps.textContent = `${this.stats.fps} FPS`;
-    this.gui.count.textContent = this.asteroids.length;
+    this.gui.count.textContent = this.asteroidsDiscovered;
   }
 
   createCircleTexture(radius = 5) {
     const gfx = new Graphics();
     gfx.circle(0, 0, radius).fill({ color: 0xffffff });
-    return this.app.renderer.generateTexture(gfx);
+    const texture = this.app.renderer.generateTexture(gfx);
+    gfx.destroy();
+    return texture;
   }
 
   addSun() {
@@ -113,73 +143,88 @@ export default class Orrery {
       // Add planet
       this.planets.push(planet);
       this.planetContainer.addParticle(planet.body);
+      planet.render(this.jed);
     });
   }
 
-  setAsteroids(asteroidData) {
-    this.asteroidData = asteroidData;
-
-    // Add all asteroids at once (for debugging/performance testing)
-    // asteroidData.forEach(data => this.addAsteroid(data));
+  setAsteroids(data) {
+    // Validate/allocate before touching the current catalogue or pending load.
+    const next = new Asteroids(data, this.circleTexture, this.jed, this.elapsed, this.app.renderer.context.webGLVersion === 2);
+    const previous = this.asteroids;
+    this.loadVersion++;
+    this.loadController?.abort();
+    this.asteroids = next;
+    this.asteroidsDiscovered = next.geometry.instanceCount;
+    this.stage.addChildAt(next, previous ? this.stage.getChildIndex(previous) : 2);
+    previous?.destroy();
+    this.setStatus("");
+    this.updateGui();
   }
 
-  discoverAsteroids() {
-    if (this.jedDelta > 0) {
-      // Forward in time
-      for (let i = this.asteroids.length; i < this.asteroidData.length; ++i) {
-        const data = this.asteroidData[i];
-
-        if (data.disc > this.jed) {
-          break;
-        }
-
-        // Add asteroid
-        this.addAsteroid(data);
-      }
-    } else {
-      // Backward in time
-      for (let i = this.asteroids.length - 1; i >= 0; --i) {
-        const asteroid = this.asteroids[i];
-
-        if (asteroid.disc < this.jed) {
-          this.asteroids.splice(i + 1);
-          break;
-        }
-
-        // Remove asteroid
-        this.asteroidContainer.removeParticle(asteroid.body);
-      }
+  async loadAsteroids(url) {
+    this.loadController?.abort();
+    const controller = this.loadController = new AbortController();
+    const version = ++this.loadVersion;
+    this.setStatus("Loading asteroids…");
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) throw new Error(`Catalogue request failed (${response.status}).`);
+      const data = await response.json();
+      if (this.destroyed || version !== this.loadVersion) return false;
+      this.setAsteroids(data);
+      return true;
+    } catch (error) {
+      if (this.destroyed || version !== this.loadVersion || controller.signal.aborted) return false;
+      this.setStatus("Unable to load asteroids. Reload to try again.");
+      return false;
     }
   }
 
-  addAsteroid(data) {
-    const asteroid = new Asteroid(data, this.circleTexture);
-    this.asteroids.push(asteroid);
-    this.asteroidContainer.addParticle(asteroid.body);
+  setStatus(message) {
+    const status = document.getElementById("orrery-status");
+    if (status) status.textContent = message;
   }
 
-  tick() {
+  tick(ticker = this.app.ticker) {
+    if (this.destroyed) return;
+    if (document.hidden || this.contextLost) { this.clock.reset(); return; }
+    // Moving a window between screens can change DPR without changing its size.
+    if (this.app.renderer.resolution !== (window.devicePixelRatio || 1)) this.resize();
     this.stats.begin();
-
-    if (this.jedDelta !== 0) {
-      this.jed += this.jedDelta;
-
-      // Discover asteroids
-      this.discoverAsteroids();
-
-      // Render planets and asteroids
-      this.planets.forEach((planet) => planet.render(this.jed));
-      this.asteroids.forEach((asteroid) => asteroid.render(this.jed));
-
-      this.updateGui();
-    }
-
+    // Pixi updates lastTime *after* invoking listeners; elapsedMS is raw,
+    // unlike its capped/scaled deltaMS. Reconstruct this callback's timestamp.
+    const advance = this.clock.advance(ticker.lastTime + (ticker.elapsedMS ?? 0), this.jedDelta);
+    if (validDate(this.jed + advance)) this.jed += advance;
+    this.elapsed += this.clock.seconds;
+    this.asteroidsDiscovered = this.asteroids?.update(this.jed, this.elapsed) ?? 0;
+    for (const planet of this.planets) planet.render(this.jed);
+    this.updateGui();
     this.stats.end();
   }
 
   resize() {
-    const { width, height } = this.canvas;
-    this.app.renderer.resize(width, height);
-    this.stage.position.set(width / 2, height / 2);
+    const width = window.innerWidth, height = window.innerHeight;
+    this.app.renderer.resize(width, height, window.devicePixelRatio || 1);
+    this.stage.position.x += (width - this.viewWidth) / 2;
+    this.stage.position.y += (height - this.viewHeight) / 2;
+    this.viewWidth = width;
+    this.viewHeight = height;
+  }
+
+  destroy() {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.loadVersion++;
+    this.loadController?.abort();
+    window.removeEventListener("resize", this.resize);
+    document.removeEventListener("visibilitychange", this.onVisibilityChange);
+    this.canvas.removeEventListener("webglcontextlost", this.onContextLost);
+    this.canvas.removeEventListener("webglcontextrestored", this.onContextRestored);
+    this.app.ticker.remove(this.tick);
+    this.controls.destroy();
+    this.gui.controls.destroy();
+    this.asteroids?.destroy();
+    this.circleTexture.destroy(true);
+    this.app.destroy(true, { children: true });
   }
 }

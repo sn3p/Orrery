@@ -28,18 +28,7 @@ orrery.init().then(() => {
   // Add planets
   orrery.addPlanets(planetData);
 
-  // Load asteroids
-  fetch(MPC_DATA_URL)
-    .then((response) => response.json())
-    .then((data) => {
-      // Sort by discovery date
-      data.sort((a, b) => a.disc - b.disc);
-
-      orrery.setAsteroids(data);
-    });
-
-  // Resize orrery
-  window.addEventListener("resize", () => {
-    orrery.resize();
-  });
+  orrery.loadAsteroids(MPC_DATA_URL);
+}).catch(() => {
+  document.getElementById("orrery-status").textContent = "Unable to start the visualization. WebGL is required.";
 });

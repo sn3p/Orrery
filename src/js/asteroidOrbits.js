@@ -11,7 +11,8 @@ export const wrap = value => value - TAU * Math.floor((value + Math.PI) / TAU);
 export const orbitGLSL = `
 vec2 orbitPosition(vec2 p, vec2 q, vec3 elements, float time) {
   float e = elements.x;
-  float M = mod(elements.y + elements.z * time + 3.141592653589793, 6.283185307179586) - 3.141592653589793;
+  float M = elements.y + elements.z * time;
+  M -= 6.283185307179586 * floor((M + 3.141592653589793) / 6.283185307179586);
   float E = e < 0.8 ? M : sign(M) * 3.141592653589793;
   for (int k = 0; k < 12; k++) {
     E -= (E - e * sin(E) - M) / (1.0 - e * cos(E));

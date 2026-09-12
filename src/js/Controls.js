@@ -4,11 +4,15 @@ export default class Controls {
     this.options = options;
     this.orrery = orrery;
 
-    orrery.canvas.addEventListener("wheel", this.onScroll.bind(this));
+    this.onScroll = this.onScroll.bind(this);
+    orrery.canvas.addEventListener("wheel", this.onScroll, { passive: false });
   }
 
+  destroy() { this.orrery.canvas.removeEventListener("wheel", this.onScroll); }
+
   onScroll(event) {
-    const delta = event.wheelDelta;
+    event.preventDefault();
+    const delta = -event.deltaY;
     const multiplier = this.options.multiplier;
     const factor = delta > 0 ? multiplier : 1 / multiplier;
     const scale = this.orrery.stage.scale;
