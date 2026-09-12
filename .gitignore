@@ -8,6 +8,9 @@ node_modules/
 # Python test bytecode
 __pycache__/
 
+# Generated UI test screenshots and results
+/.context/font-qa/
+
 # Conductor settings for this machine
 .conductor/settings.local.toml
 
