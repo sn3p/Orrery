@@ -11,6 +11,9 @@ Two daily updated datasets are used to extract the orbital elements and discover
 
 ## How to use
 
+Use Node.js 24.15.0 or later in the 24.x release line (recommended),
+22.22.3 or later in the 22.x release line, or 26.0.0 or later.
+
 Install dependencies:
 
 ```bash
