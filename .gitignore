@@ -11,6 +11,10 @@ __pycache__/
 # Generated UI test screenshots and results
 /.context/font-qa/
 
+# Generated GPU tests and benchmark output (also in ordinary Git clones)
+/.context/gpu-orbits/
+/.context/paused-rendering/
+
 # Conductor settings for this machine
 .conductor/settings.local.toml
 

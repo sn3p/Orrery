@@ -131,11 +131,15 @@ overlaps their positions; it does not represent a larger unique catalogue.
 inputs fail before building or launching Chrome and leave an incomplete report.
 JS heap is not total process/GPU memory, and submission timing is not GPU time.
 Frame errors terminate the run, restore measurement hooks and leave an incomplete
-error report. Reports fingerprint the served bundle and catalogue. Local builds
-save a matching `benchmark-source.json` with the checkout revision and dirty
+error report. Reports fingerprint the complete served build, including HTML,
+CSS, scripts, fonts and catalogue. Added, removed or changed files invalidate a recorded source;
+symbolic links and other non-regular build inputs are rejected. The source stamp
+itself is excluded from its own fingerprint. Local builds save a matching
+`benchmark-source.json` with the checkout revision and dirty
 state; `BUNDLE=/path/to/app npm run benchmark` uses that build record only while
-its hashes still match. Missing or stale records report an unknown source
-revision, separately from the runner's revision.
+its build fingerprint still matches. Default test/benchmark outputs are Git-ignored
+in ordinary clones as well as Conductor workspaces. Missing or stale records
+report an unknown source revision, separately from the runner's revision.
 
 Measured on 12 September 2026 with Chrome 151, an M3 Max (30 GPU cores, 36 GB),
 battery/automatic power mode, and matching conditions above (median of 3 runs):
