@@ -11,6 +11,9 @@ Two daily updated datasets are used to extract the orbital elements and discover
 
 ## How to use
 
+Use Node.js 24.15.0 or later in the 24.x release line (recommended),
+22.22.3 or later in the 22.x release line, or 26.0.0 or later.
+
 Install dependencies:
 
 ```bash
@@ -39,6 +42,19 @@ Deploy to gh-pages:
 
 ```bash
 npm run deploy
+```
+
+### Conductor
+
+Setup installs the locked dependencies with `npm ci`. When asdf is installed,
+it adds the Node.js plugin if needed and installs the version pinned in `.tool-versions`.
+Run starts the development server on the workspace's assigned port; use Open
+to view the app. Each workspace can run its own server concurrently.
+
+Test the setup script with Python 3.11 or later:
+
+```bash
+python3 -m unittest discover -s tests -v
 ```
 
 ## Get updated data

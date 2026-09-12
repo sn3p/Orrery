@@ -1,0 +1,24 @@
+"$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
+
+[[preview_urls]]
+name = "Orrery"
+url = "http://127.0.0.1:$CONDUCTOR_PORT"
+
+[scripts]
+setup = """
+set -e
+if command -v asdf >/dev/null 2>&1; then
+  if ! asdf plugin list | grep -qx nodejs; then
+    asdf plugin add nodejs https://github.com/asdf-vm/asdf-nodejs.git
+  fi
+  asdf install nodejs
+fi
+npm ci --engine-strict
+"""
+run_mode = "concurrent"
+
+[scripts.run.dev]
+available_in = ["local"]
+command = 'exec npm run serve -- --no-open --host 127.0.0.1 --port "$CONDUCTOR_PORT"'
+default = true
+icon = "play"
