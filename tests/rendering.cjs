@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const browsers = require('playwright');
 const { build, serve } = require('./support.cjs');
+const lifecycle = require('./rendering-lifecycle.cjs');
 const output = '.context/paused-rendering/checks';
 const settle = page => page.evaluate(async () => {
   for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
@@ -177,7 +178,9 @@ async function markers(page, url) {
 
 async function main() {
   await build('./tests/rendering-fixture.js', path.join(output, 'fixture'));
-  const server = await serve(path.join(output, 'fixture')), report = [];
+  await build('./src/js/index.js', path.join(output, 'production'));
+  const server = await serve(output), report = [];
+  const fixtureURL = server.url + '/fixture';
   try {
     for (const name of (process.env.BROWSERS || 'chromium').split(',')) {
       const browser = await browsers[name].launch({ ...(name === 'chromium' ? { channel: 'chrome' } : {}) });
@@ -186,10 +189,18 @@ async function main() {
         const errors = [];
         page.on('pageerror', e => errors.push(e.message));
         page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-        await page.goto(server.url); await page.evaluate(() => window.ready);
+        await page.goto(fixtureURL + '/'); await page.evaluate(() => window.ready);
         const result = { browser: name, version: browser.version(), paused: await paused(page),
           invalidations: await invalidations(page), dpr: await dpr(page, name),
-          loading: await loading(page, server.url), markers: await markers(page, server.url) };
+          loading: await loading(page, fixtureURL), markers: await markers(page, fixtureURL) };
+        await page.goto(fixtureURL + '/'); await page.evaluate(() => window.ready);
+        result.visibility = await lifecycle.visibility(page);
+        result.recovery = await lifecycle.recovery(page);
+        result.disposal = await lifecycle.disposal(page, server.url);
+        await page.goto(fixtureURL + '/?manual'); await page.evaluate(() => window.ready);
+        result.manualRecovery = await lifecycle.recovery(page, { manual: true });
+        result.manualDisposal = await lifecycle.disposal(page, server.url);
+        result.production = await lifecycle.production(browser, server.url + '/production/', output, name);
         assert.deepEqual(errors, [], 'No browser, shader or WebGL errors');
         report.push(result); console.log(JSON.stringify(result));
       } finally { await browser.close(); }

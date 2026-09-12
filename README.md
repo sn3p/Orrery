@@ -83,6 +83,21 @@ Reverse playback hides future discoveries; replaying them flashes them again.
 Date jumps reveal the newly included records immediately. Hidden/context
 downtime is excluded, and individual elapsed intervals are capped at 250 ms.
 
+Paused scenes render on demand and show `0 FPS`. Initial/async catalogue loading,
+date changes, wheel zoom, resize/DPR changes and graphics/visibility recovery
+request a redraw; simultaneous requests share one frame. Orrery owns the RAF
+scheduler and keeps Pixi's independent automatic ticker stopped. Tests and
+benchmarks use `new Orrery({ autoRender: false })`: setters and recovery never
+start scene rendering, and the caller drives `render(timestamp)` or explicit
+`tick(timestamp)` / `app.render()` calls. Context recovery still regenerates the
+offscreen circle texture in manual mode.
+
+In a Chrome 151 measurement on this Mac, the previous GPU implementation drew
+66 paused frames in 502 ms (about 131/second); on-demand rendering produces zero
+recurring paused draws or asteroid updates. This is a draw-count observation,
+not a measured power saving. Browser regressions count renderer calls and actual
+production WebGL submissions, including instanced draws.
+
 The shader uses relative dates and refreshes phases from double-precision
 references after 256 simulation days. Discovery timestamps update only when
 records are revealed, with an occasional animation-clock refresh after 4096
