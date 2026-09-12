@@ -38,14 +38,18 @@ Watch changes and rebuild:
 npm run watch
 ```
 
-Run the production UI checks with Google Chrome installed:
+Run numerical, production browser and benchmark checks with Google Chrome installed:
 
 ```bash
 npm test
 ```
 
-These checks cover font loading, desktop/mobile layout and playback controls.
-Screenshots and results are saved in `.context/font-qa/`.
+These checks cover GPU orbit accuracy, discovery markers, playback, catalogue
+replacement, context recovery, font loading and desktop/mobile layout. Results
+and screenshots are saved in `.context/gpu-orbits/` and `.context/font-qa/`.
+To include Firefox and Playwright WebKit, install their browsers with
+`npx playwright install firefox webkit`, then run `BROWSERS=chromium,firefox,webkit npm test`.
+Playwright WebKit does not substitute for testing actual Safari or iOS.
 
 The UI uses self-hosted [JetBrains Mono Variable](src/fonts/README.md),
 distributed with its SIL Open Font License.
@@ -68,6 +72,68 @@ Test the setup script with Python 3.11 or later:
 ```bash
 python3 -m unittest discover -s tests -v
 ```
+
+## GPU asteroid rendering
+
+Asteroids use one Pixi WebGL instanced mesh. Static orbital bases and elements
+feed a bounded Kepler solver in the vertex shader; ordinary frames change time
+uniforms rather than calculating and uploading every asteroid's position.
+Planets keep their CPU orbit calculation. The circle texture, projection,
+parent pan/zoom transforms, blending and discovery colours remain the same.
+
+Speed 1 is 60 days/second; the default 1.5 is 90 days/second, independent of frame
+rate. Pausing freezes motion and marker animation. Green discoveries shrink
+from 3× to 1× over two-thirds of an active playback second, then turn grey.
+Reverse playback hides future discoveries; replaying them flashes them again.
+Date jumps reveal the newly included records immediately. Hidden/context
+downtime is excluded, and individual elapsed intervals are capped at 250 ms.
+
+The shader uses relative dates and refreshes phases from double-precision
+references after 256 simulation days. Discovery timestamps update only when
+records are revealed, with an occasional animation-clock refresh after 4096
+active seconds. WebGL1 uses the same GPU path with instancing support, but
+uploads the full timestamp buffer on discovery because Pixi's partial upload
+API uses WebGL2. There is no CPU asteroid renderer setting or fallback.
+
+Catalogue replacement validates finite, float32-representable elliptic orbits
+and discovery dates before replacing valid data. Positive `n` is required when
+supplied; absent/null `n` can use a positive period `P`. Failed loads retain the
+current catalogue. Context recovery recreates the generated particle texture
+as well as restoring GPU resources.
+
+Run the production-class benchmark with Chrome:
+
+```bash
+npm run benchmark
+# Shorter run with only the bundled population:
+COUNTS=100000 REPEATS=3 npm run benchmark
+```
+
+The benchmark uses a fixed date trajectory, 1280×800 at DPR 1, three repetitions,
+3 seconds of warmup and 5 seconds of sampling. It reports frame distributions,
+CPU update/render submission, upload bytes, fetch/parse/setup, CPU phase-refresh
+time and available JS heap measurements. Runs interrupted by focus, visibility,
+context or resolution changes are rejected. Only a report with `complete: true`
+is a completed matrix. The million-record case repeats the bundled records and
+overlaps their positions; it does not represent a larger unique catalogue.
+JS heap is not total process/GPU memory, and submission timing is not GPU time.
+
+Measured on 12 September 2026 with Chrome 151, an M3 Max (30 GPU cores, 36 GB),
+battery/automatic power mode, and matching conditions above (median of 3 runs):
+
+| Population | Previous CPU renderer | GPU renderer | Frame time p95, before → after |
+|---|---:|---:|---:|
+| 100,000 bundled objects | 36.8 FPS | 120.8 FPS | 33.4 → 9.2 ms |
+| 1,000,000 repeated records | 3.79 FPS | 120.0 FPS | 275.1 → 9.2 ms |
+
+The comparison used CPU source `56a3806` and GPU source `cb29d4a`. Browser pacing
+limits the GPU results around 120 FPS. Catalogue setup took 64.9 → 29.9 ms at
+100k, excluding fetch/parse and initial GPU upload. CPU phase refresh measured
+0.6 ms at 100k and 11.8 ms at 1m; these are occasional O(N) operations.
+The full catalogue's shader error stayed below 0.14 pixels at 20× zoom across
+seven tested dates, including ±50,000 days. Extreme zoom/dates, other GPUs,
+actual Safari/iOS and larger unique catalogues remain unverified. The bundled
+catalogue is unchanged; these measurements do not establish a new data limit.
 
 ## Get updated data
 
