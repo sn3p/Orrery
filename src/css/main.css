@@ -59,3 +59,14 @@ body {
   bottom: 0;
   right: 0;
 }
+
+.orrery-status {
+  color: #777;
+  background: #000;
+  position: absolute;
+  bottom: 44px;
+  left: 20px;
+  right: 20px;
+  pointer-events: none;
+  overflow-wrap: anywhere;
+}

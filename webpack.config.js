@@ -10,7 +10,8 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, "dist"),
     filename: "bundle.js",
-    chunkFormat: false,
+    // Keep one app bundle without disabling the callback wrapper HMR needs.
+    asyncChunks: false,
   },
   module: {
     rules: [

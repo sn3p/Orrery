@@ -18,7 +18,7 @@ export default class Orbit {
     const a = eph.a;
     const i = eph.i * DEG_TO_RAD;
     const o = eph.W * DEG_TO_RAD; // longitude of ascending node
-    const p = (eph.wbar || eph.w + eph.W) * DEG_TO_RAD; // longitude of perihelion
+    const p = (eph.wbar ?? eph.w + eph.W) * DEG_TO_RAD; // longitude of perihelion
     const ma = eph.M * DEG_TO_RAD; // mean anomaly at J2000
 
     // Mean motion
