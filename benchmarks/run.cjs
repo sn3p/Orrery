@@ -1,9 +1,8 @@
 const fs = require("node:fs");
 const path = require("node:path");
-const crypto = require("node:crypto");
-const { execFileSync } = require("node:child_process");
 const { chromium } = require("playwright");
 const { build, serve } = require("../tests/support.cjs");
+const { checkoutSource, fingerprints, recordSource, bundleSource } = require("./provenance.cjs");
 
 async function sample({ count, warmupMs, sampleMs }) {
   const { app, catalog, timings } = window.fixture;
@@ -31,32 +30,39 @@ async function sample({ count, warmupMs, sampleMs }) {
   const dimensions = [innerWidth, innerHeight, devicePixelRatio, app.canvas.width, app.canvas.height];
   const start = performance.now();
   let previous = null;
-  app.clock.reset();
-  await new Promise(resolve => {
-    function frame(now) {
-      const dt = previous === null ? 0 : now - previous;
-      previous = now;
-      app.jedDelta = 1.5;
-      // Match the dated view even when a slow frame hits the clock cap.
-      app.jed = 2458600.5 + (now - start) * 0.09 - Math.min(dt, 250) * 0.09;
-      bytes = 0;
-      const t = performance.now();
-      app.tick({ lastTime: now });
-      const r = performance.now();
-      app.app.render();
-      const end = performance.now();
-      if (now - start >= warmupMs) {
-        intervals.push(dt); ticks.push(r - t); renders.push(end - r); uploads.push(bytes);
+  let animationFrame;
+  try {
+    app.clock.reset();
+    await new Promise((resolve, reject) => {
+      function frame(now) {
+        try {
+          const dt = previous === null ? 0 : now - previous;
+          previous = now;
+          app.jedDelta = 1.5;
+          // Match the dated view even when a slow frame hits the clock cap.
+          app.jed = 2458600.5 + (now - start) * 0.09 - Math.min(dt, 250) * 0.09;
+          bytes = 0;
+          const t = performance.now();
+          app.tick({ lastTime: now });
+          const r = performance.now();
+          app.app.render();
+          const end = performance.now();
+          if (now - start >= warmupMs) {
+            intervals.push(dt); ticks.push(r - t); renders.push(end - r); uploads.push(bytes);
+          }
+          if (now - start < warmupMs + sampleMs) animationFrame = requestAnimationFrame(frame);
+          else resolve();
+        } catch (error) { reject(error); }
       }
-      if (now - start < warmupMs + sampleMs) requestAnimationFrame(frame);
-      else resolve();
-    }
-    requestAnimationFrame(frame);
-  });
-  gl.bufferSubData = bufferSubData;
-  for (const event of ["resize", "blur"]) window.removeEventListener(event, interrupt);
-  document.removeEventListener("visibilitychange", interrupt);
-  app.canvas.removeEventListener("webglcontextlost", interrupt);
+      animationFrame = requestAnimationFrame(frame);
+    });
+  } finally {
+    cancelAnimationFrame(animationFrame);
+    gl.bufferSubData = bufferSubData;
+    for (const event of ["resize", "blur"]) window.removeEventListener(event, interrupt);
+    document.removeEventListener("visibilitychange", interrupt);
+    app.canvas.removeEventListener("webglcontextlost", interrupt);
+  }
   if (interrupted || document.hidden || gl.isContextLost() || dimensions.some((v, i) => v !== [innerWidth, innerHeight, devicePixelRatio, app.canvas.width, app.canvas.height][i])) throw new Error("Benchmark interrupted or resolution changed; discard this run");
   const stats = values => {
     const sorted = values.slice().sort((a, b) => a - b);
@@ -81,15 +87,24 @@ async function main() {
   const output = path.resolve(process.env.OUTPUT || ".context/gpu-orbits/benchmark");
   const bundle = process.env.BUNDLE || path.join(output, "app");
   fs.mkdirSync(output, { recursive: true });
-  if (!process.env.BUNDLE) await build("./tests/fixture.js", bundle);
+  const runnerSource = await checkoutSource();
+  if (!process.env.BUNDLE) {
+    await build("./tests/fixture.js", bundle);
+    // Do not claim a revision if the checkout changed while webpack ran.
+    const stable = JSON.stringify(runnerSource) === JSON.stringify(await checkoutSource());
+    recordSource(bundle, stable ? runnerSource : {});
+  }
+  const source = bundleSource(bundle);
   const server = await serve(bundle);
-  const browser = await chromium.launch({ channel: "chrome", headless: process.env.HEADLESS !== "0", args: ["--enable-precise-memory-info"] });
-  const report = { complete: false, recordedAt: new Date().toISOString(), revision: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
-    label: process.env.LABEL || "working-tree", browser: browser.version(),
-    catalogSHA256: crypto.createHash("sha256").update(fs.readFileSync("data/catalog.json")).digest("hex"),
+  let browser;
+  const report = { complete: false, recordedAt: new Date().toISOString(), ...source,
+    runnerRevision: runnerSource.revision, label: process.env.LABEL || "benchmark", browser: null,
     viewport: { width: 1280, height: 800 }, dpr: 1, jed: 2458600.5, daysPerSecond: 90,
     warmupMs: 3000, sampleMs: 5000, headless: process.env.HEADLESS !== "0", runs: [] };
   try {
+    browser = await chromium.launch({ channel: "chrome", headless: process.env.HEADLESS !== "0", args: ["--enable-precise-memory-info"] });
+    report.browser = browser.version();
+    fs.writeFileSync(path.join(output, "results.json"), JSON.stringify(report, null, 2) + "\n");
     for (const count of (process.env.COUNTS || "100000,1000000").split(",").map(Number)) {
       for (let repetition = 0; repetition < Number(process.env.REPEATS || 3); repetition++) {
         const page = await browser.newPage({ viewport: report.viewport, deviceScaleFactor: report.dpr });
@@ -107,9 +122,17 @@ async function main() {
         await page.close();
       }
     }
+    const final = fingerprints(bundle);
+    if (Object.keys(final).some(key => final[key] !== source[key])) throw new Error("Served bundle changed during the benchmark; discard this run");
     report.complete = true;
+  } catch (error) {
+    report.error = error.message;
+    throw error;
+  } finally {
+    await browser?.close();
+    await server.close();
     fs.writeFileSync(path.join(output, "results.json"), JSON.stringify(report, null, 2) + "\n");
-  } finally { await browser.close(); await server.close(); }
+  }
 }
 module.exports = { sample };
 if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1; });

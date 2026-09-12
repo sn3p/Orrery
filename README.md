@@ -118,6 +118,12 @@ context or resolution changes are rejected. Only a report with `complete: true`
 is a completed matrix. The million-record case repeats the bundled records and
 overlaps their positions; it does not represent a larger unique catalogue.
 JS heap is not total process/GPU memory, and submission timing is not GPU time.
+Frame errors terminate the run, restore measurement hooks and leave an incomplete
+error report. Reports fingerprint the served bundle and catalogue. Local builds
+save a matching `benchmark-source.json` with the checkout revision and dirty
+state; `BUNDLE=/path/to/app npm run benchmark` uses that build record only while
+its hashes still match. Missing or stale records report an unknown source
+revision, separately from the runner's revision.
 
 Measured on 12 September 2026 with Chrome 151, an M3 Max (30 GPU cores, 36 GB),
 battery/automatic power mode, and matching conditions above (median of 3 runs):
