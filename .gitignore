@@ -5,5 +5,8 @@
 # Dependancies
 node_modules/
 
+# Conductor settings for this machine
+.conductor/settings.local.toml
+
 # OS files
 .DS_Store

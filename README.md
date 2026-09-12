@@ -44,6 +44,13 @@ Deploy to gh-pages:
 npm run deploy
 ```
 
+### Conductor
+
+Setup installs the locked dependencies with `npm ci`. When asdf is installed,
+it also installs the Node.js version pinned in `.tool-versions`.
+Run starts the development server on the workspace's assigned port; use Open
+to view the app. Each workspace can run its own server concurrently.
+
 ## Get updated data
 
 Data files are stored in the `data` directory.
