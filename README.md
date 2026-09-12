@@ -45,8 +45,9 @@ npm test
 ```
 
 These checks cover GPU orbit accuracy, discovery markers, playback, catalogue
-replacement, context recovery, font loading and desktop/mobile layout. Results
-and screenshots are saved in `.context/gpu-orbits/` and `.context/font-qa/`.
+replacement, context recovery, development hot updates, font loading and
+desktop/mobile layout. Results and screenshots are saved in `.context/gpu-orbits/`,
+`.context/hmr-test/` and `.context/font-qa/`.
 To include Firefox and Playwright WebKit, install their browsers with
 `npx playwright install firefox webkit`, then run `BROWSERS=chromium,firefox,webkit npm test`.
 Playwright WebKit does not substitute for testing actual Safari or iOS.
