@@ -96,6 +96,7 @@ exports.disposal = async (page, url) => {
   await page.route('**/pending-disposal', async route => { await gate; await route.fulfill({ body: '[]' }).catch(() => {}); });
   try {
     await page.evaluate(url => { window.pendingLoad = fixture.app.loadAsteroids(url + '/pending-disposal'); }, url);
+    assert.equal(await page.getByRole('status').textContent(), 'Loading asteroids…');
     const before = await page.evaluate(() => {
       const {app, probe} = fixture, query = app.resolutionQuery, canvas = app.canvas, cloud = app.asteroids;
       const expected = [[window, 'resize', app.resize], [document, 'visibilitychange', app.onVisibilityChange],
@@ -125,11 +126,13 @@ exports.disposal = async (page, url) => {
     // This is evaluated in the page without adding production globals.
     assert.equal(before.pending, null); assert.equal(before.removed, 6);
     assert.equal(before.canvas, false); assert.equal(before.gui, false); assert(before.cloudDestroyed);
+    assert.equal(await page.getByRole('status').textContent(), '', 'Teardown clears pending loading feedback immediately');
     release(); assert.equal(await page.evaluate(() => window.pendingLoad), false);
     await settle(page);
+    assert.equal(await page.getByRole('status').textContent(), '', 'Cancelled fetch cannot restore stale loading feedback');
     assert.equal(await page.evaluate(() => fixture.probe.draws), before.draws);
     assert.equal(await page.evaluate(() => fixture.probe.updates), before.updates);
-    return { pendingFrameCancelled: true, delayedLoadCancelled: true, listenersRemoved: true };
+    return { pendingFrameCancelled: true, delayedLoadCancelled: true, statusCleared: true, listenersRemoved: true };
   } finally { release(); await page.unroute('**/pending-disposal'); }
 };
 

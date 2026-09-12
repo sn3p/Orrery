@@ -322,6 +322,7 @@ export default class Orrery {
     this.cancelRender();
     this.loadVersion++;
     this.loadController?.abort();
+    this.setStatus("");
     window.removeEventListener("resize", this.resize);
     this.resolutionQuery?.removeEventListener("change", this.onResolutionChange);
     document.removeEventListener("visibilitychange", this.onVisibilityChange);
