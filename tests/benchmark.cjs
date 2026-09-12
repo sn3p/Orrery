@@ -12,8 +12,10 @@ const execute = promisify(execFile);
 const hash = value => crypto.createHash("sha256").update(value).digest("hex");
 
 (async () => {
-  const directory = ".context/gpu-orbits/benchmark-test";
-  const invalidOutput = path.join(directory, "invalid-input");
+  const artifacts = ".context/gpu-orbits/benchmark-test";
+  const directory = path.join(artifacts, "app");
+  fs.rmSync(artifacts, { recursive: true, force: true });
+  const invalidOutput = path.join(artifacts, "invalid-input");
   fs.mkdirSync(invalidOutput, { recursive: true });
   for (const name of ["COUNTS", "REPEATS"]) {
     const invalid = ["0", "-1", "NaN", "1.5", "", " ", "Infinity", "9007199254740992"];
@@ -22,7 +24,7 @@ const hash = value => crypto.createHash("sha256").update(value).digest("hex");
       const file = path.join(invalidOutput, "results.json");
       fs.writeFileSync(file, JSON.stringify({ complete: true, runs: ["previous run"] }));
       const env = { ...process.env, COUNTS: "1000", REPEATS: "1", [name]: value,
-        BUNDLE: path.join(directory, "missing-bundle"), OUTPUT: invalidOutput };
+        BUNDLE: path.join(artifacts, "missing-bundle"), OUTPUT: invalidOutput };
       await assert.rejects(execute(process.execPath, ["benchmarks/run.cjs"], { env, timeout: 5000 }), error =>
         error.code === 1 && !error.killed && new RegExp(`${name}.*positive safe integer`).test(error.stderr));
       const report = JSON.parse(fs.readFileSync(file));
@@ -38,6 +40,16 @@ const hash = value => crypto.createHash("sha256").update(value).digest("hex");
     for (const event of [null, "resize", "blur", "visibilitychange"]) {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(server.url); await page.evaluate(() => window.ready);
+      await page.evaluate(() => {
+        const { app } = fixture;
+        window.work = { ticks: 0, draws: 0 };
+        const tick = app.tick.bind(app), render = app.app.renderer.render.bind(app.app.renderer);
+        app.tick = (...args) => { work.ticks++; return tick(...args); };
+        app.app.renderer.render = options => {
+          if (options.container === app.stage) work.draws++;
+          return render(options);
+        };
+      });
       if (event) await page.evaluate(event => {
         requestAnimationFrame(() => requestAnimationFrame(() => {
           (event === "visibilitychange" ? document : window).dispatchEvent(new Event(event));
@@ -45,7 +57,15 @@ const hash = value => crypto.createHash("sha256").update(value).digest("hex");
       }, event);
       const run = page.evaluate(sample, { count: 100000, warmupMs: 50, sampleMs: 100 });
       if (event) await assert.rejects(run, /interrupted/);
-      else assert((await run).frames > 0);
+      else {
+        assert((await run).frames > 0);
+        const work = await page.evaluate(() => window.work);
+        assert.equal(work.draws, work.ticks + 1, "One explicit draw per benchmark tick plus the final rebase draw");
+        await page.waitForTimeout(150);
+        assert.deepEqual(await page.evaluate(() => window.work), work, "Finite benchmark leaves no background work");
+        await page.evaluate(() => { fixture.app.autoRender = true; });
+        await assert.rejects(page.evaluate(sample, { count: 100000, warmupMs: 50, sampleMs: 100 }), /manual scheduling/);
+      }
       await page.close();
     }
     for (const method of ["tick", "render"]) {
@@ -88,7 +108,7 @@ const hash = value => crypto.createHash("sha256").update(value).digest("hex");
     }
   } finally { await browser.close(); await server.close(); }
 
-  const sourceFixture = path.join(directory, "source-fixture");
+  const sourceFixture = path.join(artifacts, "source-fixture");
   fs.rmSync(sourceFixture, { recursive: true, force: true });
   fs.mkdirSync(sourceFixture, { recursive: true });
   const git = (...args) => execute("git", args, { cwd: sourceFixture });
@@ -106,12 +126,29 @@ const hash = value => crypto.createHash("sha256").update(value).digest("hex");
   recordSource(directory, source);
   assert.equal(bundleSource(directory).revision, source.revision);
   assert.equal(bundleSource(directory).sourceDirty, source.sourceDirty);
-  const external = path.join(directory, "external"), output = path.join(directory, "external-results");
+  const external = path.join(artifacts, "external"), output = path.join(artifacts, "external-results");
   fs.mkdirSync(external, { recursive: true });
   for (const name of ["bundle.js", "index.html", "main.css", "fonts", "data", "benchmark-source.json"]) {
     fs.cpSync(path.join(directory, name), path.join(external, name), { recursive: true });
   }
   assert.equal(bundleSource(external).revision, source.revision, "Copied build retains its recorded source");
+  for (const name of ["index.html", "main.css", "fonts/JetBrainsMono-Variable.woff2"]) {
+    const filename = path.join(external, name), original = fs.readFileSync(filename);
+    fs.appendFileSync(filename, name.endsWith(".html") ? "<script>requestAnimationFrame(function loop(){requestAnimationFrame(loop)})</script>" : "\n/* changed input */");
+    assert.equal(bundleSource(external).revision, null, `Changed ${name} invalidates build attribution`);
+    fs.writeFileSync(filename, original);
+  }
+  const injected = path.join(external, "injected.js");
+  fs.writeFileSync(injected, "requestAnimationFrame(() => {});");
+  assert.equal(bundleSource(external).revision, null, "Added auxiliary scripts invalidate attribution");
+  fs.renameSync(injected, path.join(external, "renamed.js"));
+  assert.equal(bundleSource(external).revision, null, "Renamed assets invalidate attribution");
+  fs.rmSync(path.join(external, "renamed.js"));
+  const css = fs.readFileSync(path.join(external, "main.css"));
+  fs.rmSync(path.join(external, "main.css"));
+  assert.equal(bundleSource(external).revision, null, "Removed CSS invalidates attribution");
+  fs.writeFileSync(path.join(external, "main.css"), css);
+  assert.equal(bundleSource(external).revision, source.revision);
   const bundleFile = path.join(external, "bundle.js"), originalBundle = fs.readFileSync(bundleFile);
   fs.appendFileSync(bundleFile, "\n// Changed external bundle\n");
   assert.equal(bundleSource(external).revision, null, "Changed JavaScript invalidates stale source stamp");
@@ -133,6 +170,18 @@ const hash = value => crypto.createHash("sha256").update(value).digest("hex");
   assert.equal(report.catalogSHA256, hash(catalog), "Report fingerprints the actually served catalogue");
   assert.equal(report.bundleSHA256, hash(fs.readFileSync(path.join(external, "bundle.js"))));
   assert.notEqual(report.catalogSHA256, hash(fs.readFileSync("data/catalog.json")));
+
+  fs.rmSync(path.join(output, "results.json"));
+  const mutating = execute(process.execPath, ["benchmarks/run.cjs"], { env, timeout: 30000 });
+  const rejectedMutation = assert.rejects(mutating, error => error.code === 1 && /Served bundle changed/.test(error.stderr));
+  // The initial report is written after startup fingerprints were taken.
+  for (let i = 0; !fs.existsSync(path.join(output, "results.json")); i++) {
+    if (i >= 200) throw new Error("Benchmark did not start for the mutation test");
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  fs.appendFileSync(path.join(external, "index.html"), "<!-- modified during measurement -->");
+  await rejectedMutation;
+  assert.equal(JSON.parse(fs.readFileSync(path.join(output, "results.json"))).complete, false);
 
   fs.appendFileSync(path.join(external, "bundle.js"), '\nwindow.ready = window.ready.then(() => { fixture.app.tick = () => { throw new Error("forced CLI frame failure"); }; });\n');
   await assert.rejects(execute(process.execPath, ["benchmarks/run.cjs"], { env, timeout: 10000 }), error =>

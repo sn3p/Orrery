@@ -5,11 +5,10 @@ import catalogURL from "../data/catalog.json";
 import "../src/css/main.css";
 
 window.ready = (async () => {
-  const app = new Orrery({ container: document.getElementById("orrery"), jedDelta: 0 });
+  const app = new Orrery({ container: document.getElementById("orrery"), jedDelta: 0, autoRender: false });
   const initStart = performance.now();
   await app.init();
   const initialSpeed = app.jedDelta;
-  app.app.stop();
   app.jedDelta = 0;
   app.jed = 2458600.5;
   app.addPlanets(planets);

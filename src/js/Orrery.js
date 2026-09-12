@@ -12,18 +12,34 @@ export default class Orrery {
   constructor(options = {}) {
     this.container = options.container || document.body;
     this.startDate = options.startDate ?? new Date(1980, 1);
-    this.jedDelta = options.jedDelta ?? 1.5;
-    this.jed = toJED(this.startDate);
+    this._jedDelta = options.jedDelta ?? 1.5;
+    this._jed = toJED(this.startDate);
     if (!validDate(this.jed) || !Number.isFinite(this.jedDelta)) throw new Error("Invalid initial playback time.");
     this.clock = new PlaybackClock();
     this.elapsed = 0;
     this.loadVersion = 0;
     this.destroyed = false;
     this.contextLost = false;
+    // Tests and benchmarks can own a finite scheduler explicitly.
+    this.autoRender = options.autoRender ?? true;
+    this.animationFrame = null;
+    this.initialized = false;
+    this.pixiInitialized = false;
     this.tick = this.tick.bind(this);
+    this.render = this.render.bind(this);
     this.resize = this.resize.bind(this);
-    this.onVisibilityChange = () => this.clock.reset();
-    this.onContextLost = event => { event.preventDefault(); this.contextLost = true; this.clock.reset(); };
+    this.onResolutionChange = () => this.resize();
+    this.onVisibilityChange = () => {
+      this.resetClock();
+      if (document.hidden) this.cancelRender();
+      else this.requestRender();
+    };
+    this.onContextLost = event => {
+      event.preventDefault();
+      this.contextLost = true;
+      this.cancelRender();
+      this.resetClock();
+    };
     this.onContextRestored = () => {
       if (this.destroyed) return;
       // Render textures contain GPU-only pixels. Pixi restores buffers/programs,
@@ -36,14 +52,54 @@ export default class Orrery {
       this.asteroids?.setTexture(this.circleTexture);
       previous.destroy(true);
       this.contextLost = false;
-      this.clock.reset();
+      this.resetClock();
+      this.requestRender();
     };
   }
 
-  async init() {
+  get jed() { return this._jed; }
+
+  set jed(value) {
+    if (this.destroyed || Object.is(value, this._jed)) return;
+    if (!validDate(value)) throw new Error("Invalid playback date.");
+    this._jed = value;
+    this.requestRender();
+  }
+
+  get jedDelta() { return this._jedDelta; }
+
+  set jedDelta(value) {
+    if (this.destroyed || Object.is(value, this._jedDelta)) return;
+    if (!Number.isFinite(value)) throw new Error("Invalid playback speed.");
+    const wasPlaying = this.isPlaying;
+    this._jedDelta = value;
+    if (!wasPlaying || !this.isPlaying) this.resetClock();
+    this.requestRender();
+  }
+
+  get isPlaying() { return this.jedDelta !== 0; }
+
+  resetClock() {
+    this.clock.reset();
+    this.stats?.reset();
+    if (this.initialized && !this.destroyed) this.updateGui();
+  }
+
+  init() {
+    if (this.destroyed) return Promise.resolve();
+    // Concurrent callers share the same initialization and its owned resources.
+    this.initialization ??= this.initialize();
+    return this.initialization;
+  }
+
+  async initialize() {
     // Create PIXI application
     this.app = new Application();
     await this.app.init({
+      // Pixi registers app.render separately from tick. Its automatic ticker
+      // must stay stopped: Orrery's RAF is the sole automatic frame owner.
+      autoStart: false,
+      sharedTicker: false,
       preference: "webgl",
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
@@ -52,6 +108,14 @@ export default class Orrery {
       backgroundColor: 0x000000,
       antialias: true,
     });
+
+    // Pixi cannot be torn down partway through its asynchronous init. If
+    // disposal won the race, release it now before attaching any Orrery UI.
+    if (this.destroyed) {
+      this.app.destroy(true, { children: true });
+      return;
+    }
+    this.pixiInitialized = true;
 
     this.stage = this.app.stage;
     this.canvas = this.app.canvas;
@@ -71,13 +135,16 @@ export default class Orrery {
     // Create star system
     this.createSystem();
 
-    // Start the ticker
+    // Retain explicit ticker.update() support for deterministic GPU tests.
     this.app.ticker.add(this.tick);
     window.addEventListener("resize", this.resize);
     document.addEventListener("visibilitychange", this.onVisibilityChange);
     this.canvas.addEventListener("webglcontextlost", this.onContextLost);
     this.canvas.addEventListener("webglcontextrestored", this.onContextRestored);
+    this.initialized = true;
+    this.watchResolution();
     this.updateGui();
+    this.requestRender();
   }
 
   createSystem() {
@@ -129,6 +196,7 @@ export default class Orrery {
   }
 
   addPlanets(planets) {
+    if (this.destroyed) return;
     planets.forEach((data) => {
       const planet = new Planet(data.ephemeris, this.circleTexture, {
         name: data.name,
@@ -145,9 +213,11 @@ export default class Orrery {
       this.planetContainer.addParticle(planet.body);
       planet.render(this.jed);
     });
+    this.requestRender();
   }
 
   setAsteroids(data) {
+    if (this.destroyed) return;
     // Validate/allocate before touching the current catalogue or pending load.
     const next = new Asteroids(data, this.circleTexture, this.jed, this.elapsed, this.app.renderer.context.webGLVersion === 2);
     const previous = this.asteroids;
@@ -159,9 +229,11 @@ export default class Orrery {
     previous?.destroy();
     this.setStatus("");
     this.updateGui();
+    this.requestRender();
   }
 
   async loadAsteroids(url) {
+    if (this.destroyed) return false;
     this.loadController?.abort();
     const controller = this.loadController = new AbortController();
     const version = ++this.loadVersion;
@@ -185,46 +257,84 @@ export default class Orrery {
     if (status) status.textContent = message;
   }
 
-  tick(ticker = this.app.ticker) {
+  requestRender() {
+    if (!this.autoRender || !this.initialized || this.destroyed || document.hidden || this.contextLost || this.animationFrame !== null) return;
+    this.animationFrame = requestAnimationFrame(this.render);
+  }
+
+  cancelRender() {
+    if (this.animationFrame !== null) cancelAnimationFrame(this.animationFrame);
+    this.animationFrame = null;
+  }
+
+  render(timestamp = performance.now()) {
+    // An explicit render also consumes any previously requested frame.
+    this.cancelRender();
+    if (this.destroyed || !this.initialized) return;
+    if (document.hidden || this.contextLost) { this.resetClock(); return; }
+    this.tick(timestamp);
+    this.app.render();
+    if (this.isPlaying) this.requestRender();
+  }
+
+  tick(ticker = performance.now()) {
     if (this.destroyed) return;
-    if (document.hidden || this.contextLost) { this.clock.reset(); return; }
+    if (document.hidden || this.contextLost) { this.resetClock(); return; }
     // Moving a window between screens can change DPR without changing its size.
     if (this.app.renderer.resolution !== (window.devicePixelRatio || 1)) this.resize();
     this.stats.begin();
     // Pixi updates lastTime *after* invoking listeners; elapsedMS is raw,
     // unlike its capped/scaled deltaMS. Reconstruct this callback's timestamp.
-    const advance = this.clock.advance(ticker.lastTime + (ticker.elapsedMS ?? 0), this.jedDelta);
-    if (validDate(this.jed + advance)) this.jed += advance;
+    const timestamp = typeof ticker === "number" ? ticker : ticker.lastTime + (ticker.elapsedMS ?? 0);
+    const advance = this.clock.advance(timestamp, this.jedDelta);
+    // Advancing playback is not an external scene invalidation.
+    if (validDate(this.jed + advance)) this._jed += advance;
     this.elapsed += this.clock.seconds;
     this.asteroidsDiscovered = this.asteroids?.update(this.jed, this.elapsed) ?? 0;
     for (const planet of this.planets) planet.render(this.jed);
+    if (this.isPlaying) this.stats.end();
+    else this.stats.reset();
     this.updateGui();
-    this.stats.end();
+  }
+
+  watchResolution() {
+    this.resolutionQuery?.removeEventListener("change", this.onResolutionChange);
+    this.resolutionQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+    this.resolutionQuery.addEventListener("change", this.onResolutionChange);
   }
 
   resize() {
+    if (this.destroyed || !this.initialized) return;
     const width = window.innerWidth, height = window.innerHeight;
     this.app.renderer.resize(width, height, window.devicePixelRatio || 1);
     this.stage.position.x += (width - this.viewWidth) / 2;
     this.stage.position.y += (height - this.viewHeight) / 2;
     this.viewWidth = width;
     this.viewHeight = height;
+    // Re-arm against the new DPR; a second screen move must also wake us.
+    this.watchResolution();
+    this.requestRender();
   }
 
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.cancelRender();
     this.loadVersion++;
     this.loadController?.abort();
+    this.setStatus("");
     window.removeEventListener("resize", this.resize);
+    this.resolutionQuery?.removeEventListener("change", this.onResolutionChange);
     document.removeEventListener("visibilitychange", this.onVisibilityChange);
-    this.canvas.removeEventListener("webglcontextlost", this.onContextLost);
-    this.canvas.removeEventListener("webglcontextrestored", this.onContextRestored);
-    this.app.ticker.remove(this.tick);
-    this.controls.destroy();
-    this.gui.controls.destroy();
+    this.canvas?.removeEventListener("webglcontextlost", this.onContextLost);
+    this.canvas?.removeEventListener("webglcontextrestored", this.onContextRestored);
+    this.app?.ticker?.remove(this.tick);
+    this.controls?.destroy();
+    this.gui?.controls?.destroy();
     this.asteroids?.destroy();
-    this.circleTexture.destroy(true);
-    this.app.destroy(true, { children: true });
+    this.circleTexture?.destroy(true);
+    if (this.pixiInitialized) this.app.destroy(true, { children: true });
+    this.pixiInitialized = false;
+    this.initialized = false;
   }
 }

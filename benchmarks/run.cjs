@@ -6,6 +6,9 @@ const { checkoutSource, fingerprints, recordSource, bundleSource } = require("./
 
 async function sample({ count, warmupMs, sampleMs }) {
   const { app, catalog, timings } = window.fixture;
+  if (app.autoRender || app.app.ticker.started || app.animationFrame !== null) {
+    throw new Error("Benchmark requires explicit manual scheduling (autoRender: false)");
+  }
   const data = Array.from({ length: count }, (_, i) => catalog[i % catalog.length]);
   const setupStart = performance.now();
   app.setAsteroids(data);

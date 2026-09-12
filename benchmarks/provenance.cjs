@@ -25,7 +25,22 @@ async function checkoutSource(cwd = process.cwd()) {
 }
 
 function fingerprints(directory) {
+  const files = [];
+  function visit(relative = "") {
+    for (const entry of fs.readdirSync(path.join(directory, relative), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)) {
+      const name = relative ? `${relative}/${entry.name}` : entry.name;
+      // The source stamp describes the build; including it would hash itself.
+      if (name === manifestName) continue;
+      if (entry.isDirectory()) visit(name);
+      else if (entry.isFile()) files.push([name, hash(fs.readFileSync(path.join(directory, name)))]);
+      else throw new Error(`Benchmark build contains an unsupported file: ${name}`);
+    }
+  }
+  visit();
   return {
+    // Include paths as well as bytes so additions, removals and renamed assets
+    // invalidate attribution, including HTML/CSS and auxiliary scripts.
+    buildSHA256: hash(JSON.stringify(files)),
     bundleSHA256: hash(fs.readFileSync(path.join(directory, "bundle.js"))),
     catalogSHA256: hash(fs.readFileSync(path.join(directory, "data/catalog.json"))),
   };
