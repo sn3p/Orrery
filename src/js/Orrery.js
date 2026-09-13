@@ -1,5 +1,6 @@
 import { Application, ParticleContainer, Graphics } from "pixi.js";
 import { toJED, fromJED } from "./utils";
+import { UNIX_EPOCH_JULIAN_DATE } from "./constants";
 import Controls from "./Controls.js";
 import Stats from "./Stats.js";
 import Gui from "./Gui.js";
@@ -170,15 +171,28 @@ export default class Orrery {
     this.stats = new Stats();
     this.gui.fps = document.getElementById("orrery-fps");
     this.gui.count = document.getElementById("orrery-count");
+    this.gui.lastDay = null;
+    this.gui.lastFps = null;
+    this.gui.lastCount = null;
     this.gui.controls = new Gui(this);
   }
 
   updateGui() {
-    // Update the date
-    const date = fromJED(this.jed).toISOString().slice(0, 10);
-    this.gui.date.textContent = date;
-    this.gui.fps.textContent = `${this.stats.fps} FPS`;
-    this.gui.count.textContent = this.asteroidsDiscovered;
+    // Match Date's millisecond truncation, including times before the Unix epoch.
+    const milliseconds = Math.trunc((this.jed - UNIX_EPOCH_JULIAN_DATE) * 86400000);
+    const day = Math.floor(milliseconds / 86400000);
+    if (day !== this.gui.lastDay) {
+      this.gui.date.textContent = fromJED(this.jed).toISOString().slice(0, 10);
+      this.gui.lastDay = day;
+    }
+    if (this.stats.fps !== this.gui.lastFps) {
+      this.gui.fps.textContent = `${this.stats.fps} FPS`;
+      this.gui.lastFps = this.stats.fps;
+    }
+    if (this.asteroidsDiscovered !== this.gui.lastCount) {
+      this.gui.count.textContent = this.asteroidsDiscovered;
+      this.gui.lastCount = this.asteroidsDiscovered;
+    }
   }
 
   createCircleTexture(radius = 5) {
