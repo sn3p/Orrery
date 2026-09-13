@@ -107,7 +107,7 @@ module.exports = async function checkCPUOrbits(page) {
       result.recovered = saved.x === planet.body.x && saved.y === planet.body.y;
       const counts = [app.planets.length, app.stage.children.length, app.planetContainer.particleChildren.length];
       for (const patch of [{ e: 1 }, { a: Number.MAX_VALUE }, { n: NaN, P: 360 },
-        { wbar: null, w: "0" }]) {
+        { wbar: null, w: "0" }, { n: 1e15 }, { n: 0, P: 1e-13 }]) {
         try { app.addPlanets([{ name: "Invalid CPU orbit", ephemeris: { ...base, ...patch } }]); result.invalid.push(false); }
         catch (error) { result.invalid.push(error instanceof RangeError); }
       }

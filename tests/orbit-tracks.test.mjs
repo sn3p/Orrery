@@ -62,3 +62,32 @@ test("new tracks and periods observe public ephemeris edits, replacement and rep
   orbit.ephemeris.n = 2;
   assert.equal(orbit.getPeriodInDays(), 180); checkTrack(orbit);
 });
+
+test("tracks reject dates below sampling resolution while accepting representable boundary steps", () => {
+  const spacing = 2 ** -31; // Julian dates around J2000 have this double spacing.
+  for (const jed of [2451545, 2451545 + spacing, -2451545, -2451545 - spacing]) {
+    for (const motion of [{ n: 1e15 }, { n: 0, P: 1e-13 }, { n: 2 ** 32 }]) {
+      const orbit = new Orbit({ ...base, ...motion, epoch: jed });
+      assert(Number.isFinite(orbit.getPeriodInDays()), "The period alone remains valid");
+      assert.throws(() => orbit.drawOrbit(jed), RangeError,
+        "Every successive track date must advance, including half-spacing ties");
+    }
+    checkTrack(new Orbit({ ...base, n: 2 ** 31, epoch: jed }), jed);
+  }
+});
+
+
+test("track resolution checks include relative epoch, initial phase and later spacing boundaries", () => {
+  const boundary = 2 ** 21 - 2 ** -32;
+  for (const [jed, patch] of [[0, { n: 1e15 }], [2451545, { M: 1e20 }],
+    [boundary, { n: 2 ** 32, epoch: boundary }]]) {
+    const orbit = new Orbit({ ...base, ...patch });
+    assert(Number.isFinite(orbit.getPosAtTime(jed).x), "Initial position is representable");
+    assert.throws(() => orbit.drawOrbit(jed), RangeError);
+  }
+  // Tiny periods remain supported where the actual date and phase can resolve
+  // all samples. Projected duplicate coordinates are not themselves an error.
+  checkTrack(new Orbit({ ...base, n: 1e15, epoch: 0 }), 0);
+  checkTrack(new Orbit({ ...base, n: 1e15, epoch: -1e-12 }), -1e-12);
+  checkTrack(new Orbit({ ...base, e: 0, i: 90, W: 0, wbar: 0, M: 0 }));
+});

@@ -50,6 +50,15 @@ module.exports = async function checkOrbitTracks(page) {
           finally { line.destroy(); }
         }
       }
+      // Near the date-resolution boundary, valid one-ULP steps still produce
+      // the complete orbit in both time directions.
+      const Orbit = app.planets[0].orbit.constructor;
+      for (const jed of [2451545, -2451545]) {
+        const orbit = new Orbit({ ...app.planets[2].orbit.ephemeris, n: 2 ** 31, epoch: jed });
+        const line = orbit.drawOrbit(jed);
+        try { result.push(capture(line, orbit, jed, `date resolution at ${jed}`)); }
+        finally { line.destroy(); }
+      }
     } finally {
       app.stage.children.forEach((child, i) => { child.visible = original.visible[i]; });
       app.stage.position.set(original.x, original.y); app.stage.scale.set(original.sx, original.sy);

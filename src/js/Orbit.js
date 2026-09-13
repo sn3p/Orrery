@@ -16,6 +16,10 @@ function meanMotion(eph) {
   return n;
 }
 
+function meanAnomaly(eph, jed) {
+  return eph.M * DEG_TO_RAD + meanMotion(eph) * (jed - eph.epoch);
+}
+
 function eccentricAnomaly(mean, e) {
   // Signed wrapping preserves small negative phases without adding a full turn.
   let M = mean % TAU;
@@ -67,13 +71,12 @@ export default class Orbit {
       throw new RangeError("Invalid elliptical orbital elements.");
     }
     const longitude = eph.wbar ?? (perihelion + eph.W);
-    const epoch = eph.epoch;
     const e = eph.e;
     const a = eph.a * PIXELS_PER_AU;
     const i = eph.i * DEG_TO_RAD;
     const o = eph.W * DEG_TO_RAD; // longitude of ascending node
     const w = (longitude - eph.W) * DEG_TO_RAD; // argument of perihelion
-    const M = eph.M * DEG_TO_RAD + meanMotion(eph) * (jed - epoch);
+    const M = meanAnomaly(eph, jed);
     if (!Number.isFinite(M) || !Number.isFinite(a) || !Number.isFinite(longitude)) {
       throw new RangeError("Orbit exceeds numerical range.");
     }
@@ -104,8 +107,17 @@ export default class Orbit {
     // Sample before creating Graphics, so even a later overflowing sample
     // cannot leave a partially allocated track behind.
     const positions = [first];
+    let previousDate = jed, previousMean = meanAnomaly(this.ephemeris, jed);
     for (let i = 1; i < parts; i++) {
-      positions.push(this.getPosAtTime(jed + delta * i));
+      const date = jed + delta * i;
+      const mean = meanAnomaly(this.ephemeris, date);
+      // Date addition, epoch subtraction or a large initial phase can erase
+      // a sample step. Check every step, including floating-spacing boundaries.
+      if (date <= previousDate || mean <= previousMean) {
+        throw new RangeError("Orbit track exceeds numerical sampling resolution.");
+      }
+      positions.push(this.getPosAtTime(date));
+      previousDate = date; previousMean = mean;
     }
     // Reuse the first point exactly to include the closing segment.
     positions.push(first);
