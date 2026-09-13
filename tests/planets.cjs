@@ -1,8 +1,9 @@
 const assert = require("node:assert/strict");
 
 // Independent Kepler bisection using M = L - wbar, followed by orbital-plane
-// rotations. Reference: Orrery3D PR17. Orrery projects negative X / positive Y,
-// with 100 world units per AU. Dates: J2000 and quarter-period forward/backward.
+// rotations. References: Orrery3D PR17/23. Orrery projects negative X / positive Y,
+// with 100 world units per AU. Dates: J2000 and quarter-period forward/backward;
+// Earth also covers distant backward/forward playback dates.
 const cases = [{
   name: "Saturn",
   dates: [2451545, 2454234.805, 2448855.195],
@@ -10,6 +11,16 @@ const cases = [{
     [-641.5546167927974, 654.1377455743664],
     [751.1001963554454, 531.6205380165759],
     [-706.7054593797596, -693.1585990494149],
+  ],
+}, {
+  name: "Earth",
+  dates: [2451545, 2451636.314, 2451453.686, 2378861.5, 2488070.5],
+  positions: [
+    [17.716175624839284, 96.72148794098914],
+    [97.63172650399369, -21.42782149947558],
+    [-98.98689279403717, 14.887987306053766],
+    [21.90286569520022, 95.85851448615269],
+    [17.544116286101282, 96.75297887991078],
   ],
 }];
 
@@ -64,7 +75,22 @@ module.exports = async function checkPlanetPhases(page) {
     });
     report.push({ name: test.name, datesChecked: actual.length, maxPositionError });
   }
-  return report;
+  const elements = await page.evaluate(() => fixture.app.planets.map(planet => ({
+    name: planet.options.name, ephemeris: planet.orbit.ephemeris,
+  })));
+  assert.deepEqual(elements.map(planet => planet.name), ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn"]);
+  for (const { name, ephemeris: { M, L, wbar } } of elements) {
+    const difference = (M - (L - wbar)) * Math.PI / 180;
+    assert(Math.abs(Math.atan2(Math.sin(difference), Math.cos(difference))) < 1e-10,
+      `${name}: mean anomaly agrees with its own L - wbar`);
+  }
+  // NASA NSSDCA's J2000 source cohort and sidereal period, preserved together:
+  // https://nssdc.gsfc.nasa.gov/planetary/factsheet/earthfact.html
+  assert.deepEqual(elements.find(planet => planet.name === "Earth").ephemeris, {
+    epoch: 2451545, a: 1.00000011, e: 0.01671022, i: 0.00005,
+    W: -11.26064, w: 114.20783, wbar: 102.94719, L: 100.46435, M: -2.48284, P: 365.256,
+  });
+  return { positions: report, phasesChecked: elements.length };
 };
 
 // Focused run, also used inside the broader rendering suite below.
