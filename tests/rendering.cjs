@@ -9,6 +9,7 @@ const status = require('./status.cjs');
 const checkPlanetPhases = require('./planets.cjs');
 const checkCPUOrbits = require('./cpu-orbits.cjs');
 const checkOrbitTracks = require('./orbit-tracks.cjs');
+const readouts = require('./readouts.cjs');
 const output = '.context/paused-rendering/checks';
 const settle = page => page.evaluate(async () => {
   for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
@@ -196,14 +197,16 @@ async function main() {
         page.on('pageerror', e => errors.push(e.message));
         page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
         await page.goto(fixtureURL + '/'); await page.evaluate(() => window.ready);
+        const readoutBoundaries = await readouts.boundaries(page);
         const planetPhases = await checkPlanetPhases(page);
         const cpuOrbits = await checkCPUOrbits(page);
         const orbitTracks = await checkOrbitTracks(page);
         await page.reload(); await page.evaluate(() => window.ready);
+        const readoutsAfterReload = await readouts.boundaries(page);
         const planetPhasesAfterReload = await checkPlanetPhases(page);
         const cpuOrbitsAfterReload = await checkCPUOrbits(page);
         const orbitTracksAfterReload = await checkOrbitTracks(page);
-        const result = { browser: name, version: browser.version(), planetPhases, planetPhasesAfterReload,
+        const result = { browser: name, version: browser.version(), readoutBoundaries, readoutsAfterReload, planetPhases, planetPhasesAfterReload,
           cpuOrbits, cpuOrbitsAfterReload, orbitTracks, orbitTracksAfterReload, paused: await paused(page),
           invalidations: await invalidations(page), dpr: await dpr(page, name),
           loading: await loading(page, fixtureURL), markers: await markers(page, fixtureURL) };
@@ -214,9 +217,11 @@ async function main() {
         await page.goto(fixtureURL + '/?manual'); await page.evaluate(() => window.ready);
         result.manualRecovery = await lifecycle.recovery(page, { manual: true });
         result.manualDisposal = await lifecycle.disposal(page, server.url);
+        result.productionReadouts = await readouts.production(page, server.url + '/production/');
         result.production = await lifecycle.production(browser, server.url + '/production/', output, name);
         await page.goto(server.url + '/init/');
         result.initialization = await initialization(page);
+        result.readoutLifetimes = await readouts.lifetimes(page);
         result.status = await status(browser, server.url + '/production/', output, name);
         assert.deepEqual(errors, [], 'No browser, shader or WebGL errors');
         report.push(result); console.log(JSON.stringify(result));
