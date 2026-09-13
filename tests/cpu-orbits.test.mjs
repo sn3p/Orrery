@@ -90,10 +90,10 @@ test("invalid or overflowing inputs are rejected by both positions and real Pixi
   assert.throws(() => new Orbit(base).getPosAtTime(undefined), RangeError);
   reject({ ...base, epoch: -Number.MAX_VALUE }, Number.MAX_VALUE);
   reject({ ...base, n: Number.MAX_VALUE }, base.epoch + 1e10);
-  assert.throws(() => new Orbit({ ...base, n: Number.MAX_VALUE }).drawOrbit(base.epoch), RangeError,
+  assert.throws(() => new Orbit({ ...base, n: 0, P: 1e308, epoch: 1e308 }).drawOrbit(1e308), RangeError,
     "A valid initial position does not hide overflowing later track samples");
   reject({ ...base, a: Number.MAX_VALUE / 150, e: 0.9, M: 180, W: 0 }, base.epoch);
-  assert.throws(() => new Orbit({ ...base, a: 1e200 }).drawOrbit(), RangeError, "Track period overflow");
+  assert.throws(() => new Orbit({ ...base, n: 1e-308 }).drawOrbit(), RangeError, "Motion-derived track period overflow");
 });
 
 test("public ephemeris edits and replacement affect future calls without changing owned results", () => {

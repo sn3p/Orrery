@@ -108,6 +108,7 @@ if (require.main === module) (async () => {
   const fs = require("node:fs"), path = require("node:path");
   const browsers = require("playwright"), { build, serve } = require("./support.cjs");
   const checkCPUOrbits = require("./cpu-orbits.cjs");
+  const checkOrbitTracks = require("./orbit-tracks.cjs");
   const output = ".context/planet-phases";
   await build("./tests/rendering-fixture.js", path.join(output, "fixture"));
   const server = await serve(path.join(output, "fixture")), report = [];
@@ -122,9 +123,11 @@ if (require.main === module) (async () => {
           await page.goto(server.url); await page.evaluate(() => window.ready);
           const boot = await module.exports(page);
           const cpuBoot = await checkCPUOrbits(page);
+          const tracksBoot = await checkOrbitTracks(page);
           await page.reload(); await page.evaluate(() => window.ready);
           const reload = await module.exports(page);
           const cpuReload = await checkCPUOrbits(page);
+          const tracksReload = await checkOrbitTracks(page);
           await page.evaluate(() => {
             const { app } = fixture;
             app.jed = 2451545;
@@ -133,7 +136,7 @@ if (require.main === module) (async () => {
           });
           await page.screenshot({ path: path.join(output, `${name}-${viewport.width}.png`) });
           assert.deepEqual(errors, [], "No browser, shader or WebGL errors");
-          report.push({ browser: name, version: browser.version(), viewport, boot, reload, cpuBoot, cpuReload });
+          report.push({ browser: name, version: browser.version(), viewport, boot, reload, cpuBoot, cpuReload, tracksBoot, tracksReload });
           await page.close();
         }
       } finally { await browser.close(); }

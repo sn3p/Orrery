@@ -1,5 +1,5 @@
 import { Graphics } from "pixi.js";
-import { PIXELS_PER_AU, J2000, YEAR, DEG_TO_RAD } from "./constants.js";
+import { PIXELS_PER_AU, J2000, DEG_TO_RAD } from "./constants.js";
 
 const TAU = 2 * Math.PI;
 
@@ -14,6 +14,10 @@ function meanMotion(eph) {
   const n = eph.n ? eph.n * DEG_TO_RAD : TAU / eph.P;
   if (!Number.isFinite(n) || n <= 0) throw new RangeError("Invalid orbital mean motion.");
   return n;
+}
+
+function meanAnomaly(eph, jed) {
+  return eph.M * DEG_TO_RAD + meanMotion(eph) * (jed - eph.epoch);
 }
 
 function eccentricAnomaly(mean, e) {
@@ -67,13 +71,12 @@ export default class Orbit {
       throw new RangeError("Invalid elliptical orbital elements.");
     }
     const longitude = eph.wbar ?? (perihelion + eph.W);
-    const epoch = eph.epoch;
     const e = eph.e;
     const a = eph.a * PIXELS_PER_AU;
     const i = eph.i * DEG_TO_RAD;
     const o = eph.W * DEG_TO_RAD; // longitude of ascending node
     const w = (longitude - eph.W) * DEG_TO_RAD; // argument of perihelion
-    const M = eph.M * DEG_TO_RAD + meanMotion(eph) * (jed - epoch);
+    const M = meanAnomaly(eph, jed);
     if (!Number.isFinite(M) || !Number.isFinite(a) || !Number.isFinite(longitude)) {
       throw new RangeError("Orbit exceeds numerical range.");
     }
@@ -96,18 +99,28 @@ export default class Orbit {
 
   drawOrbit(jed = J2000) {
     // Reject invalid elements/dates before allocating a Pixi track.
-    this.getPosAtTime(jed);
+    const first = this.getPosAtTime(jed);
     const parts = 360;
     const period = this.getPeriodInDays();
     const delta = period / parts;
 
     // Sample before creating Graphics, so even a later overflowing sample
     // cannot leave a partially allocated track behind.
-    const positions = [];
-    for (let i = 0; i <= parts; i++) {
-      jed += delta;
-      positions.push(this.getPosAtTime(jed));
+    const positions = [first];
+    let previousDate = jed, previousMean = meanAnomaly(this.ephemeris, jed);
+    for (let i = 1; i < parts; i++) {
+      const date = jed + delta * i;
+      const mean = meanAnomaly(this.ephemeris, date);
+      // Date addition, epoch subtraction or a large initial phase can erase
+      // a sample step. Check every step, including floating-spacing boundaries.
+      if (date <= previousDate || mean <= previousMean) {
+        throw new RangeError("Orbit track exceeds numerical sampling resolution.");
+      }
+      positions.push(this.getPosAtTime(date));
+      previousDate = date; previousMean = mean;
     }
+    // Reuse the first point exactly to include the closing segment.
+    positions.push(first);
 
     const line = new Graphics();
     for (let i = 0; i <= parts; i++) {
@@ -128,8 +141,10 @@ export default class Orbit {
   getPeriodInDays() {
     const a = this.ephemeris?.a;
     if (!Number.isFinite(a) || a <= 0) throw new RangeError("Invalid orbital axis.");
-    // Preserve the existing track period here; matching the motion period is separate.
-    const period = Math.sqrt(Math.pow(a, 3)) * YEAR;
+    // Match getPosAtTime, including validation of the selected n/P value.
+    const eph = this.ephemeris;
+    meanMotion(eph);
+    const period = eph.n ? 360 / eph.n : eph.P;
     if (!Number.isFinite(period) || period <= 0) throw new RangeError("Invalid orbital period.");
     return period;
   }
