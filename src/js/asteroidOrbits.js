@@ -33,6 +33,11 @@ export function validDate(jed) {
   return Number.isFinite(jed) && Math.abs((jed - 2440587.5) * 86400000) <= 8.64e15;
 }
 
+// Pure CPU preparation: owns separate typed buffers and retains no input records.
+// Hand each result to one mesh. Rebasing mutates only the mean-anomaly slots in
+// elements; bases, Float64 phases and discovery dates remain unchanged. epoch is
+// the date of packed elements, while phases are canonical at REFERENCE_JED.
+// The mesh owns a separate elapsed-time epoch for discovery-marker animation.
 export function prepareOrbits(data, jed) {
   if (!validDate(jed)) throw new Error("Invalid asteroid date.");
   if (!Array.isArray(data)) throw new Error("The asteroid catalogue must be an array.");
@@ -44,12 +49,16 @@ export function prepareOrbits(data, jed) {
       && (d.n == null ? Number.isFinite(d.P) && d.P > 0 : Number.isFinite(d.n) && d.n > 0);
     if (!valid) throw new Error(`Invalid elliptical orbit at catalogue entry ${index + 1}.`);
   }
-  const sorted = data.slice().sort((a, b) => a.disc - b.disc);
+  // Sort source indices so precision errors identify the original input row.
+  // Stable sorting preserves source order when discovery dates are equal.
+  const sorted = Array.from({ length: data.length }, (_, index) => index)
+    .sort((a, b) => data[a].disc - data[b].disc);
   const count = sorted.length;
   const bases = new Float32Array(count * 4), elements = new Float32Array(count * 3);
   const phases = new Float64Array(count * 2), dates = new Float64Array(count);
   let radius = 0;
-  sorted.forEach((d, index) => {
+  sorted.forEach((sourceIndex, index) => {
+    const d = data[sourceIndex];
     const o = d.W * DEG_TO_RAD, w = ((d.wbar ?? d.w + d.W) - d.W) * DEG_TO_RAD;
     const inc = d.i * DEG_TO_RAD;
     const a = d.a * PIXELS_PER_AU, b = a * Math.sqrt(1 - d.e * d.e);
@@ -69,10 +78,10 @@ export function prepareOrbits(data, jed) {
       || elements[index * 3 + 2] * REBASE_DAYS > MAX_PHASE_ADVANCE
       || !bases.subarray(index * 4, index * 4 + 4).every(Number.isFinite)
       || !elements.subarray(index * 3, index * 3 + 3).every(Number.isFinite)) {
-      throw new Error(`Orbit exceeds rendering precision at catalogue entry ${index + 1}.`);
+      throw new Error(`Orbit exceeds rendering precision at catalogue entry ${sourceIndex + 1}.`);
     }
   });
-  return { bases, elements, phases, dates, radius };
+  return { bases, elements, phases, dates, radius, epoch: jed };
 }
 
 export function discoveryCount(dates, jed) {
