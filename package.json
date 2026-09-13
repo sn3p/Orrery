@@ -9,7 +9,7 @@
   "scripts": {
     "setup": "cd data && ./download_data.sh && ./data_to_json.py",
     "build": "webpack --mode production",
-    "test": "npm run build && node --test tests/orbits.test.mjs && node tests/gpu.cjs && node tests/scheduling.cjs && node tests/rendering.cjs && node tests/ui.cjs && node tests/benchmark.cjs && node tests/benchmark-clone.cjs && node tests/hmr.cjs",
+    "test": "npm run build && node --test tests/orbits.test.mjs tests/cpu-orbits.test.mjs && node tests/gpu.cjs && node tests/scheduling.cjs && node tests/rendering.cjs && node tests/ui.cjs && node tests/benchmark.cjs && node tests/benchmark-clone.cjs && node tests/hmr.cjs",
     "deploy": "gh workflow run pages.yml --ref master",
     "watch": "webpack --mode development --watch",
     "serve": "webpack serve --mode development --open",
