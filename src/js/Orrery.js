@@ -284,19 +284,26 @@ export default class Orrery {
   render(timestamp = performance.now()) {
     // An explicit render also consumes any previously requested frame.
     this.cancelRender();
+    this.renderFrame(timestamp);
+    if (this.isPlaying) this.requestRender();
+  }
+
+  // A caller-owned frame: tick advances the clock once; only render owns RAF.
+  // Hooks bracket drawing so benchmarks keep update and submission time separate.
+  renderFrame(timestamp = performance.now(), { beforeRender, afterRender } = {}) {
     if (this.destroyed || !this.initialized) return;
     if (document.hidden || this.contextLost) { this.resetClock(); return; }
     this.tick(timestamp);
+    beforeRender?.();
     this.app.render();
-    if (this.isPlaying) this.requestRender();
+    afterRender?.();
   }
 
   tick(ticker = performance.now()) {
     if (this.destroyed) return;
     if (document.hidden || this.contextLost) { this.resetClock(); return; }
     // Moving a window between screens can change DPR without changing its size.
-    if (this.app.renderer.resolution !== (window.devicePixelRatio || 1)) this.resize();
-    this.stats.begin();
+    if (this.app.renderer.resolution !== (window.devicePixelRatio || 1)) this.resize({ render: false });
     // Pixi updates lastTime *after* invoking listeners; elapsedMS is raw,
     // unlike its capped/scaled deltaMS. Reconstruct this callback's timestamp.
     const timestamp = typeof ticker === "number" ? ticker : ticker.lastTime + (ticker.elapsedMS ?? 0);
@@ -306,7 +313,7 @@ export default class Orrery {
     this.elapsed += this.clock.seconds;
     this.asteroidsDiscovered = this.asteroids?.update(this.jed, this.elapsed) ?? 0;
     for (const planet of this.planets) planet.render(this.jed);
-    if (this.isPlaying) this.stats.end();
+    if (this.isPlaying) this.stats.update();
     else this.stats.reset();
     this.updateGui();
   }
@@ -317,7 +324,7 @@ export default class Orrery {
     this.resolutionQuery.addEventListener("change", this.onResolutionChange);
   }
 
-  resize() {
+  resize({ render = true } = {}) {
     if (this.destroyed || !this.initialized) return;
     const width = window.innerWidth, height = window.innerHeight;
     this.app.renderer.resize(width, height, window.devicePixelRatio || 1);
@@ -327,7 +334,7 @@ export default class Orrery {
     this.viewHeight = height;
     // Re-arm against the new DPR; a second screen move must also wake us.
     this.watchResolution();
-    this.requestRender();
+    if (render) this.requestRender();
   }
 
   destroy() {

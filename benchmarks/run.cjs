@@ -9,6 +9,9 @@ async function sample({ count, warmupMs, sampleMs }) {
   if (app.autoRender || app.app.ticker.started || app.animationFrame !== null) {
     throw new Error("Benchmark requires explicit manual scheduling (autoRender: false)");
   }
+  if (!app.initialized || app.destroyed || document.hidden || app.contextLost) {
+    throw new Error("Benchmark requires a visible, initialized app with a working graphics context");
+  }
   const data = Array.from({ length: count }, (_, i) => catalog[i % catalog.length]);
   const setupStart = performance.now();
   app.setAsteroids(data);
@@ -20,13 +23,18 @@ async function sample({ count, warmupMs, sampleMs }) {
   const debug = gl.getExtension("WEBGL_debug_renderer_info");
   const gpu = debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
   const intervals = [], ticks = [], renders = [], uploads = [];
-  let bytes = 0, interrupted = false;
+  let bytes = 0, interrupted = false, rejectSample;
   const bufferSubData = gl.bufferSubData;
   gl.bufferSubData = function(target, offset, data, srcOffset = 0, length) {
     if (target === gl.ARRAY_BUFFER) bytes += (length ?? (data.length - srcOffset)) * data.BYTES_PER_ELEMENT;
     return bufferSubData.apply(this, arguments);
   };
-  const interrupt = () => { interrupted = true; };
+  const interrupt = () => {
+    interrupted = true;
+    // A hidden tab may stop delivering RAF altogether. Settle now so finally
+    // can restore the upload hook and release the caller-owned frame/listeners.
+    rejectSample?.(new Error("Benchmark interrupted or resolution changed; discard this run"));
+  };
   for (const event of ["resize", "blur"]) window.addEventListener(event, interrupt);
   document.addEventListener("visibilitychange", interrupt);
   app.canvas.addEventListener("webglcontextlost", interrupt);
@@ -37,6 +45,7 @@ async function sample({ count, warmupMs, sampleMs }) {
   try {
     app.clock.reset();
     await new Promise((resolve, reject) => {
+      rejectSample = reject;
       function frame(now) {
         try {
           const dt = previous === null ? 0 : now - previous;
@@ -46,10 +55,11 @@ async function sample({ count, warmupMs, sampleMs }) {
           app.jed = 2458600.5 + (now - start) * 0.09 - Math.min(dt, 250) * 0.09;
           bytes = 0;
           const t = performance.now();
-          app.tick({ lastTime: now });
-          const r = performance.now();
-          app.app.render();
-          const end = performance.now();
+          let r, end;
+          app.renderFrame(now, {
+            beforeRender: () => { r = performance.now(); },
+            afterRender: () => { end = performance.now(); },
+          });
           if (now - start >= warmupMs) {
             intervals.push(dt); ticks.push(r - t); renders.push(end - r); uploads.push(bytes);
           }

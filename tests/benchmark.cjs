@@ -4,7 +4,8 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
-const { chromium } = require("playwright");
+const browsers = require("playwright");
+const checkFrames = require("./benchmark-frames.cjs");
 const { build, serve } = require("./support.cjs");
 const { sample } = require("../benchmarks/run.cjs");
 const { checkoutSource, recordSource, bundleSource } = require("../benchmarks/provenance.cjs");
@@ -35,78 +36,85 @@ const hash = value => crypto.createHash("sha256").update(value).digest("hex");
   }
   await build("./tests/fixture.js", directory);
   const server = await serve(directory);
-  const browser = await chromium.launch({ channel: "chrome" });
+  const frameReports = [];
   try {
-    for (const event of [null, "resize", "blur", "visibilitychange"]) {
-      const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-      await page.goto(server.url); await page.evaluate(() => window.ready);
-      await page.evaluate(() => {
-        const { app } = fixture;
-        window.work = { ticks: 0, draws: 0 };
-        const tick = app.tick.bind(app), render = app.app.renderer.render.bind(app.app.renderer);
-        app.tick = (...args) => { work.ticks++; return tick(...args); };
-        app.app.renderer.render = options => {
-          if (options.container === app.stage) work.draws++;
-          return render(options);
-        };
-      });
-      if (event) await page.evaluate(event => {
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          (event === "visibilitychange" ? document : window).dispatchEvent(new Event(event));
-        }));
-      }, event);
-      const run = page.evaluate(sample, { count: 100000, warmupMs: 50, sampleMs: 100 });
-      if (event) await assert.rejects(run, /interrupted/);
-      else {
-        assert((await run).frames > 0);
-        const work = await page.evaluate(() => window.work);
-        assert.equal(work.draws, work.ticks + 1, "One explicit draw per benchmark tick plus the final rebase draw");
-        await page.waitForTimeout(150);
-        assert.deepEqual(await page.evaluate(() => window.work), work, "Finite benchmark leaves no background work");
-        await page.evaluate(() => { fixture.app.autoRender = true; });
-        await assert.rejects(page.evaluate(sample, { count: 100000, warmupMs: 50, sampleMs: 100 }), /manual scheduling/);
-      }
-      await page.close();
-    }
-    for (const method of ["tick", "render"]) {
-      const page = await browser.newPage();
-      await page.goto(server.url); await page.evaluate(() => window.ready);
-      await page.evaluate(method => {
-        const { app } = fixture, gl = app.app.renderer.gl;
-        const owner = method === "tick" ? app : app.app, original = owner[method];
-        const upload = gl.bufferSubData;
-        const add = EventTarget.prototype.addEventListener, remove = EventTarget.prototype.removeEventListener;
-        let listeners = 0, calls = 0;
-        const watched = (target, type) => [window, document, app.canvas].includes(target)
-          && ["resize", "blur", "visibilitychange", "webglcontextlost"].includes(type);
-        EventTarget.prototype.addEventListener = function(type, ...args) {
-          if (watched(this, type)) listeners++;
-          return add.call(this, type, ...args);
-        };
-        EventTarget.prototype.removeEventListener = function(type, ...args) {
-          if (watched(this, type)) listeners--;
-          return remove.call(this, type, ...args);
-        };
-        owner[method] = () => { calls++; throw new Error(`forced ${method} failure`); };
-        window.failureCheck = () => ({ listeners, calls, uploadRestored: gl.bufferSubData === upload });
-        window.restoreFailure = () => {
-          owner[method] = original;
-          EventTarget.prototype.addEventListener = add; EventTarget.prototype.removeEventListener = remove;
-        };
-      }, method);
-      let timer;
+    for (const name of (process.env.BROWSERS || "chromium").split(",")) {
+      const browser = await browsers[name].launch({ ...(name === "chromium" ? { channel: "chrome" } : {}) });
       try {
-        await assert.rejects(Promise.race([
-          page.evaluate(sample, { count: 1000, warmupMs: 0, sampleMs: 50 }),
-          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Benchmark hung after a frame error")), 2000); }),
-        ]), new RegExp(`forced ${method} failure`));
-        await page.waitForTimeout(100);
-        assert.deepEqual(await page.evaluate(() => failureCheck()), { listeners: 0, calls: 1, uploadRestored: true });
-        await page.evaluate(() => restoreFailure());
-        assert((await page.evaluate(sample, { count: 1000, warmupMs: 0, sampleMs: 50 })).frames > 0, "Same page can run after failure");
-      } finally { clearTimeout(timer); await page.close(); }
+      frameReports.push({ browser: name, version: browser.version(), ...await checkFrames(browser, server.url) });
+      for (const event of [null, "resize", "blur", "visibilitychange"]) {
+        const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+        await page.goto(server.url); await page.evaluate(() => window.ready);
+        await page.evaluate(() => {
+          const { app } = fixture;
+          window.work = { ticks: 0, draws: 0 };
+          const tick = app.tick.bind(app), render = app.app.renderer.render.bind(app.app.renderer);
+          app.tick = (...args) => { work.ticks++; return tick(...args); };
+          app.app.renderer.render = options => {
+            if (options.container === app.stage) work.draws++;
+            return render(options);
+          };
+        });
+        if (event) await page.evaluate(event => {
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            (event === "visibilitychange" ? document : window).dispatchEvent(new Event(event));
+          }));
+        }, event);
+        const run = page.evaluate(sample, { count: 100000, warmupMs: 50, sampleMs: 100 });
+        if (event) await assert.rejects(run, /interrupted/);
+        else {
+          assert((await run).frames > 0);
+          const work = await page.evaluate(() => window.work);
+          assert.equal(work.draws, work.ticks + 1, "One explicit draw per benchmark tick plus the final rebase draw");
+          await page.waitForTimeout(150);
+          assert.deepEqual(await page.evaluate(() => window.work), work, "Finite benchmark leaves no background work");
+          await page.evaluate(() => { fixture.app.autoRender = true; });
+          await assert.rejects(page.evaluate(sample, { count: 100000, warmupMs: 50, sampleMs: 100 }), /manual scheduling/);
+        }
+        await page.close();
+      }
+      for (const method of ["tick", "render"]) {
+        const page = await browser.newPage();
+        await page.goto(server.url); await page.evaluate(() => window.ready);
+        await page.evaluate(method => {
+          const { app } = fixture, gl = app.app.renderer.gl;
+          const owner = method === "tick" ? app : app.app, original = owner[method];
+          const upload = gl.bufferSubData;
+          const add = EventTarget.prototype.addEventListener, remove = EventTarget.prototype.removeEventListener;
+          let listeners = 0, calls = 0;
+          const watched = (target, type) => [window, document, app.canvas].includes(target)
+            && ["resize", "blur", "visibilitychange", "webglcontextlost"].includes(type);
+          EventTarget.prototype.addEventListener = function(type, ...args) {
+            if (watched(this, type)) listeners++;
+            return add.call(this, type, ...args);
+          };
+          EventTarget.prototype.removeEventListener = function(type, ...args) {
+            if (watched(this, type)) listeners--;
+            return remove.call(this, type, ...args);
+          };
+          owner[method] = () => { calls++; throw new Error(`forced ${method} failure`); };
+          window.failureCheck = () => ({ listeners, calls, uploadRestored: gl.bufferSubData === upload });
+          window.restoreFailure = () => {
+            owner[method] = original;
+            EventTarget.prototype.addEventListener = add; EventTarget.prototype.removeEventListener = remove;
+          };
+        }, method);
+        let timer;
+        try {
+          await assert.rejects(Promise.race([
+            page.evaluate(sample, { count: 1000, warmupMs: 0, sampleMs: 50 }),
+            new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Benchmark hung after a frame error")), 2000); }),
+          ]), new RegExp(`forced ${method} failure`));
+          await page.waitForTimeout(100);
+          assert.deepEqual(await page.evaluate(() => failureCheck()), { listeners: 0, calls: 1, uploadRestored: true });
+          await page.evaluate(() => restoreFailure());
+          assert((await page.evaluate(sample, { count: 1000, warmupMs: 0, sampleMs: 50 })).frames > 0, "Same page can run after failure");
+        } finally { clearTimeout(timer); await page.close(); }
+      }
+      } finally { await browser.close(); }
     }
-  } finally { await browser.close(); await server.close(); }
+  } finally { await server.close(); }
+  fs.writeFileSync(path.join(artifacts, "frame-results.json"), JSON.stringify(frameReports, null, 2) + "\n");
 
   const sourceFixture = path.join(artifacts, "source-fixture");
   fs.rmSync(sourceFixture, { recursive: true, force: true });

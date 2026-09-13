@@ -8,5 +8,9 @@ export default class Gui {
     speed.domElement.querySelector("input").setAttribute("aria-label", "Playback speed");
   }
 
-  destroy() { this.gui.destroy(); }
+  destroy() {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.gui.destroy();
+  }
 }

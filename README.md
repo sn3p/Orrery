@@ -88,9 +88,13 @@ date changes, wheel zoom, resize/DPR changes and graphics/visibility recovery
 request a redraw; simultaneous requests share one frame. Orrery owns the RAF
 scheduler and keeps Pixi's independent automatic ticker stopped. Tests and
 benchmarks use `new Orrery({ autoRender: false })`: setters and recovery never
-start scene rendering, and the caller drives `render(timestamp)` or explicit
-`tick(timestamp)` / `app.render()` calls. Context recovery still regenerates the
-offscreen circle texture in manual mode.
+start scene rendering. Both the app and benchmark use `renderFrame(timestamp)`
+for one clock/scene/readout update and draw; this helper never schedules a frame.
+Its optional `beforeRender`/`afterRender` hooks bracket drawing alone, preserving
+separate update and submission timings. `render(timestamp)` owns scheduling,
+and explicit Pixi ticker updates still work. Context recovery still regenerates
+the offscreen circle texture in manual mode. GUI teardown is safe to repeat;
+FPS sampling resets on pause and excludes inactive time when playback resumes.
 
 In a Chrome 151 measurement on this Mac, the previous GPU implementation drew
 66 paused frames in 502 ms (about 131/second); on-demand rendering produces zero
@@ -136,8 +140,9 @@ overlaps their positions; it does not represent a larger unique catalogue.
 `COUNTS` (comma-separated) and `REPEATS` must be positive safe integers; invalid
 inputs fail before building or launching Chrome and leave an incomplete report.
 JS heap is not total process/GPU memory, and submission timing is not GPU time.
-Frame errors terminate the run, restore measurement hooks and leave an incomplete
-error report. Reports fingerprint the complete served build, including HTML,
+Frame errors and interruptions terminate the run, restore measurement hooks and
+leave an incomplete error report. Interruption cleanup does not wait for another
+animation frame, which a background tab may stop delivering. Reports fingerprint the complete served build, including HTML,
 CSS, scripts, fonts and catalogue. Added, removed or changed files invalidate a recorded source;
 symbolic links and other non-regular build inputs are rejected. The source stamp
 itself is excluded from its own fingerprint. Local builds save a matching

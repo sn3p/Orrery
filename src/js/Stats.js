@@ -1,9 +1,6 @@
 // Inspired by Stats.js
 // https://github.com/mrdoob/stats.js
 
-// Stats.js bookmarklet:
-// javascript:(function(){var script=document.createElement('script');script.onload=function(){var stats=new Stats();document.body.appendChild(stats.dom);requestAnimationFrame(function loop(){stats.update();requestAnimationFrame(loop)});};script.src='//rawgit.com/mrdoob/stats.js/master/build/stats.min.js';document.head.appendChild(script);})()
-
 export default class Stats {
   constructor() {
     this.performance = performance || Date;
@@ -13,15 +10,10 @@ export default class Stats {
   reset() {
     this.fps = 0;
     this.frames = 0;
-    this.beginTime = this.performance.now();
-    this.prevTime = this.beginTime;
+    this.prevTime = this.performance.now();
   }
 
-  begin() {
-    this.beginTime = this.performance.now();
-  }
-
-  end() {
+  update() {
     this.frames++;
     const time = this.performance.now();
 
@@ -31,10 +23,5 @@ export default class Stats {
       this.frames = 0;
     }
 
-    return time;
-  }
-
-  update() {
-    this.beginTime = this.end();
   }
 }
