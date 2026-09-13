@@ -40,15 +40,10 @@ module.exports = {
       },
       {
         test: /\.json$/,
-        type: "javascript/auto",
-        use: [
-          {
-            loader: "file-loader",
-            options: {
-              name: "data/[name].[ext]",
-            },
-          },
-        ],
+        type: "asset/resource",
+        generator: {
+          filename: "data/[name][ext]",
+        },
       },
     ],
   },
@@ -62,7 +57,6 @@ module.exports = {
   ],
   optimization: {
     splitChunks: false,
-    minimize: true,
     minimizer: [
       new TerserPlugin({
         extractComments: false,
