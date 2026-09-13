@@ -1,5 +1,5 @@
 import { Graphics } from "pixi.js";
-import { PIXELS_PER_AU, J2000, YEAR, DEG_TO_RAD } from "./constants.js";
+import { PIXELS_PER_AU, J2000, DEG_TO_RAD } from "./constants.js";
 
 const TAU = 2 * Math.PI;
 
@@ -96,18 +96,19 @@ export default class Orbit {
 
   drawOrbit(jed = J2000) {
     // Reject invalid elements/dates before allocating a Pixi track.
-    this.getPosAtTime(jed);
+    const first = this.getPosAtTime(jed);
     const parts = 360;
     const period = this.getPeriodInDays();
     const delta = period / parts;
 
     // Sample before creating Graphics, so even a later overflowing sample
     // cannot leave a partially allocated track behind.
-    const positions = [];
-    for (let i = 0; i <= parts; i++) {
-      jed += delta;
-      positions.push(this.getPosAtTime(jed));
+    const positions = [first];
+    for (let i = 1; i < parts; i++) {
+      positions.push(this.getPosAtTime(jed + delta * i));
     }
+    // Reuse the first point exactly to include the closing segment.
+    positions.push(first);
 
     const line = new Graphics();
     for (let i = 0; i <= parts; i++) {
@@ -128,8 +129,10 @@ export default class Orbit {
   getPeriodInDays() {
     const a = this.ephemeris?.a;
     if (!Number.isFinite(a) || a <= 0) throw new RangeError("Invalid orbital axis.");
-    // Preserve the existing track period here; matching the motion period is separate.
-    const period = Math.sqrt(Math.pow(a, 3)) * YEAR;
+    // Match getPosAtTime, including validation of the selected n/P value.
+    const eph = this.ephemeris;
+    meanMotion(eph);
+    const period = eph.n ? 360 / eph.n : eph.P;
     if (!Number.isFinite(period) || period <= 0) throw new RangeError("Invalid orbital period.");
     return period;
   }

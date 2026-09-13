@@ -111,6 +111,13 @@ module.exports = async function checkCPUOrbits(page) {
         try { app.addPlanets([{ name: "Invalid CPU orbit", ephemeris: { ...base, ...patch } }]); result.invalid.push(false); }
         catch (error) { result.invalid.push(error instanceof RangeError); }
       }
+      // A finite initial point can still overflow at a later track date. The
+      // real addition boundary must reject it before attaching any scene object.
+      try {
+        app.addPlanets([{ name: "Overflowing track", ephemeris: { ...base,
+          a: Number.MAX_VALUE / 150, e: 0.9, M: 0, W: 0, epoch: app.jed } }]);
+        result.invalid.push(false);
+      } catch (error) { result.invalid.push(error instanceof RangeError); }
       result.counts = { before: counts,
         after: [app.planets.length, app.stage.children.length, app.planetContainer.particleChildren.length] };
     } finally {
