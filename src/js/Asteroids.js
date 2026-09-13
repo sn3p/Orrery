@@ -67,7 +67,7 @@ export default class Asteroids extends Mesh {
     this.partialUploads = partialUploads;
     this.phases = packed.phases;
     this.discoveryDates = packed.dates;
-    this.epoch = jed;
+    this.epoch = packed.epoch;
     this.markerEpoch = elapsed;
     this.elapsed = elapsed;
     this.uniforms = uniforms.uniforms;
