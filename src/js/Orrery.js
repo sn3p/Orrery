@@ -304,7 +304,6 @@ export default class Orrery {
     if (document.hidden || this.contextLost) { this.resetClock(); return; }
     // Moving a window between screens can change DPR without changing its size.
     if (this.app.renderer.resolution !== (window.devicePixelRatio || 1)) this.resize({ render: false });
-    this.stats.begin();
     // Pixi updates lastTime *after* invoking listeners; elapsedMS is raw,
     // unlike its capped/scaled deltaMS. Reconstruct this callback's timestamp.
     const timestamp = typeof ticker === "number" ? ticker : ticker.lastTime + (ticker.elapsedMS ?? 0);
@@ -314,7 +313,7 @@ export default class Orrery {
     this.elapsed += this.clock.seconds;
     this.asteroidsDiscovered = this.asteroids?.update(this.jed, this.elapsed) ?? 0;
     for (const planet of this.planets) planet.render(this.jed);
-    if (this.isPlaying) this.stats.end();
+    if (this.isPlaying) this.stats.update();
     else this.stats.reset();
     this.updateGui();
   }

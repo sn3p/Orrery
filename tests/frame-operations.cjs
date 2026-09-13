@@ -76,3 +76,67 @@ exports.frames = async page => {
   assert.deepEqual(result.production.events, ['frame', 'tick', 'clock', 'asteroids', ...result.production.planets.map(() => 'planet'), 'fps', 'gui', 'draw']);
   return { matchingPixelsAndState: true, timingBoundaries: 'passed', schedulerAndTicker: 'passed', guards: 'passed' };
 };
+
+exports.fps = async page => page.evaluate(() => {
+  const { app } = fixture, stats = app.stats;
+  const saved = { performance: stats.performance, autoRender: app.autoRender, speed: app.jedDelta, jed: app.jed, elapsed: app.elapsed };
+  let now = 0;
+  const check = (condition, message) => { if (!condition) throw new Error(message); };
+  const verify = (frames, fps, label) => {
+    check(stats.frames === frames && stats.fps === fps, `${label}: sampling state`);
+    check(document.getElementById('orrery-fps').textContent === `${fps} FPS`, `${label}: same-frame readout`);
+  };
+  try {
+    app.autoRender = false; app.cancelRender(); app.jedDelta = 1.5;
+    stats.performance = { now: () => now }; app.resetClock();
+    app.render(0); verify(1, 0, 'First frame');
+    now = 1000; app.renderFrame(1000); verify(2, 0, 'Strict one-second boundary');
+    now = 1001; app.renderFrame(1001); verify(0, 3, 'Rounded completed sample');
+    now = 2002; app.render(2002); verify(0, 1, 'Fresh sample window');
+    app.jedDelta = 0; app.renderFrame(3000); verify(0, 0, 'Paused frame');
+    now = 9000; app.jedDelta = -1.5; app.render(9000); verify(1, 0, 'Reverse resume excludes idle time');
+    now = 10001; app.renderFrame(10001); verify(0, 2, 'Reverse completed sample');
+    stats.reset(); stats.reset(); app.updateGui(); verify(0, 0, 'Repeated reset');
+    return { strictBoundary: true, rounding: true, sameFrameReadout: true, pauseResumeReverse: true };
+  } finally {
+    stats.performance = saved.performance; app.elapsed = saved.elapsed; app.jed = saved.jed;
+    app.jedDelta = saved.speed; app.autoRender = saved.autoRender; app.resetClock(); app.render();
+  }
+});
+
+exports.gui = async page => page.evaluate(() => {
+  const { app } = fixture;
+  const check = (condition, message) => { if (!condition) throw new Error(message); };
+  const add = window.addEventListener, remove = window.removeEventListener;
+  const active = new Map();
+  window.addEventListener = function(type, listener, ...args) {
+    if (!active.has(type)) active.set(type, new Set());
+    active.get(type).add(listener);
+    return add.call(this, type, listener, ...args);
+  };
+  window.removeEventListener = function(type, listener, ...args) {
+    active.get(type)?.delete(listener);
+    return remove.call(this, type, listener, ...args);
+  };
+  let destroys = 0;
+  try {
+    for (let i = 0; i < 2; i++) {
+      const direct = new app.gui.controls.constructor(app), element = direct.gui.domElement;
+      const destroy = direct.gui.destroy.bind(direct.gui);
+      direct.gui.destroy = () => { destroys++; destroy(); };
+      check(element.isConnected && element.querySelector('input').getAttribute('aria-label') === 'Playback speed', 'Fresh standalone controls are attached and named');
+      direct.destroy(); direct.destroy();
+      check(destroys === i + 1 && !element.isConnected, 'Standalone destroy releases DOM exactly once');
+      check([...active.values()].every(set => set.size === 0), 'Standalone GUI removes each owned window listener');
+      window.dispatchEvent(new Event('resize'));
+    }
+    const controls = app.gui.controls, destroy = controls.gui.destroy.bind(controls.gui);
+    let ownedDestroys = 0;
+    controls.gui.destroy = () => { ownedDestroys++; destroy(); };
+    controls.destroy(); controls.destroy();
+    app.autoRender = true; app.requestRender(); app.destroy(); app.destroy();
+    app.renderFrame(); app.render();
+    check(ownedDestroys === 1 && app.animationFrame === null && !document.querySelector('canvas, .dg.main'), 'Standalone then app teardown remains safe and leaves no resources');
+    return { standaloneLifetimes: 2, standaloneDestroys: destroys, appOwnedDestroys: ownedDestroys, listenersRemaining: 0 };
+  } finally { window.addEventListener = add; window.removeEventListener = remove; }
+});

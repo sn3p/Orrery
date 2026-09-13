@@ -19,7 +19,7 @@ module.exports = async (browser, url) => {
         };
         wrap(app.clock, 'advance', 'clock'); wrap(app.asteroids, 'update', 'asteroids');
         app.planets.forEach(p => wrap(p, 'render', 'planet'));
-        wrap(app.stats, 'end', 'fps'); wrap(app, 'updateGui', 'gui'); wrap(app.app, 'render', 'draw');
+        wrap(app.stats, 'update', 'fps'); wrap(app, 'updateGui', 'gui'); wrap(app.app, 'render', 'draw');
         try {
           const result = original.call(this, timestamp, {
             beforeRender: () => { events.push('beforeDraw'); hooks.beforeRender(); },

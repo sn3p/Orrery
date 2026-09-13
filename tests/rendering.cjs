@@ -199,17 +199,19 @@ async function main() {
         page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
         await page.goto(fixtureURL + '/'); await page.evaluate(() => window.ready);
         const sharedFrames = await frameOperations.frames(page);
+        const fps = await frameOperations.fps(page);
         const readoutBoundaries = await readouts.boundaries(page);
         const planetPhases = await checkPlanetPhases(page);
         const cpuOrbits = await checkCPUOrbits(page);
         const orbitTracks = await checkOrbitTracks(page);
         await page.reload(); await page.evaluate(() => window.ready);
         const sharedFramesAfterReload = await frameOperations.frames(page);
+        const fpsAfterReload = await frameOperations.fps(page);
         const readoutsAfterReload = await readouts.boundaries(page);
         const planetPhasesAfterReload = await checkPlanetPhases(page);
         const cpuOrbitsAfterReload = await checkCPUOrbits(page);
         const orbitTracksAfterReload = await checkOrbitTracks(page);
-        const result = { browser: name, version: browser.version(), sharedFrames, sharedFramesAfterReload, readoutBoundaries, readoutsAfterReload, planetPhases, planetPhasesAfterReload,
+        const result = { browser: name, version: browser.version(), sharedFrames, sharedFramesAfterReload, fps, fpsAfterReload, readoutBoundaries, readoutsAfterReload, planetPhases, planetPhasesAfterReload,
           cpuOrbits, cpuOrbitsAfterReload, orbitTracks, orbitTracksAfterReload, paused: await paused(page),
           invalidations: await invalidations(page), dpr: await dpr(page, name),
           loading: await loading(page, fixtureURL), markers: await markers(page, fixtureURL) };
@@ -222,6 +224,8 @@ async function main() {
         result.manualDisposal = await lifecycle.disposal(page, server.url);
         result.productionReadouts = await readouts.production(page, server.url + '/production/');
         result.production = await lifecycle.production(browser, server.url + '/production/', output, name);
+        await page.goto(fixtureURL + '/?manual'); await page.evaluate(() => window.ready);
+        result.gui = await frameOperations.gui(page);
         await page.goto(server.url + '/init/');
         result.initialization = await initialization(page);
         result.readoutLifetimes = await readouts.lifetimes(page);
