@@ -4,13 +4,20 @@ const { chromium } = require("playwright");
 const { build, serve } = require("../tests/support.cjs");
 const { checkoutSource, fingerprints, recordSource, bundleSource } = require("./provenance.cjs");
 
-async function sample({ count, warmupMs, sampleMs }) {
+async function sample({ count, warmupMs, sampleMs, dpr = 1 }) {
   const { app, catalog, timings } = window.fixture;
   if (app.autoRender || app.app.ticker.started || app.animationFrame !== null) {
     throw new Error("Benchmark requires explicit manual scheduling (autoRender: false)");
   }
   if (!app.initialized || app.destroyed || document.hidden || app.contextLost) {
     throw new Error("Benchmark requires a visible, initialized app with a working graphics context");
+  }
+  const resolution = { requested: dpr, native: devicePixelRatio, renderer: app.app.renderer.resolution,
+    canvas: [app.canvas.width, app.canvas.height],
+    buffer: [app.app.renderer.gl.drawingBufferWidth, app.app.renderer.gl.drawingBufferHeight] };
+  if (resolution.native !== dpr || resolution.renderer !== dpr
+    || [...resolution.canvas, ...resolution.buffer].some((value, i) => value !== Math.round((i % 2 ? innerHeight : innerWidth) * dpr))) {
+    throw new Error("Benchmark requested/native/renderer/buffer resolution mismatch");
   }
   const data = Array.from({ length: count }, (_, i) => catalog[i % catalog.length]);
   const setupStart = performance.now();
@@ -38,7 +45,7 @@ async function sample({ count, warmupMs, sampleMs }) {
   for (const event of ["resize", "blur"]) window.addEventListener(event, interrupt);
   document.addEventListener("visibilitychange", interrupt);
   app.canvas.addEventListener("webglcontextlost", interrupt);
-  const dimensions = [innerWidth, innerHeight, devicePixelRatio, app.canvas.width, app.canvas.height];
+  const dimensions = [innerWidth, innerHeight, devicePixelRatio, app.app.renderer.resolution, app.canvas.width, app.canvas.height];
   const start = performance.now();
   let previous = null;
   let animationFrame;
@@ -76,7 +83,7 @@ async function sample({ count, warmupMs, sampleMs }) {
     document.removeEventListener("visibilitychange", interrupt);
     app.canvas.removeEventListener("webglcontextlost", interrupt);
   }
-  if (interrupted || document.hidden || gl.isContextLost() || dimensions.some((v, i) => v !== [innerWidth, innerHeight, devicePixelRatio, app.canvas.width, app.canvas.height][i])) throw new Error("Benchmark interrupted or resolution changed; discard this run");
+  if (interrupted || document.hidden || gl.isContextLost() || dimensions.some((v, i) => v !== [innerWidth, innerHeight, devicePixelRatio, app.app.renderer.resolution, app.canvas.width, app.canvas.height][i])) throw new Error("Benchmark interrupted or resolution changed; discard this run");
   const stats = values => {
     const sorted = values.slice().sort((a, b) => a - b);
     return { mean: values.reduce((a, b) => a + b, 0) / values.length,
@@ -90,7 +97,7 @@ async function sample({ count, warmupMs, sampleMs }) {
   app.app.render();
   const visible = app.asteroidsDiscovered;
   if (visible !== count) throw new Error(`Expected ${count} visible, got ${visible}`);
-  return { count, synthetic: count > catalog.length, gpu, timings, setupMs,
+  return { count, resolution, synthetic: count > catalog.length, gpu, timings, setupMs,
     rebaseCpuMs, frames: intervals.length, frameMs: frames, fps: 1000 / frames.mean,
     tickMs: stats(ticks), renderSubmitMs: stats(renders), arrayUploadBytes: stats(uploads),
     heapBytes: performance.memory?.usedJSHeapSize ?? null, intervals };
@@ -135,9 +142,9 @@ async function main() {
         const errors = [];
         page.on("pageerror", error => errors.push(error.message));
         page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
-        await page.goto(server.url);
+        await page.goto(`${server.url}/?resolution=${report.dpr}`);
         await page.evaluate(() => window.ready);
-        const result = await page.evaluate(sample, { count, warmupMs: report.warmupMs, sampleMs: report.sampleMs });
+        const result = await page.evaluate(sample, { count, warmupMs: report.warmupMs, sampleMs: report.sampleMs, dpr: report.dpr });
         if (errors.length) throw new Error(errors.join("\n"));
         await page.screenshot({ path: path.join(output, `${count}-${repetition}.png`) });
         report.runs.push({ repetition, ...result });

@@ -10,6 +10,7 @@ const output = path.join(root, ".context/font-qa");
 const fontName = "JetBrains Mono Variable";
 
 async function checkTypography(page, { fontLoaded = true, waitForFont = true } = {}) {
+  await require("./options.cjs").openOptions(page);
   if (waitForFont) await page.evaluate(() => document.fonts.ready);
   const ui = await page.evaluate(() => {
     const bounds = selector => {
@@ -40,7 +41,7 @@ async function checkTypography(page, { fontLoaded = true, waitForFont = true } =
   assert.equal(ui.input.height, 19, "Speed input is 19px high");
   assert.equal(ui.input.y, ui.slider.y, "Input and slider top edges align");
   assert.equal(ui.input.height, ui.slider.height, "Input and slider heights match");
-  assert(ui.slider.x - ui.labelRight >= 4, "Speed label keeps at least 4px of visible space before the slider");
+  assert(ui.slider.x - ui.labelRight >= 8, "Speed label keeps at least 8px of visible space before the slider");
   assert(ui.slider.x + ui.slider.width <= ui.input.x, "Slider and input do not overlap");
   assert.equal(ui.width, page.viewportSize().width, "Mobile browsers use the device viewport width");
   assert.equal(ui.scrollWidth, ui.width, "No horizontal overflow");
@@ -49,7 +50,7 @@ async function checkTypography(page, { fontLoaded = true, waitForFont = true } =
     assert(box.x >= 0 && box.x + box.width <= ui.width, "UI fits horizontally");
     assert(box.y >= 0 && box.y + box.height <= ui.height, "UI fits vertically");
   }
-  assert(ui.boxes[1].x + ui.boxes[1].width < ui.boxes[3].x, "FPS readout does not overlap speed label");
+  assert(ui.boxes[1].y + ui.boxes[1].height <= ui.boxes[3].y, "FPS readout sits above the options controls");
   assert(ui.boxes[0].x + ui.boxes[0].width < ui.boxes[2].x, "Date and count do not overlap");
   return ui;
 }
@@ -113,7 +114,7 @@ async function main() {
       await page.goto(url);
       await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent) > 0);
       report.push({ width, state: "loaded", ui: await checkTypography(page) });
-      await page.keyboard.press("Tab");
+
       assert(await page.getByRole("textbox", { name: "Playback speed" }).evaluate(input => input === document.activeElement), "Speed input is keyboard reachable");
       await setSpeed(page, 0);
       const date = await page.locator("#orrery-date").textContent();

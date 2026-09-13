@@ -67,6 +67,7 @@ const hash = bytes => createHash("sha256").update(bytes).digest("hex");
               assert.deepEqual(await page.evaluate(() => window.catalogDigest), { bytes: catalog.length, sha256: hash(catalog) });
               await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent) > 0);
               await page.evaluate(() => document.fonts.ready);
+              await require("./options.cjs").openOptions(page);
               const speed = page.getByRole("textbox", { name: "Playback speed" });
               await speed.focus();
               assert(await speed.evaluate(element => element === document.activeElement));

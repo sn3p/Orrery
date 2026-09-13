@@ -41,7 +41,7 @@ exports.frames = async page => {
       app.autoRender = true;
       app.app.renderer.resolution = 1.25;
       app.renderFrame(1000);
-      check(app.animationFrame === null && app.app.renderer.resolution === devicePixelRatio, 'In-frame DPR correction creates no extra RAF');
+      check(app.animationFrame === null && app.app.renderer.resolution === app.effectivePixelRatio, 'In-frame DPR correction creates no extra RAF');
       app.autoRender = false; app.jedDelta = 1.5; app.resetClock();
       app.renderFrame(2000); const jed = app.jed, elapsed = app.elapsed;
       app.renderFrame({ lastTime: 2000, elapsedMS: 100 });

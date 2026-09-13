@@ -42,6 +42,19 @@ const hash = value => crypto.createHash("sha256").update(value).digest("hex");
       const browser = await browsers[name].launch({ ...(name === "chromium" ? { channel: "chrome" } : {}) });
       try {
       frameReports.push({ browser: name, version: browser.version(), ...await checkFrames(browser, server.url) });
+      for (const dpr of [1, 2, 3]) {
+        const page = await browser.newPage({ viewport: { width: 800, height: 600 }, deviceScaleFactor: dpr });
+        try {
+          await page.addInitScript(() => localStorage.setItem('orrery.pixelRatio', '1'));
+          await page.goto(`${server.url}/?resolution=${dpr}`); await page.evaluate(() => window.ready);
+          const run = await page.evaluate(sample, { count: 1000, warmupMs: 0, sampleMs: 50, dpr });
+          assert.deepEqual(run.resolution, { requested: dpr, native: dpr, renderer: dpr,
+            canvas: [800 * dpr, 600 * dpr], buffer: [800 * dpr, 600 * dpr] });
+          assert.equal(await page.evaluate(() => fixture.app.pixelRatio), '1', 'Benchmark resolution is independent of the user selection');
+          await assert.rejects(page.evaluate(sample, { count: 1000, warmupMs: 0, sampleMs: 50, dpr: dpr + 1 }), /resolution mismatch/);
+          assert.equal(await page.evaluate(() => fixture.app.animationFrame), null);
+        } finally { await page.close(); }
+      }
       for (const event of [null, "resize", "blur", "visibilitychange"]) {
         const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
         await page.goto(server.url); await page.evaluate(() => window.ready);
