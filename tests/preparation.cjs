@@ -40,9 +40,10 @@ exports.exercisePreparation = async page => page.evaluate(() => {
     for (const date of [jed + REBASE_DAYS, jed + REBASE_DAYS + 0.125, jed - REBASE_DAYS - 0.125]) {
       app.jed = date; app.tick(); app.app.render();
       const expected = prepareOrbits(data, current.epoch);
-      check(current.geometry.getBuffer("aElements").data.every((value, i) => value === expected.elements[i]), "Real mesh rebase matches freshly prepared phases");
-      check(bases.every((value, i) => value === packed.bases[i]) && current.phases.every((value, i) => value === phases[i])
-        && current.discoveryDates.every((value, i) => value === dates[i]), "Rebase changes no bases, canonical phases or discovery dates");
+      check(current.geometry.getBuffer("aMeanAnomaly").data.every((value, i) => value === expected.meanAnomalies[i]), "Real mesh rebase matches freshly prepared phases");
+      check(current.geometry.getBuffer("aElements").data.every((value, i) => value === packed.elements[i])
+        && bases.every((value, i) => value === packed.bases[i]) && current.phases.every((value, i) => value === phases[i])
+        && current.discoveryDates.every((value, i) => value === dates[i]), "Rebase changes no elements, bases, canonical phases or discovery dates");
       check(current.uniforms.uOrbitTime === date - current.epoch && current.markerEpoch === before.elapsed, "Orbital rebasing leaves marker epoch alone");
       check(current.geometry.instanceCount === data.filter(d => d.disc <= date).length
         && Number(app.gui.count.textContent) === current.geometry.instanceCount, "Rebased discovery count reaches draw and UI");

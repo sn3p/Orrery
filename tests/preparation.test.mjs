@@ -26,8 +26,8 @@ test("preparation owns stable sorted buffers and records their packing epoch", (
   const results = [REFERENCE_JED - REBASE_DAYS - 0.125, REFERENCE_JED, REFERENCE_JED + REBASE_DAYS + 0.125]
     .map(jed => prepareOrbits(records, jed));
   for (const packed of results) {
-    assert.deepEqual(Object.keys(packed).sort(), ["bases", "dates", "elements", "epoch", "phases", "radius"], "No input records retained in the payload");
-    assert.equal(arrays(packed).length, 4);
+    assert.deepEqual(Object.keys(packed).sort(), ["bases", "dates", "elements", "epoch", "meanAnomalies", "phases", "radius"], "No input records retained in the payload");
+    assert.equal(arrays(packed).length, 5);
     assert.equal(arrays(packed).reduce((bytes, array) => bytes + array.byteLength, 0), records.length * 52);
     assert.equal(packed.radius, 360);
     assert.deepEqual([...packed.dates], [REFERENCE_JED, REFERENCE_JED, REFERENCE_JED + 0.125]);
@@ -38,12 +38,12 @@ test("preparation owns stable sorted buffers and records their packing epoch", (
       const n = record.n * Math.PI / 180;
       const mean = wrap(record.M * Math.PI / 180 + n * (REFERENCE_JED - record.epoch));
       assert.equal(packed.phases[i * 2], mean, "Canonical phase uses the reference date, not the packing/source epoch");
-      assert.equal(packed.elements[i * 3 + 1], Math.fround(wrap(mean + n * (packed.epoch - REFERENCE_JED))));
+      assert.equal(packed.meanAnomalies[i], Math.fround(wrap(mean + n * (packed.epoch - REFERENCE_JED))));
     });
   }
   assert.deepEqual(results.map(packed => packed.epoch), [REFERENCE_JED - REBASE_DAYS - 0.125, REFERENCE_JED, REFERENCE_JED + REBASE_DAYS + 0.125]);
   const buffers = results.flatMap(packed => arrays(packed).map(array => array.buffer));
-  assert.equal(new Set(buffers).size, 12, "Each array and result owns independent storage");
+  assert.equal(new Set(buffers).size, 15, "Each array and result owns independent storage");
   const snapshot = structuredClone(results[1]);
   for (const array of arrays(results[0])) array.fill(0);
   results[0].epoch = 0;

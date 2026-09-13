@@ -1,3 +1,4 @@
+const { exercisePhaseUploads, startRecording, checkRestorationUploads } = require("./phase-uploads.cjs");
 const { exercisePreparation, exercisePreparationLoading } = require("./preparation.cjs");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -53,7 +54,7 @@ async function exercise(page) {
     check(buffers.every((b, i) => b._updateID === versions[i]), "Ordinary frames do not modify asteroid buffers");
     app.jed = cloud.epoch + REBASE_DAYS + 1; app.tick(); app.app.render();
     check(cloud.uniforms.uOrbitTime === 0, "Time is relative after rebase");
-    check(buffers.every((b, i) => b._updateID === versions[i] + (b === cloud.geometry.getBuffer("aElements") ? 1 : 0)), "Only phase buffer changes at rebase");
+    check(buffers.every((b, i) => b._updateID === versions[i] + (b === cloud.geometry.getBuffer("aMeanAnomaly") ? 1 : 0)), "Only phase buffer changes at rebase");
 
     for (const data of [null, new Array(1), [catalog[0], , catalog[1]], [{ ...catalog[0], e: 1 }], [{ ...catalog[0], wbar: false }],
       [{ ...catalog[0], n: 1e40 }], [{ ...catalog[0], n: null, P: 1e-37 }]]) {
@@ -157,6 +158,7 @@ async function instancePixels(page) {
 }
 
 async function contextRecovery(page) {
+  const uploads = [];
   for (let i = 0; i < 2; i++) {
     const available = await page.evaluate(() => {
       const { app } = fixture;
@@ -168,6 +170,7 @@ async function contextRecovery(page) {
     });
     if (!available) return { unavailable: "WEBGL_lose_context extension unavailable" };
     await page.waitForFunction(() => fixture.app.contextLost);
+    await startRecording(page);
     await page.evaluate(() => {
       const { app } = fixture;
       app.tick({ lastTime: 100000 });
@@ -181,12 +184,25 @@ async function contextRecovery(page) {
       if (app.jed !== beforeLoss.jed) throw new Error("Context resume caught up downtime");
       if (app.circleTexture.uid === beforeLoss.texture) throw new Error("Generated texture was not recreated");
       app.jedDelta = 0;
+      app.app.render();
     });
+    const restored = await checkRestorationUploads(page);
+    // Pixi's WebGL1 texture setup emits its existing INVALID_ENUM warning
+    // again on restore. Separate setup errors from the warm orbital probes.
+    const setupErrors = await page.evaluate(() => {
+      const gl = fixture.app.app.renderer.gl, errors = [];
+      for (let error = gl.getError(); error !== gl.NO_ERROR; error = gl.getError()) errors.push(error);
+      return errors;
+    });
+    if (await page.evaluate(() => fixture.app.app.renderer.context.webGLVersion) === 1) {
+      assert(setupErrors.every(error => error === 1280), "Only known WebGL1 texture setup warnings");
+    } else assert.deepEqual(setupErrors, []);
+    uploads.push({ restored, setupErrors, warm: await exercisePhaseUploads(page) });
     // Includes nonempty framebuffer, correct colour, shape and transform checks
     // after restoration, plus a second replacement using the shared program.
     await pixels(page);
   }
-  return { cycles: 2 };
+  return { cycles: 2, uploads };
 }
 
 async function main() {
@@ -202,7 +218,7 @@ async function main() {
         page.on("pageerror", error => errors.push(error.message));
         page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
         await page.goto(server.url + "/fixture/");
-        const result = { browser: name, version: browser.version(), ...await exercise(page), preparation: await exercisePreparation(page), pixels: await pixels(page), instances: await instancePixels(page), recovery: await contextRecovery(page) };
+        const result = { browser: name, version: browser.version(), ...await exercise(page), phaseUploads: await exercisePhaseUploads(page), preparation: await exercisePreparation(page), pixels: await pixels(page), instances: await instancePixels(page), recovery: await contextRecovery(page) };
         await page.screenshot({ path: path.join(output, `${name}-desktop.png`) });
         const scale = await page.evaluate(() => fixture.app.stage.scale.x);
         await page.mouse.move(500, 400); await page.mouse.wheel(0, -100);
@@ -295,6 +311,8 @@ async function main() {
             if (gl.getError() !== gl.NO_ERROR) throw new Error("WebGL1 discovery upload overflow");
             return { version: 1, discovered: app.asteroidsDiscovered };
           });
+          result.webgl1.phaseUploads = await exercisePhaseUploads(webgl1);
+          result.webgl1.recovery = await contextRecovery(webgl1);
           result.webgl1.pixels = await pixels(webgl1);
           result.webgl1.instances = await instancePixels(webgl1);
           await webgl1.close();

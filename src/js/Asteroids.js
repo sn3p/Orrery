@@ -5,7 +5,8 @@ const vertex = `
 precision highp float;
 attribute vec2 aPosition;
 attribute vec4 aBasis;
-attribute vec3 aElements;
+attribute vec2 aElements;
+attribute float aMeanAnomaly;
 attribute float aDiscovery;
 uniform mat3 uProjectionMatrix;
 uniform mat3 uWorldTransformMatrix;
@@ -21,7 +22,7 @@ void main() {
   float age = uMarkerTime - aDiscovery;
   bool fresh = aDiscovery >= 0.0 && age < ${DISCOVERY_SECONDS};
   float size = fresh ? 3.0 - 3.0 * max(age, 0.0) : 1.0;
-  vec2 center = orbitPosition(aBasis.xy, aBasis.zw, aElements, uOrbitTime);
+  vec2 center = orbitPosition(aBasis.xy, aBasis.zw, aElements, aMeanAnomaly, uOrbitTime);
   vec3 position = uProjectionMatrix * uWorldTransformMatrix * uTransformMatrix * vec3(center + aPosition * size, 1.0);
   gl_Position = vec4(position.xy, 0.0, 1.0);
   vUV = aPosition + 0.5;
@@ -50,13 +51,15 @@ export default class Asteroids extends Mesh {
     const packed = prepareOrbits(data, jed);
     const buffer = (data, label) => new Buffer({ data, label, usage: BufferUsage.VERTEX | BufferUsage.COPY_DST });
     const bases = buffer(packed.bases, "orbital bases");
-    const elements = buffer(packed.elements, "orbital phases");
+    const elements = buffer(packed.elements, "orbital elements");
+    const meanAnomalies = buffer(packed.meanAnomalies, "orbital phases");
     const markers = buffer(new Float32Array(packed.dates.length).fill(-1), "discovery timestamps");
     const geometry = new OrbitGeometry({
       attributes: {
         aPosition: { buffer: buffer(new Float32Array([-0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, 0.5]), "unit quad"), format: "float32x2" },
         aBasis: { buffer: bases, format: "float32x4", instance: true },
-        aElements: { buffer: elements, format: "float32x3", instance: true },
+        aElements: { buffer: elements, format: "float32x2", instance: true },
+        aMeanAnomaly: { buffer: meanAnomalies, format: "float32", instance: true },
         aDiscovery: { buffer: markers, format: "float32", instance: true },
       },
       indexBuffer: new Uint16Array([0, 1, 2, 0, 2, 3]), instanceCount: 0,
@@ -77,11 +80,13 @@ export default class Asteroids extends Mesh {
   update(jed, elapsed = this.elapsed) {
     if (!validDate(jed) || !Number.isFinite(elapsed) || elapsed < this.markerEpoch) throw new Error("Invalid asteroid time.");
     if (Math.abs(jed - this.epoch) > REBASE_DAYS) {
-      const elements = this.geometry.getBuffer("aElements");
+      // Refresh every row, including hidden discoveries, from canonical Float64
+      // phases. Eccentricity and motion remain in their immutable GPU buffer.
+      const meanAnomalies = this.geometry.getBuffer("aMeanAnomaly");
       for (let i = 0; i < this.discoveryDates.length; i++) {
-        elements.data[i * 3 + 1] = wrap(this.phases[i * 2] + this.phases[i * 2 + 1] * (jed - REFERENCE_JED));
+        meanAnomalies.data[i] = wrap(this.phases[i * 2] + this.phases[i * 2 + 1] * (jed - REFERENCE_JED));
       }
-      elements.update();
+      meanAnomalies.update();
       this.epoch = jed;
     }
     this.elapsed = elapsed;

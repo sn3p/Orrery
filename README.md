@@ -98,8 +98,14 @@ recurring paused draws or asteroid updates. This is a draw-count observation,
 not a measured power saving. Browser regressions count renderer calls and actual
 production WebGL submissions, including instanced draws.
 
-The shader uses relative dates and refreshes phases from double-precision
-references after 256 simulation days. Discovery timestamps update only when
+The shader uses relative dates and refreshes phases from canonical Float64
+references after more than 256 simulation days, including hidden records. A
+refresh uploads one Float32 mean anomaly per asteroid (400,000 bytes at 100k),
+down from three floats (1,200,000 bytes); eccentricity and mean motion stay in
+a separate fixed buffer. The threshold, solver and total typed-array storage
+are unchanged. This reduces upload bytes without claiming an FPS gain.
+
+Discovery timestamps update only when
 records are revealed, with an occasional animation-clock refresh after 4096
 active seconds. WebGL1 uses the same GPU path with instancing support, but
 uploads the full timestamp buffer on discovery because Pixi's partial upload

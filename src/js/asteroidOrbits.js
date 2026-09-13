@@ -12,9 +12,9 @@ export const wrap = value => value - TAU * Math.floor((value + Math.PI) / TAU);
 // Shared verbatim with the GPU numerical tests. Orbital bases already include
 // Orrery's negative x / positive y projection and pixels-per-AU conversion.
 export const orbitGLSL = `
-vec2 orbitPosition(vec2 p, vec2 q, vec3 elements, float time) {
+vec2 orbitPosition(vec2 p, vec2 q, vec2 elements, float meanAnomaly, float time) {
   float e = elements.x;
-  float M = elements.y + elements.z * time;
+  float M = meanAnomaly + elements.y * time;
   M -= 6.283185307179586 * floor((M + 3.141592653589793) / 6.283185307179586);
   float E = e < 0.8 ? M : sign(M) * 3.141592653589793;
   for (int k = 0; k < 12; k++) {
@@ -34,9 +34,9 @@ export function validDate(jed) {
 }
 
 // Pure CPU preparation: owns separate typed buffers and retains no input records.
-// Hand each result to one mesh. Rebasing mutates only the mean-anomaly slots in
-// elements; bases, Float64 phases and discovery dates remain unchanged. epoch is
-// the date of packed elements, while phases are canonical at REFERENCE_JED.
+// Hand each result to one mesh. Rebasing mutates only scalar meanAnomalies;
+// bases, elements [eccentricity, motion], Float64 phases and dates stay fixed.
+// epoch dates meanAnomalies; phases are canonical at REFERENCE_JED.
 // The mesh owns a separate elapsed-time epoch for discovery-marker animation.
 export function prepareOrbits(data, jed) {
   if (!validDate(jed)) throw new Error("Invalid asteroid date.");
@@ -54,7 +54,8 @@ export function prepareOrbits(data, jed) {
   const sorted = Array.from({ length: data.length }, (_, index) => index)
     .sort((a, b) => data[a].disc - data[b].disc);
   const count = sorted.length;
-  const bases = new Float32Array(count * 4), elements = new Float32Array(count * 3);
+  const bases = new Float32Array(count * 4), elements = new Float32Array(count * 2);
+  const meanAnomalies = new Float32Array(count);
   const phases = new Float64Array(count * 2), dates = new Float64Array(count);
   let radius = 0;
   sorted.forEach((sourceIndex, index) => {
@@ -70,18 +71,20 @@ export function prepareOrbits(data, jed) {
       -b * (-Math.cos(o) * Math.sin(w) - Math.sin(o) * Math.cos(w) * Math.cos(inc)),
       b * (-Math.sin(o) * Math.sin(w) + Math.cos(o) * Math.cos(w) * Math.cos(inc)),
     ], index * 4);
-    elements.set([d.e, wrap(mean + n * (jed - REFERENCE_JED)), n], index * 3);
+    elements.set([d.e, n], index * 2);
+    meanAnomalies[index] = wrap(mean + n * (jed - REFERENCE_JED));
     phases.set([mean, n], index * 2);
     dates[index] = d.disc;
     radius = Math.max(radius, a * (1 + d.e));
-    if (!Number.isFinite(Math.fround(radius)) || !(Math.fround(a) > 0) || !(elements[index * 3 + 2] > 0)
-      || elements[index * 3 + 2] * REBASE_DAYS > MAX_PHASE_ADVANCE
+    if (!Number.isFinite(Math.fround(radius)) || !(Math.fround(a) > 0) || !(elements[index * 2 + 1] > 0)
+      || elements[index * 2 + 1] * REBASE_DAYS > MAX_PHASE_ADVANCE
       || !bases.subarray(index * 4, index * 4 + 4).every(Number.isFinite)
-      || !elements.subarray(index * 3, index * 3 + 3).every(Number.isFinite)) {
+      || !elements.subarray(index * 2, index * 2 + 2).every(Number.isFinite)
+      || !Number.isFinite(meanAnomalies[index])) {
       throw new Error(`Orbit exceeds rendering precision at catalogue entry ${sourceIndex + 1}.`);
     }
   });
-  return { bases, elements, phases, dates, radius, epoch: jed };
+  return { bases, elements, meanAnomalies, phases, dates, radius, epoch: jed };
 }
 
 export function discoveryCount(dates, jed) {

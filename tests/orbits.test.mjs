@@ -9,7 +9,7 @@ test("catalogue validation preserves zero longitudes and rejects malformed or un
   const packed = prepareOrbits([{ ...sample, wbar: 0 }], REFERENCE_JED);
   assert.deepEqual(packed.bases, prepareOrbits([{ ...sample, w: -25 }], REFERENCE_JED).bases);
   assert.deepEqual(prepareOrbits([{ ...sample, wbar: null }], REFERENCE_JED).bases, prepareOrbits([sample], REFERENCE_JED).bases);
-  assert(prepareOrbits([{ ...sample, n: undefined, P: 100 }], REFERENCE_JED).elements[2] > 0);
+  assert(prepareOrbits([{ ...sample, n: undefined, P: 100 }], REFERENCE_JED).elements[1] > 0);
   for (const data of [null, {}, new Array(1), [sample, , sample], [null], [undefined],
     ...[{ e: 1 }, { e: 1 - 1e-12 }, { e: -1 }, { a: 0 }, { a: 1e-100 }, { a: 1e100 }, { n: 1e-100 },
       { n: 0, P: 100 }, { n: -1 }, { n: NaN, P: 100 }, { disc: 1e100 }, { epoch: Infinity }, { M: undefined },
@@ -49,7 +49,7 @@ test("motion and period fallbacks stay within the shader's full rebase interval"
   }
   for (const fallback of [false, true]) {
     const motion = n => fallback ? { n: null, P: 2 * Math.PI / n } : { n: n * 180 / Math.PI };
-    assert.equal(prepareOrbits([{ ...sample, ...motion(limit) }], REFERENCE_JED).elements[2], limit);
+    assert.equal(prepareOrbits([{ ...sample, ...motion(limit) }], REFERENCE_JED).elements[1], limit);
     assert.throws(() => prepareOrbits([{ ...sample, ...motion(limit * (1 + 1e-6)) }], REFERENCE_JED), /rendering precision/);
   }
 });

@@ -29,9 +29,9 @@ function feedback(gl, cloud) {
   const shaders = [];
   for (const [type, source] of [[gl.VERTEX_SHADER, `#version 300 es
     precision highp float;
-    in vec4 aBasis; in vec3 aElements; uniform float time; out vec2 result;
+    in vec4 aBasis; in vec2 aElements; in float aMeanAnomaly; uniform float time; out vec2 result;
     ${orbitGLSL}
-    void main() { result = orbitPosition(aBasis.xy, aBasis.zw, aElements, time); gl_Position=vec4(result,0,1); }`],
+    void main() { result = orbitPosition(aBasis.xy, aBasis.zw, aElements, aMeanAnomaly, time); gl_Position=vec4(result,0,1); }`],
     [gl.FRAGMENT_SHADER, "#version 300 es\nprecision highp float; out vec4 c; void main(){c=vec4(1);}"]]) {
     const shader = gl.createShader(type); gl.shaderSource(shader, source); gl.compileShader(shader);
     check(gl.getShaderParameter(shader, gl.COMPILE_STATUS), gl.getShaderInfoLog(shader));
@@ -42,7 +42,7 @@ function feedback(gl, cloud) {
   gl.useProgram(program);
   const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
   const buffers = [];
-  for (const [name, size] of [["aBasis", 4], ["aElements", 3]]) {
+  for (const [name, size] of [["aBasis", 4], ["aElements", 2], ["aMeanAnomaly", 1]]) {
     const buffer = gl.createBuffer(); buffers.push(buffer);
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, cloud.geometry.getBuffer(name).data, gl.STATIC_DRAW);
