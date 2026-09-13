@@ -8,6 +8,8 @@ import "../src/css/main.css";
 const options = new URLSearchParams(location.search);
 const app = new Orrery({ container: document.getElementById("orrery"),
   jedDelta: Number(options.get("speed") ?? 0), autoRender: !options.has("manual") });
+// Test-only cold-selection path; production always starts at 1x.
+if (options.has("pixelRatio")) app.pixelRatio = options.get("pixelRatio");
 const probe = { draws: 0, textureDraws: 0, updates: 0, frames: [] };
 window.fixture = { app, probe, planets, catalogURL };
 const update = Asteroids.prototype.update;

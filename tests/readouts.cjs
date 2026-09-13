@@ -112,6 +112,7 @@ exports.production = async (page, url) => {
   await page.route('**/data/catalog.json', fulfill);
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await require('./options.cjs').openOptions(page);
     const speed = page.getByRole('textbox', { name: 'Playback speed' });
     const setSpeed = async value => { await speed.fill(String(value)); await speed.press('Enter'); };
     await setSpeed(0);

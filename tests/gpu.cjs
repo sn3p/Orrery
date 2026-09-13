@@ -268,6 +268,7 @@ async function main() {
         production.on("console", message => { if (message.type() === "error") productionErrors.push(message.text()); });
         await production.goto(server.url + "/production/");
         await production.waitForFunction(() => Number(document.getElementById("orrery-count").textContent) > 0);
+        await require("./options.cjs").openOptions(production);
         const input = production.getByRole("textbox", { name: "Playback speed" });
         await input.fill("0"); await input.press("Enter");
         const date = await production.locator("#orrery-date").textContent();

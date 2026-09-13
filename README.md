@@ -47,7 +47,7 @@ npm test
 These checks cover GPU orbit accuracy, discovery markers, playback, catalogue
 replacement, context recovery, development hot updates, font loading and
 desktop/mobile layout. Results and screenshots are saved in `.context/gpu-orbits/`,
-`.context/hmr-test/` and `.context/font-qa/`.
+`.context/hmr-test/`, `.context/font-qa/` and `.context/dpr/`.
 To include Firefox and Playwright WebKit, install their browsers with
 `npx playwright install firefox webkit`, then run `BROWSERS=chromium,firefox,webkit npm test`.
 Playwright WebKit does not substitute for testing actual Safari or iOS.
@@ -67,6 +67,18 @@ Test the setup script with Python 3.11 or later:
 ```bash
 python3 -m unittest discover -s tests -v
 ```
+
+## Options
+
+Open `[+] options` in the top-right corner for playback speed and rendering
+resolution. Click outside or press Escape to close it. Speed 0 pauses; negative
+values reverse. Speed 1 advances 60 days per second (default 1.5).
+
+Every load starts at 1× DPR, with the options panel closed. On displays with
+native DPR of at least 2, choose 1× or 2×: 2× is sharper but requires more graphics
+processing. The choice lasts for the current page only. Moving to a lower-DPR
+display hides the selector and uses 1× (or native DPR below 1); moving back restores
+the page's selection. Canvas CSS size, view position and dot sizes stay the same.
 
 ## GPU asteroid rendering
 
@@ -93,7 +105,12 @@ for one clock/scene/readout update and draw; this helper never schedules a frame
 Its optional `beforeRender`/`afterRender` hooks bracket drawing alone, preserving
 separate update and submission timings. `render(timestamp)` owns scheduling,
 and explicit Pixi ticker updates still work. Context recovery still regenerates
-the offscreen circle texture in manual mode. GUI teardown is safe to repeat;
+the offscreen circle texture in manual mode. Resolution changes regenerate and
+rebind that texture before the next scene draw, keeping its logical size. The
+circle texture uses integer density (at least 1×) so fractional display ratios
+do not alter planet sizes; the canvas still uses the selected effective DPR.
+Manual test/benchmark instances can pass an explicit `resolution` independent
+of the user option; samples verify requested, native, renderer and buffer ratios. GUI teardown is safe to repeat;
 FPS sampling resets on pause and excludes inactive time when playback resumes.
 
 In a Chrome 151 measurement on this Mac, the previous GPU implementation drew

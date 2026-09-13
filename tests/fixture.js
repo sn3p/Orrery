@@ -5,7 +5,8 @@ import catalogURL from "../data/catalog.json";
 import "../src/css/main.css";
 
 window.ready = (async () => {
-  const app = new Orrery({ container: document.getElementById("orrery"), jedDelta: 0, autoRender: false });
+  const app = new Orrery({ container: document.getElementById("orrery"), jedDelta: 0, autoRender: false,
+    resolution: Number(new URLSearchParams(location.search).get("resolution") ?? window.devicePixelRatio) });
   const initStart = performance.now();
   await app.init();
   const initialSpeed = app.jedDelta;

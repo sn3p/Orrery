@@ -101,7 +101,9 @@ exports.disposal = async (page, url) => {
       const {app, probe} = fixture, query = app.resolutionQuery, canvas = app.canvas, cloud = app.asteroids;
       const expected = [[window, 'resize', app.resize], [document, 'visibilitychange', app.onVisibilityChange],
         [canvas, 'webglcontextlost', app.onContextLost], [canvas, 'webglcontextrestored', app.onContextRestored],
-        [canvas, 'wheel', app.controls.onScroll], [query, 'change', app.onResolutionChange]];
+        [canvas, 'wheel', app.controls.onScroll], [query, 'change', app.onResolutionChange],
+        [app.gui.controls.trigger, 'click', app.gui.controls.onToggle],
+        [document, 'pointerdown', app.gui.controls.onOutsidePointer], [document, 'keydown', app.gui.controls.onKeyDown]];
       const removed = new Set(), restore = [];
       for (const target of new Set(expected.map(item => item[0]))) {
         const original = target.removeEventListener;
@@ -124,7 +126,7 @@ exports.disposal = async (page, url) => {
         canvas: !!document.querySelector('canvas'), gui: !!document.querySelector('.dg.main'), cloudDestroyed: cloud.destroyed };
     });
     // This is evaluated in the page without adding production globals.
-    assert.equal(before.pending, null); assert.equal(before.removed, 6);
+    assert.equal(before.pending, null); assert.equal(before.removed, 9);
     assert.equal(before.canvas, false); assert.equal(before.gui, false); assert(before.cloudDestroyed);
     assert.equal(await page.getByRole('status').textContent(), '', 'Teardown clears pending loading feedback immediately');
     release(); assert.equal(await page.evaluate(() => window.pendingLoad), false);
@@ -146,6 +148,8 @@ exports.production = async (browser, url, output, name) => {
   await page.route('**/data/catalog.json', async route => { await gate; await route.continue().catch(() => {}); });
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded' });
+    await require('./options.cjs').openOptions(page);
+    await page.getByRole('combobox', { name: 'Rendering pixel ratio' }).selectOption('2');
     const input = page.getByRole('textbox', { name: 'Playback speed' });
     const speed = async value => { await input.fill(String(value)); await input.press('Enter'); await settle(page); };
     await speed(0);
@@ -176,6 +180,8 @@ exports.production = async (browser, url, output, name) => {
     assert.equal(await page.locator('#orrery-status').textContent(), '');
     await page.screenshot({ path: path.join(output, `${name}-production-desktop.png`) });
     const canvas = page.locator('canvas');
+    // A canvas screenshot includes overlaid UI; clear trigger hover before comparing.
+    await page.mouse.move(600, 400);
     const previous = await canvas.screenshot();
     const draws = await page.evaluate(() => window.draws);
     await page.evaluate(() => {

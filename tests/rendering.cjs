@@ -27,6 +27,7 @@ async function idle(page) {
   return before;
 }
 async function speed(page, value) {
+  await require("./options.cjs").openOptions(page);
   const input = page.getByRole('textbox', { name: 'Playback speed' });
   await input.fill(String(value));
   assert(await input.evaluate(el => el === document.activeElement), 'Speed input receives keyboard focus');
@@ -113,6 +114,8 @@ async function dpr(page, browserName) {
       // Refresh emulated media so the browser delivers its native change event;
       // do not call Orrery's resize/invalidation methods from the test.
       await session.send('Emulation.setEmulatedMedia', { media: value === 2 ? 'screen' : '' });
+      await page.waitForFunction(r => fixture.app.nativePixelRatio === r, value);
+      if (value === 2) await page.getByRole('combobox', { name: 'Rendering pixel ratio' }).selectOption('2');
       await page.waitForFunction(r => fixture.app.app.renderer.resolution === r, value);
       const after = await idle(page);
       assert(after.draws > before.draws);

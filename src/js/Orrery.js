@@ -23,6 +23,12 @@ export default class Orrery {
     this.contextLost = false;
     // Tests and benchmarks can own a finite scheduler explicitly.
     this.autoRender = options.autoRender ?? true;
+    // A fixed resolution belongs only to caller-owned test/benchmark rendering.
+    this.fixedResolution = options.resolution;
+    if (this.fixedResolution !== undefined && (this.autoRender || !Number.isFinite(this.fixedResolution) || this.fixedResolution <= 0)) {
+      throw new Error("Fixed resolution requires manual rendering and a positive finite value.");
+    }
+    this._pixelRatio = "1";
     this.animationFrame = null;
     this.initialized = false;
     this.pixiInitialized = false;
@@ -45,13 +51,8 @@ export default class Orrery {
       if (this.destroyed) return;
       // Render textures contain GPU-only pixels. Pixi restores buffers/programs,
       // but the generated circle must be drawn again after every context loss.
-      const previous = this.circleTexture;
-      this.circleTexture = this.createCircleTexture();
-      for (const planet of this.planets) planet.body.texture = this.circleTexture;
-      this.planetContainer.texture = this.circleTexture;
-      this.planetContainer.update();
-      this.asteroids?.setTexture(this.circleTexture);
-      previous.destroy(true);
+      this.resize({ render: false });
+      this.refreshCircleTexture();
       this.contextLost = false;
       this.resetClock();
       this.requestRender();
@@ -80,6 +81,19 @@ export default class Orrery {
 
   get isPlaying() { return this.jedDelta !== 0; }
 
+  get pixelRatio() { return this._pixelRatio; }
+
+  set pixelRatio(value) {
+    if (this.destroyed || !["1", "2"].includes(value) || value === this._pixelRatio) return;
+    this._pixelRatio = value;
+    this.resize();
+  }
+
+  get effectivePixelRatio() {
+    const native = window.devicePixelRatio || 1;
+    return this.fixedResolution ?? (native >= 2 ? Number(this.pixelRatio) : Math.min(native, 1));
+  }
+
   resetClock() {
     this.clock.reset();
     this.stats?.reset();
@@ -102,7 +116,7 @@ export default class Orrery {
       autoStart: false,
       sharedTicker: false,
       preference: "webgl",
-      resolution: window.devicePixelRatio || 1,
+      resolution: this.effectivePixelRatio,
       autoDensity: true,
       width: window.innerWidth,
       height: window.innerHeight,
@@ -120,6 +134,8 @@ export default class Orrery {
 
     this.stage = this.app.stage;
     this.canvas = this.app.canvas;
+    // Display/viewport changes may have occurred during asynchronous Pixi init.
+    this.resizeRenderer(window.innerWidth, window.innerHeight);
 
     // Add canvas to container
     this.container.appendChild(this.canvas);
@@ -198,10 +214,25 @@ export default class Orrery {
   createCircleTexture(radius = 5) {
     const gfx = new Graphics();
     gfx.circle(0, 0, radius).fill({ color: 0xffffff });
-    const texture = this.app.renderer.generateTexture(gfx);
+    // Keep the reusable circle at an integer density. Fractional backing sizes
+    // otherwise change its logical width (10px becomes 10.667px at DPR .75),
+    // which changes planet sizes when their shared texture is rebound.
+    const texture = this.app.renderer.generateTexture({ target: gfx, resolution: this.texturePixelRatio });
     gfx.destroy();
     return texture;
   }
+
+  refreshCircleTexture() {
+    const previous = this.circleTexture;
+    this.circleTexture = this.createCircleTexture();
+    for (const planet of this.planets) planet.body.texture = this.circleTexture;
+    this.planetContainer.texture = this.circleTexture;
+    this.planetContainer.update();
+    this.asteroids?.setTexture(this.circleTexture);
+    previous.destroy(true);
+  }
+
+  get texturePixelRatio() { return Math.max(1, Math.ceil(this.app.renderer.resolution)); }
 
   addSun() {
     const sun = new Graphics();
@@ -303,7 +334,10 @@ export default class Orrery {
     if (this.destroyed) return;
     if (document.hidden || this.contextLost) { this.resetClock(); return; }
     // Moving a window between screens can change DPR without changing its size.
-    if (this.app.renderer.resolution !== (window.devicePixelRatio || 1)) this.resize({ render: false });
+    if (this.app.renderer.resolution !== this.effectivePixelRatio || this.nativePixelRatio !== (window.devicePixelRatio || 1)) this.resize({ render: false });
+    // Match cold-start texture quality without drawing offscreen while hidden
+    // or context-lost. Logical texture dimensions and particle sizes stay fixed.
+    if (this.circleTexture.source.resolution !== this.texturePixelRatio) this.refreshCircleTexture();
     // Pixi updates lastTime *after* invoking listeners; elapsedMS is raw,
     // unlike its capped/scaled deltaMS. Reconstruct this callback's timestamp.
     const timestamp = typeof ticker === "number" ? ticker : ticker.lastTime + (ticker.elapsedMS ?? 0);
@@ -320,21 +354,31 @@ export default class Orrery {
 
   watchResolution() {
     this.resolutionQuery?.removeEventListener("change", this.onResolutionChange);
-    this.resolutionQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+    this.nativePixelRatio = window.devicePixelRatio || 1;
+    this.resolutionQuery = window.matchMedia(`(resolution: ${this.nativePixelRatio}dppx)`);
     this.resolutionQuery.addEventListener("change", this.onResolutionChange);
   }
 
   resize({ render = true } = {}) {
     if (this.destroyed || !this.initialized) return;
     const width = window.innerWidth, height = window.innerHeight;
-    this.app.renderer.resize(width, height, window.devicePixelRatio || 1);
+    this.resizeRenderer(width, height);
     this.stage.position.x += (width - this.viewWidth) / 2;
     this.stage.position.y += (height - this.viewHeight) / 2;
     this.viewWidth = width;
     this.viewHeight = height;
     // Re-arm against the new DPR; a second screen move must also wake us.
     this.watchResolution();
+    this.gui.controls.updatePixelRatio();
     if (render) this.requestRender();
+  }
+
+  resizeRenderer(width, height) {
+    this.app.renderer.resize(width, height, this.effectivePixelRatio);
+    // autoDensity derives CSS dimensions from the rounded physical buffer.
+    // Preserve the exact CSS viewport even at fractional native DPR below 1.
+    this.canvas.style.width = `${width}px`;
+    this.canvas.style.height = `${height}px`;
   }
 
   destroy() {
