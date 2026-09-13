@@ -23,8 +23,6 @@ export default class Planet {
   }
 
   render(jed) {
-    const { x, y } = this.orbit.getPosAtTime(jed);
-    this.body.x = x;
-    this.body.y = y;
+    this.orbit.getPosAtTime(jed, this.body);
   }
 }
