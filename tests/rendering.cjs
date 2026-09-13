@@ -7,6 +7,7 @@ const lifecycle = require('./rendering-lifecycle.cjs');
 const initialization = require('./initialization.cjs');
 const status = require('./status.cjs');
 const checkPlanetPhases = require('./planets.cjs');
+const checkCPUOrbits = require('./cpu-orbits.cjs');
 const output = '.context/paused-rendering/checks';
 const settle = page => page.evaluate(async () => {
   for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
@@ -195,9 +196,12 @@ async function main() {
         page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
         await page.goto(fixtureURL + '/'); await page.evaluate(() => window.ready);
         const planetPhases = await checkPlanetPhases(page);
+        const cpuOrbits = await checkCPUOrbits(page);
         await page.reload(); await page.evaluate(() => window.ready);
         const planetPhasesAfterReload = await checkPlanetPhases(page);
-        const result = { browser: name, version: browser.version(), planetPhases, planetPhasesAfterReload, paused: await paused(page),
+        const cpuOrbitsAfterReload = await checkCPUOrbits(page);
+        const result = { browser: name, version: browser.version(), planetPhases, planetPhasesAfterReload,
+          cpuOrbits, cpuOrbitsAfterReload, paused: await paused(page),
           invalidations: await invalidations(page), dpr: await dpr(page, name),
           loading: await loading(page, fixtureURL), markers: await markers(page, fixtureURL) };
         await page.goto(fixtureURL + '/'); await page.evaluate(() => window.ready);

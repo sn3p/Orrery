@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+const reference = require("./cpu-reference.cjs");
 
 // Independent Kepler bisection using M = L - wbar, followed by orbital-plane
 // rotations. References: Orrery3D PR17/23. Orrery projects negative X / positive Y,
@@ -25,8 +26,18 @@ const cases = [{
 }];
 
 module.exports = async function checkPlanetPhases(page) {
+  const elements = await page.evaluate(() => fixture.app.planets.map(planet => ({
+    name: planet.options.name, ephemeris: planet.orbit.ephemeris,
+  })));
+  const additional = elements.filter(planet => !cases.some(test => test.name === planet.name)).map(planet => {
+    const dates = [2378861.5, 2451545, 2488070.5];
+    return { name: planet.name, dates, positions: dates.map(jed => {
+      const { x, y } = reference(planet.ephemeris, jed);
+      return [x, y];
+    }) };
+  });
   const report = [];
-  for (const test of cases) {
+  for (const test of [...cases, ...additional]) {
     const actual = await page.evaluate(({ name, dates, positions }) => {
       const { app, probe } = window.fixture;
       const planet = app.planets.find(p => p.options.name === name);
@@ -38,12 +49,14 @@ module.exports = async function checkPlanetPhases(page) {
         scaleX: app.stage.scale.x, scaleY: app.stage.scale.y };
       try {
         app.jedDelta = 0;
-        app.stage.scale.set(1);
+        // Resolve even Mercury's 1.6px body beyond antialiased edge pixels.
+        const scale = 3;
+        app.stage.scale.set(scale);
         return dates.map((jed, i) => {
           app.jed = jed;
           // Center the independently expected position for an actual framebuffer
           // check; the unchanged full scene and real planet renderer still run.
-          app.stage.position.set(app.viewWidth / 2 - positions[i][0], app.viewHeight / 2 - positions[i][1]);
+          app.stage.position.set(app.viewWidth / 2 - positions[i][0] * scale, app.viewHeight / 2 - positions[i][1] * scale);
           const before = probe.draws;
           app.render();
           const gl = app.app.renderer.gl, pixels = new Uint8Array(7 * 7 * 4);
@@ -75,9 +88,6 @@ module.exports = async function checkPlanetPhases(page) {
     });
     report.push({ name: test.name, datesChecked: actual.length, maxPositionError });
   }
-  const elements = await page.evaluate(() => fixture.app.planets.map(planet => ({
-    name: planet.options.name, ephemeris: planet.orbit.ephemeris,
-  })));
   assert.deepEqual(elements.map(planet => planet.name), ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn"]);
   for (const { name, ephemeris: { M, L, wbar } } of elements) {
     const difference = (M - (L - wbar)) * Math.PI / 180;
@@ -97,6 +107,7 @@ module.exports = async function checkPlanetPhases(page) {
 if (require.main === module) (async () => {
   const fs = require("node:fs"), path = require("node:path");
   const browsers = require("playwright"), { build, serve } = require("./support.cjs");
+  const checkCPUOrbits = require("./cpu-orbits.cjs");
   const output = ".context/planet-phases";
   await build("./tests/rendering-fixture.js", path.join(output, "fixture"));
   const server = await serve(path.join(output, "fixture")), report = [];
@@ -110,8 +121,10 @@ if (require.main === module) (async () => {
           page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
           await page.goto(server.url); await page.evaluate(() => window.ready);
           const boot = await module.exports(page);
+          const cpuBoot = await checkCPUOrbits(page);
           await page.reload(); await page.evaluate(() => window.ready);
           const reload = await module.exports(page);
+          const cpuReload = await checkCPUOrbits(page);
           await page.evaluate(() => {
             const { app } = fixture;
             app.jed = 2451545;
@@ -120,7 +133,7 @@ if (require.main === module) (async () => {
           });
           await page.screenshot({ path: path.join(output, `${name}-${viewport.width}.png`) });
           assert.deepEqual(errors, [], "No browser, shader or WebGL errors");
-          report.push({ browser: name, version: browser.version(), viewport, boot, reload });
+          report.push({ browser: name, version: browser.version(), viewport, boot, reload, cpuBoot, cpuReload });
           await page.close();
         }
       } finally { await browser.close(); }
