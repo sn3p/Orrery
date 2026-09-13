@@ -33,8 +33,11 @@ module.exports = async function checkCPUOrbits(page) {
   assert(numerics.maxError < 1e-7, JSON.stringify(numerics));
 
   const steps = [
-    { patch: { e: 0.8, M: 90 } },
+    { patch: { a: 2 } }, { patch: { e: 0.8 } }, { patch: { i: 81 } },
+    { patch: { W: -123 } }, { patch: { wbar: 72 } }, { patch: { M: 90 } },
+    { patch: { n: 0.7 } }, { patch: { epoch: 2450000 } },
     { patch: { n: 0, P: 999, wbar: null, w: 60 } },
+    { patch: { w: 0 } }, { patch: { P: 777 } },
     { replacement: { ...base, a: 2, e: 0.5, i: 63, M: -45 } },
   ];
   let eph = { ...base };
@@ -149,5 +152,37 @@ module.exports = async function checkCPUOrbits(page) {
   assert(scene.invalid.every(Boolean), "Invalid inputs reject at real consumer boundaries");
   assert(scene.preserved && scene.recovered, "Failed planet update preserves its body and recovers after repair");
   assert.deepEqual(scene.counts.before, scene.counts.after, "Rejected track inputs never attach partial scene resources");
-  return { numerics, scene };
+  const frameWork = await page.evaluate(() => {
+    const { app, probe } = fixture, oldDate = app.jed, oldSpeed = app.jedDelta;
+    const originals = app.planets.map(planet => planet.orbit.getPosAtTime);
+    let reused = 0, squareRoots = 0;
+    const sqrt = Math.sqrt;
+    try {
+      app.jedDelta = 0;
+      app.render(); // Warm every cache through the real app boundary.
+      for (const [index, planet] of app.planets.entries()) {
+        planet.orbit.getPosAtTime = function(jed, target) {
+          if (target !== planet.body) throw new Error("Planet render allocated a temporary position");
+          try {
+            Math.sqrt = value => { squareRoots++; return sqrt(value); };
+            const result = originals[index].call(this, jed, target);
+            if (result !== target) throw new Error("Orbit replaced its supplied output");
+            reused++;
+            return result;
+          } finally { Math.sqrt = sqrt; }
+        };
+      }
+      const before = probe.draws;
+      for (let frame = 0; frame < 100; frame++) { app.jed = 2451545 + frame - 50; app.render(); }
+      return { frames: 100, planets: app.planets.length, reused, squareRoots, draws: probe.draws - before };
+    } finally {
+      app.planets.forEach((planet, i) => { planet.orbit.getPosAtTime = originals[i]; });
+      Math.sqrt = sqrt;
+      app.jed = oldDate; app.render(); app.jedDelta = oldSpeed;
+    }
+  });
+  assert.equal(frameWork.reused, frameWork.frames * frameWork.planets);
+  assert.equal(frameWork.squareRoots, 0, "App frames do not recompute the fixed ellipse scale");
+  assert.equal(frameWork.draws, frameWork.frames);
+  return { numerics, scene, frameWork };
 };
