@@ -195,9 +195,10 @@ BROWSERS=chromium,firefox,webkit npm test
 `test:build` exercises mode/watch behavior, repeated actual Pages clean builds,
 byte equality against standalone legacy output and preview-only clean safety.
 `test:browser` covers both assembled production pages, assets and lazy chunks,
-real legacy behavior plus development HMR/reload. CI builds once, tests that same
-uploaded Pages artifact in all three browsers, and makes deployment depend on
-all jobs. Diagnostics are retained per browser; no root promotion is implicit.
+real legacy behavior plus development HMR/reload. After the build regression
+checks, CI uploads the final assembled Pages artifact for all three browser jobs
+to test. Deployment depends on all jobs. Diagnostics are retained per browser;
+no root promotion is implicit.
 
 Every subsequent unit applies the relevant rows below at real entry/request/
 render boundaries, not solely through shared internals. Add automated regression
