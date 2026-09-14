@@ -241,7 +241,10 @@ byte equality against standalone legacy output and preview-only clean safety.
 `test:browser` covers both assembled production pages, assets and lazy chunks,
 real legacy behavior plus development HMR/reload. `test:unified` also runs the
 strict GPU, scheduling, rendering/lifecycle, UI/DPR and finite benchmark probes
-against the extracted classes. `tests/unified-app.js` is an inspection facade
+against the extracted classes, building the preview first so the standalone
+command works from a clean checkout. The combined browser suite invokes the
+same probes directly to preserve the assembled production artifact under test.
+`tests/unified-app.js` is an inspection facade
 only for existing probes, including their explicit stopped-ticker calls;
 production has no facade or ticker bridge. Separate raw-App tests verify async
 failures/disposal, actual clock ownership and exact scene/HUD parity at fixed
@@ -250,7 +253,9 @@ its real HTML and lazy chunks at root and Pages prefixes. `benchmark:next`
 identifies unified execution independently of the benchmark runner source.
 After the build regression
 checks, CI uploads the final assembled Pages artifact for all three browser jobs
-to test. Deployment depends on all jobs. Diagnostics are retained per browser;
+to test. A separate Chromium job runs the standalone preview command from a
+clean checkout with no preview build. Deployment depends on all jobs.
+Diagnostics are retained per browser and suite;
 no root promotion is implicit.
 
 Hosted Linux browser jobs use Xvfb and Mesa software rendering, with a preflight

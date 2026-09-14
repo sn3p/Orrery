@@ -47,14 +47,26 @@ jobs:
           path: dist
 
   browser-tests:
-    name: Browser tests (${{ matrix.browser }})
+    name: ${{ matrix.name }}
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, firefox, webkit]
+        include:
+          - browser: chromium
+            suite: browser
+            name: Browser tests (chromium)
+          - browser: firefox
+            suite: browser
+            name: Browser tests (firefox)
+          - browser: webkit
+            suite: browser
+            name: Browser tests (webkit)
+          - browser: chromium
+            suite: unified
+            name: Standalone preview tests (clean checkout)
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -79,19 +91,26 @@ jobs:
         run: sudo apt-get install -y xvfb xauth libgl1-mesa-dri libglx-mesa0
 
       - name: Download the assembled Pages artifact
+        if: matrix.suite == 'browser'
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: github-pages
           path: .context/pages-artifact
 
       - name: Extract the artifact for both entry points
+        if: matrix.suite == 'browser'
         run: |
           rm -rf dist
           mkdir dist
           tar -xf .context/pages-artifact/artifact.tar -C dist
 
       - name: Run production, legacy and preview browser regressions
-        run: xvfb-run -a npm run test:browser
+        run: |
+          if [ "${{ matrix.suite }}" = unified ]; then
+            test ! -e dist/next
+            xvfb-run -a node tests/browser-environment.cjs
+          fi
+          xvfb-run -a npm run test:${{ matrix.suite }}
         env:
           BROWSERS: ${{ matrix.browser }}
           ORRERY_TEST_GRAPHICS: mesa
@@ -101,7 +120,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: browser-results-${{ matrix.browser }}
+          name: ${{ matrix.suite }}-results-${{ matrix.browser }}
           include-hidden-files: true
           path: |
             .context/browser-environment

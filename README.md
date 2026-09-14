@@ -56,7 +56,8 @@ replacement, context recovery, development hot updates, font loading and
 desktop/mobile layout. Results and screenshots are saved in `.context/gpu-orbits/`,
 `.context/hmr-test/`, `.context/font-qa/`, `.context/dpr/` and `.context/pr2/`.
 The default browser suite also checks the preview against the legacy pixels,
-numerics, lifecycle and options; `npm run test:unified` runs that subset.
+numerics, lifecycle and options; `npm run test:unified` builds the preview and
+runs that subset, including from a clean checkout after installing dependencies.
 To include Firefox and Playwright WebKit, install their browsers with
 `npx playwright install firefox webkit`, then run `BROWSERS=chromium,firefox,webkit npm test`.
 Playwright WebKit does not substitute for testing actual Safari or iOS.
