@@ -179,6 +179,7 @@ in the existing tests. Selection, filtering and follow features are later scope.
 | --- | --- | --- |
 | 1 — Isolated preview | Tracked plan/pins, placeholder, separate build/dev and CI | Both static entries, clean assembly, legacy regression/visual checks and no preview requests from root |
 | 2 — Pixi and shared shell | Port Pixi into the preview with app-owned time/HUD/options and neutral math | Pixi visuals/numerics/playback/input/DPR/recovery match; one clock/UI/scheduler; live root preserved |
+| H — Preserve Orrery3D history | After PR2, import the pinned Orrery3D history and an inactive source snapshot in a separate PR | Original commits and ancestry retained; snapshot matches source; current app/build unchanged; true merge and fresh-clone verification |
 | 3 — Reviewed loader | Reuse final reviewed loader/contract/provisioning/fixtures; retained CPU data and incremental Pixi upload | Bundled/indexed/whole conformance, ties, buffering, replacement/retry/cancellation/recovery and memory checks |
 | 4 — Three adapter | Port final Three renderer onto that shell/loader; direct Three entry | Both engines independently pass data/numeric/visual/lifecycle baselines; Pixi starts without Three/WebGL2 |
 | 5 — Switching/options | Enable selector, separate views and renderer-specific options hook | Repeated switching, in-flight loading, partial-init errors, option isolation and resource cleanup |
@@ -190,6 +191,38 @@ Orrery workspace/branch based on updated master after its dependency merges.
 Drafts are the default; retire branches after their one PR closes/merges.
 Publication, new Copilot requests, readiness changes and archival are separate
 actions. PR1 does not automatically start any later unit.
+
+### Preserve Orrery3D history before the loader port
+
+The agreed sequence is **PR2 → H (history import) → PR3 (loader) → PR4
+(Three) → PR5–PR7**. H is an additional review unit; existing planned PR
+numbers keep their meaning. H imports the pinned history and snapshot described
+in the [source record](history/orrery3d.md); loader/Three ports remain later work.
+
+After PR2 merges, create a fresh Orrery workspace and branch for H. Pin the
+reviewed Orrery3D source revision, record its reachable commits, and inventory
+other branches and tags separately. Use a non-squashed `git subtree add` to
+import that history and its exact snapshot under an inactive temporary path,
+such as `migration/orrery3d/`. Keep the snapshot outside runtime imports,
+build/deployment inputs and active package discovery. It is migration source;
+the root package and lockfile remain the maintained application configuration.
+
+Verify original commit hashes, metadata and ancestry, exact snapshot contents,
+and unchanged existing app/build output. Publish H as a draft when requested.
+When its merge is explicitly authorized, use **Create a merge commit**.
+Squashing collapses the imported ancestry and rebasing changes commit hashes.
+Verify that the original source tip and all recorded source commits remain
+reachable from Orrery master in a fresh clone after the merge.
+
+PR3 then moves/adapts the imported loader into the unified application; PR4
+ports Three from the same imported history. Reconcile and preserve any later
+Orrery3D commits before adopting their changes. Later cleanup removes the
+temporary snapshot while retaining the merged Git ancestry. Historical commits
+keep their original paths; verify file-history traversal after moves without
+assuming automatic GitHub blame continuity.
+
+GitHub PRs, issues, discussions and release records remain in Orrery3D. Preserve
+the original repository and its links; archival still needs separate approval.
 
 Keep the legacy source through PR6. Retain a known-good artifact/source and test
 rollback without depending on an expiring CI artifact. Test the root asset base
