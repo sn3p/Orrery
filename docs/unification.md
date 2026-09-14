@@ -226,7 +226,7 @@ handoff. Review shared state/loader/switching changes independently.
 | Lifecycle | At least 20 alternating switches; init/fetch/upload disposal; two context-loss/recovery cycles per mode; one canvas/scheduler; listener/resource trends |
 | Interaction | Desktop/narrow/short viewports, overflow/wrapping/control placement, keyboard/focus/labels/Escape/outside dismissal, mouse/touch and error/loading copy; no console errors |
 | Compatibility | Chromium/Firefox/WebKit; Pixi's WebGL compatibility; optional Three's WebGL2 requirement must not block Pixi |
-| Performance | Historical100k and real indexed trial data; first complete draw, cold/warm switches, CPU/GPU/frame timing, transfer and retained/peak memory; fixed baselines and agreed budgets |
+| Performance | Historical 100k and real indexed trial data; first complete draw, cold/warm switches, CPU/GPU/frame timing, transfer and retained/peak memory; fixed baselines and agreed budgets |
 | Release | Assembled static entries throughout preview, both promoted mode URLs, forwarding selection, cached/missing chunks, legacy notice/destination and prior-version rollback |
 
 PR1 exercises the scaffold and legacy rows. Renderer ports, shared state, loader
