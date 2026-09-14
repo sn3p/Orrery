@@ -11,6 +11,18 @@ const { chromium } = require("playwright");
 const { buildTrial } = require("../scripts/catalog.cjs");
 const root = path.resolve(__dirname, "..");
 
+async function buildHistorical(output) {
+  const webpack = require("webpack"), base = require("../webpack.next.config.js");
+  await new Promise((resolve, reject) => {
+    const compiler = webpack({ ...base, mode: "production", entry: "./tests/catalog-browser.js",
+      output: { ...base.output, path: output } });
+    compiler.run((error, stats) => compiler.close(() => {
+      if (error || stats.hasErrors()) reject(error || new Error(stats.toString("errors-only")));
+      else resolve();
+    }));
+  });
+}
+
 function observe() {
   window.catalogMetrics = { longTasks: [], frames: [], states: [] };
   const mark = performance.mark.bind(performance);
@@ -230,7 +242,7 @@ async function main() {
     const mode = JSON.parse(await fsp.readFile(config)).mode;
     const directory = path.join(root, ".context/catalog-trial/site-" + mode);
     const built = mode === "historical"
-      ? (await require("../tests/support.cjs").build("./tests/catalog-browser.js", directory), { runtime: { mode } })
+      ? (await buildHistorical(directory), { runtime: { mode } })
       : await buildTrial(path.resolve(config), directory, { entry: "./tests/catalog-browser.js" });
     const scriptFiles = (await fsp.readdir(directory, { recursive: true })).filter(name => name.endsWith(".js")).sort();
     const bundle = Buffer.concat(await Promise.all(scriptFiles.map(name => fsp.readFile(path.join(directory, name)))));
