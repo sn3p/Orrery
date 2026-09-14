@@ -1,9 +1,9 @@
 const legacy = require("./webpack.config");
-const preview = require("./webpack.next.config");
+const preview = require("./webpack.next.app.config.cjs");
 
 // Cleaning dist must finish before the preview writes dist/next. This dependency
 // also applies when the Pages command explicitly passes --output-clean.
-module.exports = (_env, argv = {}) => {
+module.exports = async (_env, argv = {}) => {
   // webpack-cli applies --output-path to EVERY compiler after loading this
   // config. Reject it before either clean can run and erase a sibling build.
   if (argv.outputPath !== undefined) {
@@ -11,6 +11,6 @@ module.exports = (_env, argv = {}) => {
   }
   return [
     { ...legacy, name: "legacy", output: { ...legacy.output, clean: true } },
-    { ...preview, name: "preview", dependencies: ["legacy"] },
+    { ...await preview(_env, argv), name: "preview", dependencies: ["legacy"] },
   ];
 };

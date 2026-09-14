@@ -67,6 +67,8 @@ exports.recovery = async (page, { manual = false } = {}) => {
       await page.waitForFunction(n => fixture.probe.draws > n, lost.draws);
     }
     assert.deepEqual(await page.evaluate(n => fixture.probe.frames[n], lost.draws), { jed: lost.jed, elapsed: lost.elapsed }, 'First recovery draw excludes all graphics downtime');
+    assert.equal(await page.evaluate(() => fixture.app.renderFailure?.message || fixture.app.graphicsError || ''), '',
+      'A restored frame must not leave a terminal graphics failure, even while paused');
     const recovered = await page.evaluate(() => ({ texture: fixture.app.circleTexture.uid,
       image: fixture.probe.image, pixels: fixture.probe.pixels, textureDraws: fixture.probe.textureDraws,
       bound: fixture.app.planets.every(p => p.body.texture === fixture.app.circleTexture)

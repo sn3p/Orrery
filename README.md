@@ -37,7 +37,9 @@ stays at the root. Run `npm run serve:next` after building to develop the previe
 at `/next/` (uses `CONDUCTOR_PORT` when set, otherwise 3000). See the
 [approved unification plan](docs/unification.md) for source pins, scope, build
 isolation and verification. The preview uses an app-owned clock, HUD/options
-and lazy Pixi adapter with the same historical 100k catalogue.
+and lazy Pixi adapter with the same historical 100k catalogue. Explicit
+[indexed, whole and latest catalogue profiles](docs/catalog-loading.md) exercise
+the shared loader and incremental Pixi path without changing that default.
 
 Watch changes and rebuild:
 

@@ -15,6 +15,12 @@ Its [MIT license](../../migration/orrery3d/LICENSE), font license and fixture
 provenance remain intact. Original GitHub PRs, issues, discussions and releases
 remain in Orrery3D; this import does not transfer those records or archive it.
 
+H merged through [PR67](https://github.com/sn3p/Orrery/pull/67) as
+`e1e80ec00a23ba7d2d99e3df625d512ec3486a41`. A fresh ordinary full master clone
+verified all 147 original commits, the exact snapshot and original ancestry.
+PR3 adopts selected files through the [active catalogue mapping](../catalog-loading.md#adopted-source-and-provenance);
+the imported snapshot itself remains unchanged.
+
 ## Inactive source boundary
 
 The imported folder is historical migration source. Run application commands
@@ -92,4 +98,6 @@ path. Its original history is accessible explicitly:
 git log 93a3e1f4a36d8fdceb513bdfdca20beddb3348d6 -- src/js/catalog/CatalogLoader.js
 ```
 
-GitHub traversal of the unpublished import has not been checked.
+The GitHub commits API reports the import commit for the prefixed path and the
+original history for the original pin/path. Automatic cross-prefix traversal is
+not promised.

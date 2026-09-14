@@ -54,6 +54,30 @@ export default class PixiRenderer {
       this.viewHeight = viewport.height;
       this.stage.position.set(this.viewWidth / 2, this.viewHeight / 2);
       this.initialized = true;
+      // Pixi's onRender callback runs before renderability/culling checks.
+      // Record this adapter's actual mesh submission instead, after encoding.
+      const encoder = this.app.renderer.encoder, draw = encoder.draw;
+      encoder.draw = options => {
+        const result = draw.call(encoder, options);
+        if (options.geometry === this.asteroids?.geometry && options.geometry.instanceCount > 0) {
+          this.drawnAsteroids = this.asteroids;
+        }
+        return result;
+      };
+      const buffers = this.app.renderer.buffer, updateBuffer = buffers.updateBuffer;
+      buffers.updateBuffer = buffer => {
+        const renderer = this.app.renderer, gl = renderer.gl;
+        const changed = buffer._gpuData[renderer.uid]?.updateID !== buffer._updateID;
+        const asteroidUpload = changed && this.asteroids?.geometry.buffers.includes(buffer);
+        if (asteroidUpload) {
+          // Pixi's WebGL1 texture setup can leave INVALID_ENUM pending. Scope
+          // upload errors to this buffer operation, retaining prior OOM errors.
+          if (gl.getError() === gl.OUT_OF_MEMORY) throw new Error("Unable to upload asteroid buffers.");
+        }
+        const result = updateBuffer.call(buffers, buffer);
+        if (asteroidUpload && gl.getError() !== gl.NO_ERROR) throw new Error("Unable to upload asteroid buffers.");
+        return result;
+      };
       this.resize(viewport);
       this.container.appendChild(this.canvas);
       this.controls = new Controls(this);
@@ -101,6 +125,8 @@ export default class PixiRenderer {
     this.planetContainer.texture = this.circleTexture;
     this.planetContainer.update();
     this.asteroids?.setTexture(this.circleTexture);
+    this.stagedAsteroids?.setTexture(this.circleTexture);
+    this.catalogueTransition?.previous?.setTexture(this.circleTexture);
     previous.destroy(true);
   }
 
@@ -135,15 +161,66 @@ export default class PixiRenderer {
 
   setAsteroids(data, { jed, elapsed }) {
     if (this.destroyed) return 0;
-    // Prepare/allocate completely before replacing the usable scene. Retained
-    // neutral catalogue ownership and incremental uploads arrive in PR3.
+    // Prepare/allocate completely before replacing the usable scene.
     const next = new Asteroids(data, this.circleTexture, jed, elapsed,
       this.app.renderer.context.webGLVersion === 2);
+    this.discardStagedCatalogue();
+    this.installAsteroids(next);
+    return next.geometry.instanceCount;
+  }
+
+  installAsteroids(next, preservePrevious = false) {
     const previous = this.asteroids;
     this.stage.addChildAt(next, previous ? this.stage.getChildIndex(previous) : 2);
     this.asteroids = next;
-    previous?.destroy();
-    return next.geometry.instanceCount;
+    if (preservePrevious) {
+      this.catalogueTransition = { previous, visible: previous?.visible };
+      if (previous) previous.visible = false;
+    } else previous?.destroy();
+  }
+
+  syncCatalogue(model, frame, { required, activate }) {
+    if (this.destroyed) return 0;
+    let cloud = this.asteroids?.catalogue === model ? this.asteroids : this.stagedAsteroids;
+    if (cloud?.catalogue !== model) {
+      this.stagedAsteroids?.destroy();
+      cloud = this.stagedAsteroids = new Asteroids(model, this.circleTexture, frame.jed, frame.elapsed,
+        this.app.renderer.context.webGLVersion === 2, 0);
+    }
+    // Bound catch-up after late starts and graphics suspension as well as the
+    // ordinary chunk path. Each continuation is a new application frame/task.
+    cloud.append(cloud.committedCount + 8192);
+    if (cloud !== this.asteroids && activate && cloud.committedCount >= required) {
+      cloud.update(frame.jed, frame.elapsed);
+      this.installAsteroids(cloud, true);
+      this.stagedAsteroids = null;
+    }
+    return cloud === this.asteroids ? cloud.committedCount : -1;
+  }
+
+  needsCatalogPacking(model) {
+    const cloud = this.asteroids?.catalogue === model ? this.asteroids : this.stagedAsteroids;
+    return !!model && (cloud?.committedCount ?? 0) < model.count;
+  }
+
+  discardStagedCatalogue() {
+    this.rollbackCatalogue();
+    this.stagedAsteroids?.destroy();
+    this.stagedAsteroids = null;
+  }
+
+  commitCatalogue() {
+    this.catalogueTransition?.previous?.destroy();
+    this.catalogueTransition = null;
+  }
+
+  rollbackCatalogue() {
+    if (!this.catalogueTransition) return;
+    this.asteroids.destroy();
+    const { previous, visible } = this.catalogueTransition;
+    this.asteroids = previous;
+    if (previous) previous.visible = visible;
+    this.catalogueTransition = null;
   }
 
   update({ jed, elapsed }) {
@@ -154,7 +231,34 @@ export default class PixiRenderer {
     return count;
   }
 
-  render() { this.app.render(); }
+  captureFrame(frame) {
+    this.frameSnapshot = this.asteroids && { cloud: this.asteroids, state: this.asteroids.captureFrame(frame.jed, frame.elapsed) };
+  }
+
+  restoreFrame(frame) {
+    if (this.frameSnapshot?.cloud === this.asteroids) this.asteroids.restoreFrame(this.frameSnapshot.state);
+    for (const planet of this.planets) planet.render(frame.jed);
+    this.frameSnapshot = null;
+  }
+
+  commitFrame() { this.frameSnapshot = null; }
+
+  render() {
+    this.drawnAsteroids = null;
+    const renderer = this.app.renderer;
+    if (this.asteroids?.visible && !renderer.gl.isContextLost()) {
+      const program = renderer.shader._getProgramData(this.asteroids.shader.glProgram).program;
+      // Validate once per actual GPU program, including context restoration.
+      if (program !== this.checkedProgram) {
+        if (!renderer.gl.getProgramParameter(program, renderer.gl.LINK_STATUS)) throw new Error("Unable to render asteroid shader.");
+        this.checkedProgram = program;
+      }
+    }
+    this.app.render();
+    if (this.destroyed || this.contextLost || this.app.renderer.gl.isContextLost()) return null;
+    if (this.asteroids?.geometry.instanceCount && this.drawnAsteroids !== this.asteroids) return null;
+    return this.asteroids?.acknowledgeDraw(this.app.renderer) ?? (this.asteroids ? null : 0);
+  }
 
   resize(viewport) {
     this.viewport = viewport;
@@ -184,6 +288,8 @@ export default class PixiRenderer {
     this.canvas?.removeEventListener("webglcontextrestored", this.onContextRestored);
     this.controls?.destroy();
     this.asteroids?.destroy();
+    this.stagedAsteroids?.destroy();
+    this.catalogueTransition?.previous?.destroy();
     this.circleTexture?.destroy(true);
     // A pending async init cleans itself as soon as Pixi finishes.
     if (this.initialized) this.releaseApplication();
