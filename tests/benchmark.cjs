@@ -4,7 +4,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
-const browsers = require("playwright");
+const { launchBrowser } = require("./browsers.cjs");
 const checkFrames = require("./benchmark-frames.cjs");
 const { build, serve } = require("./support.cjs");
 const { sample } = require("../benchmarks/run.cjs");
@@ -39,7 +39,7 @@ const hash = value => crypto.createHash("sha256").update(value).digest("hex");
   const frameReports = [];
   try {
     for (const name of (process.env.BROWSERS || "chromium").split(",")) {
-      const browser = await browsers[name].launch({ ...(name === "chromium" ? { channel: "chrome" } : {}) });
+      const browser = await launchBrowser(name);
       try {
       frameReports.push({ browser: name, version: browser.version(), ...await checkFrames(browser, server.url) });
       for (const dpr of [1, 2, 3]) {

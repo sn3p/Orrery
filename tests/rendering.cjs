@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const browsers = require('playwright');
+const { launchBrowser } = require('./browsers.cjs');
 const { build, serve } = require('./support.cjs');
 const lifecycle = require('./rendering-lifecycle.cjs');
 const initialization = require('./initialization.cjs');
@@ -194,7 +194,7 @@ async function main() {
   const fixtureURL = server.url + '/fixture';
   try {
     for (const name of (process.env.BROWSERS || 'chromium').split(',')) {
-      const browser = await browsers[name].launch({ ...(name === 'chromium' ? { channel: 'chrome' } : {}) });
+      const browser = await launchBrowser(name);
       try {
         const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
         const errors = [];

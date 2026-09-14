@@ -200,6 +200,15 @@ checks, CI uploads the final assembled Pages artifact for all three browser jobs
 to test. Deployment depends on all jobs. Diagnostics are retained per browser;
 no root promotion is implicit.
 
+Hosted Linux browser jobs use Xvfb and Mesa software rendering, with a preflight
+that records the actual renderer and requires WebGL2 so numerical coverage cannot
+silently be skipped. This also gives Firefox a working graphics context. Chrome
+uses ANGLE's OpenGL backend: its default SwiftShader fallback reproduces a legacy
+orbital error above the existing 0.25px limit at 20x zoom. That driver-specific
+precision issue remains a legacy follow-up; this scaffold changes neither the
+orbital shader nor its tolerance. Hardware and real-device verification remains
+part of the later renderer migration gates.
+
 Every subsequent unit applies the relevant rows below at real entry/request/
 render boundaries, not solely through shared internals. Add automated regression
 coverage for valid failures; inspect rendered states and the full diff before

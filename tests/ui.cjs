@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
-const { chromium } = require("playwright");
+const { launchBrowser } = require("./browsers.cjs");
 
 const root = path.resolve(__dirname, "..");
 const dist = path.join(root, "dist");
@@ -104,7 +104,7 @@ async function main() {
   let browser;
   const report = [];
   try {
-    browser = await chromium.launch({ channel: process.env.CHROME_CHANNEL || "chrome" });
+    browser = await launchBrowser("chromium");
     for (const width of [1280, 390, 360]) {
       const context = await browser.newContext({ viewport: { width, height: width === 1280 ? 800 : 844 }, isMobile: width < 500, hasTouch: width < 500 });
       const page = await context.newPage();

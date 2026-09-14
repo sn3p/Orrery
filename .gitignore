@@ -18,6 +18,7 @@ __pycache__/
 /.context/build-test/
 /.context/next-preview/
 /.context/pages-artifact/
+/.context/browser-environment/
 
 # The preview is assembled from source alongside the tracked legacy build.
 /dist/next/

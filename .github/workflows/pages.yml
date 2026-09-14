@@ -75,6 +75,9 @@ jobs:
             npx playwright install --with-deps "${{ matrix.browser }}"
           fi
 
+      - name: Install virtual display and software graphics
+        run: sudo apt-get install -y xvfb xauth libgl1-mesa-dri libglx-mesa0
+
       - name: Download the assembled Pages artifact
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
@@ -88,9 +91,11 @@ jobs:
           tar -xf .context/pages-artifact/artifact.tar -C dist
 
       - name: Run production and legacy browser regressions
-        run: npm run test:browser
+        run: xvfb-run -a npm run test:browser
         env:
           BROWSERS: ${{ matrix.browser }}
+          ORRERY_TEST_GRAPHICS: mesa
+          LIBGL_ALWAYS_SOFTWARE: 1
 
       - name: Retain verification and diagnostics
         if: always()
@@ -99,6 +104,7 @@ jobs:
           name: browser-results-${{ matrix.browser }}
           include-hidden-files: true
           path: |
+            .context/browser-environment
             .context/build-test/deployment
             .context/next-preview
             .context/gpu-orbits

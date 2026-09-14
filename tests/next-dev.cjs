@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
-const { chromium } = require("playwright");
+const { launchBrowser } = require("./browsers.cjs");
 
 (async () => {
   const directory = path.resolve(".context/next-preview/dev");
@@ -33,7 +33,7 @@ const { chromium } = require("playwright");
   try {
     await until(() => /http:\/\/127\.0\.0\.1:\d+\//.test(log));
     const base = log.match(/http:\/\/127\.0\.0\.1:\d+\//)[0];
-    browser = await chromium.launch({ channel: "chrome" });
+    browser = await launchBrowser("chromium");
     const page = await browser.newPage();
     const errors = [], hotChunks = [];
     page.on("pageerror", error => errors.push(error.message));

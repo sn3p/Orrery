@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const webpack = require("webpack");
 const DevServer = require("webpack-dev-server");
-const { chromium } = require("playwright");
+const { launchBrowser } = require("./browsers.cjs");
 const config = require("../webpack.config");
 
 (async () => {
@@ -42,7 +42,7 @@ const config = require("../webpack.config");
     const initial = nextBuild();
     await server.start();
     assert(!(await initial).hasErrors(), "Initial development compilation succeeds");
-    browser = await chromium.launch({ channel: "chrome" });
+    browser = await launchBrowser("chromium");
     const page = await browser.newPage();
     const errors = [], hotChunks = [];
     page.on("pageerror", error => errors.push(error.message));

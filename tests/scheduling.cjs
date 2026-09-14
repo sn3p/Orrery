@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./browsers.cjs');
 const { build, serve } = require('./support.cjs');
 
 const settle = page => page.evaluate(async () => {
@@ -10,7 +10,7 @@ const settle = page => page.evaluate(async () => {
   const output = '.context/paused-rendering/scheduling';
   await build('./tests/rendering-fixture.js', output);
   const server = await serve(output);
-  const browser = await chromium.launch({ channel: 'chrome' });
+  const browser = await launchBrowser("chromium");
   try {
     const page = await browser.newPage();
     await page.goto(server.url + '/?speed=1.5'); await page.evaluate(() => window.ready);

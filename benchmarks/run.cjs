@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { chromium } = require("playwright");
+const { launchOptions } = require("../tests/browsers.cjs");
 const { build, serve } = require("../tests/support.cjs");
 const { checkoutSource, fingerprints, recordSource, bundleSource } = require("./provenance.cjs");
 
@@ -133,7 +134,9 @@ async function main() {
     const source = bundleSource(bundle);
     Object.assign(report, source);
     server = await serve(bundle);
-    browser = await chromium.launch({ channel: "chrome", headless: process.env.HEADLESS !== "0", args: ["--enable-precise-memory-info"] });
+    const browserOptions = launchOptions("chromium");
+    report.headless = browserOptions.headless;
+    browser = await chromium.launch({ ...browserOptions, args: [...(browserOptions.args || []), "--enable-precise-memory-info"] });
     report.browser = browser.version();
     fs.writeFileSync(path.join(output, "results.json"), JSON.stringify(report, null, 2) + "\n");
     for (const count of counts) {

@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const webpack = require("webpack");
-const browsers = require("playwright");
+const { launchBrowser } = require("./browsers.cjs");
 const { serve } = require("./support.cjs");
 
 async function compile(config) {
@@ -39,7 +39,7 @@ async function compile(config) {
   const results = [];
   try {
     for (const name of (process.env.BROWSERS || "chromium").split(",")) {
-      const browser = await browsers[name].launch(name === "chromium" ? { channel: "chrome" } : {});
+      const browser = await launchBrowser(name);
       try {
         for (const [label, base] of [["root", `${root.url}/`], ["pages", `${nested.url}/Orrery/`]]) {
           for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 },
