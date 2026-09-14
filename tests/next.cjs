@@ -134,6 +134,9 @@ async function compile(config) {
           await failure.route("**/assets/pixi.*.js", route => route.fulfill({ status: 503, body: "Unavailable" }));
           await failure.reload();
           await failure.getByRole("status").filter({ hasText: "Unable to start" }).waitFor();
+          assert.equal(await failure.getByRole("status").textContent(),
+            "Unable to start the visualization. Please reload to try again.",
+            "A failed renderer download gives recovery guidance without claiming WebGL is missing");
           assert.equal(await failure.locator("canvas, .orrery-options").count(), 0);
           assert(await failure.getByRole("link", { name: "Open Orrery", exact: true }).isVisible());
           await failure.unroute("**/assets/pixi.*.js");
