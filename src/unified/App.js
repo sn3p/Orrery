@@ -105,7 +105,7 @@ export default class App {
     } catch (error) {
       const disposed = this.destroyed;
       this.destroy();
-      if (!disposed) this.setStatus("Unable to start the visualization. WebGL is required.");
+      if (!disposed) this.setStatus("Unable to start the visualization. Please reload to try again.");
       throw error;
     }
   }
