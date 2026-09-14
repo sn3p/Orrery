@@ -154,36 +154,61 @@ async function loading(page, url) {
   } finally { release(); await page.unroute('**/data/catalog.json'); }
 }
 
-async function markers(page, url) {
-  await page.goto(url + '/?empty'); await page.evaluate(() => window.ready);
-  await page.evaluate(() => {
-    const {app, probe} = fixture;
-    app.stage.children.forEach(c => { c.visible = false; });
-    app.stage.scale.set(12);
-    app.setAsteroids([{ a: 0.1, e: 0, i: 0, W: 0, wbar: 0, M: 35, n: 1, epoch: app.jed, disc: app.jed - 10000 }]);
-    probe.capture = true;
-  });
-  const fresh = await idle(page);
-  const freshPixels = await page.evaluate(() => ({ ...fixture.probe.pixels, image: fixture.probe.image }));
-  assert(freshPixels.green > 0);
-  await speed(page, 1.5);
-  await page.waitForFunction(() => fixture.app.elapsed >= 1 / 3);
-  const halfway = await pause(page);
-  assert(halfway.elapsed < 2 / 3, 'Pause catches marker mid-shrink');
-  const halfPixels = await page.evaluate(() => ({ ...fixture.probe.pixels, image: fixture.probe.image }));
-  assert(halfPixels.green < freshPixels.green && halfPixels.green > 0, 'Marker shrinks during active time');
-  await page.waitForTimeout(750);
-  await page.evaluate(() => fixture.app.requestRender());
-  const still = await idle(page);
-  assert.equal(still.elapsed, halfway.elapsed);
-  assert.equal(await page.evaluate(() => fixture.probe.image), halfPixels.image, 'A paused redraw does not age green marker pixels');
-  await speed(page, -1.5);
-  await page.waitForFunction(() => fixture.app.elapsed >= 2 / 3 + 0.02);
-  const mature = await pause(page);
-  assert.deepEqual(await page.evaluate(n => fixture.probe.frames[n], still.draws), { jed: still.jed, elapsed: still.elapsed });
-  const oldPixels = await page.evaluate(() => fixture.probe.pixels);
-  assert.equal(oldPixels.green, 0); assert(oldPixels.gray > 0);
-  return { fresh: { elapsed: fresh.elapsed, green: freshPixels.green }, halfway: { elapsed: halfway.elapsed, green: halfPixels.green }, mature: { elapsed: mature.elapsed, ...oldPixels } };
+async function markers(browser, url) {
+  // Clock emulation is context-wide. Keep it isolated from the other lifecycle
+  // checks, while exercising the actual GUI, RAF scheduler and rendered pixels.
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  try {
+    await page.clock.install({ time: new Date('2026-01-01T00:00:00Z') });
+    const idleAtControlledTime = async () => {
+      await page.clock.runFor(64);
+      const before = await snapshot(page);
+      await page.clock.runFor(750);
+      assert.deepEqual(await snapshot(page), before, 'Paused marker has no recurring draws or clock advancement');
+      assert.equal(before.pending, null);
+      assert.equal(await page.locator('#orrery-fps').textContent(), '0 FPS');
+      return before;
+    };
+    await page.goto(url + '/?empty'); await page.evaluate(() => window.ready);
+    await page.clock.pauseAt(new Date('2026-01-01T00:10:00Z'));
+    await page.evaluate(() => {
+      const {app, probe} = fixture;
+      app.stage.children.forEach(c => { c.visible = false; });
+      app.stage.scale.set(12);
+      app.setAsteroids([{ a: 0.1, e: 0, i: 0, W: 0, wbar: 0, M: 35, n: 1, epoch: app.jed, disc: app.jed - 10000 }]);
+      probe.capture = true;
+    });
+    const fresh = await idleAtControlledTime();
+    const freshPixels = await page.evaluate(() => ({ ...fixture.probe.pixels, image: fixture.probe.image }));
+    assert(freshPixels.green > 0);
+    await speed(page, 1.5);
+    // Deliver actual RAF callbacks at controlled times. Protocol/input latency
+    // must not consume the 1/3-second window in which the marker is half shrunk.
+    await page.clock.runFor(368);
+    await speed(page, 0);
+    const halfway = await idleAtControlledTime();
+    assert(halfway.elapsed >= 1 / 3 && halfway.elapsed < 2 / 3, 'Pause catches marker mid-shrink');
+    const halfPixels = await page.evaluate(() => ({ ...fixture.probe.pixels, image: fixture.probe.image }));
+    assert(halfPixels.green < freshPixels.green && halfPixels.green > 0, 'Marker shrinks during active time');
+    await page.clock.runFor(750);
+    await page.evaluate(() => fixture.app.requestRender());
+    const still = await idleAtControlledTime();
+    assert.equal(still.elapsed, halfway.elapsed);
+    assert.equal(await page.evaluate(() => fixture.probe.image), halfPixels.image, 'A paused redraw does not age green marker pixels');
+    await speed(page, -1.5);
+    await page.clock.runFor(400);
+    await speed(page, 0);
+    const mature = await idleAtControlledTime();
+    assert(mature.elapsed >= 2 / 3 + 0.02);
+    assert.deepEqual(await page.evaluate(n => fixture.probe.frames[n], still.draws), { jed: still.jed, elapsed: still.elapsed });
+    const oldPixels = await page.evaluate(() => fixture.probe.pixels);
+    assert.equal(oldPixels.green, 0); assert(oldPixels.gray > 0);
+    assert.deepEqual(errors, [], 'No browser, shader or WebGL errors in marker lifecycle');
+    return { fresh: { elapsed: fresh.elapsed, green: freshPixels.green }, halfway: { elapsed: halfway.elapsed, green: halfPixels.green }, mature: { elapsed: mature.elapsed, ...oldPixels } };
+  } finally { await page.close(); }
 }
 
 async function main() {
@@ -217,7 +242,7 @@ async function main() {
         const result = { browser: name, version: browser.version(), sharedFrames, sharedFramesAfterReload, fps, fpsAfterReload, readoutBoundaries, readoutsAfterReload, planetPhases, planetPhasesAfterReload,
           cpuOrbits, cpuOrbitsAfterReload, orbitTracks, orbitTracksAfterReload, paused: await paused(page),
           invalidations: await invalidations(page), dpr: await dpr(page, name),
-          loading: await loading(page, fixtureURL), markers: await markers(page, fixtureURL) };
+          loading: await loading(page, fixtureURL), markers: await markers(browser, fixtureURL) };
         await page.goto(fixtureURL + '/'); await page.evaluate(() => window.ready);
         result.visibility = await lifecycle.visibility(page);
         result.recovery = await lifecycle.recovery(page);
@@ -240,4 +265,5 @@ async function main() {
     fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify(report, null, 2) + '\n');
   } finally { await server.close(); }
 }
-main().catch(error => { console.error(error); process.exitCode = 1; });
+if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1; });
+module.exports = { markers };
