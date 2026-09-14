@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { launchBrowser } = require("./browsers.cjs");
 const { build, serve } = require("./support.cjs");
-const output = path.resolve(".context/gpu-orbits/checks");
+const output = process.env.ORRERY_TEST_APP === 'unified' ? '.context/pr2/unified-gpu' : path.resolve(".context/gpu-orbits/checks");
 
 async function exercise(page) {
   await page.evaluate(() => window.ready);

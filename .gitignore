@@ -17,6 +17,7 @@ __pycache__/
 /.context/hmr-test/
 /.context/build-test/
 /.context/next-preview/
+/.context/pr2/
 /.context/pages-artifact/
 /.context/browser-environment/
 

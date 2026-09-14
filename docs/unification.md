@@ -5,13 +5,57 @@ blueprint and start guide, with historical status reconciled and local planning
 paths removed. No further architecture approval is required. Each implementation
 unit still needs its own tests, review and explicit merge instruction.
 
-## Current unit: PR1, isolated preview
+## Current unit: PR2, shared shell and Pixi preview
 
-PR1 means the first planned review unit, not GitHub pull request number 1.
-It adds `src/unified/` and a real `dist/next/index.html` placeholder. Current
-Orrery continues at the root with its existing Pixi application and historical
-100,000-record catalogue. No renderer, loader, renderer selector or new product
-control is implemented in this unit.
+These numbers identify planned review units, not GitHub PR numbers. PR1 shipped
+in [PR64](https://github.com/sn3p/Orrery/pull/64), merged as
+`6c7e8b8ebab3bd7e69e66ff6a72e76ad84937c77`. PR2 replaces the placeholder with the
+existing Pixi presentation behind an application controller. Current Orrery
+continues at the root, with unchanged source and historical 100k catalogue.
+The preview ships exactly the same catalogue bytes. No Three, indexed loader,
+producer default, selector, new product controls or persistence are added.
+
+`src/unified/App.js` owns Julian day, requested speed, active presentation time,
+one scheduler, shared DPR choice, initialization/disposal, the bundled fetch
+and loading/error feedback. `ui/Hud.js` and `ui/Options.js` bind one existing-style
+HUD/options panel. `pixi/PixiRenderer.js` owns scene/projection, GPU allocations,
+textures, CPU planets, wheel zoom, resize and context recovery; it consumes
+frame state and requests invalidation without fetching or advancing a clock.
+Pixi's automatic ticker stays stopped and has no app clock callback. Manual
+`renderFrame(timestamp, hooks)` shares the same update/draw boundary.
+
+The small `createRenderer` seam defaults to a lazy import. On async initialization
+it reads the controller's current viewport again before generating textures.
+Disposal during import/init prevents late UI/resources; failed initialization
+cleans partial resources. Data generations reject stale/aborted results and
+failed replacements keep usable data. Graphics-recovery errors retain their
+feedback even if an outstanding data request subsequently succeeds.
+
+Startup remains local `new Date(1980, 1)` with speed 1.5 (90 days/second), the existing
+250 ms stall cap, 3× discovery markers shrinking over 2/3 active seconds, and
+fresh 1× DPR on every load. Suspension does not overwrite requested speed.
+The source has wheel zoom, with stage translation retained through resize;
+new drag-pan/touch/keyboard camera gestures are not introduced by extraction.
+
+### Temporary source mapping
+
+All source mappings below originate at PR64's merged tree. Keep live source
+stable until the explicit promotion/cleanup units:
+
+| Preview | Legacy source / change |
+| --- | --- |
+| `App.js`, `ui/Hud.js`, `pixi/PixiRenderer.js` | Responsibilities extracted from `src/js/Orrery.js` |
+| `ui/Options.js` | `src/js/Gui.js`, identical behavior with renamed class |
+| `pixi/Asteroids.js`, `Planet.js`, `Orbit.js`, `Controls.js` | Temporary copies; only helper import paths differ |
+| Shared imports from `src/js/` | Unchanged `PlaybackClock`, `Stats`, `utils`, `constants`, `planets`, `asteroidOrbits` |
+| Shared CSS/fonts/data | Unchanged existing styles/assets; preview identity/return and status placement are isolated in `preview.css` |
+
+`asteroidOrbits` still contains the existing Pixi-oriented packing and shader
+helper. PR2 reuses it without adopting a new neutral catalogue model. Canonical
+CPU data ownership, reviewed indexed/whole loading and incremental GPU uploads
+belong to PR3. Its newer reviewed source includes Orrery3D PR31 merge
+`93a3e1f4a36d8fdceb513bdfdca20beddb3348d6`; reconcile the final producer contract
+then. Orrery3D's separate hosted/default change does not alter Orrery's default.
 
 The preview is unlinked from the current application's UI and carries
 `noindex, nofollow`. Once merged and deployed it is public at
@@ -181,7 +225,7 @@ reload. `npm run serve:next -- --port 55310 --no-open` explicitly selects a port
 use the receiving workspace's assigned port instead of copying that example.
 The existing Conductor Run/Open defaults are unchanged. Existing `watch`, data
 import scripts and benchmark commands retain their roles. Preview output is
-generated/ignored; existing tracked legacy output handling is preserved in PR1.
+generated/ignored; existing tracked legacy output handling is preserved.
 
 ## Verification contract
 
@@ -195,7 +239,16 @@ BROWSERS=chromium,firefox,webkit npm test
 `test:build` exercises mode/watch behavior, repeated actual Pages clean builds,
 byte equality against standalone legacy output and preview-only clean safety.
 `test:browser` covers both assembled production pages, assets and lazy chunks,
-real legacy behavior plus development HMR/reload. After the build regression
+real legacy behavior plus development HMR/reload. `test:unified` also runs the
+strict GPU, scheduling, rendering/lifecycle, UI/DPR and finite benchmark probes
+against the extracted classes. `tests/unified-app.js` is an inspection facade
+only for existing probes, including their explicit stopped-ticker calls;
+production has no facade or ticker bridge. Separate raw-App tests verify async
+failures/disposal, actual clock ownership and exact scene/HUD parity at fixed
+catalogue/date/viewport/DPR, including recovery. Public `/next/` is tested with
+its real HTML and lazy chunks at root and Pages prefixes. `benchmark:next`
+identifies unified execution independently of the benchmark runner source.
+After the build regression
 checks, CI uploads the final assembled Pages artifact for all three browser jobs
 to test. Deployment depends on all jobs. Diagnostics are retained per browser;
 no root promotion is implicit.

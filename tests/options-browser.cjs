@@ -8,7 +8,7 @@ const testPixelRatio = require('./pixel-ratio.cjs');
 const texture = require('./resolution-texture.cjs');
 
 (async () => {
-  const output = '.context/dpr/checks';
+  const output = process.env.ORRERY_TEST_APP === 'unified' ? '.context/pr2/unified-options-browser' : '.context/dpr/checks';
   fs.mkdirSync(output, { recursive: true });
   await build('./tests/rendering-fixture.js', path.join(output, 'fixture'));
   await build('./tests/init-fixture.js', path.join(output, 'init'));
@@ -19,8 +19,8 @@ const texture = require('./resolution-texture.cjs');
       const browser = await launchBrowser(name);
       try {
         const result = { browser: name, version: browser.version(),
-          options: await testOptions(browser, production.url, output, name),
-          pixelRatio: await testPixelRatio(browser, production.url, output, name),
+          options: await testOptions(browser, production.url + (process.env.ORRERY_TEST_APP === 'unified' ? '/next/' : '/'), output, name),
+          pixelRatio: await testPixelRatio(browser, production.url + (process.env.ORRERY_TEST_APP === 'unified' ? '/next/' : '/'), output, name),
           texture: await texture(browser, fixture.url, name) };
         report.push(result);
         console.log(JSON.stringify(result));

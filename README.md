@@ -32,11 +32,12 @@ Build and bundle:
 npm run build
 ```
 
-The build includes an unlinked `/next/` preview scaffold while the current app
+The build includes an unlinked `/next/` Pixi preview while the current app
 stays at the root. Run `npm run serve:next` after building to develop the preview
 at `/next/` (uses `CONDUCTOR_PORT` when set, otherwise 3000). See the
 [approved unification plan](docs/unification.md) for source pins, scope, build
-isolation and verification. No renderer or catalogue is ported in this stage.
+isolation and verification. The preview uses an app-owned clock, HUD/options
+and lazy Pixi adapter with the same historical 100k catalogue.
 
 Watch changes and rebuild:
 
@@ -53,7 +54,9 @@ npm test
 These checks cover GPU orbit accuracy, discovery markers, playback, catalogue
 replacement, context recovery, development hot updates, font loading and
 desktop/mobile layout. Results and screenshots are saved in `.context/gpu-orbits/`,
-`.context/hmr-test/`, `.context/font-qa/` and `.context/dpr/`.
+`.context/hmr-test/`, `.context/font-qa/`, `.context/dpr/` and `.context/pr2/`.
+The default browser suite also checks the preview against the legacy pixels,
+numerics, lifecycle and options; `npm run test:unified` runs that subset.
 To include Firefox and Playwright WebKit, install their browsers with
 `npx playwright install firefox webkit`, then run `BROWSERS=chromium,firefox,webkit npm test`.
 Playwright WebKit does not substitute for testing actual Safari or iOS.
@@ -151,6 +154,8 @@ Run the production-class benchmark with Chrome:
 npm run benchmark
 # Shorter run with only the bundled population:
 COUNTS=100000 REPEATS=3 npm run benchmark
+# Same finite-frame probes through the preview controller and adapter:
+COUNTS=100000 REPEATS=3 OUTPUT=.context/pr2/benchmark npm run benchmark:next
 ```
 
 The benchmark uses a fixed date trajectory, 1280×800 at DPR 1, three repetitions,
@@ -170,7 +175,9 @@ CSS, scripts, fonts and catalogue. Added, removed or changed files invalidate a 
 symbolic links and other non-regular build inputs are rejected. The source stamp
 itself is excluded from its own fingerprint. Local builds save a matching
 `benchmark-source.json` with the checkout revision and dirty
-state; `BUNDLE=/path/to/app npm run benchmark` uses that build record only while
+state, including untracked source changes during compilation. Each report and run
+identifies the executed `application` (`legacy`, `unified`, or `unknown` for older
+external fixtures), independently of the runner environment; `BUNDLE=/path/to/app npm run benchmark` uses that build record only while
 its build fingerprint still matches. Default test/benchmark outputs are Git-ignored
 in ordinary clones as well as Conductor workspaces. Missing or stale records
 report an unknown source revision, separately from the runner's revision.

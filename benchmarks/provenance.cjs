@@ -21,6 +21,10 @@ async function checkoutSource(cwd = process.cwd()) {
     revision: execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim(),
     sourceDirty: execFileSync("git", ["status", "--porcelain"], { cwd, encoding: "utf8" }).trim() !== "",
     diffSHA256,
+    // Newly extracted modules are untracked during local implementation. Include
+    // their paths/bytes when checking whether source changed during compilation.
+    untrackedSHA256: hash(execFileSync("git", ["ls-files", "--others", "--exclude-standard", "-z"], { cwd })
+      .toString().split("\0").filter(Boolean).sort().map(name => [name, hash(fs.readFileSync(path.join(cwd, name)))]).map(row => JSON.stringify(row)).join("\n")),
   };
 }
 

@@ -90,7 +90,7 @@ jobs:
           mkdir dist
           tar -xf .context/pages-artifact/artifact.tar -C dist
 
-      - name: Run production and legacy browser regressions
+      - name: Run production, legacy and preview browser regressions
         run: xvfb-run -a npm run test:browser
         env:
           BROWSERS: ${{ matrix.browser }}
@@ -106,6 +106,7 @@ jobs:
           path: |
             .context/browser-environment
             .context/build-test/deployment
+            .context/pr2
             .context/next-preview
             .context/gpu-orbits
             .context/paused-rendering
