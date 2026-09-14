@@ -8,12 +8,17 @@
   "license": "MIT",
   "scripts": {
     "setup": "cd data && ./download_data.sh && ./data_to_json.py",
-    "build": "webpack --mode production",
-    "test": "npm run build && node tests/build.cjs && node tests/assets.cjs && node --test tests/orbits.test.mjs tests/preparation.test.mjs tests/cpu-orbits.test.mjs tests/orbit-tracks.test.mjs tests/orbit-cache.test.mjs && node tests/gpu.cjs && node tests/scheduling.cjs && node tests/rendering.cjs && node tests/ui.cjs && node tests/options-browser.cjs && node tests/benchmark.cjs && node tests/benchmark-clone.cjs && node tests/hmr.cjs",
+    "build": "webpack --config webpack.build.config.js --mode production",
+    "build:next": "webpack --config webpack.next.config.js --mode production",
+    "serve:next": "webpack serve --config webpack.next.config.js --mode development",
+    "test": "npm run build && npm run test:build && npm run test:node && npm run test:browser",
     "deploy": "gh workflow run pages.yml --ref master",
     "watch": "webpack --mode development --watch",
     "serve": "webpack serve --mode development --open",
-    "benchmark": "node benchmarks/run.cjs"
+    "benchmark": "node benchmarks/run.cjs",
+    "test:build": "node tests/build.cjs && node tests/next-build.cjs",
+    "test:node": "node --test tests/orbits.test.mjs tests/preparation.test.mjs tests/cpu-orbits.test.mjs tests/orbit-tracks.test.mjs tests/orbit-cache.test.mjs",
+    "test:browser": "node tests/browser-environment.cjs && node tests/assets.cjs && node tests/next.cjs && node tests/gpu.cjs && node tests/scheduling.cjs && node tests/rendering.cjs && node tests/ui.cjs && node tests/options-browser.cjs && node tests/benchmark.cjs && node tests/benchmark-clone.cjs && node tests/hmr.cjs && node tests/next-dev.cjs"
   },
   "dependencies": {
     "dat.gui": "^0.7.9",

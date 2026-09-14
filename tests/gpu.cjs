@@ -3,7 +3,7 @@ const { exercisePreparation, exercisePreparationLoading } = require("./preparati
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const browsers = require("playwright");
+const { launchBrowser } = require("./browsers.cjs");
 const { build, serve } = require("./support.cjs");
 const output = path.resolve(".context/gpu-orbits/checks");
 
@@ -211,7 +211,7 @@ async function main() {
   const server = await serve(output), report = [];
   try {
     for (const name of (process.env.BROWSERS || "chromium").split(",")) {
-      const browser = await browsers[name].launch({ headless: process.env.HEADLESS !== "0", ...(name === "chromium" ? { channel: "chrome" } : {}) });
+      const browser = await launchBrowser(name);
       try {
         const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
         const errors = [];

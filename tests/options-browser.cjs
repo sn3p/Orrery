@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const browsers = require('playwright');
+const { launchBrowser } = require('./browsers.cjs');
 const { build, serve } = require('./support.cjs');
 const { testOptions } = require('./options.cjs');
 const testPixelRatio = require('./pixel-ratio.cjs');
@@ -16,7 +16,7 @@ const texture = require('./resolution-texture.cjs');
   const report = [];
   try {
     for (const name of (process.env.BROWSERS || 'chromium').split(',')) {
-      const browser = await browsers[name].launch(name === 'chromium' ? { channel: 'chrome' } : {});
+      const browser = await launchBrowser(name);
       try {
         const result = { browser: name, version: browser.version(),
           options: await testOptions(browser, production.url, output, name),

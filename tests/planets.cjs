@@ -106,7 +106,7 @@ module.exports = async function checkPlanetPhases(page) {
 // Focused run, also used inside the broader rendering suite below.
 if (require.main === module) (async () => {
   const fs = require("node:fs"), path = require("node:path");
-  const browsers = require("playwright"), { build, serve } = require("./support.cjs");
+  const { launchBrowser } = require("./browsers.cjs"), { build, serve } = require("./support.cjs");
   const checkCPUOrbits = require("./cpu-orbits.cjs");
   const checkOrbitTracks = require("./orbit-tracks.cjs");
   const output = ".context/planet-phases";
@@ -114,7 +114,7 @@ if (require.main === module) (async () => {
   const server = await serve(path.join(output, "fixture")), report = [];
   try {
     for (const name of (process.env.BROWSERS || "chromium").split(",")) {
-      const browser = await browsers[name].launch(name === "chromium" ? { channel: "chrome" } : {});
+      const browser = await launchBrowser(name);
       try {
         for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
           const page = await browser.newPage({ viewport }), errors = [];

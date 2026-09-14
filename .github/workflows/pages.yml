@@ -38,15 +38,84 @@ jobs:
       - name: Build site from source
         run: npm run build -- --output-clean
 
+      - name: Verify build isolation and numerical regressions
+        run: npm run test:build && npm run test:node
+
       - name: Upload site
-        if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: dist
 
+  browser-tests:
+    name: Browser tests (${{ matrix.browser }})
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .tool-versions
+          cache: npm
+
+      - name: Install dependencies and browsers
+        run: |
+          npm ci
+          npx playwright install --with-deps chrome
+          if [ "${{ matrix.browser }}" != chromium ]; then
+            npx playwright install --with-deps "${{ matrix.browser }}"
+          fi
+
+      - name: Install virtual display and software graphics
+        run: sudo apt-get install -y xvfb xauth libgl1-mesa-dri libglx-mesa0
+
+      - name: Download the assembled Pages artifact
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: github-pages
+          path: .context/pages-artifact
+
+      - name: Extract the artifact for both entry points
+        run: |
+          rm -rf dist
+          mkdir dist
+          tar -xf .context/pages-artifact/artifact.tar -C dist
+
+      - name: Run production and legacy browser regressions
+        run: xvfb-run -a npm run test:browser
+        env:
+          BROWSERS: ${{ matrix.browser }}
+          ORRERY_TEST_GRAPHICS: mesa
+          LIBGL_ALWAYS_SOFTWARE: 1
+
+      - name: Retain verification and diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: browser-results-${{ matrix.browser }}
+          include-hidden-files: true
+          path: |
+            .context/browser-environment
+            .context/build-test/deployment
+            .context/next-preview
+            .context/gpu-orbits
+            .context/paused-rendering
+            .context/font-qa
+            .context/dpr
+            .context/hmr-test
+
   deploy:
     if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
-    needs: build
+    needs: [build, browser-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

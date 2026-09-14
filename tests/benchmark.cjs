@@ -4,7 +4,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
-const browsers = require("playwright");
+const { launchBrowser } = require("./browsers.cjs");
 const checkFrames = require("./benchmark-frames.cjs");
 const { build, serve } = require("./support.cjs");
 const { sample } = require("../benchmarks/run.cjs");
@@ -39,7 +39,7 @@ const hash = value => crypto.createHash("sha256").update(value).digest("hex");
   const frameReports = [];
   try {
     for (const name of (process.env.BROWSERS || "chromium").split(",")) {
-      const browser = await browsers[name].launch({ ...(name === "chromium" ? { channel: "chrome" } : {}) });
+      const browser = await launchBrowser(name);
       try {
       frameReports.push({ browser: name, version: browser.version(), ...await checkFrames(browser, server.url) });
       for (const dpr of [1, 2, 3]) {
@@ -58,24 +58,31 @@ const hash = value => crypto.createHash("sha256").update(value).digest("hex");
       for (const event of [null, "resize", "blur", "visibilitychange"]) {
         const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
         await page.goto(server.url); await page.evaluate(() => window.ready);
-        await page.evaluate(() => {
+        await page.evaluate(event => {
           const { app } = fixture;
           window.work = { ticks: 0, draws: 0 };
           const tick = app.tick.bind(app), render = app.app.renderer.render.bind(app.app.renderer);
           app.tick = (...args) => { work.ticks++; return tick(...args); };
           app.app.renderer.render = options => {
-            if (options.container === app.stage) work.draws++;
+            if (options.container === app.stage) {
+              work.draws++;
+              // Interrupt a measured frame, after sample() has registered its
+              // listeners. Scheduling before a separate protocol call can fire
+              // the event before the benchmark starts on a slow runner.
+              if (event && work.draws === 1) {
+                (event === "visibilitychange" ? document : window).dispatchEvent(new Event(event));
+              }
+            }
             return render(options);
           };
-        });
-        if (event) await page.evaluate(event => {
-          requestAnimationFrame(() => requestAnimationFrame(() => {
-            (event === "visibilitychange" ? document : window).dispatchEvent(new Event(event));
-          }));
         }, event);
         const run = page.evaluate(sample, { count: 100000, warmupMs: 50, sampleMs: 100 });
-        if (event) await assert.rejects(run, /interrupted/);
-        else {
+        if (event) {
+          await assert.rejects(run, /interrupted/, `${event} during a measured frame invalidates the sample`);
+          const work = await page.evaluate(() => window.work);
+          await page.waitForTimeout(150);
+          assert.deepEqual(await page.evaluate(() => window.work), work, "Interrupted benchmark leaves no background work");
+        } else {
           assert((await run).frames > 0);
           const work = await page.evaluate(() => window.work);
           assert.equal(work.draws, work.ticks + 1, "One explicit draw per benchmark tick plus the final rebase draw");

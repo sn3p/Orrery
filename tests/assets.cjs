@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
-const browsers = require("playwright");
+const { launchBrowser } = require("./browsers.cjs");
 const { serve } = require("./support.cjs");
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 
@@ -23,7 +23,7 @@ const hash = bytes => createHash("sha256").update(bytes).digest("hex");
   const results = [];
   try {
     for (const name of (process.env.BROWSERS || "chromium").split(",")) {
-      const browser = await browsers[name].launch(name === "chromium" ? { channel: "chrome" } : {});
+      const browser = await launchBrowser(name);
       try {
         for (const [label, url] of [["root", `${root.url}/`], ["nested", `${subpath.url}/Orrery/`]]) {
           for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
@@ -47,6 +47,8 @@ const hash = bytes => createHash("sha256").update(bytes).digest("hex");
               };
             });
             const errors = [];
+            const requests = [];
+            page.on("request", request => requests.push(request.url()));
             page.on("pageerror", error => errors.push(error.message));
             page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
             let release;
@@ -87,8 +89,25 @@ const hash = bytes => createHash("sha256").update(bytes).digest("hex");
               await page.reload();
               await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent) > 0);
               assert.equal(await page.locator("#orrery canvas").count(), 1);
+              assert(!requests.some(url => new URL(url).pathname.includes("/next/")),
+                "Root visitors never fetch preview resources");
+              assert.equal(await page.locator('a[href*="next/"]').count(), 0,
+                "The public root does not link to the preview");
               assert.deepEqual(errors, []);
               results.push({ browser: name, path: label, width: viewport.width, catalogSHA256: hash(catalog), asyncFetch: true, reload: true });
+            } catch (error) {
+              const diagnostic = { browser: name, label, viewport, url, error: error.message, errors };
+              diagnostic.page = await page.evaluate(() => ({
+                status: document.querySelector("#orrery-status")?.textContent,
+                count: document.querySelector("#orrery-count")?.textContent,
+                visibility: document.visibilityState,
+                catalogDigest: window.catalogDigest,
+              })).catch(error => ({ error: error.message }));
+              const prefix = path.join(directory, `${name}-${label}-${viewport.width}-failure`);
+              fs.writeFileSync(`${prefix}.json`, JSON.stringify(diagnostic, null, 2) + "\n");
+              await page.screenshot({ path: `${prefix}.png`, timeout: 5000 }).catch(() => {});
+              console.error(JSON.stringify(diagnostic));
+              throw error;
             } finally { release(); await page.close(); }
           }
         }

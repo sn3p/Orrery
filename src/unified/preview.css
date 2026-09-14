@@ -1,0 +1,61 @@
+@font-face {
+  font-family: "JetBrains Mono Variable";
+  src: url("../fonts/JetBrainsMono-Variable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: dark;
+  font-family: "JetBrains Mono Variable", "Lucida Console", Courier, monospace;
+  color: #aaa;
+  background: #000;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+body {
+  margin: 0;
+  min-width: 0;
+}
+
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: clamp(32px, 12vh, 120px) 24px;
+  overflow-wrap: anywhere;
+}
+
+.eyebrow {
+  margin: 0 0 24px;
+  color: #888;
+}
+
+h1 {
+  color: #ddd;
+  font-size: clamp(22px, 4vw, 32px);
+  font-weight: 500;
+  line-height: 1.35;
+  margin: 0 0 24px;
+}
+
+p {
+  margin: 0 0 32px;
+}
+
+a {
+  display: inline-block;
+  padding: 10px 0;
+  color: #b6e5b6;
+  text-underline-offset: 4px;
+}
+
+a:hover {
+  color: #fff;
+}
+
+a:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 5px;
+}
