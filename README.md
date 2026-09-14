@@ -32,6 +32,12 @@ Build and bundle:
 npm run build
 ```
 
+The build includes an unlinked `/next/` preview scaffold while the current app
+stays at the root. Run `npm run serve:next` after building to develop the preview
+at `/next/` (uses `CONDUCTOR_PORT` when set, otherwise 3000). See the
+[approved unification plan](docs/unification.md) for source pins, scope, build
+isolation and verification. No renderer or catalogue is ported in this stage.
+
 Watch changes and rebuild:
 
 ```bash

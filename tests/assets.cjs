@@ -47,6 +47,8 @@ const hash = bytes => createHash("sha256").update(bytes).digest("hex");
               };
             });
             const errors = [];
+            const requests = [];
+            page.on("request", request => requests.push(request.url()));
             page.on("pageerror", error => errors.push(error.message));
             page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
             let release;
@@ -87,6 +89,10 @@ const hash = bytes => createHash("sha256").update(bytes).digest("hex");
               await page.reload();
               await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent) > 0);
               assert.equal(await page.locator("#orrery canvas").count(), 1);
+              assert(!requests.some(url => new URL(url).pathname.includes("/next/")),
+                "Root visitors never fetch preview resources");
+              assert.equal(await page.locator('a[href*="next/"]').count(), 0,
+                "The public root does not link to the preview");
               assert.deepEqual(errors, []);
               results.push({ browser: name, path: label, width: viewport.width, catalogSHA256: hash(catalog), asyncFetch: true, reload: true });
             } finally { release(); await page.close(); }

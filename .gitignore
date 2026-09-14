@@ -16,6 +16,11 @@ __pycache__/
 /.context/paused-rendering/
 /.context/hmr-test/
 /.context/build-test/
+/.context/next-preview/
+/.context/pages-artifact/
+
+# The preview is assembled from source alongside the tracked legacy build.
+/dist/next/
 
 # Conductor settings for this machine
 .conductor/settings.local.toml
