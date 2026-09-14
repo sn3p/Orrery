@@ -18,7 +18,7 @@ const execute = promisify(execFile);
     // Real clone with default local excludes, not Conductor's worktree excludes.
     await execute('git', ['clone', '--shared', '--quiet', root, clone], { env });
     // Test current working source before it has to be committed in the real repo.
-    const { stdout } = await execute('git', ['ls-files', '-z'], { cwd: root, env });
+    const { stdout } = await execute('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: root, env });
     for (const name of stdout.split('\0').filter(Boolean)) {
       const target = path.join(clone, name);
       if (!fs.existsSync(path.join(root, name))) fs.rmSync(target, { force: true });

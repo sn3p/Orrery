@@ -20,8 +20,7 @@ async function compile(config) {
   fs.mkdirSync(pages, { recursive: true });
   if (!fs.existsSync(path.join(pages, "Orrery"))) fs.symlinkSync(path.resolve("dist"), path.join(pages, "Orrery"), "dir");
 
-  // A test-only import proves JS, async CSS and data URLs without introducing
-  // a fake renderer or loading an engine into the public placeholder.
+  // Retain async CSS/data coverage alongside the real public Pixi lazy entry.
   const fixture = path.join(directory, "fixture");
   fs.mkdirSync(fixture, { recursive: true });
   fs.writeFileSync(path.join(fixture, "entry.js"), 'window.loadPreviewProbe = () => import(/* webpackChunkName: "probe" */ "./lazy.js");\n');
@@ -56,12 +55,14 @@ async function compile(config) {
               await page.evaluate(() => document.fonts.ready);
               assert.equal(await page.title(), "Orrery — Preview");
               assert.match(await page.locator('meta[name="robots"]').getAttribute("content"), /noindex/);
-              assert.equal(await page.getByRole("heading", { level: 1 }).count(), 1);
-              assert.equal(await page.locator("canvas, select, input, button").count(), 0);
-              assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).backgroundColor), "rgb(0, 0, 0)");
+              await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent) > 0);
+              assert.equal(await page.locator("#orrery canvas").count(), 1);
+              assert.equal(await page.getByRole("button", { name: "Options", exact: true }).count(), 1);
+              assert.equal(await page.getByRole("button", { name: "Options", exact: true }).getAttribute("aria-expanded"), "false");
+              assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), "rgb(0, 0, 0)");
               assert(await page.evaluate(() => [...document.fonts].some(font => font.family === "JetBrains Mono Variable" && font.status === "loaded")));
               assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), viewport.width);
-              for (const selector of ["h1", "main > p", "main > a"]) {
+              for (const selector of [".preview-identity", ".orrery-date", ".orrery-count", ".orrery-options-trigger"]) {
                 for (const element of await page.locator(selector).all()) {
                   const box = await element.boundingBox();
                   assert(box && box.x >= 0 && box.x + box.width <= viewport.width && box.y >= 0
@@ -76,11 +77,29 @@ async function compile(config) {
               assert.equal(await link.evaluate(element => getComputedStyle(element).outlineStyle), "solid");
               assert.equal(await link.evaluate(element => element.href), base);
               await page.screenshot({ path: path.join(directory, `${name}-${label}-${viewport.width}.png`) });
+              await page.getByRole("button", { name: "Options", exact: true }).click();
+              const input = page.getByRole("textbox", { name: "Playback speed" });
+              assert(await input.evaluate(el => el === document.activeElement));
+              await input.fill("0"); await input.press("Enter");
+              await page.waitForFunction(() => document.querySelector("#orrery-fps").textContent === "0 FPS");
+              const date = await page.locator("#orrery-date").textContent();
+              const panel = await page.locator(".orrery-options-panel").boundingBox();
+              const identity = await page.locator(".preview-identity").boundingBox();
+              assert(panel.y + panel.height < identity.y || panel.x > identity.x + identity.width,
+                "Preview identity/return never obscures the options");
+              await page.screenshot({ path: path.join(directory, `${name}-${label}-${viewport.width}-options.png`) });
+              await input.fill("-1.5"); await input.press("Enter");
+              await page.waitForFunction(date => document.querySelector("#orrery-date").textContent < date, date);
+              await input.press("Escape");
+              assert.equal(await page.getByRole("button", { name: "Options", exact: true }).getAttribute("aria-expanded"), "false");
               await page.reload();
-              assert.equal(await page.getByRole("heading", { level: 1 }).count(), 1);
+              await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent) > 0);
+              assert.equal(await page.locator("#orrery canvas").count(), 1);
               assert(requests.filter(url => !url.startsWith("data:")).every(request => request.startsWith(url)),
                 "All preview resources stay under its own static directory");
-              assert(!requests.some(url => /catalog|pixi|three/i.test(url)), "Scaffold loads no catalogue or engine");
+              assert(requests.some(url => /\/data\/catalog.json$/.test(url)), "Preview fetches its own historical catalogue");
+              assert(requests.some(url => /\/pixi\.[\da-f]+\.js$/.test(url)), "Preview loads the real lazy Pixi adapter");
+              assert(!requests.some(url => /three|latest.json|orrery-data/i.test(url)), "No later renderer/producer rollout");
               // Exercise the real return path, including the deployment prefix.
               await link.focus();
               await page.keyboard.press("Enter");
@@ -92,6 +111,39 @@ async function compile(config) {
             } finally { await page.close(); }
           }
         }
+        // Actual generated entry: HTTP/empty catalogue and missing lazy engine
+        // recover on reload. Intentional HTTP503 diagnostics are kept separate
+        // from the zero-error ordinary-entry assertions above.
+        const failure = await browser.newPage({ viewport: { width: 390, height: 844 } });
+        const failureErrors = [], expectedDiagnostics = [];
+        failure.on("pageerror", error => failureErrors.push(error.message));
+        failure.on("console", message => { if (message.type() === "error") expectedDiagnostics.push(message.text()); });
+        try {
+          const url = `${nested.url}/Orrery/next/`;
+          await failure.route("**/data/catalog.json", route => route.fulfill({ status: 503, body: "Unavailable" }));
+          await failure.goto(url);
+          await failure.getByRole("status").filter({ hasText: "Unable to load" }).waitFor();
+          assert.equal(await failure.locator("#orrery-count").textContent(), "0");
+          assert.equal(await failure.locator("#orrery canvas").count(), 1);
+          await failure.unroute("**/data/catalog.json");
+          await failure.route("**/data/catalog.json", route => route.fulfill({ json: [] }));
+          await failure.reload();
+          await failure.waitForFunction(() => document.querySelector("#orrery-date").textContent && document.querySelector("#orrery-status").textContent === "");
+          assert.equal(await failure.locator("#orrery-count").textContent(), "0");
+          await failure.unroute("**/data/catalog.json");
+          await failure.route("**/assets/pixi.*.js", route => route.fulfill({ status: 503, body: "Unavailable" }));
+          await failure.reload();
+          await failure.getByRole("status").filter({ hasText: "Unable to start" }).waitFor();
+          assert.equal(await failure.locator("canvas, .orrery-options").count(), 0);
+          assert(await failure.getByRole("link", { name: "Open Orrery", exact: true }).isVisible());
+          await failure.unroute("**/assets/pixi.*.js");
+          await failure.reload();
+          await failure.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent) > 0);
+          assert.equal(await failure.locator("#orrery canvas").count(), 1);
+          assert.equal(await failure.locator(".orrery-options").count(), 1);
+          assert.deepEqual(failureErrors, [], "Startup failures are handled without unhandled exceptions");
+          results.push({ browser: name, path: "pages", httpFailure: true, emptyCatalogue: true, lazyFailure: true, reloadRecovery: true, expectedDiagnostics });
+        } finally { await failure.close(); }
         for (const base of [`${lazyRoot.url}/next/`, `${lazyNested.url}/Orrery/next/`]) {
           const page = await browser.newPage();
           const requests = [], errors = [];

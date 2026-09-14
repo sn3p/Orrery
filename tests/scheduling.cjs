@@ -7,7 +7,7 @@ const settle = page => page.evaluate(async () => {
 });
 
 (async () => {
-  const output = '.context/paused-rendering/scheduling';
+  const output = process.env.ORRERY_TEST_APP === 'unified' ? '.context/pr2/unified-scheduling' : '.context/paused-rendering/scheduling';
   await build('./tests/rendering-fixture.js', output);
   const server = await serve(output);
   const browser = await launchBrowser("chromium");

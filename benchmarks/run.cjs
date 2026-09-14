@@ -98,7 +98,7 @@ async function sample({ count, warmupMs, sampleMs, dpr = 1 }) {
   app.app.render();
   const visible = app.asteroidsDiscovered;
   if (visible !== count) throw new Error(`Expected ${count} visible, got ${visible}`);
-  return { count, resolution, synthetic: count > catalog.length, gpu, timings, setupMs,
+  return { application: window.fixture.application ?? "unknown", count, resolution, synthetic: count > catalog.length, gpu, timings, setupMs,
     rebaseCpuMs, frames: intervals.length, frameMs: frames, fps: 1000 / frames.mean,
     tickMs: stats(ticks), renderSubmitMs: stats(renders), arrayUploadBytes: stats(uploads),
     heapBytes: performance.memory?.usedJSHeapSize ?? null, intervals };
@@ -147,6 +147,9 @@ async function main() {
         page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
         await page.goto(`${server.url}/?resolution=${report.dpr}`);
         await page.evaluate(() => window.ready);
+        const application = await page.evaluate(() => fixture.application ?? "unknown");
+        if (report.application && report.application !== application) throw new Error("Benchmark application changed between runs");
+        report.application = application;
         const result = await page.evaluate(sample, { count, warmupMs: report.warmupMs, sampleMs: report.sampleMs, dpr: report.dpr });
         if (errors.length) throw new Error(errors.join("\n"));
         await page.screenshot({ path: path.join(output, `${count}-${repetition}.png`) });

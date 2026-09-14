@@ -13,7 +13,7 @@ const execute = promisify(execFile);
 const hash = value => crypto.createHash("sha256").update(value).digest("hex");
 
 (async () => {
-  const artifacts = ".context/gpu-orbits/benchmark-test";
+  const artifacts = process.env.ORRERY_TEST_APP === "unified" ? ".context/pr2/unified-benchmark-test" : ".context/gpu-orbits/benchmark-test";
   const directory = path.join(artifacts, "app");
   fs.rmSync(artifacts, { recursive: true, force: true });
   const invalidOutput = path.join(artifacts, "invalid-input");
@@ -150,6 +150,12 @@ const hash = value => crypto.createHash("sha256").update(value).digest("hex");
   assert.equal(dirty.sourceDirty, true, "Large generated diffs do not exceed a subprocess output limit");
   assert.match(dirty.diffSHA256, /^[a-f0-9]{64}$/);
 
+  fs.writeFileSync(path.join(sourceFixture, "new-module.js"), "first");
+  const untracked = await checkoutSource(sourceFixture);
+  fs.writeFileSync(path.join(sourceFixture, "new-module.js"), "changed");
+  assert.notEqual((await checkoutSource(sourceFixture)).untrackedSHA256, untracked.untrackedSHA256,
+    "Changing an untracked extracted module invalidates a compile-time source snapshot");
+
   const source = await checkoutSource();
   recordSource(directory, source);
   assert.equal(bundleSource(directory).revision, source.revision);
@@ -189,6 +195,8 @@ const hash = value => crypto.createHash("sha256").update(value).digest("hex");
   await execute(process.execPath, ["benchmarks/run.cjs"], { env, timeout: 30000 });
   const report = JSON.parse(fs.readFileSync(path.join(output, "results.json")));
   assert.equal(report.complete, true);
+  assert.equal(report.application, process.env.ORRERY_TEST_APP === "unified" ? "unified" : "legacy",
+    "External bundle reports the actually executed app, independently of the runner environment");
   assert.deepEqual(report.counts, [1000]);
   assert.equal(report.repeats, 1);
   assert.equal(report.runs.length, 1, "A valid matrix runs the requested number of samples");

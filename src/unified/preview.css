@@ -1,61 +1,33 @@
-@font-face {
-  font-family: "JetBrains Mono Variable";
-  src: url("../fonts/JetBrainsMono-Variable.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 100 800;
-  font-display: swap;
-}
-
-:root {
-  color-scheme: dark;
-  font-family: "JetBrains Mono Variable", "Lucida Console", Courier, monospace;
-  color: #aaa;
-  background: #000;
-  font-size: 14px;
-  line-height: 1.7;
-}
-
-body {
-  margin: 0;
-  min-width: 0;
-}
-
-main {
-  max-width: 40rem;
-  margin: 0 auto;
-  padding: clamp(32px, 12vh, 120px) 24px;
-  overflow-wrap: anywhere;
-}
-
-.eyebrow {
-  margin: 0 0 24px;
+/* Preserve the full-size Pixi scene and the existing corner HUD/options. */
+.preview-identity {
+  position: fixed;
+  bottom: 30px;
+  left: 5px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
   color: #888;
+  font-size: 11px;
+  line-height: 18px;
+  pointer-events: none;
 }
 
-h1 {
-  color: #ddd;
-  font-size: clamp(22px, 4vw, 32px);
-  font-weight: 500;
-  line-height: 1.35;
-  margin: 0 0 24px;
+.preview-identity span,
+.preview-identity a {
+  background: #000;
 }
 
-p {
-  margin: 0 0 32px;
+.preview-identity a {
+  color: #aaa;
+  padding: 3px 0;
+  text-underline-offset: 3px;
+  pointer-events: auto;
 }
 
-a {
-  display: inline-block;
-  padding: 10px 0;
-  color: #b6e5b6;
-  text-underline-offset: 4px;
+.preview-identity a:hover { color: #ddd; }
+.preview-identity a:focus-visible {
+  outline: 1px solid #999;
+  outline-offset: 2px;
 }
 
-a:hover {
-  color: #fff;
-}
-
-a:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 5px;
-}
+.orrery-status { bottom: 64px; }

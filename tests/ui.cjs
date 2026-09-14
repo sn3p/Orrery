@@ -5,8 +5,8 @@ const path = require("node:path");
 const { launchBrowser } = require("./browsers.cjs");
 
 const root = path.resolve(__dirname, "..");
-const dist = path.join(root, "dist");
-const output = path.join(root, ".context/font-qa");
+const dist = path.join(root, process.env.ORRERY_TEST_APP === "unified" ? "dist/next" : "dist");
+const output = path.join(root, process.env.ORRERY_TEST_APP === "unified" ? ".context/pr2/unified-ui" : ".context/font-qa");
 const fontName = "JetBrains Mono Variable";
 
 async function checkTypography(page, { fontLoaded = true, waitForFont = true } = {}) {

@@ -11,7 +11,7 @@ const checkCPUOrbits = require('./cpu-orbits.cjs');
 const checkOrbitTracks = require('./orbit-tracks.cjs');
 const readouts = require('./readouts.cjs');
 const frameOperations = require('./frame-operations.cjs');
-const output = '.context/paused-rendering/checks';
+const output = process.env.ORRERY_TEST_APP === 'unified' ? '.context/pr2/unified-rendering' : '.context/paused-rendering/checks';
 const settle = page => page.evaluate(async () => {
   for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
 });
