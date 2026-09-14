@@ -1,0 +1,407 @@
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const http = require("node:http");
+const webpack = require("webpack");
+const browsers = require("playwright");
+const Diagnostics = require("./diagnostics.cjs");
+const root = path.resolve(__dirname, "..");
+const buildOutput = path.join(root, ".context/tests");
+const output = path.join(buildOutput, "report");
+// This generated report belongs to one invocation, including failed builds.
+fs.rmSync(output, { recursive: true, force: true });
+const diagnostics = new Diagnostics(output);
+
+async function checkUiTypography(page) {
+  await require("./options.cjs").openOptions(page);
+  await page.evaluate(() => document.fonts.ready);
+  const sizes = await page.evaluate(() => {
+    const fontSize = selector => getComputedStyle(document.querySelector(selector)).fontSize;
+    const bounds = selector => {
+      const { top, height } = document.querySelector(selector).getBoundingClientRect();
+      return { top, height };
+    };
+    // The floated label includes trailing space; measure the text itself.
+    const labelText = document.createRange();
+    labelText.selectNodeContents(document.querySelector(".dg .property-name"));
+    return {
+      fontLoaded: [...document.fonts].some(font => font.family === "JetBrains Mono Variable" && font.status === "loaded"),
+      readouts: ["#orrery-fps", "#orrery-date", "#orrery-count", "#orrery-status"].map(fontSize),
+      label: fontSize(".dg .property-name"),
+      inputFont: fontSize(".dg input"),
+      input: bounds(".dg input"),
+      slider: bounds(".dg .slider"),
+      labelTextRight: labelText.getBoundingClientRect().right,
+      sliderLeft: document.querySelector(".dg .slider").getBoundingClientRect().left,
+    };
+  });
+  assert(sizes.fontLoaded, "JetBrains Mono Variable loaded successfully");
+  assert(sizes.readouts.every(size => size === "14px"), "UI readouts use 14px text");
+  assert.equal(sizes.label, "14px", "Speed label uses 14px text");
+  assert.equal(sizes.inputFont, "12px", "Speed value uses 12px text");
+  assert.equal(sizes.input.height, 19, "Speed input is 19px high");
+  assert.deepEqual(sizes.input, sizes.slider, "Speed input and slider share top edge and height");
+  assert(sizes.sliderLeft - sizes.labelTextRight >= 4, "Speed text keeps at least 4px of visible space before the slider");
+}
+
+async function build(entry, directory) {
+  const config = require("../webpack.config");
+  await new Promise((resolve, reject) => {
+    const compiler = webpack({ ...config, mode: "production", entry,
+      output: { ...config.output, path: directory }, performance: { hints: false } });
+    compiler.run((error, stats) => compiler.close(() => {
+      if (error || stats.hasErrors()) reject(error || new Error(stats.toString("errors-only")));
+      else resolve();
+    }));
+  });
+}
+
+async function main() {
+  diagnostics.stage("pure catalogue preparation");
+  await require("./catalogue-preparation.cjs").testPurePreparation();
+  diagnostics.stage("build browser fixture");
+  await build("./tests/browser.js", path.join(buildOutput, "fixture"));
+  diagnostics.stage("build uninstrumented renderer fixture");
+  await build("./tests/renderer-entry.js", path.join(buildOutput, "renderer"));
+  diagnostics.stage("build unconfigured production entry");
+  await build("./src/index.js", path.join(buildOutput, "unconfigured"));
+  diagnostics.stage("build catalog adapter trials");
+  await require("./catalog-loading.cjs").build(buildOutput);
+  diagnostics.stage("build selected standard catalogue entry");
+  require("./catalog-delivery-browser.cjs").build(buildOutput);
+  await require("./catalog-latest-browser.cjs").build(buildOutput);
+  const server = http.createServer((req, res) => {
+    const pathname = new URL(req.url, "http://localhost").pathname;
+    if (pathname.endsWith("/favicon.ico")) { res.writeHead(204); res.end(); return; }
+    const filename = path.resolve(buildOutput, "." + (pathname.endsWith("/") ? pathname + "index.html" : pathname));
+    if (!filename.startsWith(buildOutput + path.sep) || !fs.existsSync(filename)) { res.writeHead(404); res.end(); return; }
+    res.setHeader("Content-Type", { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json" }[path.extname(filename)] || "application/octet-stream");
+    fs.createReadStream(filename).pipe(res);
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${server.address().port}`;
+  const report = diagnostics.results;
+  try {
+    for (const name of (process.env.BROWSERS || "chromium").split(",")) {
+      diagnostics.stage(`${name}: launch`);
+      const linuxCI = process.env.CI === "true" && process.platform === "linux";
+      const instance = await browsers[name].launch({ headless: process.env.HEADLESS !== "0",
+        ...(name === "chromium" ? { channel: "chrome",
+          // SwiftShader's trigonometric approximations exceed our unchanged
+          // orbital-error bound. Use Mesa's GL implementation in Linux CI.
+          ...(linuxCI ? { args: ["--use-angle=gl", "--ignore-gpu-blocklist"] } : {}) } : {}) });
+      try {
+        diagnostics.stage(`${name}: diagnostic failure regressions`);
+        const diagnosticChecks = await require("./diagnostics-regression.cjs")(instance, output, name);
+        const browser = diagnostics.browser(instance, name);
+        diagnostics.stage(name + ": selected standard catalogue entry");
+        await require("./catalog-delivery-browser.cjs").run(browser, url, output, name);
+        await require("./catalog-latest-browser.cjs").run(browser, url, output, name);
+        diagnostics.stage(name + ": catalog adapter lifecycle");
+        const catalogLoading = await require("./catalog-loading.cjs").run(browser, url, output, name);
+        diagnostics.stage(`${name}: WebGL 2 capability`);
+        const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+        const graphics = await page.evaluate(() => {
+          const gl = document.createElement("canvas").getContext("webgl2");
+          if (!gl) return null;
+          const debug = gl.getExtension("WEBGL_debug_renderer_info");
+          const graphics = { vendor: gl.getParameter(debug ? debug.UNMASKED_VENDOR_WEBGL : gl.VENDOR),
+            renderer: gl.getParameter(debug ? debug.UNMASKED_RENDERER_WEBGL : gl.RENDERER),
+            version: gl.getParameter(gl.VERSION), shadingLanguage: gl.getParameter(gl.SHADING_LANGUAGE_VERSION) };
+          gl.getExtension("WEBGL_lose_context")?.loseContext();
+          return graphics;
+        });
+        Object.assign(diagnostics.run.browsers.at(-1), { headless: process.env.HEADLESS !== "0", graphics });
+        diagnostics.save();
+        assert(graphics, `${name}: WebGL 2 unavailable; inspect the per-page diagnostics and runner graphics setup`);
+        diagnostics.stage(`${name}: fixture and numerical regressions`);
+        const errors = [];
+        page.on("pageerror", error => errors.push(error.message));
+        page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+        await page.goto(url + "/fixture/");
+        await page.evaluate(() => window.testReady);
+        await page.waitForFunction(() => window.test.app.asteroidsDiscovered > 0);
+        const sharedFrames = await require("./frame-operations.cjs").testSharedFrames(page);
+        const fps = await require("./frame-operations.cjs").testFps(page);
+        const saturn = await require("./planets.cjs")(page);
+        const earth = await require("./earth.cjs")(page);
+        const orbitTracks = await require("./orbit-tracks.cjs")(page);
+        const cpuOrbits = await require("./cpu-orbits.cjs").testNumerics(page);
+        const cpuScene = await require("./cpu-orbits.cjs").testScene(page);
+        const planetFrames = await require("./planet-bodies.cjs").testScene(page);
+        const planetElements = await require("./planet-bodies.cjs").testElementChanges(page);
+        const sphereBodies = await require("./planet-bodies.cjs").testBodies(page);
+        const invalidCpuOrbits = await require("./cpu-orbits.cjs").testInvalidInputs(page);
+        const cataloguePreparation = await require("./catalogue-preparation.cjs").testReplacement(page);
+        const transferredCloud = await require("./catalogue-preparation.cjs").testTransferredCloud(page);
+        const phaseUploads = await require("./phase-uploads.cjs")(page);
+        const catalogueReplacement = name === "chromium"
+          ? await require("./catalogue-memory.cjs").testReplacement(page) : undefined;
+        await checkUiTypography(page);
+        const readoutBoundaries = await require("./readouts.cjs").testReadoutBoundaries(page);
+        const pausedRendering = await require("./rendering.cjs").testPausedRendering(page);
+        const pausedLifecycle = await require("./rendering.cjs").testPausedLifecycle(page);
+        const result = await page.evaluate(() => {
+          const { app, catalog, REFERENCE_JED, REBASE_DAYS, Orbit, Asteroids, prepareCatalogue, THREE } = window.test;
+          const check = (condition, message) => { if (!condition) throw new Error(message); };
+          check(catalog.length === 100000, "Real catalogue must load");
+          check(app.asteroids instanceof Asteroids && app.asteroids.frustumCulled, "Production uses bounded GPU cloud");
+          check(!app.asteroidsGeometry.attributes.color, "No dynamic CPU colour buffer");
+          check(app.scene.children.filter(child => child.isPoints).length === 1, "One asteroid batch");
+          app.autoRender = false;
+          app.cancelRender();
+          const timing = [];
+          try {
+            for (const hz of [30, 60, 120]) {
+              app.clock.reset(); app.jed = REFERENCE_JED; app.jedDelta = 1.5;
+              app.render(0);
+              for (let i = 1; i <= hz; i++) app.render(i * 1000 / hz);
+              const elapsed = app.jed - REFERENCE_JED;
+              check(Math.abs(elapsed - 90) < 1e-6, `${hz} Hz playback: ${elapsed}`);
+              timing.push({ hz, days: elapsed });
+            }
+            app.jedDelta = 0; app.render(2000);
+            const paused = app.jed; app.render(3000); check(app.jed === paused, "Pause");
+            app.jedDelta = -1.5; app.render(3016.6666667); check(app.jed === paused, "First resumed frame excludes paused time");
+            app.render(3033.3333334); check(app.jed < paused, "Reverse");
+            app.clock.reset(); const before = app.jed; app.render(100000); check(app.jed === before, "Resume does not catch up");
+            Object.defineProperty(document, "hidden", { configurable: true, value: true });
+            document.dispatchEvent(new Event("visibilitychange"));
+            app.render(200000); check(app.jed === before, "Hidden document does not advance");
+            delete document.hidden;
+            document.dispatchEvent(new Event("visibilitychange"));
+            app.render(300000); check(app.jed === before, "Visibility resume excludes hidden time");
+            app.onContextLost(); app.render(400000); check(app.jed === before, "Context downtime does not advance");
+            app.onContextRestored(); app.render(500000); check(app.jed === before, "Context resume excludes downtime");
+          } finally { app.autoRender = true; app.jedDelta = 0; app.clock.reset(); app.render(); }
+          const sample = catalog[50000];
+          for (const date of [sample.disc - 0.001, sample.disc, sample.disc + 100, sample.disc + 201, sample.disc - 1, catalog[0].disc - 1, REFERENCE_JED]) {
+            app.jed = date; app.updateAsteroids();
+            const expected = catalog.filter(d => d.disc <= date).length;
+            check(app.asteroidsDiscovered === expected && app.asteroidsGeometry.drawRange.count === expected, "Discovery boundary " + date);
+          }
+          const cloud = app.asteroids;
+          const versions = Object.fromEntries(Object.entries(cloud.geometry.attributes).map(([key, attr]) => [key, attr.version]));
+          app.jed += 1; app.updateAsteroids();
+          for (const [key, version] of Object.entries(versions)) check(cloud.geometry.attributes[key].version === version, "Unexpected per-frame upload: " + key);
+          app.jed = cloud.epoch + REBASE_DAYS + 1; app.updateAsteroids();
+          check(cloud.geometry.attributes.meanAnomaly.version === versions.meanAnomaly + 1, "Phase rebase");
+          check(cloud.uniforms.orbitTime.value === 0, "Relative time after rebase");
+          for (const key of ["position", "basisQ", "elements", "discovery"]) check(cloud.geometry.attributes[key].version === versions[key], "Rebase changed fixed attributes");
+          for (const d of catalog.filter((_, i) => i % 997 === 0)) {
+            for (const date of [2378861.5, REFERENCE_JED, 2488070.5]) {
+              check(Math.hypot(...Orbit.getPosAtTime(d, date)) <= cloud.geometry.boundingSphere.radius, "Conservative orbit bound");
+            }
+          }
+          const invalidCatalogues = [new Array(1), [sample, , sample], [undefined], [null],
+            ...[{ e: 1 }, { e: NaN }, { a: -1 }, { disc: Infinity }, { n: -1 }, { M: undefined },
+              ...["", "20", NaN, Infinity, {}, false].map(wbar => ({ wbar, w: 10 }))]
+              .map(patch => [{ ...sample, ...patch }])];
+          for (const data of invalidCatalogues) {
+            let rejected = false;
+            try { app.setupAsteroids(data); } catch { rejected = true; }
+            check(rejected && app.asteroids === cloud, "Invalid catalogue replaced the working cloud");
+          }
+          // Zero is a real longitude; only null/undefined select w + W.
+          for (const wbar of [0, null, undefined]) {
+            const d = { ...sample, wbar, w: 10, W: 25 };
+            app.setupAsteroids([d]);
+            const basis = Array.from(app.asteroidsGeometry.attributes.position.array);
+            app.setupAsteroids([{ ...d, wbar: undefined, w: wbar === 0 ? -25 : 10 }]);
+            check(basis.every((v, i) => v === app.asteroidsGeometry.attributes.position.array[i]), "Longitude fallback changed orientation");
+          }
+          app.setupAsteroids(catalog);
+          const replaced = app.asteroids;
+          let disposed = false; replaced.geometry.addEventListener("dispose", () => { disposed = true; });
+          app.setupAsteroids([]); check(disposed && app.asteroidsDiscovered === 0, "Empty replacement/disposal");
+          app.setupAsteroids(catalog); app.jed = REFERENCE_JED; app.updateAsteroids();
+          check(app.scene.children.filter(child => child.isPoints).length === 1, "Replacement leaked point batches");
+          // Colour checks use the real production material and framebuffer.
+          const renderColors = (ages, duration) => {
+            const single = new Asteroids(prepareCatalogue([{ ...sample, a: 1, e: 0, i: 0, W: 0, w: 0, wbar: 0, M: 0, n: 1, epoch: REFERENCE_JED, disc: REFERENCE_JED }], REFERENCE_JED), {
+              jed: REFERENCE_JED, color: app.asteroidColor, discoveryColor: app.asteroidDiscoveryColor, discoveryDuration: duration,
+            });
+            single.material.size = 12;
+            const scene = new THREE.Scene(); scene.add(single);
+            const camera = new THREE.OrthographicCamera(-150, 150, 150, -150, 0.1, 1000);
+            camera.position.set(0, 0, 500); camera.lookAt(0, 0, 0);
+            const target = new THREE.WebGLRenderTarget(128, 128);
+            const colors = ages.map(age => {
+              single.update(REFERENCE_JED + age);
+              app.renderer.setRenderTarget(target); app.renderer.render(scene, camera);
+              const pixels = new Uint8Array(128 * 128 * 4);
+              app.renderer.readRenderTargetPixels(target, 0, 0, 128, 128, pixels);
+              let rgb = [0, 0, 0];
+              for (let i = 0; i < pixels.length; i += 4) if (pixels[i] + pixels[i + 1] + pixels[i + 2] > rgb.reduce((a, b) => a + b, 0)) rgb = Array.from(pixels.slice(i, i + 3));
+              return rgb;
+            });
+            app.renderer.setRenderTarget(null); single.dispose(); target.dispose();
+            return colors;
+          };
+          const [fresh, almostFaded, faded, reversed, hidden, rediscovered] = renderColors([0, 199, 201, 0, -1, 0], 200);
+          const [instant] = renderColors([0], 0);
+          check(fresh[1] > 250 && fresh[0] === 0, "Discovery starts green");
+          check(faded[0] > 0 && faded[0] === faded[1] && faded[1] === faded[2], "Fade ends neutral, without stale green");
+          check(JSON.stringify(faded) === JSON.stringify(instant), "Zero duration fades immediately");
+          check(hidden.every(x => x === 0), "Undiscovered asteroid hidden");
+          check(almostFaded[1] > faded[1], "Crossing the cutoff finishes the fade");
+          check(JSON.stringify(reversed) === JSON.stringify(fresh) && JSON.stringify(rediscovered) === JSON.stringify(fresh), "Rewind/re-discovery restores fresh colour");
+          app.renderer.render(app.scene, app.camera);
+          app.gui.gui.updateDisplay();
+          return { timing, catalog: catalog.length, fresh, faded, instant, hidden };
+        });
+        await require("./catalog-review.cjs").runNative(browser, url, output, name);
+        result.catalogLoading = catalogLoading;
+        result.sharedFrames = sharedFrames;
+        result.fps = fps;
+        result.pausedRendering = pausedRendering;
+        result.saturn = saturn;
+        result.earth = earth;
+        result.planetFrames = planetFrames;
+        result.planetElements = planetElements;
+        result.sphereBodies = sphereBodies;
+        result.orbitTracks = orbitTracks;
+        result.cpuOrbits = cpuOrbits;
+        result.cpuScene = cpuScene;
+        result.invalidCpuOrbits = invalidCpuOrbits;
+        result.readoutBoundaries = readoutBoundaries;
+        result.pausedLifecycle = pausedLifecycle;
+        result.catalogueReplacement = catalogueReplacement;
+        result.phaseUploads = phaseUploads;
+        result.shader = await page.evaluate(() => {
+          const contexts = new Set(), original = HTMLCanvasElement.prototype.getContext;
+          HTMLCanvasElement.prototype.getContext = function(type, ...args) {
+            const context = original.call(this, type, ...args);
+            if (type === "webgl2" && context) contexts.add(context);
+            return context;
+          };
+          try {
+            const result = window.test.validateShader(window.test.app, window.test.catalog);
+            if (contexts.size !== 1) throw new Error("Shader validation must reuse one native context.");
+            return result;
+          } finally { HTMLCanvasElement.prototype.getContext = original; }
+        });
+        diagnostics.stage(`${name}: controls, layout and context recovery`);
+        await require("./options.cjs").openOptions(page);
+        const speed = page.getByRole("textbox", { name: "Playback speed" });
+        await speed.fill("1.5"); await speed.press("Enter");
+        assert.equal(await page.evaluate(() => window.test.app.jedDelta), 1.5);
+        const date = await page.locator("#orrery-date").textContent();
+        await page.waitForFunction(date => document.querySelector("#orrery-date").textContent > date, date);
+        await speed.fill("0"); await speed.press("Enter");
+        await page.waitForFunction(() => document.querySelector("#orrery-fps").textContent === "0 FPS");
+        await page.screenshot({ path: path.join(output, `${name}-desktop.png`) });
+        const before = await page.locator("canvas").screenshot();
+        await page.mouse.move(600, 400); await page.mouse.down(); await page.mouse.move(750, 450, { steps: 12 }); await page.mouse.up();
+        const rotated = await page.locator("canvas").screenshot(); assert(!before.equals(rotated), "Camera drag");
+        await page.mouse.wheel(0, -350);
+        const zoomed = await page.locator("canvas").screenshot(); assert(!rotated.equals(zoomed), "Camera zoom");
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.waitForFunction(() => document.querySelector("canvas").clientWidth === 390);
+        await require("./options.cjs").openOptions(page);
+        const box = await speed.boundingBox(); assert(box.x >= 0 && box.x + box.width <= 390);
+        await checkUiTypography(page);
+        await page.screenshot({ path: path.join(output, `${name}-narrow.png`) });
+        const lossSupported = await page.evaluate(() => !!window.test.app.renderer.getContext().getExtension("WEBGL_lose_context"));
+        await page.evaluate(() => {
+          window.renderingProbe.capture = true;
+          window.test.app.requestRender();
+        });
+        await page.waitForFunction(() => !!window.renderingProbe.image);
+        const canvasImage = () => page.evaluate(() => window.renderingProbe.image);
+        for (let recovery = 0; lossSupported && recovery < 2; recovery++) {
+          const beforeLoss = await canvasImage();
+          await page.evaluate(() => window.test.app.renderer.forceContextLoss());
+          await page.waitForFunction(() => window.test.app.contextLost);
+          const lostDraws = await page.evaluate(() => window.renderingProbe.draws);
+          assert.equal(await page.evaluate(() => window.test.app.animationFrame), null);
+          assert.match(await page.locator("#orrery-status").textContent(), /Waiting to reconnect/);
+          await page.waitForTimeout(100);
+          assert.equal(await page.evaluate(() => window.renderingProbe.draws), lostDraws);
+          await page.evaluate(() => window.test.app.renderer.forceContextRestore());
+          await page.waitForFunction(draws => !window.test.app.contextLost && window.renderingProbe.draws > draws
+            && window.test.app.renderer.info.render.points === 100000, lostDraws);
+          assert(await page.locator("#orrery-status").isHidden());
+          assert.equal(await canvasImage(), beforeLoss, "Context restoration automatically recovers the rendered scene");
+        }
+        if (lossSupported) result.runningContextRecovery = await require("./rendering.cjs").testRunningContextRecovery(page);
+        if (lossSupported) result.phaseUploadsAfterRecovery = await require("./phase-uploads.cjs")(page);
+        result.guiDisposal = await require("./frame-operations.cjs").testGuiDisposal(page);
+        await page.evaluate(() => {
+          const { app, Orrery3D, catalog } = window.test;
+          app.dispose(); app.dispose();
+          const replacement = new Orrery3D({ container: document.getElementById("orrery"), jedDelta: 0, asteroidColor: 0, asteroidDiscoveryColor: 0, asteroidDiscoveryDuration: 0 });
+          replacement.setupAsteroids(catalog);
+          if (replacement.jedDelta !== 0 || replacement.asteroidDiscoveryDuration !== 0 || replacement.asteroidColor.getHex() !== 0 || replacement.asteroidDiscoveryColor.getHex() !== 0) throw new Error("Zero constructor options");
+          replacement.dispose();
+          if (document.querySelector("canvas, .dg.main, .orrery-options")) throw new Error("Dispose left a canvas or controls");
+        });
+        result.manualRendering = await require("./rendering.cjs").testManualRendering(page);
+        await page.reload(); await page.evaluate(() => window.testReady);
+        await page.waitForFunction(() => window.test.app.asteroidsDiscovered > 0);
+        result.saturnAfterReload = await require("./planets.cjs")(page);
+        result.earthAfterReload = await require("./earth.cjs")(page);
+        result.orbitTracksAfterReload = await require("./orbit-tracks.cjs")(page);
+        result.cpuSceneAfterReload = await require("./cpu-orbits.cjs").testScene(page);
+        result.planetFramesAfterReload = await require("./planet-bodies.cjs").testScene(page);
+        result.sphereBodiesAfterReload = await require("./planet-bodies.cjs").testBodies(page);
+        assert.deepEqual(errors, []);
+        diagnostics.stage(`${name}: renderer fixture loading, memory and interactions`);
+        if (name === "chromium") result.catalogueMemory = await require("./catalogue-memory.cjs")(browser, url + "/renderer/");
+        // Uninstrumented renderer fixture; production catalogue boot is checked above.
+        await page.goto(url + "/renderer/");
+        await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent) > 0);
+        await checkUiTypography(page);
+        assert(await page.locator("#orrery-status").isHidden());
+        result.rendererReadouts = await require("./readouts.cjs").testProductionReadouts(page);
+        assert.deepEqual(errors, []);
+        await require("./rendering.cjs").testPausedLoading(page, url + "/renderer/");
+        result.rendererInteractions = await require("./rendering.cjs").testProductionInteractions(browser, url + "/renderer/", output, name);
+        diagnostics.stage(`${name}: renderer DPR options`);
+        result.optionsPanel = await require("./options.cjs").testOptions(browser, url + "/renderer/", output, name);
+        result.pixelRatioOptions = await require("./pixel-ratio.cjs")(browser, url + "/renderer/", output, name);
+        assert.deepEqual(errors, []);
+        result.catalogueLoading = await require("./catalogue-preparation.cjs").testLoading(browser, url + "/renderer/");
+        diagnostics.stage(`${name}: expected loading and WebGL errors`);
+        // Loading and failure through shared renderer startup and fixture fetch.
+        await page.route("**/data/catalog.json", async route => {
+          await new Promise(resolve => setTimeout(resolve, 200));
+          await route.fulfill({ status: 503, body: "Unavailable" });
+        });
+        await page.reload({ waitUntil: "domcontentloaded" });
+        assert.match(await page.locator("#orrery-status").textContent(), /Loading/);
+        await page.getByRole("alert").waitFor();
+        assert.match(await page.getByRole("alert").textContent(), /Could not load/);
+        const alertBox = await page.getByRole("alert").boundingBox();
+        assert(alertBox.x >= 0 && alertBox.x + alertBox.width <= 390, "Error message fits narrow viewport");
+        await page.screenshot({ path: path.join(output, `${name}-error.png`) });
+        await page.unroute("**/data/catalog.json");
+        await page.route("**/data/catalog.json", route => route.fulfill({ json: [{ e: 2 }] }));
+        await page.reload(); await page.getByRole("alert").waitFor();
+        assert.match(await page.getByRole("alert").textContent(), /Could not load/);
+        await page.addInitScript(() => {
+          const getContext = HTMLCanvasElement.prototype.getContext;
+          HTMLCanvasElement.prototype.getContext = function(type, ...args) {
+            return type.startsWith("webgl") ? null : getContext.call(this, type, ...args);
+          };
+        });
+        await page.reload(); await page.getByRole("alert").waitFor();
+        assert.match(await page.getByRole("alert").textContent(), /WebGL 2 is required/);
+        assert.equal(await page.locator(".dg.main, .orrery-options").count(), 0, "No controls for an unavailable renderer");
+        diagnostics.stage(`${name}: benchmark workflow`);
+        result.benchmark = await require("./benchmark.cjs")(browser, output, name);
+        report.push({ browser: name, version: browser.version(), diagnosticChecks, cataloguePreparation, transferredCloud, ...result, contextRecovery: lossSupported, checks: "passed" });
+        fs.writeFileSync(path.join(output, "results.json"), JSON.stringify(report, null, 2));
+        console.log(`${name}: renderer, controls, timing, discoveries, bounds, replacement, colours, recovery, errors, shader accuracy passed`);
+      } catch (error) {
+        await diagnostics.fail(error);
+        throw error;
+      } finally { await instance.close(); }
+    }
+  } finally { await new Promise(resolve => server.close(resolve)); }
+}
+main().then(() => diagnostics.pass()).catch(async error => {
+  console.error(error);
+  process.exitCode = 1;
+  if (diagnostics.run.status !== "failed") await diagnostics.fail(error);
+}).finally(() => require("./catalog-latest-browser.cjs").close());
