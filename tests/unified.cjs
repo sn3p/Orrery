@@ -96,6 +96,8 @@ async function run({ browser, name, application = "legacy", output: artifactDire
         await recoveryApp.loadAsteroids(fixture.catalogURL);
         recoveryApp.renderFrame(0);
         window.completedRecoveryModel = recoveryApp.catalogue;
+        window.completedRecoveryCloud = recoveryApp.renderer.asteroids;
+        window.completedRecoveryHud = recoveryApp.gui.count.textContent;
         window.pendingLoad = recoveryApp.loadAsteroids('/delayed-catalog');
         const adapter = recoveryApp.renderer;
         window.originalTexture = adapter.createCircleTexture;
@@ -113,12 +115,33 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       assert.equal(await page.evaluate(() => pendingLoad), false, 'Data received during graphics loss has not drawn or committed');
       assert(await page.evaluate(() => recoveryApp.catalogue === completedRecoveryModel && recoveryApp.pendingBundled.model.count === 0),
         'The completed model stays active and newly received data remains available for recovery');
-      assert.equal(await page.evaluate(() => recoveryApp.renderer.asteroids.discoveryDates.length), 0);
+      assert(await page.evaluate(() => recoveryApp.renderer.asteroids === completedRecoveryCloud
+        && recoveryApp.renderer.asteroids.catalogue === completedRecoveryModel
+        && recoveryApp.renderer.asteroids.discoveryDates.length === completedRecoveryModel.count
+        && recoveryApp.gui.count.textContent === completedRecoveryHud),
+        'Graphics failure retains the completed cloud and readouts alongside the completed model');
       assert.match(await page.getByRole('status').textContent(), /Unable to restore/,
         'Data success must preserve the graphics failure and recovery instruction');
       assert(await page.evaluate(() => recoveryApp.contextLost && recoveryApp.animationFrame === null));
       await page.evaluate(() => {
         recoveryApp.renderer.createCircleTexture = originalTexture;
+        window.beforeSecondLoss = recoveryApp.rendererGeneration;
+        contextExtension.loseContext();
+      });
+      await page.waitForFunction(() => recoveryApp.rendererGeneration > beforeSecondLoss
+        && recoveryApp.renderer.app.renderer.gl.isContextLost());
+      await page.evaluate(() => contextExtension.restoreContext());
+      await page.waitForFunction(() => !recoveryApp.contextLost);
+      assert(await page.evaluate(() => {
+        const candidate = recoveryApp.pendingBundled.model;
+        recoveryApp.tick(1000);
+        if (recoveryApp.renderer.asteroids !== completedRecoveryCloud) return false;
+        recoveryApp.renderFrame(1100);
+        return recoveryApp.catalogue === candidate && !recoveryApp.pendingBundled && candidate.firstDraw
+          && recoveryApp.renderer.asteroids.catalogue === candidate
+          && recoveryApp.renderer.asteroids.discoveryDates.length === 0 && recoveryApp.asteroidsDiscovered === 0;
+      }), 'A restored full frame commits the retained empty candidate');
+      await page.evaluate(() => {
         recoveryApp.destroy(); recoveryApp.destroy();
       });
       assert.equal(await page.getByRole('status').textContent(), '');

@@ -61,6 +61,13 @@ async function entries(browser, base, output, name) {
         const known = message => name === 'webkit' && renderer !== 'three'
           && message === 'WebGL: INVALID_ENUM: texParameter: invalid parameter name';
         assert.deepEqual(diagnostics.filter(message => !known(message)), []);
+        if (renderer === 'unknown') {
+          assert.equal(await page.locator('#orrery-status').textContent(), 'Unknown renderer. Showing Pixi.');
+          await page.evaluate(() => { threeTest.app.destroy(); threeTest.app.destroy(); threeTest.app.renderStatus(); });
+          assert.equal(await page.locator('#orrery-status').textContent(), '', 'Unknown-renderer notice is cleared by teardown');
+          assert.equal(await page.locator('#orrery-status').getAttribute('role'), 'status');
+          assert.equal(await page.locator('canvas, .orrery-options').count(), 0);
+        }
         results.push({ prefix, renderer, historical100k: true, lazy: true, knownWebGL1Warnings: diagnostics.filter(known).length });
       } finally { await page.close(); }
     }

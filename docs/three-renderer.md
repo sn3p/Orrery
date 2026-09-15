@@ -55,6 +55,11 @@ previous scene and readouts through first-allocation failures and repeated hidde
 replacements. Manual attachment performs its first draw synchronously.
 `loadAsteroids()` returns true only when that first draw commits the new model.
 Failed or deferred draws return false while retaining pending data for recovery.
+Pending clouds are attached only within `renderFrame()`, including after hidden
+or failed loads. Direct `tick()` calls update already committed bundled scenes;
+pending/streamed catalogues require the full frame receipt, and terminal graphics
+failures suspend direct ticks too. Drawing the adapter alone cannot activate a
+pending catalogue or publish its readouts.
 Two context restorations must rebuild resources from retained CPU data without
 catalogue requests. Loss and restoration failures have explicit status feedback.
 

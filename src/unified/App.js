@@ -157,7 +157,6 @@ export default class App {
     const model = prepareCatalogue(data, this.jed);
     const previous = this.pendingBundled?.previous ?? this.renderer.frameState
       ?? { ...this.frameState, count: this.asteroidsDiscovered };
-    this.renderer.setAsteroids(model, this.frameState, { preservePrevious: true });
     this.pendingBundled = { model, previous };
     this.catalogOpening?.abort();
     this.catalogOpening = null;
@@ -347,7 +346,7 @@ export default class App {
     this.clock.reset();
     this.stats?.reset();
     if (this.initialized && !this.destroyed && !this.catalogLoader?.source
-      && !this.pendingBundled && !this.deferReadouts) this.updateGui();
+      && !this.pendingBundled && !this.renderFailure && !this.deferReadouts) this.updateGui();
   }
   requestRender() {
     if (!this.autoRender || !this.initialized || this.destroyed || document.hidden || this.contextLost || this.animationFrame !== null) return;
@@ -461,6 +460,13 @@ export default class App {
   tick(timestamp = performance.now()) {
     if (this.destroyed || !this.initialized) return;
     if (document.hidden || this.contextLost) { this.resetClock(); return; }
+    // Direct ticks support already committed bundled scenes. Pending/streamed
+    // data needs renderFrame's receipt and rollback boundary before activation,
+    // and a terminal render failure cannot be bypassed through this entry point.
+    if (this.renderFailure || (!this.deferReadouts && (this.pendingBundled || this.catalogLoader?.source))) {
+      this.resetClock();
+      return;
+    }
     if (this.appliedPixelRatio !== this.effectivePixelRatio || this.nativePixelRatio !== (window.devicePixelRatio || 1)) this.resize({ render: false });
     if (this.catalogOpening) { this.resetClock(); return; }
     const loader = this.catalogLoader;
@@ -517,6 +523,7 @@ export default class App {
     this.activeSession?.loader.dispose();
     this.catalogue = this.pendingBundled = this.pendingSession = this.activeSession = null;
     this.renderFailure = null;
+    this.rendererNotice = "";
     this.graphicsError = "";
     this.setStatus("");
     window.removeEventListener("resize", this.resize);

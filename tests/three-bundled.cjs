@@ -66,6 +66,10 @@ module.exports = async function bundled(browser, base) {
           Object.defineProperty(document, 'hidden', { configurable: true, value: true });
           try { app.setAsteroids([row, row]); app.setAsteroids([row, row, row]); }
           finally { delete document.hidden; }
+          app.tick(1000);
+          if (app.renderer.asteroids !== completed.cloud) throw new Error('A hidden candidate must not attach outside a full frame');
+          app.renderer.render();
+          if (app.renderer.canvas.toDataURL() !== completed.pixels) throw new Error('Direct drawing must retain the completed hidden-replacement scene');
           try { app.renderFrame(); } catch { /* Manual failed draw restores the completed scene. */ }
         });
       } else if (replacement) {
@@ -85,6 +89,25 @@ module.exports = async function bundled(browser, base) {
       assert.deepEqual(result.before, result.expected, `${renderer} ${kind}: no readout/model publication before receipt`);
       for (const key of ['priorCount', 'priorDate', 'priorModel', 'priorCloud', 'pixels', 'pending']) assert.equal(result[key], true, renderer + ' ' + kind + ': ' + key);
       assert.equal(result.failure, kind !== 'null');
+      const direct = await page.evaluate(() => {
+        app.autoRender = false; app.cancelRender();
+        const pending = app.pendingBundled, elapsed = app.elapsed;
+        const unchanged = () => app.catalogue === completed.model && app.renderer.asteroids === completed.cloud
+          && app.pendingBundled === pending && !pending.model.firstDraw && app.jed === completed.date && app.elapsed === elapsed
+          && app.asteroidsDiscovered === completed.count && app.gui.count.textContent === completed.hud && app.gui.date.textContent === completed.dateText;
+        app.tick(1000); app.tick(1100);
+        const tick = unchanged();
+        app.renderer.render();
+        const draw = unchanged() && app.renderer.canvas.toDataURL() === completed.pixels;
+        let failedFrame = true;
+        if (app.renderFailure) {
+          app.render(1200);
+          failedFrame = unchanged() && app.renderer.canvas.toDataURL() === completed.pixels;
+        }
+        return { tick, draw, failedFrame };
+      });
+      assert.deepEqual(direct, { tick: true, draw: true, failedFrame: true },
+        `${renderer} ${kind}: direct updates/draws cannot publish a pending catalogue or bypass a terminal failure`);
       const recovery = page.getByRole('link', { name: 'Open Pixi preview', exact: true });
       assert.equal(await recovery.count(), renderer === 'three' && kind !== 'null' ? 1 : 0);
       const requests = []; page.on('request', request => { if (/\.json/.test(request.url())) requests.push(request.url()); });
@@ -98,8 +121,14 @@ module.exports = async function bundled(browser, base) {
       assert.equal(await recovery.count(), 0, 'Successful recovery clears the fallback link');
       await page.route('**/verified-load.json', route => route.fulfill({ json: [{ a: 2, e: .1, i: 30, W: 40, wbar: 80, M: 30, n: .25, epoch: 2451545, disc: 2000000 }] }));
       assert.equal(await page.evaluate(() => app.loadAsteroids('/verified-load.json')), true, 'A completed first draw reports success');
+      assert(await page.evaluate(() => {
+        app.jedDelta = 1.5; app.tick(1000); const before = app.jed; app.tick(1100); app.renderer.render();
+        const advanced = app.jed === before + 9 && !app.pendingBundled && app.renderer.asteroids.catalogue === app.catalogue;
+        app.jedDelta = 0; return advanced;
+      }), 'Direct ticks still advance an already committed bundled scene');
       if (renderer === 'three' && replacement && auto) {
         await page.evaluate(() => {
+          app.autoRender = true;
           app.renderer.render = () => { throw new Error('controlled terminal failure before teardown'); };
           app.renderFrame();
         });
@@ -109,7 +138,7 @@ module.exports = async function bundled(browser, base) {
         assert.equal(await page.locator('#orrery-status').getAttribute('role'), 'status');
         assert.equal(await page.locator('canvas, .orrery-options').count(), 0);
       }
-      results.push({ renderer, replacement, kind, auto, loadResult });
+      results.push({ renderer, replacement, kind, auto, loadResult, direct });
     } finally { release?.(); await page.close(); }
   }
   return results;

@@ -123,6 +123,37 @@ async function data(browser, base, output, name) {
 
 async function frames(browser, base, output, name) {
   const results = [{ bundled: await require('./three-bundled.cjs')(browser, base) }];
+  for (const renderer of ['pixi', 'three']) {
+    const page = await browser.newPage();
+    try {
+      await boot(page, base + '/catalog/catalog-indexed/?renderer=' + renderer);
+      await page.evaluate(async next => {
+        app.autoRender = false; app.cancelRender(); app.elapsed = 2; app.renderFrame(1000);
+        window.previous = { model: app.catalogue, cloud: app.renderer.asteroids, date: app.jed, count: app.asteroidsDiscovered,
+          hud: app.gui.count.textContent, dateText: app.gui.date.textContent, pixels: app.renderer.canvas.toDataURL() };
+        await app.loadCatalog(next); app.jed = 9999999;
+      }, pin(base));
+      await page.waitForFunction(() => app.catalogLoader.committedCount === 6);
+      const result = await page.evaluate(() => {
+        const pending = app.pendingSession;
+        app.tick(1000); app.tick(1100); app.renderer.render();
+        const retained = app.catalogue === previous.model && app.renderer.asteroids === previous.cloud
+          && app.pendingSession === pending && !app.catalogLoader.sceneComplete() && app.jed === previous.date
+          && app.asteroidsDiscovered === previous.count && app.gui.count.textContent === previous.hud
+          && app.gui.date.textContent === previous.dateText && app.renderer.canvas.toDataURL() === previous.pixels;
+        app.renderFrame(1200);
+        const committed = app.catalogue === pending.model && app.renderer.asteroids.catalogue === app.catalogue
+          && app.catalogLoader.sceneComplete() && !app.pendingSession && app.jed === 9999999 && app.asteroidsDiscovered === 6;
+        app.jedDelta = 1.5; app.tick(1300); app.tick(1400); app.renderer.render();
+        const directSuspended = app.jed === 9999999 && app.asteroidsDiscovered === 6;
+        app.render(1500); app.render(1600);
+        return { retained, committed, directSuspended, resumed: app.jed === 10000008 && app.jedDelta === 1.5 };
+      });
+      assert.deepEqual(result, { retained: true, committed: true, directSuspended: true, resumed: true },
+        `${renderer}: streamed populations and time are committed only by the full frame boundary`);
+      results.push({ renderer, directStreamedFrames: result });
+    } finally { await page.close(); }
+  }
   for (const kind of ['null', 'draw', 'allocate', 'upload', 'update']) {
     const page = await browser.newPage(); const errors = []; page.on('pageerror', e => errors.push(e.message));
     try {
