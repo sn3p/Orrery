@@ -186,8 +186,8 @@ jobs:
           path: .context/playwright-blob
 
   standalone:
-    name: Standalone preview tests (clean checkout)
-    # This job builds its own preview and fixtures. It needs no build artifact.
+    name: Standalone unified tests (clean checkout)
+    # This job builds its own promoted site and fixtures. It needs no build artifact.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -206,7 +206,7 @@ jobs:
           npx playwright install --with-deps chrome
       - name: Install virtual display and software graphics
         run: sudo apt-get install -y xvfb xauth libgl1-mesa-dri libglx-mesa0
-      - name: Build and verify standalone preview
+      - name: Build and verify standalone unified app
         run: |
           test ! -e dist/next
           xvfb-run -a npm run test:unified

@@ -1,9 +1,8 @@
-# Three preview adapter
+# Three adapter
 
-Open `/next/?renderer=three` for the 3D preview. `/next/` and the original `/`
-use Pixi. Both preview modes use the complete published discovery catalogue; only
-the legacy root retains its historical100k bundle. An unknown renderer falls back
-to Pixi with feedback.
+Open `/?renderer=three` for 3D; `/` defaults to Pixi. Old `/next/` URLs
+forward while retaining renderer choice. Both modes use the complete published
+discovery catalogue. An unknown renderer falls back to Pixi with feedback.
 A Three startup failure reports the failure and offers an accessible Pixi preview
 link, preserving the deployment prefix. Terminal Three shader/upload/draw failures
 offer the same recovery link; successful graphics recovery clears it.

@@ -8,17 +8,20 @@ const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 async function run({ browser, name, application = "legacy", output: artifactDirectory }) {
   const directory = artifactDirectory || path.resolve(".context/build-test/deployment");
   fs.mkdirSync(directory, { recursive: true });
+  // Preserve the legacy release/rollback boundary while production uses the unified entry.
+  const dist = path.join(directory, "legacy-site");
+  await require("./support.cjs").build("./src/js/index.js", dist, { application: "legacy" });
   const nested = path.join(directory, "Orrery");
-  if (!fs.existsSync(nested)) fs.symlinkSync(path.resolve("dist"), nested, "dir");
+  if (!fs.existsSync(nested)) fs.symlinkSync(path.resolve(dist), nested, "dir");
   const catalog = fs.readFileSync("data/catalog.json");
   assert.equal(JSON.parse(catalog).length, 100000);
-  assert.equal(hash(fs.readFileSync("dist/data/catalog.json")), hash(catalog));
-  assert.deepEqual(fs.readdirSync("dist/data"), ["catalog.json"]);
-  assert.deepEqual(fs.readdirSync("dist").filter(file => file.endsWith(".js")), ["bundle.js"]);
+  assert.equal(hash(fs.readFileSync(path.join(dist, "data/catalog.json"))), hash(catalog));
+  assert.deepEqual(fs.readdirSync(path.join(dist, "data")), ["catalog.json"]);
+  assert.deepEqual(fs.readdirSync(dist).filter(file => file.endsWith(".js")), ["bundle.js"]);
   for (const file of fs.readdirSync("src/fonts").filter(file => /\.(woff2|txt)$/.test(file))) {
-    assert.equal(hash(fs.readFileSync(`dist/fonts/${file}`)), hash(fs.readFileSync(`src/fonts/${file}`)));
+    assert.equal(hash(fs.readFileSync(path.join(dist, "fonts", file))), hash(fs.readFileSync(`src/fonts/${file}`)));
   }
-  const root = await serve("dist"), subpath = await serve(directory);
+  const root = await serve(dist), subpath = await serve(directory);
   const results = [];
   try {
     for (const [label, url] of [["root", `${root.url}/`], ["nested", `${subpath.url}/Orrery/`]]) {

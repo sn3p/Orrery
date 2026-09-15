@@ -32,16 +32,15 @@ Build and bundle:
 npm run build
 ```
 
-The build includes an unlinked `/next/` preview while the current app
-stays at the root. Run `npm run serve:next` after building to develop the preview
-at `/next/` (uses `CONDUCTOR_PORT` when set, otherwise 3000). See the
-[approved unification plan](docs/unification.md) for source pins, scope, build
-isolation and verification. The preview uses an app-owned clock, HUD/options
-and lazy Pixi/Three adapters with the complete available discovery catalogue by
-default, loaded from the producer’s latest descriptor. Discovery visibility still
-follows the simulation date. The legacy root keeps its 100k bundle until promotion.
-See [catalogue loading and test profiles](docs/catalog-loading.md) for source
-coverage, error handling and optional deterministic overrides.
+The unified app runs at `/`, with Pixi by default and Three at
+`/?renderer=three`. Old `/next/` links forward to the main app, preserving their
+query and fragment. Both modes use the complete published discovery catalogue;
+discovery visibility follows the simulation date. `npm run serve` uses
+`CONDUCTOR_PORT` when set, otherwise 3000. `serve:next` and `build:next` remain
+compatibility aliases for the main app during the promotion period.
+
+See [catalogue loading](docs/catalog-loading.md), the
+[unification plan](docs/unification.md) and [release/rollback procedure](docs/promotion.md).
 
 Watch changes and rebuild:
 
@@ -88,11 +87,11 @@ python3 -m unittest discover -s tests -v
 
 ## Options
 
-Open `[+] options` in the top-right corner (top-left on `/next/`) for playback speed and rendering
+Open `[+] options` in the top-left corner for playback speed and rendering
 resolution. Click outside or press Escape to close it. Speed 0 pauses; negative
 values reverse. Speed 1 advances 60 days per second (default 1.5).
 
-The preview uses 12px UI text, with date and space-grouped discovery count at the
+The app uses 12px UI text, with date and space-grouped discovery count at the
 bottom-left (`2005-05-03 / 353 381`), Orrery/GitHub at the bottom-right and FPS at
 the top-right. Initial loading occupies the date/count position; later buffering
 or recovery feedback appears above the last committed readout.
@@ -258,7 +257,7 @@ cd data
 ./download_data.sh && ./data_to_json.py
 ```
 
-The legacy root’s bundled `data/catalog.json` contains **100,000 objects**; `/next/` uses the published discovery catalogue independently. Running the importer without a limit replaces it with all numbered minor planets that have matching discovery dates.
+The retained legacy `data/catalog.json` contains **100,000 objects**; the main app uses the published discovery catalogue independently. The old asset remains temporarily for cached-page compatibility, rollback and existing tests/benchmarks. Running the importer without a limit replaces it with all numbered minor planets that have matching discovery dates.
 
 On **12 September 2026**, a full import of fresh MPC data produced **895,910 objects** from **1,563,495 orbital records**. Unnumbered objects lack matching discovery records in `NumberedMPs.txt` and are excluded. These counts change as MPC updates its datasets; see [issue #47](https://github.com/sn3p/Orrery/issues/47) for the verified counts and upstream limitation.
 

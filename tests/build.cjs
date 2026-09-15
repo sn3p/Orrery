@@ -47,7 +47,7 @@ const config = require("../webpack.config");
   const wrapper = path.join(directory, "webpack.cjs");
   fs.writeFileSync(wrapper, `const base = require(${JSON.stringify(path.resolve("webpack.config.js"))});\n`
     + `module.exports = { ...base, entry: ${JSON.stringify(entry)}, output: { ...base.output, path: ${JSON.stringify(output)} }, stats: "errors-only" };\n`);
-  const child = spawn("npm", ["run", "watch", "--", "--config", wrapper], {
+  const child = spawn(process.execPath, [require.resolve("webpack-cli/bin/cli.js"), "--mode", "development", "--watch", "--config", wrapper], {
     env: { ...process.env, NODE_ENV: "production" }, stdio: ["ignore", "pipe", "pipe"], detached: true,
   });
   let log = "";
@@ -76,6 +76,36 @@ const config = require("../webpack.config");
   } finally {
     process.kill(-child.pid, "SIGTERM"); await closed;
     fs.writeFileSync(path.join(directory, "watch.log"), log);
+  }
+  // Exercise the actual promoted watch command as well as the legacy compiler oracle.
+  const watchEntry = path.join(directory, "promoted-watch.js");
+  fs.writeFileSync(watchEntry, 'import ' + JSON.stringify(path.resolve("src/unified/index.js")) + '; window.promotionWatchFirst = true;');
+  const promotedWatch = spawn("npm", ["run", "watch", "--", "--entry", watchEntry], {
+    stdio: ["ignore", "pipe", "pipe"], detached: true,
+  });
+  let promotedLog = "";
+  promotedWatch.stdout.on("data", data => promotedLog += data);
+  promotedWatch.stderr.on("data", data => promotedLog += data);
+  const watchExit = new Promise(resolve => promotedWatch.on("exit", resolve));
+  async function waitForWatch(marker) {
+    const end = Date.now() + 30000;
+    while (true) {
+      const assets = fs.existsSync("dist/assets") ? fs.readdirSync("dist/assets").filter(name => name.endsWith(".js")) : [];
+      if (assets.some(name => fs.readFileSync(path.join("dist/assets", name), "utf8").includes(marker))) return;
+      if (promotedWatch.exitCode !== null || Date.now() > end) throw new Error("Promoted watch failed: " + promotedLog);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+  try {
+    await waitForWatch('promotionWatchFirst');
+    fs.appendFileSync(watchEntry, '\nwindow.promotionWatchSecond = true;');
+    await waitForWatch('promotionWatchSecond');
+    assert.match(fs.readFileSync("dist/index.html", "utf8"), /<title>Orrery<\/title>/);
+    assert(!fs.readFileSync("dist/index.html", "utf8").includes("bundle.js"));
+    assert.match(fs.readFileSync("dist/next/index.html", "utf8"), /location.replace/);
+  } finally {
+    process.kill(-promotedWatch.pid, "SIGTERM"); await watchExit;
+    fs.writeFileSync(path.join(directory, "promoted-watch.log"), promotedLog);
   }
   console.log("Build modes follow webpack rather than stale NODE_ENV; npm watch rebuilds readable JS, CSS and native JSON assets.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

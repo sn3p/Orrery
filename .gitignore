@@ -34,8 +34,11 @@ __pycache__/
 /.context/catalog-trial/
 /.context/pr3/browser/
 
-# The preview is assembled from source alongside the tracked legacy build.
+# Generated promoted chunks and temporary compatibility paths.
 /dist/next/
+/dist/assets/
+/dist/index.html
+/.context/promotion/
 
 # Conductor settings for this machine
 .conductor/settings.local.toml

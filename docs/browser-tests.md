@@ -48,9 +48,9 @@ are still retained. Use `npx playwright test --project=webkit --grep 'texture re
 
 | Project | Checks |
 | --- | --- |
-| `chromium`, `firefox`, `webkit` | Actual root/nested deployment, preview entry/lazy assets, default indexed Pixi/direct Three startup and retained switching, raw legacy/preview parity, both apps' GPU/rendering/options/DPR/benchmark-frame checks, catalogue loading/lifecycle/frame-commit recovery, Three source parity/numerics/entry/camera/recovery, and in-page renderer switching with retained data, faults, views, options and resource checks |
+| `chromium`, `firefox`, `webkit` | Actual promoted root/nested deployment, forwarding, cached PR73 pages, missing chunks/lazy assets, default indexed Pixi/direct Three startup and retained switching, raw legacy/preview parity, both apps' GPU/rendering/options/DPR/benchmark-frame checks, catalogue loading/lifecycle/frame-commit recovery, Three source parity/numerics/entry/camera/recovery, and in-page renderer switching with retained data, faults, views, options and resource checks |
 | `chromium-only` | Both apps' scheduling, typography and benchmark CLI checks; legacy/preview and configured catalogue development commands; catalogue benchmark completion for Pixi and Three; Three configured development/HMR; ordinary-clone benchmark provenance; runner failure/cleanup diagnostics |
-| Standalone configuration | Raw parity and the complete unified-app subset above, against a freshly built preview |
+| Standalone configuration | Raw parity and the complete unified-app subset above, against a freshly built promoted site |
 
 The browser projects retain strict orbital/pixel assertions, WebGL2 preflight,
 explicit 100k whole-file oracles, indexed fixtures, reload/error/recovery/disposal

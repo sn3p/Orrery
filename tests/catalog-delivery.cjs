@@ -447,7 +447,9 @@ test("explicit retention survives update and rollback with each original pin", a
   try {
     const rollback = await command(npmArgs(["run", "build", "--", "--output-clean"]), { CATALOG_CONFIG: config });
     assert.equal(rollback.code, 0, rollback.output);
-    for (const profile of profiles) await verifyBundle(path.join(root, "dist/next/data/delivery-v1-" + profile.pin.sha256), profile.pin);
+    for (const profile of profiles) for (const prefix of ["data", "next/data"]) {
+      await verifyBundle(path.join(root, "dist", prefix, "delivery-v1-" + profile.pin.sha256), profile.pin);
+    }
   } finally {
     await fs.rm(dist, { recursive: true, force: true });
     await fs.cp(backup, dist, { recursive: true });
@@ -484,7 +486,7 @@ test("normal configured builds preserve the entire prior site on late failure", 
     assert.deepEqual(await inventory(), before, "Even emitted assets stay private until all compilation/staging succeeds");
     const restored = await command(npmArgs(["run", script]), { CATALOG_CONFIG: config });
     assert.equal(restored.code, 0, restored.output);
-    await verifyBundle(path.join(dist, "next/data/delivery-v1-" + pin.sha256), pin);
+    await verifyBundle(path.join(dist, "data/delivery-v1-" + pin.sha256), pin);
     await assert.rejects(fs.stat(path.join(dist, "next/previous-site.txt")), { code: "ENOENT" });
     await assert.rejects(fs.stat(dist + ".build-lock"), { code: "ENOENT" });
   } } finally {

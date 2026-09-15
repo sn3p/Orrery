@@ -5,7 +5,7 @@ blueprint and start guide, with historical status reconciled and local planning
 paths removed. No further architecture approval is required. Each implementation
 unit still needs its own tests, review and explicit merge instruction.
 
-## Current unit: complete discovery catalogue by default in `/next`
+## Current unit: root promotion after UI polish
 
 These numbers identify planned review units, not GitHub PR numbers. PR1 shipped
 in [PR64](https://github.com/sn3p/Orrery/pull/64), PR2 in
@@ -19,11 +19,16 @@ PR4 shipped in [PR70](https://github.com/sn3p/Orrery/pull/70), adding the lazy
 `/next/?renderer=three` entry using the same shell and catalogue. PR5 shipped in
 [PR71](https://github.com/sn3p/Orrery/pull/71), adding in-page renderer switching,
 separate views and the optional renderer control builder.
-This inserted data-default unit makes the complete published discovery catalogue
-the normal `/next/` source for both engines, without an environment override or
-historical fallback. Chronological visibility and startup/date/speed stay unchanged.
-The root keeps its legacy 100k bundle until promotion; the preview excludes it.
-Promotion and cleanup remain PR6–PR7, with explicit release approval before PR6.
+[PR72](https://github.com/sn3p/Orrery/pull/72) made the complete published discovery
+catalogue the default for both engines. [PR73](https://github.com/sn3p/Orrery/pull/73)
+polished the shared controls, footer and loading feedback.
+
+This is planned unit 6: serve that unified application at root and forward the
+old preview URLs. Chronological visibility, startup/date/speed, runtime modules
+and both renderer presentations stay unchanged. Legacy 100k assets remain for
+cached-page compatibility, rollback and test/benchmark oracles until cleanup.
+Explicit release approval is required before merging this candidate. Planned
+unit 7 cleanup follows acceptance of the live promoted release.
 See the [catalogue contract](catalog-loading.md) and [Three adapter](three-renderer.md).
 
 `src/unified/App.js` owns Julian day, requested speed, active presentation time,
@@ -69,15 +74,14 @@ Orrery3D snapshot. Keep live source stable until the promotion/cleanup units:
 `asteroidOrbits` keeps the existing legacy Pixi packing and shared shader helpers.
 The preview retains full 3D bases and Float64 phase/date data independently from
 Pixi's mutable buffers. Its source is Orrery3D PR31 merge
-`93a3e1f4a36d8fdceb513bdfdca20beddb3348d6`. The preview's full-catalogue default
-is separately approved for Orrery; it does not change the legacy root or the
+`93a3e1f4a36d8fdceb513bdfdca20beddb3348d6`. The unified app's full-catalogue default
+is separately approved for Orrery; it does not change the preserved legacy source or the
 source application's ownership.
 
-The preview is unlinked from the current application's UI and carries
-`noindex, nofollow`. Once merged and deployed it is public at
-`https://sn3p.github.io/Orrery/next/`; these measures are not access control.
-PR heads are not deployed. Merging master deploys the assembled root and preview
-only after all build and browser gates pass.
+The promoted app uses the main public URL `https://sn3p.github.io/Orrery/`.
+Old preview links forward there, preserving query and fragment. PR heads are not
+deployed; an explicitly approved merge to master releases the assembled site.
+The main HTML no longer carries preview branding or a noindex directive.
 
 ## Source pins and prerequisite
 
@@ -246,33 +250,37 @@ any explicitly approved archival.
 
 ## Build and development
 
-`webpack.config.js` remains the legacy configuration. `webpack.next.config.js`
-owns preview HTML, CSS, assets and lazy chunks under `dist/next/`. Only unchanged
-loader rules are reused. `webpack.build.config.js` orders the legacy compiler
-before the preview with an explicit dependency; both cleaning operations are
-scoped to their output. The Pages `--output-clean` argument is safe. The assembled
-command rejects `--output-path` before compilation because webpack would apply
-it to both compilers, making preview cleaning erase the root. To relocate the
-assembled site, build `dist/` and copy that directory. Root code
-never imports preview code; preview-only builds cannot clean the root.
+The root-promotion candidate now serves the unified application at `/` and
+`/?renderer=three`. `/next/` and `/next/index.html` forward to the deployment
+root, retaining the complete query and fragment and replacing the history entry.
+See [release and rollback](promotion.md) for acceptance and temporary compatibility.
+
+
+`webpack.config.js` retains the legacy compiler for test oracles and cached-page
+assets. `webpack.next.config.js` retains the lazy application compiler primitives;
+`webpack.app.config.cjs` configures the root app, forwarding page and development.
+`webpack.build.config.js` first cleans/builds the legacy assets, then replaces its
+HTML with the unified root without deleting compatibility files. The build command
+owns cleaning once; Pages' `--output-clean` remains supported. Output-path overrides
+are rejected before cleaning. Build `dist/` and copy the complete directory to relocate it.
 
 ```sh
 npm ci
-npm run build -- --output-clean  # assemble both pages, root first
-npm run build:next              # rebuild only dist/next
-npm run serve                  # existing current-app development command
-npm run serve:next              # /next/, CONDUCTOR_PORT when set, otherwise 3000
+npm run build -- --output-clean
+npm run serve                 # root; CONDUCTOR_PORT when set, otherwise 3000
+npm run watch                 # root app development output
+npm run build:next            # compatibility alias: same complete site
+npm run serve:next            # compatibility alias: same root development server
 ```
 
-Preview development serves a previously built `dist/` as its static root.
-The footer links to the Orrery GitHub repository; visit `/` directly for the
-legacy app. Build once first. The preview is
-compiled in memory at `/next/`; use that nested path for direct navigation and
-reload. `npm run serve:next -- --port 55310 --no-open` explicitly selects a port;
-use the receiving workspace's assigned port instead of copying that example.
-The existing Conductor Run/Open defaults are unchanged. Existing `watch`, data
-import scripts and benchmark commands retain their roles. Preview output is
-generated/ignored; existing tracked legacy output handling is preserved.
+Both root and forwarded URLs work in development without a previous build.
+Normal and configured production commands keep the old root assets and duplicate
+unified compiler assets at their PR73 `/next/` paths. Configured catalogue builds
+also retain their staged current/explicitly retained pins under `/next/data/`.
+Development selects the configured source at process startup. The old
+`webpack.next.app.config.cjs` and test-only nested compilation remain until cleanup.
+Legacy source, imported source snapshot, tests, data/importer and benchmark oracles
+remain in this review unit. Promotion does not remove them or rewrite Git history.
 
 ## Verification contract
 
@@ -284,19 +292,19 @@ npm test
 ```
 
 `test:build` exercises mode/watch behavior, repeated actual Pages clean builds,
-byte equality against standalone legacy output and preview-only clean safety.
+byte equality for retained PR73 assets and repeated promoted-build/alias safety.
 `test:browser` covers both assembled production pages, assets and lazy chunks,
 real legacy behavior plus development HMR/reload. `test:unified` also runs the
 strict GPU, scheduling, rendering/lifecycle, UI/DPR and finite benchmark probes
-against the extracted classes, building the preview first so the standalone
+against the extracted classes, building the promoted site first so the standalone
 command works from a clean checkout. The combined browser suite invokes the
 same probes directly to preserve the assembled production artifact under test.
 `tests/unified-app.js` is an inspection facade
 only for existing probes, including their explicit stopped-ticker calls;
 production has no facade or ticker bridge. Separate raw-App tests verify async
 failures/disposal, actual clock ownership and exact scene/HUD parity at fixed
-catalogue/date/viewport/DPR, including recovery. Public `/next/` is tested with
-its real HTML and lazy chunks at root and Pages prefixes. `benchmark:next`
+catalogue/date/viewport/DPR, including recovery. Public root and forwarded `/next/` are tested with real HTML and lazy chunks
+at root and Pages prefixes, including cached PR73 documents. `benchmark:next`
 identifies unified execution independently of the benchmark runner source.
 After the build regression
 checks, CI uploads the final assembled Pages artifact and distinct compiled test
@@ -357,7 +365,7 @@ The `/next/` options panel offers Pixi.js (2D) and Three.js (3D). Switching keep
 one App, clock, HUD, retained CPU catalogue, date, requested speed and DPR choice.
 Each mode remembers its own view for this page. There is no camera conversion or
 browser-storage persistence. The preview uses the same complete discovery source
-in both modes; the original root retains its historical100k bundle.
+in both modes; cached legacy documents can still access their historical100k bundle.
 
 The controller loads destination code while the outgoing camera remains usable,
 suspends playback and speculative catalogue lookahead, then disposes the outgoing

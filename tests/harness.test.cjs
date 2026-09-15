@@ -103,14 +103,14 @@ async function discover(...args) {
 
 test('native discovery preserves coverage and each browser shard partitions it exactly once', async () => {
   const all = await discover();
-  const required = ['production assets', 'preview entry', 'preview footer loading', 'default indexed catalogue', 'raw App lifecycle',
+  const required = ['production assets', 'preview entry', 'preview footer loading', 'promoted root', 'configured promotion', 'default indexed catalogue', 'raw App lifecycle',
     ...['legacy', 'unified'].flatMap(app => ['GPU numerics', 'rendering, readouts', 'options controls',
       'pixel ratio and display transitions', 'texture recovery', 'benchmark frames'].map(title => `${app} / ${title}`))];
   const catalogue = ['catalogue loading, demand, transport', 'catalogue replacement, recovery', 'catalogue frame commits'];
   const catalogueChromium = ['catalogue benchmark completion', 'catalogue configured preview development'];
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     const cases = all.filter(row => row.project === browser);
-    assert.equal(cases.length, 31);
+    assert.equal(cases.length, 33);
     assert.equal(cases.filter(row => row.title.includes('Three ')).length, 5);
     assert.equal(cases.filter(row => row.title.includes('Renderer switching ')).length, 6);
     for (const title of [...required, ...catalogue]) assert.equal(cases.filter(row => row.title.includes(title)).length, 1, `${browser}: ${title}`);
@@ -121,12 +121,12 @@ test('native discovery preserves coverage and each browser shard partitions it e
     assert.equal(new Set(shards.flat().map(row => row.id)).size, cases.length);
   }
   const chromiumOnly = all.filter(row => row.project === 'chromium-only');
-  assert.equal(chromiumOnly.length, 14);
+  assert.equal(chromiumOnly.length, 17);
   for (const title of catalogueChromium) assert.equal(chromiumOnly.filter(row => row.title.includes(title)).length, 1, title);
   const standalone = await discover('--config=playwright.standalone.config.cjs');
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     const cases = standalone.filter(row => row.project === browser);
-    assert.equal(cases.length, 23);
+    assert.equal(cases.length, 25);
     assert.equal(cases.filter(row => row.title.includes('Three ')).length, 5);
     assert.equal(cases.filter(row => row.title.includes('Renderer switching ')).length, 6);
     assert(cases.some(row => row.title.includes('raw App lifecycle')));
