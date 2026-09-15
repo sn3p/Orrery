@@ -137,7 +137,7 @@ exports.testOptions = async (browser, url, output, name) => {
 
     await trigger.click(); assert(await panel.isHidden(), "Trigger toggles the panel closed");
     assert.equal(await trigger.textContent(), "[+] options");
-    await trigger.click(); await page.mouse.click(50, 150);
+    await trigger.click(); await page.mouse.click(640, 400);
     assert(await panel.isHidden(), "An outside pointer closes the panel");
     assert.equal(await trigger.textContent(), "[+] options");
     await exports.openOptions(page);

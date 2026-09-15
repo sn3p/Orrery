@@ -264,8 +264,9 @@ npm run serve                  # existing current-app development command
 npm run serve:next              # /next/, CONDUCTOR_PORT when set, otherwise 3000
 ```
 
-Preview development serves a previously built `dist/` as its static root so
-“Open Orrery” returns to the current app. Build once first. The preview is
+Preview development serves a previously built `dist/` as its static root.
+The footer links to the Orrery GitHub repository; visit `/` directly for the
+legacy app. Build once first. The preview is
 compiled in memory at `/next/`; use that nested path for direct navigation and
 reload. `npm run serve:next -- --port 55310 --no-open` explicitly selects a port;
 use the receiving workspace's assigned port instead of copying that example.

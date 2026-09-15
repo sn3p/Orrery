@@ -158,12 +158,13 @@ async function parity(browser, base, output, name) {
         assert.equal(actual.count, expected.count);
         results.push({ viewport, dpr, label, exact: true, count: actual.count });
       }
+      await require('./next-layout.cjs').check(target);
       await target.getByRole('button', { name: 'Options', exact: true }).click();
       const speed = target.getByRole('textbox', { name: 'Playback speed' });
       assert(await target.getByRole("combobox", { name: "Renderer", exact: true }).evaluate(el => el === document.activeElement));
       await target.keyboard.press("Tab");
       assert(await speed.evaluate(el => el === document.activeElement));
-      for (const selector of ['.preview-identity', '.orrery-date', '.orrery-count', '.orrery-options-panel']) {
+      for (const selector of ['.orrery-identity', '.orrery-date', '.orrery-count', '.orrery-options-panel']) {
         const box = await target.locator(selector).boundingBox();
         assert(box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width && box.y + box.height <= viewport.height, selector);
       }

@@ -69,7 +69,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
           assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), "rgb(0, 0, 0)");
           assert(await page.evaluate(() => [...document.fonts].some(font => font.family === "JetBrains Mono Variable" && font.status === "loaded")));
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), viewport.width);
-          for (const selector of [".preview-identity", ".orrery-date", ".orrery-count", ".orrery-options-trigger"]) {
+          for (const selector of [".orrery-identity", ".orrery-date", ".orrery-count", ".orrery-options-trigger"]) {
             for (const element of await page.locator(selector).all()) {
               const box = await element.boundingBox();
               assert(box && box.x >= 0 && box.x + box.width <= viewport.width && box.y >= 0
@@ -79,10 +79,12 @@ async function run({ browser, name, application = "legacy", output: artifactDire
           // macOS WebKit follows Safari's default: Option-Tab includes
           // native links. Other supported browsers/platforms use Tab.
           await page.keyboard.press(name === "webkit" && process.platform === "darwin" ? "Alt+Tab" : "Tab");
-          const link = page.getByRole("link", { name: "Open Orrery", exact: true });
+          const link = page.getByRole("link", { name: "GitHub", exact: true });
           assert(await link.evaluate(element => element === document.activeElement));
           assert.equal(await link.evaluate(element => getComputedStyle(element).outlineStyle), "solid");
-          assert.equal(await link.evaluate(element => element.href), base);
+          assert.equal(await link.getAttribute("href"), "https://github.com/sn3p/Orrery");
+          assert.equal(await link.getAttribute("target"), "_blank");
+          await require("./next-layout.cjs").check(page);
           await page.screenshot({ path: path.join(directory, `${name}-${label}-${viewport.width}.png`) });
           await page.getByRole("button", { name: "Options", exact: true }).click();
           const input = page.getByRole("textbox", { name: "Playback speed" });
@@ -93,9 +95,9 @@ async function run({ browser, name, application = "legacy", output: artifactDire
           await page.waitForFunction(() => document.querySelector("#orrery-fps").textContent === "0 FPS");
           const date = await page.locator("#orrery-date").textContent();
           const panel = await page.locator(".orrery-options-panel").boundingBox();
-          const identity = await page.locator(".preview-identity").boundingBox();
-          assert(panel.y + panel.height < identity.y || panel.x > identity.x + identity.width,
-            "Preview identity/return never obscures the options");
+          const identity = await page.locator(".orrery-identity").boundingBox();
+          assert(panel.y + panel.height < identity.y || panel.x > identity.x + identity.width || panel.x + panel.width < identity.x,
+            "Footer identity never obscures the options");
           await page.screenshot({ path: path.join(directory, `${name}-${label}-${viewport.width}-options.png`) });
           await input.fill("-1.5"); await input.press("Enter");
           await page.waitForFunction(date => document.querySelector("#orrery-date").textContent < date, date);
@@ -112,14 +114,12 @@ async function run({ browser, name, application = "legacy", output: artifactDire
           assert(!requests.some(url => /\/data\/catalog.json$|\/full\/catalog/.test(url)), "Preview never requests historical or whole-file data");
           assert(requests.some(url => /\/pixi\.[\da-f]+\.js$/.test(url)), "Preview loads the real lazy Pixi adapter");
           assert(!requests.some(url => /\/three\.[\da-f]+\.js$/.test(url)), "Pixi startup does not eagerly load Three");
-          // Exercise the real return path, including the deployment prefix.
-          await link.focus();
-          await page.keyboard.press("Enter");
-          await page.waitForURL(base);
+          // The legacy destination still works when visited directly.
+          await page.goto(base);
           await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent) > 0);
           assert.equal(await page.locator("#orrery canvas").count(), 1);
           assert.deepEqual(errors, []);
-          results.push({ browser: name, path: label, viewport, reload: true, keyboardReturn: true, isolated: true });
+          results.push({ browser: name, path: label, viewport, reload: true, keyboardLink: true, isolated: true });
         } finally { await page.close(); }
       }
     }
@@ -151,7 +151,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
         "Unable to start the visualization. Please reload to try again.",
         "A failed renderer download gives recovery guidance without claiming WebGL is missing");
       assert.equal(await failure.locator("canvas, .orrery-options").count(), 0);
-      assert(await failure.getByRole("link", { name: "Open Orrery", exact: true }).isVisible());
+      assert(await failure.getByRole("link", { name: "GitHub", exact: true }).isVisible());
       await failure.unroute("**/assets/pixi.*.js");
       await failure.reload();
       await failure.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent) > 0);
@@ -179,7 +179,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       } finally { await page.close(); }
     }
     fs.writeFileSync(path.join(directory, "results.json"), JSON.stringify(results, null, 2) + "\n");
-    console.log("Preview root/Pages paths, reload, fonts, responsive layout, keyboard return and lazy JS/CSS/data pass.");
+    console.log("Preview root/Pages paths, reload, fonts, responsive layout, keyboard link and lazy JS/CSS/data pass.");
   } finally { await root.close(); await nested.close(); await lazyRoot.close(); await lazyNested.close(); }
 }
 

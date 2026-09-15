@@ -79,8 +79,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     // The historical combined-build test covers the return destination. The
     // configured standalone preview does not require a root build to exist.
     if (!selection) {
-      await page.getByRole("link", { name: "Open Orrery", exact: true }).click();
-      await page.waitForURL(base);
+      await page.goto(base);
       await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent) > 0);
       assert.equal((await page.request.get(`${base}favicon.ico`)).status(), 204,
         "Returning to the static root has no missing automatic favicon request");
