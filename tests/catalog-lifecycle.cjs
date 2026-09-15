@@ -279,6 +279,15 @@ async function run(browser, base, output, name) {
   } finally { await prefix.close(); }
   const latest = await browser.newPage();
   try {
+    // Keep the compiled latest URL independent of this worker's ephemeral port.
+    // Fetch the real fixture bytes over HTTP; the browser still runs the actual
+    // entry's latest discovery, relative URL resolution and checksum validation.
+    const { latestOrigin } = require('./catalog-loading.cjs');
+    await latest.route(latestOrigin + '/**', async route => {
+      const source = new URL(route.request().url());
+      const response = await route.fetch({ url: base + source.pathname + source.search });
+      await route.fulfill({ response, headers: { ...response.headers(), 'access-control-allow-origin': '*' } });
+    });
     const requests = [];
     latest.on('request', req => requests.push(req.url()));
     await latest.goto(base + '/catalog-latest/');

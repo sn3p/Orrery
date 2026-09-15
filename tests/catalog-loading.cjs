@@ -6,12 +6,15 @@ const states = require("./fixtures/consumer-v1/loader-cases.json");
 const { buildTrial } = require("../scripts/catalog.cjs");
 const fixture = path.join(__dirname, "fixtures/consumer-v1");
 const tie = states.cases.find(item => item.id === "tie-gap-and-graphics-commit");
+// Prepared fixtures must be portable between workers and checkouts. The latest
+// lifecycle test forwards this reserved origin to its own local fixture server.
+const latestOrigin = "https://catalog-fixtures.test";
 
 function sceneComplete() {
   return window.catalogTest?.app.catalogLoader?.sceneComplete() ?? false;
 }
 
-async function build(output, base) {
+async function build(output, base = latestOrigin) {
   await fs.mkdir(output, { recursive: true });
   await fs.cp(fixture, path.join(output, "catalog-fixtures"), { recursive: true });
   await fs.cp(path.join(__dirname, "fixtures/browser-v1"), path.join(output, "browser-fixtures"), { recursive: true });
@@ -345,12 +348,7 @@ async function run(browser, base, output, name) {
       }
     } finally { releaseIndex?.(); await opening.close(); }
   }
-  // Additional replacement/readiness regressions run in catalog-lifecycle.cjs.
-  results.push(...await require("./catalog-lifecycle.cjs").run(browser, base, output, name));
-  results.push(...await require("./frame-commit.cjs").run(browser, base, output, name));
-  // Catalogue measurements use Chromium's CDP heap/network instrumentation.
-  if (name === "chromium") results.push(...await require("./catalog-benchmark.cjs").run(browser, base, output));
   return results;
 }
 
-module.exports = { build, run };
+module.exports = { build, run, latestOrigin };

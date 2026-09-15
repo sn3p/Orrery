@@ -122,8 +122,12 @@ draws. No Three buffers or renderer are retained.
 provisioning, archive and neutral-model tests. `npm test` includes the actual
 configured production entry through fetch, CPU commitment, Pixi upload/draw and
 HUD, plus the existing legacy/preview numerical, rendered, input, options,
-DPR, lifecycle, development and benchmark suites. `npm run test:unified` builds
-the standalone preview before running its tests. CI retains its Mesa/Xvfb path
+DPR, lifecycle, development and benchmark suites. `npm run test:catalog` selects
+the native Playwright catalogue cases; loading, lifecycle and frame commitment
+run in all three browser projects, with benchmark and configured development
+checks in the Chromium-only project. These cases are also part of
+`npm run test:unified`, which builds the standalone preview before running its
+tests. CI retains its Mesa/Xvfb path
 and the existing strict numerical thresholds.
 
 ```sh

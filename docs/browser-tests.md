@@ -48,8 +48,8 @@ are still retained. Use `npx playwright test --project=webkit --grep 'texture re
 
 | Project | Checks |
 | --- | --- |
-| `chromium`, `firefox`, `webkit` | Actual root/nested deployment, preview entry/lazy assets, raw legacy/preview parity, and both apps' GPU, rendering, options/DPR and benchmark-frame checks |
-| `chromium-only` | Both apps' scheduling, typography and benchmark CLI checks; legacy/preview development commands; ordinary-clone benchmark provenance; runner failure/cleanup diagnostics |
+| `chromium`, `firefox`, `webkit` | Actual root/nested deployment, preview entry/lazy assets, raw legacy/preview parity, both apps' GPU/rendering/options/DPR/benchmark-frame checks, and catalogue loading/lifecycle/frame-commit recovery |
+| `chromium-only` | Both apps' scheduling, typography and benchmark CLI checks; legacy/preview and configured catalogue development commands; catalogue benchmark completion; ordinary-clone benchmark provenance; runner failure/cleanup diagnostics |
 | Standalone configuration | Raw parity and the complete unified-app subset above, against a freshly built preview |
 
 The browser projects retain strict orbital/pixel assertions, WebGL2 preflight,
@@ -67,11 +67,15 @@ diagnostics. The default and standalone npm commands use the native test runner.
 The build job finishes build-isolation and Node tests before uploading anything:
 these checks can temporarily replace `dist`. It then builds each distinct
 legacy/unified fixture entry once, including the unaliased parity fixture and
-the lazy CSS/JSON probe. Browser jobs download this fixture artifact and the
+the lazy CSS/JSON probe and six catalogue variants (indexed/whole tied and empty
+data, latest descriptor, and historical data). The latest fixture uses a reserved
+test origin that each lifecycle test forwards to its own local server, so prepared
+assets contain no ephemeral port. Browser jobs download this fixture artifact and the
 exact assembled Pages artifact from the same run.
 
 `ORRERY_PREBUILT_FIXTURES` selects the prepared fixture directory. Its manifest
-checks source identity and asset hashes; missing, stale, corrupt or wrong-variant
+checks source identity (including provisioning scripts and catalogue profiles)
+and asset hashes; missing, stale, corrupt or wrong-variant
 fixtures fail without falling back to a local compilation. Writable copies are
 made in each test's output directory. Fixture production entries intentionally
 differ from the public lazy preview, which has its own deployment tests.
