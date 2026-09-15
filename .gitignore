@@ -26,6 +26,14 @@ __pycache__/
 /.context/playwright-blob/
 /.context/playwright-report/
 
+# Generated catalogue provisioning, trials and browser verification
+/.context/catalog-cache/
+/.context/catalog-downloads/
+/.context/catalog-site/
+/.context/catalog-site.build-lock/
+/.context/catalog-trial/
+/.context/pr3/browser/
+
 # The preview is assembled from source alongside the tracked legacy build.
 /dist/next/
 
