@@ -184,7 +184,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
               app.setAsteroids(catalog); app.elapsed = elapsed;
               scene.stage.scale.set(scale);
               app.renderFrame(0);
-              const result = { pixels: scene.canvas.toDataURL(), date: app.gui.date.textContent, count: app.gui.count.textContent,
+              const result = { pixels: scene.canvas.toDataURL(), date: app.gui.date.textContent, count: Number(app.gui.count.textContent.replaceAll("\u202f", "")),
                 resources: { sceneChildren: scene.stage.children.length, planets: scene.planets.length,
                   geometries: Object.keys(scene.app.renderer.geometry._managedGeometries.items).length,
                   buffers: scene.asteroids.geometry.buffers.length,

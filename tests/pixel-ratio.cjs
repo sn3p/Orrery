@@ -24,7 +24,7 @@ module.exports = async (browser, url, output, name) => {
   const control = page.getByRole("combobox", { name: "Rendering pixel ratio" });
   const speed = page.getByRole("textbox", { name: "Playback speed" });
   const boot = async () => {
-    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent) > 0);
+    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
     await require("./options.cjs").openOptions(page);
     await speed.fill("0"); await speed.press("Enter"); await settle(page);
     await page.evaluate(() => {
@@ -190,7 +190,7 @@ module.exports = async (browser, url, output, name) => {
     try {
       await standard.addInitScript(key => localStorage.setItem(key, "2"), key);
       await standard.goto(url);
-      await standard.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent) > 0);
+      await standard.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
       await require("./options.cjs").openOptions(standard);
       const select = standard.locator("select[aria-label='Rendering pixel ratio']");
       assert.equal(await select.isVisible(), native >= 2, "2× availability controls visibility, including fractional displays");

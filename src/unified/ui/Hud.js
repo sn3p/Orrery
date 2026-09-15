@@ -2,16 +2,21 @@ import { fromJED } from "../../js/utils.js";
 import { UNIX_EPOCH_JULIAN_DATE } from "../../js/constants.js";
 import Options from "./Options.js";
 
+const countFormat = new Intl.NumberFormat("en-US");
+
 export default class Hud {
   constructor(app) {
     this.date = document.getElementById("orrery-date");
     this.fps = document.getElementById("orrery-fps");
     this.count = document.getElementById("orrery-count");
+    this.readouts = this.date.closest(".orrery-readouts");
+    if (this.readouts) this.readouts.hidden = true;
     this.lastDay = this.lastFps = this.lastCount = null;
     this.controls = new Options(app);
   }
 
-  update(jed, fps, count) {
+  update(jed, fps, count, ready) {
+    if (this.readouts && this.readouts.hidden === ready) this.readouts.hidden = !ready;
     // Match Date's millisecond truncation, including pre-Unix-epoch dates.
     const milliseconds = Math.trunc((jed - UNIX_EPOCH_JULIAN_DATE) * 86400000);
     const day = Math.floor(milliseconds / 86400000);
@@ -24,7 +29,8 @@ export default class Hud {
       this.lastFps = fps;
     }
     if (count !== this.lastCount) {
-      this.count.textContent = count;
+      // SI-style digit groups; keep each count on one line.
+      this.count.textContent = countFormat.format(count).replaceAll(",", "\u202f");
       this.lastCount = count;
     }
   }

@@ -1,36 +1,104 @@
-/* Preserve the full-size Pixi scene and the existing corner HUD/options. */
-.preview-identity {
+/* Shared by both preview renderers; the legacy route keeps its corner HUD. */
+:root { --font-ui-size: 12px; }
+
+.orrery-options-hint,
+.orrery-options-indicator { font-size: var(--font-ui-size); }
+
+.orrery-date,
+.orrery-count,
+.orrery-fps {
+  color: #999;
+  font-variant-numeric: tabular-nums;
+}
+
+.orrery-options-panel .dg .c input { color: #999 !important; }
+
+.orrery-footer {
   position: fixed;
-  bottom: 30px;
-  left: 5px;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
   display: flex;
-  gap: 12px;
-  align-items: center;
-  color: #888;
-  font-size: 11px;
-  line-height: 18px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 8px 16px;
   pointer-events: none;
 }
 
-.preview-identity span,
-.preview-identity a {
+.orrery-readouts,
+.orrery-identity {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6em;
+  line-height: 18px;
   background: #000;
 }
 
-.preview-identity a {
-  color: #aaa;
+.orrery-readouts .orrery-date,
+.orrery-readouts .orrery-count {
+  position: static;
+  padding: 0;
+}
+
+.orrery-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.orrery-readouts[hidden] { display: none; }
+
+.orrery-separator { color: #666; }
+
+.orrery-identity {
+  margin-left: auto;
+  color: #888;
+}
+
+.orrery-options {
+  top: 8px;
+  left: 8px;
+  right: auto;
+}
+
+.orrery-options-trigger {
+  margin-left: 0;
+}
+
+.orrery-options-panel {
+  max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 42px);
+}
+
+.orrery-fps {
+  top: 8px;
+  right: 8px;
+  left: auto;
+  padding: 0;
+  line-height: 18px;
+}
+
+.orrery-identity a {
+  color: inherit;
   padding: 3px 0;
+  margin: -3px 0;
   text-underline-offset: 3px;
   pointer-events: auto;
 }
 
-.preview-identity a:hover { color: #ddd; }
-.preview-identity a:focus-visible {
+.orrery-identity a:hover { color: #ddd; }
+.orrery-identity a:focus-visible {
   outline: 1px solid #999;
   outline-offset: 2px;
 }
 
-.orrery-status { bottom: 64px; }
+.orrery-status {
+  position: static;
+  line-height: 18px;
+}
 .orrery-status a {
   pointer-events: auto;
   color: #aaa;

@@ -46,7 +46,7 @@ exports.exercisePreparation = async page => page.evaluate(() => {
         && current.discoveryDates.every((value, i) => value === dates[i]), "Rebase changes no elements, bases, canonical phases or discovery dates");
       check(current.uniforms.uOrbitTime === date - current.epoch && current.markerEpoch === before.elapsed, "Orbital rebasing leaves marker epoch alone");
       check(current.geometry.instanceCount === data.filter(d => d.disc <= date).length
-        && Number(app.gui.count.textContent) === current.geometry.instanceCount, "Rebased discovery count reaches draw and UI");
+        && Number(app.gui.count.textContent.replaceAll("\u202f", "")) === current.geometry.instanceCount, "Rebased discovery count reaches draw and UI");
       rebases++;
     }
   }

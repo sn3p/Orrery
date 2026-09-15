@@ -6,6 +6,9 @@ test('production assets, nested deployment, keyboard and reload', async ({ check
 test('preview entry, responsive layouts, lazy assets and recovery', async ({ check }) => {
   await check('next');
 });
+test('preview footer loading, buffering, failure and empty states @standalone', async ({ check }) => {
+  await check('next-status');
+});
 test('raw App lifecycle and exact legacy/preview parity @standalone', async ({ check }) => {
   await check('unified', { application: 'legacy' });
 });

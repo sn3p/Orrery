@@ -18,6 +18,8 @@ async function checkTypography(page, { fontLoaded = true, waitForFont = true } =
     text.selectNodeContents(document.querySelector("input[aria-label='Playback speed']").closest("li").querySelector(".property-name"));
     const selectors = ["#orrery-date", "#orrery-fps", "#orrery-count", ".dg .property-name", ".dg input"];
     return {
+      unified: !!document.querySelector(".orrery-footer"),
+      readoutsHidden: !!document.querySelector(".orrery-readouts")?.hidden,
       fonts: [...document.fonts].map(font => ({ family: font.family, status: font.status })),
       styles: selectors.map(selector => {
         const style = getComputedStyle(document.querySelector(selector));
@@ -34,7 +36,7 @@ async function checkTypography(page, { fontLoaded = true, waitForFont = true } =
   });
   assert.equal(ui.fonts.some(font => font.family === fontName && font.status === "loaded"), fontLoaded, "Self-hosted font loading state");
   assert(ui.styles.every(style => style.family.startsWith(`"${fontName}"`)), "Every UI text surface uses the shared font stack");
-  assert.deepEqual(ui.styles.map(style => style.size), ["14px", "14px", "14px", "14px", "12px"]);
+  assert.deepEqual(ui.styles.map(style => style.size), ui.unified ? Array(5).fill("12px") : ["14px", "14px", "14px", "14px", "12px"]);
   assert.equal(ui.input.height, 19, "Speed input is 19px high");
   assert.equal(ui.input.y, ui.slider.y, "Input and slider top edges align");
   assert.equal(ui.input.height, ui.slider.height, "Input and slider heights match");
@@ -42,13 +44,14 @@ async function checkTypography(page, { fontLoaded = true, waitForFont = true } =
   assert(ui.slider.x + ui.slider.width <= ui.input.x, "Slider and input do not overlap");
   assert.equal(ui.width, page.viewportSize().width, "Mobile browsers use the device viewport width");
   assert.equal(ui.scrollWidth, ui.width, "No horizontal overflow");
-  for (const box of ui.boxes) {
+  for (const [index, box] of ui.boxes.entries()) {
+    if (ui.readoutsHidden && [0, 2].includes(index)) continue;
     assert(box.width > 0 && box.height > 0, "UI elements remain visible");
     assert(box.x >= 0 && box.x + box.width <= ui.width, "UI fits horizontally");
     assert(box.y >= 0 && box.y + box.height <= ui.height, "UI fits vertically");
   }
   assert(ui.boxes[1].y + ui.boxes[1].height <= ui.boxes[3].y, "FPS readout sits above the options controls");
-  assert(ui.boxes[0].x + ui.boxes[0].width < ui.boxes[2].x, "Date and count do not overlap");
+  if (!ui.readoutsHidden) assert(ui.boxes[0].x + ui.boxes[0].width < ui.boxes[2].x, "Date and count do not overlap");
   return ui;
 }
 
@@ -113,7 +116,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       page.on("pageerror", error => errors.push(error.message));
       page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
       await page.goto(url);
-      await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent) > 0);
+      await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
       report.push({ width, state: "loaded", ui: await checkTypography(page) });
 
       if (await page.getByRole("combobox", { name: "Renderer", exact: true }).count()) await page.keyboard.press("Tab");
@@ -131,7 +134,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       await slider.click({ position: { x: box.width * 0.75, y: box.height / 2 } });
       await page.waitForFunction(previous => document.querySelector("#orrery-date").textContent > previous, reversed);
       await page.reload();
-      await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent) > 0);
+      await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
       await checkTypography(page);
       assert.deepEqual(errors, [], "No browser errors during normal playback and reload");
       await context.close();
@@ -155,7 +158,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       status: await checkStatusContrast(page, "Loading asteroids…") });
     await page.screenshot({ path: path.join(output, "loading-360.png") });
     releaseCatalog();
-    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent) > 0);
+    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
 
     for (const name of ["JetBrainsMono-Variable.woff2", "OFL.txt"]) {
       const response = await page.request.get(url + "fonts/" + name);
@@ -166,7 +169,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     // A failed font request must leave usable fallback typography and controls.
     await page.route("**/*.woff2", route => route.abort());
     await page.reload();
-    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent) > 0);
+    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
     report.push({ width: 360, state: "font-fallback", ui: await checkTypography(page, { fontLoaded: false }) });
     await setSpeed(page, 0);
     await page.screenshot({ path: path.join(output, "fallback-360.png") });

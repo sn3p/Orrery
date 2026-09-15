@@ -153,5 +153,41 @@ module.exports = async function bundled(browser, base) {
       results.push({ renderer, replacement, kind, auto, loadResult, direct });
     } finally { release?.(); await page.close(); }
   }
+  // An indexed catalogue and a bundled catalogue have different session
+  // lifetimes. Losing the indexed session must not hide its committed HUD.
+  for (const renderer of ['pixi', 'three']) {
+    const page = await browser.newPage();
+    try {
+      await page.goto(base + '/next/?renderer=' + renderer);
+      await page.evaluate(() => threeTest.ready);
+      await page.evaluate(async pin => {
+        window.app = threeTest.app;
+        app.jedDelta = 0; app.jed = 2451544.5;
+        await app.loadCatalog(pin);
+      }, { ...require('./fixtures/consumer-v1/cases.json').bundles.ties.pin,
+        url: base + '/catalog/catalog-fixtures/ties/index.json' });
+      await page.waitForFunction(() => app.catalogLoader.sceneComplete());
+      assert(await page.locator('.orrery-readouts').isVisible());
+      const before = await page.locator('.orrery-readouts').textContent();
+      await page.evaluate(() => {
+        app.autoRender = false; app.cancelRender();
+        window.previousModel = app.catalogue;
+        const render = app.renderer.render;
+        app.renderer.render = () => null;
+        try {
+          app.setAsteroids([{ a: 2, e: .1, i: 30, W: 40, wbar: 80, M: 30,
+            n: .25, epoch: 2451545, disc: 2000000 }]);
+          app.renderFrame();
+        } finally { app.renderer.render = render; }
+      });
+      assert(await page.evaluate(() => !app.activeSession && app.catalogue === previousModel && !!app.pendingBundled));
+      assert(await page.locator('.orrery-readouts').isVisible(), 'Failed indexed-to-bundled replacement retains visible readouts');
+      assert.equal(await page.locator('.orrery-readouts').textContent(), before);
+      await page.evaluate(() => app.renderFrame());
+      assert(await page.locator('.orrery-readouts').isVisible());
+      assert.equal(await page.locator('#orrery-count').textContent(), '1');
+      results.push({ renderer, indexedToBundledReadouts: true });
+    } finally { await page.close(); }
+  }
   return results;
 };

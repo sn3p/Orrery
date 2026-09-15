@@ -88,9 +88,14 @@ python3 -m unittest discover -s tests -v
 
 ## Options
 
-Open `[+] options` in the top-right corner for playback speed and rendering
+Open `[+] options` in the top-right corner (top-left on `/next/`) for playback speed and rendering
 resolution. Click outside or press Escape to close it. Speed 0 pauses; negative
 values reverse. Speed 1 advances 60 days per second (default 1.5).
+
+The preview uses 12px UI text, with date and space-grouped discovery count at the
+bottom-left (`2005-05-03 / 353 381`), Orrery/GitHub at the bottom-right and FPS at
+the top-right. Initial loading occupies the date/count position; later buffering
+or recovery feedback appears above the last committed readout.
 
 Every load starts at 1× DPR, with the options panel closed. On displays with
 native DPR of at least 2, choose 1× or 2×: 2× is sharper but requires more graphics

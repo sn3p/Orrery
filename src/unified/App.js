@@ -36,6 +36,7 @@ export default class App {
     this.clock = new PlaybackClock();
     this.elapsed = 0;
     this.asteroidsDiscovered = 0;
+    this.hasCommittedReadouts = false;
     this.loadVersion = 0;
     this.rendererGeneration = 0;
     this.destroyed = false;
@@ -392,7 +393,12 @@ export default class App {
       if (changed && message) this.gui?.controls.revealStatus(status);
     }
   }
-  updateGui() { this.gui?.update(this.jed, this.stats.fps, this.asteroidsDiscovered); }
+  updateGui() {
+    if (this.destroyed) return;
+    // A loaded empty catalogue is valid too. Retain the last committed readouts
+    // while a replacement, renderer switch or graphics recovery is pending.
+    this.gui?.update(this.jed, this.stats.fps, this.asteroidsDiscovered, this.hasCommittedReadouts);
+  }
   resetClock() {
     this.clock.reset();
     this.stats?.reset();
@@ -516,6 +522,7 @@ export default class App {
       this.graphicsError = "";
       this.renderStatus();
     }
+    if (committed && this.catalogue) this.hasCommittedReadouts = true;
     this.updateGui();
     // Manual callers (including finite benchmarks) own failure handling. Keep
     // the same throwable boundary after restoring app/graphics state.

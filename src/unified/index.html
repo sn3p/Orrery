@@ -10,13 +10,21 @@
   </head>
   <body>
     <div class="orrery" id="orrery"></div>
-    <div class="orrery-date" id="orrery-date"></div>
     <div class="orrery-fps" id="orrery-fps"></div>
-    <div class="orrery-count" id="orrery-count"></div>
-    <div class="orrery-status" id="orrery-status" role="status"></div>
-    <nav class="preview-identity" aria-label="Preview">
-      <span>Orrery / Preview</span>
-      <a href="../">Open Orrery <span aria-hidden="true">↗</span></a>
-    </nav>
+    <footer class="orrery-footer">
+      <div class="orrery-summary">
+        <div class="orrery-status" id="orrery-status" role="status"></div>
+        <div class="orrery-readouts" role="group" aria-label="Simulation date and discovery count" hidden>
+          <span class="orrery-date" id="orrery-date"></span>
+          <span class="orrery-separator" aria-hidden="true">/</span>
+          <span class="orrery-count" id="orrery-count"></span>
+        </div>
+      </div>
+      <nav class="orrery-identity" aria-label="Orrery">
+        <span>Orrery</span>
+        <span class="orrery-separator" aria-hidden="true">/</span>
+        <a href="https://github.com/sn3p/Orrery" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a>
+      </nav>
+    </footer>
   </body>
 </html>

@@ -64,7 +64,7 @@ Orrery3D snapshot. Keep live source stable until the promotion/cleanup units:
 | `three/ThreeRenderer.js` | Graphics/camera responsibilities from preserved Orrery3D `Orrery3D.js`; shared App keeps clock/loader/UI |
 | `three/{Asteroids,Planet,Orbit,Sun,createSphere}.js` | Orrery3D `93a3e1f`; source shader/presentation, retained neutral data and frame/draw commitment adaptation |
 | Shared imports from `src/js/` | Unchanged `PlaybackClock`, `Stats`, `utils`, `constants`, `planets`, `asteroidOrbits` |
-| Shared CSS/fonts | Unchanged existing styles/assets; preview identity/return and status placement are isolated in `preview.css` |
+| Shared CSS/fonts | Existing font assets; preview typography, footer, controls and status placement are isolated in `preview.css` |
 
 `asteroidOrbits` keeps the existing legacy Pixi packing and shared shader helpers.
 The preview retains full 3D bases and Float64 phase/date data independently from
@@ -264,8 +264,9 @@ npm run serve                  # existing current-app development command
 npm run serve:next              # /next/, CONDUCTOR_PORT when set, otherwise 3000
 ```
 
-Preview development serves a previously built `dist/` as its static root so
-“Open Orrery” returns to the current app. Build once first. The preview is
+Preview development serves a previously built `dist/` as its static root.
+The footer links to the Orrery GitHub repository; visit `/` directly for the
+legacy app. Build once first. The preview is
 compiled in memory at `/next/`; use that nested path for direct navigation and
 reload. `npm run serve:next -- --port 55310 --no-open` explicitly selects a port;
 use the receiving workspace's assigned port instead of copying that example.

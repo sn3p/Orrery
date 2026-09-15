@@ -14,12 +14,12 @@ async function check(page) {
     const background = luminance(rgb(getComputedStyle(document.body).backgroundColor));
     const bounds = element.getBoundingClientRect();
     return { ratio: (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05),
-      color: style.color, fontSize: style.fontSize, text: element.textContent,
+      unified: !!document.querySelector('.orrery-footer'), color: style.color, fontSize: style.fontSize, text: element.textContent,
       x: bounds.x, right: bounds.right, y: bounds.y, bottom: bounds.bottom,
       scrollWidth: element.scrollWidth, width: element.clientWidth };
   });
   assert(metrics.ratio >= 4.5, `Status contrast ${metrics.ratio.toFixed(2)}:1 must be at least 4.5:1`);
-  assert.equal(metrics.fontSize, '14px');
+  assert.equal(metrics.fontSize, metrics.unified ? '12px' : '14px');
   assert(metrics.x >= 0 && metrics.right <= page.viewportSize().width);
   assert(metrics.y >= 0 && metrics.bottom <= page.viewportSize().height);
   assert(metrics.scrollWidth <= metrics.width, 'Status wraps without overflow');
