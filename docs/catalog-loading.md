@@ -78,6 +78,11 @@ candidate's first successful draw, then releases it. Failed submissions restore
 cloud phase/arrival state and planet positions. Graphics restoration uses retained
 numeric/packing data, without fetching the catalogue again.
 
+A missing draw receipt restores and repaints the previous scene, retains the
+candidate's packing, and schedules another attempt. Bundled-catalogue frames use
+the same rollback boundary, including failed direct date changes; the requested
+date is applied only when a later draw succeeds.
+
 Requested dates survive source opening. Every discovery at or before a date is
 required, including ties across files. Paused/hidden state suppresses unnecessary
 lookahead; required reads remain bounded. Network failures have bounded automatic

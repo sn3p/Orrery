@@ -214,9 +214,12 @@ export default class PixiRenderer {
     this.catalogueTransition = null;
   }
 
-  rollbackCatalogue() {
+  rollbackCatalogue({ retain = false } = {}) {
     if (!this.catalogueTransition) return;
-    this.asteroids.destroy();
+    if (retain) {
+      this.stage.removeChild(this.asteroids);
+      this.stagedAsteroids = this.asteroids;
+    } else this.asteroids.destroy();
     const { previous, visible } = this.catalogueTransition;
     this.asteroids = previous;
     if (previous) previous.visible = visible;
@@ -229,6 +232,12 @@ export default class PixiRenderer {
     const count = this.asteroids?.update(jed, elapsed) ?? 0;
     for (const planet of this.planets) planet.render(jed);
     return count;
+  }
+
+  get frameState() {
+    const cloud = this.asteroids;
+    return cloud ? { jed: cloud.epoch + cloud.uniforms.uOrbitTime,
+      elapsed: cloud.elapsed, count: cloud.geometry.instanceCount } : null;
   }
 
   captureFrame(frame) {
@@ -284,6 +293,7 @@ export default class PixiRenderer {
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.frameSnapshot = null;
     this.canvas?.removeEventListener("webglcontextlost", this.onContextLost);
     this.canvas?.removeEventListener("webglcontextrestored", this.onContextRestored);
     this.controls?.destroy();

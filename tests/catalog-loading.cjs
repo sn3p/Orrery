@@ -25,6 +25,15 @@ async function build(output, base) {
       mode, speed: 0, startJed: tie.through }));
     await buildTrial(configPath, path.join(output, "catalog-" + mode), { entry: "./tests/catalog-browser.js" });
   }
+  const webpack = require("webpack"), historical = require("../webpack.next.config.js");
+  await new Promise((resolve, reject) => {
+    const compiler = webpack({ ...historical, mode: "production", entry: "./tests/catalog-browser.js",
+      output: { ...historical.output, path: path.join(output, "catalog-historical") } });
+    compiler.run((error, stats) => compiler.close(() => {
+      if (error || stats.hasErrors()) reject(error || new Error(stats.toString("errors-only")));
+      else resolve();
+    }));
+  });
 }
 
 function instrument() {
@@ -337,6 +346,7 @@ async function run(browser, base, output, name) {
   }
   // Additional replacement/readiness regressions run in catalog-lifecycle.cjs.
   results.push(...await require("./catalog-lifecycle.cjs").run(browser, base, output, name));
+  results.push(...await require("./frame-commit.cjs").run(browser, base, output, name));
   return results;
 }
 

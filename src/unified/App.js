@@ -82,6 +82,7 @@ export default class App {
       this.onCatalogChange();
       return;
     }
+    this.requestedJed = null;
     this._jed = value;
     this.requestRender();
   }
@@ -344,15 +345,16 @@ export default class App {
   renderFrame(timestamp = performance.now(), { beforeRender, afterRender } = {}) {
     if (this.destroyed || !this.initialized) return;
     if (document.hidden || this.contextLost) { this.resetClock(); return; }
-    const previous = { jed: this.jed, elapsed: this.elapsed, count: this.asteroidsDiscovered };
+    // Direct tick/Pixi callers may leave a snapshot from an earlier update.
+    // Rollback must use only state captured within this frame transaction.
+    this.renderer.commitFrame?.();
+    // A direct seek changes App.jed before its draw. The adapter still owns
+    // the previous scene, including changes made through direct tick callers.
+    const previous = this.renderer.frameState ?? { jed: this.jed, elapsed: this.elapsed, count: this.asteroidsDiscovered };
+    const requested = this.requestedJed ?? (this.jed !== previous.jed ? this.jed : null);
     const graphicsGeneration = this.rendererGeneration;
     let drawn = null, prepared = false, frameError;
-    try {
-      prepared = this.tick(timestamp) === true;
-      beforeRender?.();
-      drawn = this.renderer.render();
-    }
-    catch (error) {
+    const fail = error => {
       frameError = error;
       this.renderFailure = error;
       this.graphicsError = "Unable to render the visualization. Reload to try again.";
@@ -363,14 +365,21 @@ export default class App {
         failed.loader.errorKind = "commit";
       }
       this.catalogLoader?.loseGraphics();
-      this.renderer.rollbackCatalogue?.();
       this.cancelRender();
       this.renderStatus();
+    };
+    try {
+      prepared = this.tick(timestamp) === true;
+      beforeRender?.();
+      drawn = this.renderer.render();
     }
+    catch (error) { fail(error); }
     const session = this.pendingSession ?? this.activeSession;
     const sameCatalogue = session && this.renderer.asteroids?.catalogue === session.model;
-    if (prepared && !session?.adapterFailure && sameCatalogue && drawn !== null && graphicsGeneration === this.rendererGeneration
-      && drawn >= session.loader.source.countThrough(this.jed)) {
+    const committed = !frameError && drawn !== null && graphicsGeneration === this.rendererGeneration
+      && (!session || (prepared && !session.adapterFailure && sameCatalogue
+        && drawn >= session.loader.source.countThrough(this.jed)));
+    if (committed && session) {
       if (session !== this.activeSession) {
         this.renderer.commitCatalogue();
         this.activeSession?.loader.dispose();
@@ -384,22 +393,30 @@ export default class App {
         performance.mark("catalog:first-complete");
       }
       this.updateCatalogStatus();
-    } else if (session && (this.jed !== previous.jed || this.elapsed !== previous.elapsed || this.asteroidsDiscovered !== previous.count)) {
-      this.requestedJed ??= this.jed;
+    } else if (!committed) {
+      this.requestedJed ??= session ? this.jed : requested;
       this._jed = previous.jed;
       this.elapsed = previous.elapsed;
       this.asteroidsDiscovered = previous.count;
       // Renderer state includes the shared planets as well as the cloud cutoff.
       // A later invalidation must not draw the rejected date under the old HUD.
       this.renderer.restoreFrame(this.frameState);
+      this.renderer.rollbackCatalogue({ retain: !frameError });
       this.resetClock();
+      if (!frameError && drawn === null && (prepared || !session) && !this.contextLost) {
+        // A skipped submission can clear the canvas. Repaint the restored
+        // scene now, then retry the retained candidate on a new frame.
+        try { this.renderer.render(); }
+        catch (error) { fail(error); }
+        if (!frameError) this.requestRender();
+      }
     }
     this.renderer.commitFrame?.();
-    if (!session && this.catalogue && drawn !== null && !this.catalogue.firstDraw) {
+    if (!session && this.catalogue && committed && !this.catalogue.firstDraw) {
       this.catalogue.firstDraw = true;
       performance.mark("catalog:first-complete");
     }
-    if (session) this.updateGui();
+    if (session || !committed) this.updateGui();
     // Manual callers (including finite benchmarks) own failure handling. Keep
     // the same throwable boundary after restoring app/graphics state.
     if (frameError && !this.autoRender) throw frameError;
@@ -424,11 +441,11 @@ export default class App {
         this.updateCatalogStatus();
         return;
       }
-      this.requestedJed = null;
     }
+    this.requestedJed = null;
     this._jed = next;
     this.elapsed += wasWaiting ? 0 : this.clock.seconds;
-    if (loader?.source) this.renderer.captureFrame(this.frameState);
+    this.renderer.captureFrame(this.frameState);
     this.asteroidsDiscovered = this.renderer.update(this.frameState);
     if (this.isPlaying) this.stats.update();
     else this.stats.reset();
