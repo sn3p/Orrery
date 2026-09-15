@@ -29,7 +29,8 @@ export default class Hud {
       this.lastFps = fps;
     }
     if (count !== this.lastCount) {
-      this.count.textContent = countFormat.format(count);
+      // SI-style digit groups; keep each count on one line.
+      this.count.textContent = countFormat.format(count).replaceAll(",", "\u202f");
       this.lastCount = count;
     }
   }

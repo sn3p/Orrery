@@ -41,7 +41,7 @@ exports.testOptions = async (browser, url, output, name) => {
   };
   try {
     await page.goto(url);
-    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll(",", "")) > 0);
+    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
     assert.equal(await trigger.count(), 1, "Production has an options trigger");
     assert.equal(await trigger.textContent(), "[+] options");
     assert(await panel.isHidden(), "Options start closed");
@@ -169,7 +169,7 @@ exports.testOptions = async (browser, url, output, name) => {
     await exports.openOptions(page);
     assert.equal(await speed.inputValue(), "-1.5", "Closing keeps playback settings");
     await page.reload();
-    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll(",", "")) > 0);
+    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
     assert(await panel.isHidden(), "Reload starts with a closed panel");
     assert.equal(await trigger.textContent(), "[+] options");
     await exports.openOptions(page);

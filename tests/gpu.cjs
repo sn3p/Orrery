@@ -42,7 +42,7 @@ async function exercise(page) {
       app.jed = date; app.tick(); app.app.render();
       const expected = catalog.filter(d => d.disc <= date).length;
       check(app.asteroidsDiscovered === expected && app.asteroids.geometry.instanceCount === expected, "Forward/reverse/jump discovery cutoff");
-      check(Number(app.gui.count.textContent.replaceAll(",", "")) === expected, "Count reaches UI while paused");
+      check(Number(app.gui.count.textContent.replaceAll("\u202f", "")) === expected, "Count reaches UI while paused");
     }
     const cloud = app.asteroids;
     const oldGeometryUid = cloud.geometry.uid;
@@ -263,7 +263,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     production.on("pageerror", error => productionErrors.push(error.message));
     production.on("console", message => { if (message.type() === "error") productionErrors.push(message.text()); });
     await production.goto(server.url + "/production/");
-    await production.waitForFunction(() => Number(document.getElementById("orrery-count").textContent.replaceAll(",", "")) > 0);
+    await production.waitForFunction(() => Number(document.getElementById("orrery-count").textContent.replaceAll("\u202f", "")) > 0);
     await require("./options.cjs").openOptions(production);
     const input = production.getByRole("textbox", { name: "Playback speed" });
     await input.fill("0"); await input.press("Enter");
@@ -283,7 +283,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       await production.unroute("**/data/catalog.json");
     }
     await production.reload();
-    await production.waitForFunction(() => Number(document.getElementById("orrery-count").textContent.replaceAll(",", "")) > 0);
+    await production.waitForFunction(() => Number(document.getElementById("orrery-count").textContent.replaceAll("\u202f", "")) > 0);
     assert.equal(await production.getByRole("status").textContent(), "");
     assert.deepEqual(productionErrors, [], "Production reload recovers from preparation failures");
     await production.close();

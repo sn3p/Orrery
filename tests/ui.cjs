@@ -116,7 +116,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       page.on("pageerror", error => errors.push(error.message));
       page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
       await page.goto(url);
-      await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll(",", "")) > 0);
+      await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
       report.push({ width, state: "loaded", ui: await checkTypography(page) });
 
       if (await page.getByRole("combobox", { name: "Renderer", exact: true }).count()) await page.keyboard.press("Tab");
@@ -134,7 +134,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       await slider.click({ position: { x: box.width * 0.75, y: box.height / 2 } });
       await page.waitForFunction(previous => document.querySelector("#orrery-date").textContent > previous, reversed);
       await page.reload();
-      await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll(",", "")) > 0);
+      await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
       await checkTypography(page);
       assert.deepEqual(errors, [], "No browser errors during normal playback and reload");
       await context.close();
@@ -158,7 +158,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       status: await checkStatusContrast(page, "Loading asteroids…") });
     await page.screenshot({ path: path.join(output, "loading-360.png") });
     releaseCatalog();
-    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll(",", "")) > 0);
+    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
 
     for (const name of ["JetBrainsMono-Variable.woff2", "OFL.txt"]) {
       const response = await page.request.get(url + "fonts/" + name);
@@ -169,7 +169,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     // A failed font request must leave usable fallback typography and controls.
     await page.route("**/*.woff2", route => route.abort());
     await page.reload();
-    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll(",", "")) > 0);
+    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
     report.push({ width: 360, state: "font-fallback", ui: await checkTypography(page, { fontLoaded: false }) });
     await setSpeed(page, 0);
     await page.screenshot({ path: path.join(output, "fallback-360.png") });

@@ -62,7 +62,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
           await page.evaluate(() => document.fonts.ready);
           assert.equal(await page.title(), "Orrery — Preview");
           assert.match(await page.locator('meta[name="robots"]').getAttribute("content"), /noindex/);
-          await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent.replaceAll(",", "")) > 0);
+          await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent.replaceAll("\u202f", "")) > 0);
           assert.equal(await page.locator("#orrery canvas").count(), 1);
           assert.equal(await page.getByRole("button", { name: "Options", exact: true }).count(), 1);
           assert.equal(await page.getByRole("button", { name: "Options", exact: true }).getAttribute("aria-expanded"), "false");
@@ -105,7 +105,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
           await input.press("Escape");
           assert.equal(await page.getByRole("button", { name: "Options", exact: true }).getAttribute("aria-expanded"), "false");
           await page.reload();
-          await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent.replaceAll(",", "")) > 0);
+          await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent.replaceAll("\u202f", "")) > 0);
           assert.equal(await page.locator("#orrery canvas").count(), 1);
           assert(requests.filter(url => !url.startsWith("data:")).every(request => request.startsWith(url) || request.startsWith(producerBase)),
             "Preview assets stay in their static directory; catalogue requests use the selected producer");
@@ -117,7 +117,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
           assert(!requests.some(url => /\/three\.[\da-f]+\.js$/.test(url)), "Pixi startup does not eagerly load Three");
           // The legacy destination still works when visited directly.
           await page.goto(base);
-          await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent.replaceAll(",", "")) > 0);
+          await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent.replaceAll("\u202f", "")) > 0);
           assert.equal(await page.locator("#orrery canvas").count(), 1);
           assert.deepEqual(errors, []);
           results.push({ browser: name, path: label, viewport, reload: true, keyboardLink: true, isolated: true });
@@ -155,7 +155,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       assert(await failure.getByRole("link", { name: "GitHub", exact: true }).isVisible());
       await failure.unroute("**/assets/pixi.*.js");
       await failure.reload();
-      await failure.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll(",", "")) > 0);
+      await failure.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
       assert.equal(await failure.locator("#orrery canvas").count(), 1);
       assert.equal(await failure.locator(".orrery-options").count(), 1);
       assert.deepEqual(failureErrors, [], "Startup failures are handled without unhandled exceptions");

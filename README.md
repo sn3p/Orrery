@@ -92,8 +92,8 @@ Open `[+] options` in the top-right corner (top-left on `/next/`) for playback s
 resolution. Click outside or press Escape to close it. Speed 0 pauses; negative
 values reverse. Speed 1 advances 60 days per second (default 1.5).
 
-The preview uses 12px UI text, with date and grouped discovery count at the
-bottom-left (`2005-05-03 / 353,381`), Orrery/GitHub at the bottom-right and FPS at
+The preview uses 12px UI text, with date and space-grouped discovery count at the
+bottom-left (`2005-05-03 / 353 381`), Orrery/GitHub at the bottom-right and FPS at
 the top-right. Initial loading occupies the date/count position; later buffering
 or recovery feedback appears above the last committed readout.
 

@@ -45,7 +45,7 @@ exports.checkLongReadouts = async page => {
   try {
     for (const family of ['', 'monospace']) {
       await page.locator('body').evaluate((el, family) => { el.style.fontFamily = family; }, family);
-      await page.locator('#orrery-count').evaluate(el => { el.textContent = '1,234,567'; });
+      await page.locator('#orrery-count').evaluate(el => { el.textContent = '1\u202f234\u202f567'; });
       await exports.check(page);
     }
   } finally {
