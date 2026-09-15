@@ -3,7 +3,9 @@
 Open `/next/?renderer=three` for the 3D preview. `/next/` and the original `/`
 use Pixi and historical100k. An unknown renderer falls back to Pixi with feedback.
 A Three startup failure reports the failure and offers an accessible Pixi preview
-link, preserving the deployment prefix. Missing code and unavailable WebGL2 use
+link, preserving the deployment prefix. Terminal Three shader/upload/draw failures
+offer the same recovery link; successful graphics recovery clears it.
+Missing code and unavailable WebGL2 use
 neutral reload guidance. Pixi does not load Three or require WebGL2.
 
 ## Ownership and presentation
@@ -51,6 +53,8 @@ count, phases, planets and the previous scene, then stop recurring rendering.
 Bundled attachment and replacement use the same receipt boundary, retaining the
 previous scene and readouts through first-allocation failures and repeated hidden
 replacements. Manual attachment performs its first draw synchronously.
+`loadAsteroids()` returns true only when that first draw commits the new model.
+Failed or deferred draws return false while retaining pending data for recovery.
 Two context restorations must rebuild resources from retained CPU data without
 catalogue requests. Loss and restoration failures have explicit status feedback.
 

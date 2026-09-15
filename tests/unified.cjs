@@ -95,6 +95,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
         await recoveryApp.init();
         await recoveryApp.loadAsteroids(fixture.catalogURL);
         recoveryApp.renderFrame(0);
+        window.completedRecoveryModel = recoveryApp.catalogue;
         window.pendingLoad = recoveryApp.loadAsteroids('/delayed-catalog');
         const adapter = recoveryApp.renderer;
         window.originalTexture = adapter.createCircleTexture;
@@ -109,7 +110,9 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       });
       await page.getByRole('status').filter({ hasText: 'Unable to restore' }).waitFor();
       releaseLoad();
-      assert.equal(await page.evaluate(() => pendingLoad), true, 'Delayed valid catalogue still commits');
+      assert.equal(await page.evaluate(() => pendingLoad), false, 'Data received during graphics loss has not drawn or committed');
+      assert(await page.evaluate(() => recoveryApp.catalogue === completedRecoveryModel && recoveryApp.pendingBundled.model.count === 0),
+        'The completed model stays active and newly received data remains available for recovery');
       assert.equal(await page.evaluate(() => recoveryApp.renderer.asteroids.discoveryDates.length), 0);
       assert.match(await page.getByRole('status').textContent(), /Unable to restore/,
         'Data success must preserve the graphics failure and recovery instruction');

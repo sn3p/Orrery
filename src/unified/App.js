@@ -153,7 +153,7 @@ export default class App {
   }
 
   setAsteroids(data) {
-    if (!this.initialized || this.destroyed) return;
+    if (!this.initialized || this.destroyed) return false;
     const model = prepareCatalogue(data, this.jed);
     const previous = this.pendingBundled?.previous ?? this.renderer.frameState
       ?? { ...this.frameState, count: this.asteroidsDiscovered };
@@ -178,6 +178,9 @@ export default class App {
     // only after the same receipt/rollback boundary as streamed catalogues.
     this.renderFrame();
     this.requestRender();
+    // Prepared data may remain pending after a skipped or failed first draw.
+    // Only the frame receipt publishes this exact model as the active catalogue.
+    return this.catalogue === model;
   }
 
   async loadAsteroids(url) {
@@ -201,8 +204,7 @@ export default class App {
       if (!response.ok) throw new Error(`Catalogue request failed (${response.status}).`);
       const data = await response.json();
       if (this.destroyed || version !== this.loadVersion) return false;
-      this.setAsteroids(data);
-      return true;
+      return this.setAsteroids(data);
     } catch (error) {
       if (this.destroyed || version !== this.loadVersion || controller.signal.aborted) return false;
       this.setStatus("Unable to load asteroids. Reload to try again.");
@@ -330,7 +332,7 @@ export default class App {
     const status = document.getElementById("orrery-status");
     if (status) {
       status.textContent = this.graphicsError || this.statusMessage || this.rendererNotice || "";
-      if (this.rendererRecovery) {
+      if (this.rendererRecovery || (this.rendererId === "three" && this.renderFailure)) {
         const link = document.createElement("a"), url = new URL(location.href);
         url.searchParams.set("renderer", "pixi");
         link.href = url.href;
@@ -514,6 +516,7 @@ export default class App {
     this.catalogLoader?.dispose();
     this.activeSession?.loader.dispose();
     this.catalogue = this.pendingBundled = this.pendingSession = this.activeSession = null;
+    this.renderFailure = null;
     this.graphicsError = "";
     this.setStatus("");
     window.removeEventListener("resize", this.resize);

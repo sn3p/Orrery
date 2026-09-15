@@ -65,18 +65,28 @@ async function entries(browser, base, output, name) {
       } finally { await page.close(); }
     }
   }
-  for (const kind of ['chunk', 'webgl2']) {
+  for (const kind of ['chunk', 'webgl2', 'shader']) {
     const page = await browser.newPage({ viewport: { width: 320, height: 568 } });
     const unhandled = []; page.on('pageerror', e => unhandled.push(e.message));
     try {
       if (kind === 'chunk') await page.route('**/assets/three.*.js', route => route.fulfill({ status: 503, body: 'Unavailable' }));
-      else await page.addInitScript(() => {
+      else if (kind === 'webgl2') await page.addInitScript(() => {
         const get = HTMLCanvasElement.prototype.getContext;
         HTMLCanvasElement.prototype.getContext = function(type, ...args) { return type === 'webgl2' ? null : get.call(this, type, ...args); };
       });
+      else await page.addInitScript(() => {
+        const original = WebGL2RenderingContext.prototype.shaderSource;
+        WebGL2RenderingContext.prototype.shaderSource = function(shader, source) {
+          return original.call(this, shader, source.includes('vec3 orbitPosition')
+            ? source + '\ncontrolled_invalid_shader_token;\n' : source);
+        };
+      });
       await page.goto(base + '/Orrery/next/?renderer=three');
-      await page.getByRole('alert').filter({ hasText: 'Unable to start the 3D visualization' }).waitFor();
-      assert.equal(await page.locator('canvas, .orrery-options').count(), 0);
+      await page.getByRole('alert').filter({ hasText: kind === 'shader' ? 'Unable to render' : 'Unable to start the 3D visualization' }).waitFor();
+      if (kind === 'shader') {
+        assert.equal(await page.evaluate(() => threeTest.ready), false, 'Initial GPU failure does not report a successful load');
+        assert(await page.evaluate(() => threeTest.app.initialized && threeTest.app.renderFailure && !threeTest.app.catalogue));
+      } else assert.equal(await page.locator('canvas, .orrery-options').count(), 0);
       const link = page.getByRole('link', { name: 'Open Pixi preview', exact: true });
       assert.equal(await link.evaluate(el => new URL(el.href).pathname), '/Orrery/next/');
       const box = await link.boundingBox(); assert(box.x >= 0 && box.x + box.width <= 320);
