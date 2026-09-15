@@ -15,12 +15,14 @@ async function build(output) {
         new HtmlWebpackPlugin({ inject: false, template: 'migration/orrery3d/src/index.html' })] },
     { ...target, entry: './tests/three-browser.js',
       output: { ...target.output, path: path.join(output, 'next') },
+      // Keep the explicit whole-file pixel oracle separate from public startup.
       // Execute the unchanged source numerical tests with the adapted production
       // cloud and neutral model; their independent 3D orbit oracle stays intact.
       resolve: { alias: Object.fromEntries([
+        [path.join(root, 'src/unified/index.js'), 'tests/bundled-entry.js'],
         ['Asteroids', 'src/unified/three/Asteroids.js'],
         ['prepareCatalogue', 'src/unified/catalog/prepareCatalogue.js'],
-      ].map(([name, file]) => [path.join(root, `migration/orrery3d/src/js/${name}`), path.join(root, file)])) } },
+      ].map(([name, file]) => [path.isAbsolute(name) ? name : path.join(root, `migration/orrery3d/src/js/${name}`), path.join(root, file)])) } },
   ];
   for (const config of configs) await new Promise((resolve, reject) => {
     const compiler = webpack({ ...config, context: root, mode: 'production', performance: { hints: false } });

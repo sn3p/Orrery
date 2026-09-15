@@ -17,7 +17,9 @@ module.exports = {
   // policy stay in webpack.config.js; this build supports lazy engine chunks.
   module: require("./webpack.config").module,
   plugins: [
-    new (require("webpack").DefinePlugin)({ __CATALOG_SELECTION__: "null" }),
+    new (require("webpack").DefinePlugin)({
+      __CATALOG_SELECTION__: JSON.stringify(require("./catalog-profiles/latest.json")),
+    }),
     new MiniCssExtractPlugin({
       filename: "assets/[name].[contenthash:8].css",
       chunkFilename: "assets/[name].[contenthash:8].css",

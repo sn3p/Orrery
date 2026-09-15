@@ -39,8 +39,10 @@ async function compile(config) {
     fs.writeFileSync(path.join(directory, `build-${round}.log`), log);
     assert.deepEqual(fingerprint("dist", true), original, "Assembled root is byte-identical to the standalone legacy build");
     assert(fs.existsSync("dist/next/index.html"));
-    assert.deepEqual(fs.readFileSync("dist/next/data/catalog.json"), fs.readFileSync("data/catalog.json"),
-      "Preview ships the exact historical100k catalogue bytes");
+    assert(!fs.existsSync("dist/next/data/catalog.json"), "Preview excludes the legacy catalogue asset");
+    const javascript = files("dist/next").filter(name => name.endsWith(".js"))
+      .map(name => fs.readFileSync(path.join("dist/next", name), "utf8")).join("\n");
+    assert(javascript.includes(require("../catalog-profiles/latest.json").latest), "Default preview selects the producer descriptor");
     assert(!fs.existsSync("dist/next/stale-preview.txt"));
   }
   execFileSync("npm", ["run", "build:next", "--", "--output-clean"], { stdio: "pipe" });

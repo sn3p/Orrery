@@ -32,6 +32,7 @@ async function build(output, base = latestOrigin) {
   const webpack = require("webpack"), historical = require("../webpack.next.config.js");
   await new Promise((resolve, reject) => {
     const compiler = webpack({ ...historical, mode: "production", entry: "./tests/catalog-browser.js",
+      resolve: { alias: { [path.resolve("src/unified/index.js")]: path.resolve("tests/bundled-entry.js") } },
       output: { ...historical.output, path: path.join(output, "catalog-historical") } });
     compiler.run((error, stats) => compiler.close(() => {
       if (error || stats.hasErrors()) reject(error || new Error(stats.toString("errors-only")));

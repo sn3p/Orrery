@@ -48,12 +48,15 @@ are still retained. Use `npx playwright test --project=webkit --grep 'texture re
 
 | Project | Checks |
 | --- | --- |
-| `chromium`, `firefox`, `webkit` | Actual root/nested deployment, preview entry/lazy assets, raw legacy/preview parity, both apps' GPU/rendering/options/DPR/benchmark-frame checks, catalogue loading/lifecycle/frame-commit recovery, Three source parity/numerics/entry/camera/recovery, and in-page renderer switching with retained data, faults, views, options and resource checks |
+| `chromium`, `firefox`, `webkit` | Actual root/nested deployment, preview entry/lazy assets, default indexed Pixi/direct Three startup and retained switching, raw legacy/preview parity, both apps' GPU/rendering/options/DPR/benchmark-frame checks, catalogue loading/lifecycle/frame-commit recovery, Three source parity/numerics/entry/camera/recovery, and in-page renderer switching with retained data, faults, views, options and resource checks |
 | `chromium-only` | Both apps' scheduling, typography and benchmark CLI checks; legacy/preview and configured catalogue development commands; catalogue benchmark completion for Pixi and Three; Three configured development/HMR; ordinary-clone benchmark provenance; runner failure/cleanup diagnostics |
 | Standalone configuration | Raw parity and the complete unified-app subset above, against a freshly built preview |
 
 The browser projects retain strict orbital/pixel assertions, WebGL2 preflight,
-100k data, reload/error/recovery/disposal scenarios and viewport/DPR cases. The
+explicit 100k whole-file oracles, indexed fixtures, reload/error/recovery/disposal
+scenarios and viewport/DPR cases. Public default-entry checks intercept the actual
+compiled producer URL with hash-valid deterministic fixtures; live catalogue
+verification records its observed pin and coverage separately. The
 Chromium GPU case also exercises WebGL1. CLI benchmark checks run in Chromium
 because the benchmark command itself uses Chromium; browser frame contracts
 remain covered in all three engines. Scheduling and typography also retain their
@@ -69,8 +72,10 @@ these checks can temporarily replace `dist`. It then builds each distinct
 legacy/unified fixture entry once, including the unaliased parity fixture and
 the lazy CSS/JSON probe and six catalogue variants (indexed/whole tied and empty
 data, latest descriptor, and historical data). Three additionally has a pinned
-source-renderer fixture and an instrumented real lazy preview entry, whose
-numerical oracle executes the adapted production cloud/shader. The latest fixture uses a reserved
+source-renderer fixture and an instrumented lazy renderer entry using the explicit
+`tests/bundled-entry.js` whole-file oracle, whose numerical checks execute the
+adapted production cloud/shader. The default preview has separate public-entry
+checks and never includes this test entry. The latest fixture uses a reserved
 test origin that each lifecycle test forwards to its own local server, so prepared
 assets contain no ephemeral port. Browser jobs download this fixture artifact and the
 exact assembled Pages artifact from the same run.
