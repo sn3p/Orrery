@@ -115,7 +115,9 @@ node tests/history-import.cjs
 ```
 
 Measurements distinguish retained CPU backing storage, sampled peak heap/storage,
-nominal GPU capacity, transfer and the first complete GPU submission/fence. They
+nominal GPU capacity, transfer and the first complete GPU submission/completion.
+Reports identify Pixi's actual `webGLVersion` and `initialGpuMethod`: WebGL2
+`fenceSync` polling or the blocking WebGL1 `finish()` fallback. These timestamps
 are not compositor presentation or physical-phone certification. A whole-file
 control still has large parse/preparation tasks; late starts must obtain the
 complete preceding population. See the PR's verification report for measured

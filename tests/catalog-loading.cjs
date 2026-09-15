@@ -347,6 +347,8 @@ async function run(browser, base, output, name) {
   // Additional replacement/readiness regressions run in catalog-lifecycle.cjs.
   results.push(...await require("./catalog-lifecycle.cjs").run(browser, base, output, name));
   results.push(...await require("./frame-commit.cjs").run(browser, base, output, name));
+  // Catalogue measurements use Chromium's CDP heap/network instrumentation.
+  if (name === "chromium") results.push(...await require("./catalog-benchmark.cjs").run(browser, base, output));
   return results;
 }
 

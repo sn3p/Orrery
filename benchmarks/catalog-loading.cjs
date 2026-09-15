@@ -30,17 +30,25 @@ function observe() {
     const entry = mark(name, options);
     if (name === "catalog:first-complete" && window.catalogMetrics.initialSubmissionMs === undefined) {
       window.catalogMetrics.initialSubmissionMs = entry.startTime;
-      const gl = document.querySelector("canvas").getContext("webgl2");
-      const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-      gl.flush();
-      const poll = () => {
-        const status = gl.clientWaitSync(fence, 0, 0);
-        if (status === gl.ALREADY_SIGNALED || status === gl.CONDITION_SATISFIED) {
-          window.catalogMetrics.initialGpuMs = performance.now();
-          gl.deleteSync(fence);
-        } else if (status !== gl.WAIT_FAILED) setTimeout(poll, 1);
-      };
-      poll();
+      const renderer = window.catalogTest.app.renderer.app.renderer, gl = renderer.gl;
+      window.catalogMetrics.webGLVersion = renderer.context.webGLVersion;
+      if (typeof gl.fenceSync === "function") {
+        window.catalogMetrics.initialGpuMethod = "fenceSync";
+        const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+        gl.flush();
+        const poll = () => {
+          const status = gl.clientWaitSync(fence, 0, 0);
+          if (status === gl.ALREADY_SIGNALED || status === gl.CONDITION_SATISFIED) {
+            window.catalogMetrics.initialGpuMs = performance.now();
+            gl.deleteSync(fence);
+          } else if (status !== gl.WAIT_FAILED) setTimeout(poll, 1);
+        };
+        poll();
+      } else {
+        window.catalogMetrics.initialGpuMethod = "finish";
+        gl.finish();
+        window.catalogMetrics.initialGpuMs = performance.now();
+      }
     }
     return entry;
   };
@@ -235,7 +243,7 @@ async function main() {
     cpu: os.cpus()[0]?.model, logicalCpus: os.cpus().length, ram: os.totalmem() },
     base: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
     workingTree: execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim(),
-    metricNotes: "Cold separate browser contexts, HTTP gzip including index/app, 1280x800 DPR1. initialSubmissionMs is renderer.render return; initialMs/initialGpuMs waits for a WebGL fence after that first complete scene, not compositor presentation. originBodyBytes counts encoded bodies submitted to origin writes, including aborted/speculative responses, excludes HTTP headers, and can precede delivery through Chrome throttling. CDP bytes include headers/partial downloads but can undercount cancelled gzip; retain both. Memory=Runtime usedSize+backingStorageSize, retained after forced GC; sampled peak ~250ms is a lower bound, excludes GPU/native allocations and may miss synchronous peaks. Catalog-associated long tasks overlap measured operations, not every millisecond is attributable. Timed playback then separate late jump and 3s full-population rendering; no phone certification.",
+    metricNotes: "Cold separate browser contexts, HTTP gzip including index/app, 1280x800 DPR1. initialSubmissionMs is renderer.render return; initialMs/initialGpuMs measures GPU completion after that first complete scene, not compositor presentation. initialGpuMethod identifies WebGL2 fenceSync polling or the blocking WebGL1 finish fallback; webGLVersion records Pixi's actual renderer. originBodyBytes counts encoded bodies submitted to origin writes, including aborted/speculative responses, excludes HTTP headers, and can precede delivery through Chrome throttling. CDP bytes include headers/partial downloads but can undercount cancelled gzip; retain both. Memory=Runtime usedSize+backingStorageSize, retained after forced GC; sampled peak ~250ms is a lower bound, excludes GPU/native allocations and may miss synchronous peaks. Catalog-associated long tasks overlap measured operations, not every millisecond is attributable. Timed playback then separate late jump and 3s full-population rendering; no phone certification.",
     results: [] };
   await fsp.mkdir(path.dirname(output), { recursive: true });
   for (const config of configs) {
