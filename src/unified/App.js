@@ -8,6 +8,9 @@ import CatalogLoader from "./catalog/CatalogLoader.js";
 import { allocateCatalogue, appendCatalogue, prepareCatalogue } from "./catalog/prepareCatalogue.js";
 import { selectRenderer } from "./renderers.js";
 
+// Shared across module replacements so stale disposal cannot erase a new App's feedback.
+const STATUS_OWNER = Symbol.for("orrery.statusOwner");
+
 export default class App {
   constructor(options = {}) {
     this.container = options.container || document.body;
@@ -33,6 +36,8 @@ export default class App {
     this.destroyed = false;
     this.initialized = false;
     this.contextLost = false;
+    this.graphicsRecoveryPending = false;
+    this.rendererRecovery = false;
     this.animationFrame = null;
     this.tick = this.tick.bind(this);
     this.render = this.render.bind(this);
@@ -49,6 +54,7 @@ export default class App {
       this.contextLost = lost;
       this.rendererGeneration++;
       if (lost) {
+        this.graphicsRecoveryPending = true;
         this.catalogLoader?.loseGraphics();
         if (this.activeSession?.loader !== this.catalogLoader) this.activeSession?.loader.loseGraphics();
       } else if (!error) {
@@ -66,7 +72,8 @@ export default class App {
       if (lost) this.cancelRender();
       else this.requestRender();
       if (error) this.graphicsError = "Unable to restore the visualization. Reload to try again.";
-      else this.graphicsError = lost ? "Graphics connection lost. Waiting to reconnect…" : "";
+      else this.graphicsError = lost ? "Graphics connection lost. Waiting to reconnect…"
+        : this.graphicsRecoveryPending ? "Restoring the visualization…" : "";
       this.renderStatus();
     };
     this.onCatalogOnline = () => { this.catalogLoader?.retry(); };
@@ -164,10 +171,7 @@ export default class App {
     this.activeSession?.loader.dispose();
     this.catalogLoader = this.activeSession = this.pendingSession = null;
     this.catalogFailure = null;
-    if (this.renderFailure && !this.contextLost) {
-      this.renderFailure = null;
-      this.graphicsError = "";
-    }
+    if (this.renderFailure && !this.contextLost) this.renderFailure = null;
     this.requestedJed = null;
     this.loadVersion++;
     this.loadController?.abort();
@@ -225,7 +229,6 @@ export default class App {
     this.renderer?.discardStagedCatalogue();
     this.pendingBundled = null;
     this.catalogFailure = null;
-    if (this.renderFailure && !this.contextLost) this.graphicsError = "";
     this.renderFailure = null;
     this.demandCatalog();
     this.resetClock();
@@ -328,17 +331,22 @@ export default class App {
     this.renderStatus();
   }
   renderStatus() {
+    // Initialization failures publish feedback after resource cleanup. Once
+    // explicitly cleared, a disposed instance must not reclaim the shared node.
     const status = document.getElementById("orrery-status");
+    if (this.destroyed && (!this.statusMessage || (this.statusNode && status?.[STATUS_OWNER] !== this))) return;
     if (status) {
+      this.statusNode = status;
+      status[STATUS_OWNER] = this;
       status.textContent = this.graphicsError || this.statusMessage || this.rendererNotice || "";
-      if (this.rendererRecovery || (this.rendererId === "three" && this.renderFailure)) {
+      if (this.rendererRecovery) {
         const link = document.createElement("a"), url = new URL(location.href);
         url.searchParams.set("renderer", "pixi");
         link.href = url.href;
         link.textContent = "Open Pixi preview";
         status.append(" ", link);
       }
-      status.setAttribute("role", (this.statusError && !this.graphicsError) || this.renderFailure ? "alert" : "status");
+      status.setAttribute("role", (this.statusError && !this.graphicsError) || this.renderFailure || this.rendererRecovery ? "alert" : "status");
     }
   }
   updateGui() { this.gui?.update(this.jed, this.stats.fps, this.asteroidsDiscovered); }
@@ -346,7 +354,7 @@ export default class App {
     this.clock.reset();
     this.stats?.reset();
     if (this.initialized && !this.destroyed && !this.catalogLoader?.source
-      && !this.pendingBundled && !this.renderFailure && !this.deferReadouts) this.updateGui();
+      && !this.pendingBundled && !this.renderFailure && !this.graphicsRecoveryPending && !this.deferReadouts) this.updateGui();
   }
   requestRender() {
     if (!this.autoRender || !this.initialized || this.destroyed || document.hidden || this.contextLost || this.animationFrame !== null) return;
@@ -379,6 +387,8 @@ export default class App {
     const fail = error => {
       frameError = error;
       this.renderFailure = error;
+      this.graphicsRecoveryPending = true;
+      this.rendererRecovery = this.rendererId === "three";
       this.graphicsError = "Unable to render the visualization. Reload to try again.";
       const failed = this.pendingSession ?? this.activeSession;
       if (failed) {
@@ -451,6 +461,11 @@ export default class App {
       this.catalogue.firstDraw = true;
       performance.mark("catalog:first-complete");
     }
+    if (committed && this.graphicsRecoveryPending) {
+      this.graphicsRecoveryPending = this.rendererRecovery = false;
+      this.graphicsError = "";
+      this.renderStatus();
+    }
     this.updateGui();
     // Manual callers (including finite benchmarks) own failure handling. Keep
     // the same throwable boundary after restoring app/graphics state.
@@ -463,7 +478,7 @@ export default class App {
     // Direct ticks support already committed bundled scenes. Pending/streamed
     // data needs renderFrame's receipt and rollback boundary before activation,
     // and a terminal render failure cannot be bypassed through this entry point.
-    if (this.renderFailure || (!this.deferReadouts && (this.pendingBundled || this.catalogLoader?.source))) {
+    if (this.renderFailure || (!this.deferReadouts && (this.pendingBundled || this.catalogLoader?.source || this.graphicsRecoveryPending))) {
       this.resetClock();
       return;
     }
@@ -513,6 +528,18 @@ export default class App {
     if (render) this.requestRender();
   }
   destroy() {
+    // Startup failure can leave owned feedback after resources were destroyed.
+    // Clear it on later explicit disposal, without touching a newer App's UI.
+    this.renderFailure = null;
+    this.rendererRecovery = this.graphicsRecoveryPending = false;
+    this.rendererNotice = this.graphicsError = this.statusMessage = "";
+    this.statusError = false;
+    if (this.statusNode?.[STATUS_OWNER] === this) {
+      this.statusNode.textContent = "";
+      this.statusNode.setAttribute("role", "status");
+      delete this.statusNode[STATUS_OWNER];
+    }
+    this.statusNode = null;
     if (this.destroyed) return;
     this.destroyed = true;
     this.cancelRender();
@@ -522,10 +549,6 @@ export default class App {
     this.catalogLoader?.dispose();
     this.activeSession?.loader.dispose();
     this.catalogue = this.pendingBundled = this.pendingSession = this.activeSession = null;
-    this.renderFailure = null;
-    this.rendererNotice = "";
-    this.graphicsError = "";
-    this.setStatus("");
     window.removeEventListener("resize", this.resize);
     window.removeEventListener("online", this.onCatalogOnline);
     this.resolutionQuery?.removeEventListener("change", this.onResolutionChange);

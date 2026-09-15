@@ -99,6 +99,28 @@ async function entries(browser, base, output, name) {
       const box = await link.boundingBox(); assert(box.x >= 0 && box.x + box.width <= 320);
       await link.focus(); assert(await link.evaluate(el => el === document.activeElement));
       await page.screenshot({ path: path.join(output, `${name}-${kind}-recovery.png`) });
+      if (kind !== 'shader') {
+        assert(await page.evaluate(async () => {
+          const failed = threeTest.app, status = document.getElementById('orrery-status');
+          failed.destroy(); failed.destroy(); failed.renderStatus();
+          if (status.textContent || status.getAttribute('role') !== 'status' || status.querySelector('a')) return false;
+          // A failed old instance may be disposed after another App takes over
+          // the shared status node, as during replacement or hot disposal.
+          const stale = new failed.constructor({ renderer: 'three' });
+          try { await stale.init(); } catch { /* The same startup fault remains installed. */ }
+          const replacement = new failed.constructor({ renderer: 'unknown', autoRender: false });
+          await replacement.loadAsteroids('data/catalog.json');
+          const message = status.textContent;
+          stale.renderStatus();
+          const untouched = status.textContent === message;
+          stale.destroy(); stale.destroy(); stale.renderStatus();
+          const retained = untouched && message === 'Unknown renderer. Showing Pixi.' && status.textContent === message;
+          replacement.destroy();
+          return retained && !status.textContent && !document.querySelector('canvas, .orrery-options');
+        }), 'Startup teardown clears its own feedback and preserves a newer App status');
+        await page.reload();
+        await page.getByRole('alert').filter({ hasText: 'Unable to start the 3D visualization' }).waitFor();
+      }
       await link.click();
       await page.waitForFunction(() => Number(document.querySelector('#orrery-count').textContent) > 0);
       assert.equal(await page.evaluate(() => threeTest.app.rendererId), 'pixi');

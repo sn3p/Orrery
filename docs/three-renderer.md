@@ -60,6 +60,11 @@ or failed loads. Direct `tick()` calls update already committed bundled scenes;
 pending/streamed catalogues require the full frame receipt, and terminal graphics
 failures suspend direct ticks too. Drawing the adapter alone cannot activate a
 pending catalogue or publish its readouts.
+Graphics restoration and catalogue retries re-enable frame preparation, while
+recovery feedback and the Pixi escape link remain until a full frame commits.
+Hidden or missing-receipt frames cannot clear them. Explicit teardown also clears
+startup-failure feedback after initialization has already disposed its resources;
+stale instances cannot erase a newer app's status.
 Two context restorations must rebuild resources from retained CPU data without
 catalogue requests. Loss and restoration failures have explicit status feedback.
 

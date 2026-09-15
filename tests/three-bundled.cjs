@@ -115,6 +115,18 @@ module.exports = async function bundled(browser, base) {
         await page.evaluate(() => { window.loss = (app.renderer.renderer?.getContext() ?? app.renderer.app.renderer.gl).getExtension('WEBGL_lose_context'); loss.loseContext(); });
         await page.waitForFunction(() => app.contextLost);
         await page.evaluate(() => loss.restoreContext()); await page.waitForFunction(() => !app.contextLost);
+        assert.equal(await recovery.count(), renderer === 'three' ? 1 : 0, 'Context restoration alone does not clear fallback');
+        assert(await page.evaluate(() => {
+          const status = document.getElementById('orrery-status'), before = status.textContent;
+          Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+          try { app.renderFrame(); } finally { delete document.hidden; }
+          app.tick(1300); app.tick(1400);
+          const render = app.renderer.render;
+          app.renderer.render = () => null;
+          try { app.renderFrame(); } finally { app.renderer.render = render; }
+          return !!before && status.textContent === before && app.catalogue === completed.model
+            && app.pendingBundled && app.gui.count.textContent === completed.hud;
+        }), 'Hidden/direct/null-receipt recovery keeps the previous model, readouts and feedback');
       }
       assert(await page.evaluate(() => { app.renderFrame(); return !app.renderFailure && !app.pendingBundled && app.catalogue.firstDraw && app.catalogue !== completed.model; }));
       assert.deepEqual(requests, [], 'Recovery uses retained bundled data');

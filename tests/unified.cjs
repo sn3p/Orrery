@@ -59,7 +59,8 @@ async function run({ browser, name, application = "legacy", output: artifactDire
           check(!failedPixi.renderer && !failedPixi.stage, 'Failed init releases partial GPU/stage resources');
           check(!document.querySelector('canvas, .orrery-options'), 'Failed init attaches no canvas/UI');
           check(document.getElementById('orrery-status').textContent.includes('Unable to start'), 'Initial error remains visible');
-          app.destroy();
+          app.destroy(); app.destroy(); app.renderStatus();
+          check(!document.getElementById('orrery-status').textContent, 'Explicit teardown clears failed Pixi startup feedback');
         }
         Application.prototype.init = init;
         app = new App({ autoRender: false, jedDelta: 0 });

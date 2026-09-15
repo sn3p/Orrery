@@ -123,6 +123,44 @@ async function data(browser, base, output, name) {
 
 async function frames(browser, base, output, name) {
   const results = [{ bundled: await require('./three-bundled.cjs')(browser, base) }];
+  for (const mode of ['bundled', 'indexed']) {
+    const page = await browser.newPage();
+    try {
+      await boot(page, base + '/catalog/catalog-indexed/?renderer=three');
+      await page.route('**/recovery-candidate.json', route => route.fulfill({ json: [
+        { a: 2, e: .1, i: 30, W: 40, wbar: 80, M: 30, n: .25, epoch: 2451545, disc: 2000000 },
+      ] }));
+      await page.evaluate(async ({ mode, pin }) => {
+        app.autoRender = false; app.cancelRender();
+        const render = app.renderer.render;
+        app.renderer.render = () => { throw new Error('controlled failure before explicit retry'); };
+        try { app.renderFrame(); } catch { /* Manual failures remain throwable. */ }
+        finally { app.renderer.render = render; }
+        Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+        try {
+          if (mode === 'bundled') await app.loadAsteroids('/recovery-candidate.json');
+          else await app.loadCatalog(pin);
+        } finally { delete document.hidden; }
+        app.demandCatalog();
+      }, { mode, pin: pin(base) });
+      if (mode === 'indexed') await page.waitForFunction(() => app.catalogLoader.readyToDraw(app.jed));
+      const recovery = page.getByRole('link', { name: 'Open Pixi preview', exact: true });
+      assert.equal(await recovery.count(), 1, 'An explicit catalogue retry retains fallback before any frame');
+      await page.evaluate(() => {
+        const render = app.renderer.render;
+        app.renderer.render = () => null;
+        try { app.renderFrame(); } finally { app.renderer.render = render; }
+      });
+      assert.equal(await recovery.count(), 1, 'An explicit retry without a receipt retains fallback');
+      assert(await page.evaluate(() => {
+        const candidate = (app.pendingBundled ?? app.pendingSession).model;
+        app.renderFrame();
+        return app.catalogue === candidate && !app.pendingBundled && !app.pendingSession && !app.renderFailure;
+      }), 'A complete retry frame commits the candidate');
+      assert.equal(await recovery.count(), 0, 'Only a committed retry clears fallback');
+      results.push({ explicitRecovery: mode, receiptRequired: true });
+    } finally { await page.close(); }
+  }
   for (const renderer of ['pixi', 'three']) {
     const page = await browser.newPage();
     try {
@@ -155,7 +193,8 @@ async function frames(browser, base, output, name) {
     } finally { await page.close(); }
   }
   for (const kind of ['null', 'draw', 'allocate', 'upload', 'update']) {
-    const page = await browser.newPage(); const errors = []; page.on('pageerror', e => errors.push(e.message));
+    const page = await browser.newPage(kind === 'draw' ? { viewport: { width: 320, height: 568 } } : {});
+    const errors = []; page.on('pageerror', e => errors.push(e.message));
     try {
       await boot(page, base + '/catalog/catalog-indexed/?renderer=three');
       await page.evaluate(() => app.jed = 9999999);
@@ -210,7 +249,16 @@ async function frames(browser, base, output, name) {
       await page.evaluate(() => { window.loss = app.renderer.renderer.getContext().getExtension('WEBGL_lose_context'); loss.loseContext(); });
       await page.waitForFunction(() => app.contextLost);
       await page.evaluate(() => loss.restoreContext()); await page.waitForFunction(() => !app.contextLost);
+      const recovery = page.getByRole('link', { name: 'Open Pixi preview', exact: true });
+      assert.equal(await recovery.count(), kind === 'null' ? 0 : 1, 'Streamed recovery retains fallback until a frame commits');
+      if (kind === 'draw') {
+        await recovery.focus();
+        assert(await recovery.evaluate(el => el === document.activeElement));
+        const box = await recovery.boundingBox(); assert(box.x >= 0 && box.x + box.width <= 320);
+        await page.screenshot({ path: path.join(output, `${name}-pending-graphics-recovery.png`) });
+      }
       assert(await page.evaluate(() => { app.renderFrame(); return !app.renderFailure && app.jed === completed.date + 5000; }));
+      assert.equal(await recovery.count(), 0, 'The committed streamed recovery clears fallback');
       assert.deepEqual(errors, []);
       results.push(result);
     } finally { await page.close(); }
