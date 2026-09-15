@@ -6,9 +6,7 @@ import Hud from "./ui/Hud.js";
 import CatalogSource from "./catalog/CatalogSource.js";
 import CatalogLoader from "./catalog/CatalogLoader.js";
 import { allocateCatalogue, appendCatalogue, prepareCatalogue } from "./catalog/prepareCatalogue.js";
-
-const createPixi = options => import(/* webpackChunkName: "pixi" */ "./pixi/PixiRenderer.js")
-  .then(({ default: PixiRenderer }) => new PixiRenderer(options));
+import { selectRenderer } from "./renderers.js";
 
 export default class App {
   constructor(options = {}) {
@@ -22,7 +20,10 @@ export default class App {
     if (this.fixedResolution !== undefined && (this.autoRender || !Number.isFinite(this.fixedResolution) || this.fixedResolution <= 0)) {
       throw new Error("Fixed resolution requires manual rendering and a positive finite value.");
     }
-    this.createRenderer = options.createRenderer ?? createPixi;
+    const selection = selectRenderer(options.renderer);
+    this.rendererId = selection.id;
+    this.rendererNotice = selection.notice;
+    this.createRenderer = options.createRenderer ?? selection.create;
     this._pixelRatio = "1";
     this.clock = new PlaybackClock();
     this.elapsed = 0;
@@ -65,7 +66,7 @@ export default class App {
       if (lost) this.cancelRender();
       else this.requestRender();
       if (error) this.graphicsError = "Unable to restore the visualization. Reload to try again.";
-      else if (!lost) this.graphicsError = "";
+      else this.graphicsError = lost ? "Graphics connection lost. Waiting to reconnect…" : "";
       this.renderStatus();
     };
     this.onCatalogOnline = () => { this.catalogLoader?.retry(); };
@@ -136,7 +137,12 @@ export default class App {
     } catch (error) {
       const disposed = this.destroyed;
       this.destroy();
-      if (!disposed) this.setStatus("Unable to start the visualization. Please reload to try again.");
+      if (!disposed) {
+        this.rendererRecovery = this.rendererId === "three";
+        this.setStatus(this.rendererRecovery
+          ? "Unable to start the 3D visualization. Please reload to try again."
+          : "Unable to start the visualization. Please reload to try again.", this.rendererRecovery);
+      }
       throw error;
     }
   }
@@ -149,8 +155,10 @@ export default class App {
   setAsteroids(data) {
     if (!this.initialized || this.destroyed) return;
     const model = prepareCatalogue(data, this.jed);
-    const count = this.renderer.setAsteroids(model, this.frameState);
-    this.catalogue = model;
+    const previous = this.pendingBundled?.previous ?? this.renderer.frameState
+      ?? { ...this.frameState, count: this.asteroidsDiscovered };
+    this.renderer.setAsteroids(model, this.frameState, { preservePrevious: true });
+    this.pendingBundled = { model, previous };
     this.catalogOpening?.abort();
     this.catalogOpening = null;
     this.catalogLoader?.dispose();
@@ -164,9 +172,11 @@ export default class App {
     this.requestedJed = null;
     this.loadVersion++;
     this.loadController?.abort();
-    this.asteroidsDiscovered = count;
     this.setStatus("");
-    this.updateGui();
+    this.resetClock();
+    // Keep synchronous attachment usable by manual callers, but publish it
+    // only after the same receipt/rollback boundary as streamed catalogues.
+    this.renderFrame();
     this.requestRender();
   }
 
@@ -177,6 +187,7 @@ export default class App {
     if (this.pendingSession && this.pendingSession !== this.activeSession) this.pendingSession.loader.dispose();
     this.pendingSession = null;
     this.renderer?.discardStagedCatalogue();
+    this.pendingBundled = null;
     this.catalogLoader = this.activeSession?.loader ?? null;
     this.loadController?.abort();
     const controller = this.loadController = new AbortController();
@@ -211,6 +222,7 @@ export default class App {
     this.pendingSession = null;
     this.catalogLoader = this.activeSession?.loader ?? null;
     this.renderer?.discardStagedCatalogue();
+    this.pendingBundled = null;
     this.catalogFailure = null;
     if (this.renderFailure && !this.contextLost) this.graphicsError = "";
     this.renderFailure = null;
@@ -317,7 +329,14 @@ export default class App {
   renderStatus() {
     const status = document.getElementById("orrery-status");
     if (status) {
-      status.textContent = this.graphicsError || this.statusMessage || "";
+      status.textContent = this.graphicsError || this.statusMessage || this.rendererNotice || "";
+      if (this.rendererRecovery) {
+        const link = document.createElement("a"), url = new URL(location.href);
+        url.searchParams.set("renderer", "pixi");
+        link.href = url.href;
+        link.textContent = "Open Pixi preview";
+        status.append(" ", link);
+      }
       status.setAttribute("role", (this.statusError && !this.graphicsError) || this.renderFailure ? "alert" : "status");
     }
   }
@@ -325,7 +344,8 @@ export default class App {
   resetClock() {
     this.clock.reset();
     this.stats?.reset();
-    if (this.initialized && !this.destroyed && !this.catalogLoader?.source) this.updateGui();
+    if (this.initialized && !this.destroyed && !this.catalogLoader?.source
+      && !this.pendingBundled && !this.deferReadouts) this.updateGui();
   }
   requestRender() {
     if (!this.autoRender || !this.initialized || this.destroyed || document.hidden || this.contextLost || this.animationFrame !== null) return;
@@ -350,7 +370,8 @@ export default class App {
     this.renderer.commitFrame?.();
     // A direct seek changes App.jed before its draw. The adapter still owns
     // the previous scene, including changes made through direct tick callers.
-    const previous = this.renderer.frameState ?? { jed: this.jed, elapsed: this.elapsed, count: this.asteroidsDiscovered };
+    const previous = this.pendingBundled?.previous ?? this.renderer.frameState
+      ?? { jed: this.jed, elapsed: this.elapsed, count: this.asteroidsDiscovered };
     const requested = this.requestedJed ?? (this.jed !== previous.jed ? this.jed : null);
     const graphicsGeneration = this.rendererGeneration;
     let drawn = null, prepared = false, frameError;
@@ -371,16 +392,27 @@ export default class App {
     try {
       // Invalidations after a terminal failure may repaint the restored scene,
       // but only explicit graphics/catalogue recovery can advance it again.
+      this.deferReadouts = true;
       prepared = !this.renderFailure && this.tick(timestamp) === true;
       beforeRender?.();
       drawn = this.renderer.render();
     }
     catch (error) { fail(error); }
+    finally { this.deferReadouts = false; }
     const session = this.pendingSession ?? this.activeSession;
     const sameCatalogue = session && this.renderer.asteroids?.catalogue === session.model;
     const committed = !this.renderFailure && !frameError && drawn !== null && graphicsGeneration === this.rendererGeneration
+      && (!this.pendingBundled || this.renderer.asteroids?.catalogue === this.pendingBundled.model)
       && (!session || (prepared && !session.adapterFailure && sameCatalogue
         && drawn >= session.loader.source.countThrough(this.jed)));
+    // Receipts cover the uploaded prefix; the HUD counts only discoveries at
+    // this date, which may be much smaller than the retained catalogue.
+    if (committed) this.asteroidsDiscovered = this.renderer.frameState?.count ?? 0;
+    if (committed && this.pendingBundled) {
+      this.renderer.commitCatalogue();
+      this.catalogue = this.pendingBundled.model;
+      this.pendingBundled = null;
+    }
     if (committed && session) {
       if (session !== this.activeSession) {
         this.renderer.commitCatalogue();
@@ -418,7 +450,7 @@ export default class App {
       this.catalogue.firstDraw = true;
       performance.mark("catalog:first-complete");
     }
-    if (session || !committed) this.updateGui();
+    this.updateGui();
     // Manual callers (including finite benchmarks) own failure handling. Keep
     // the same throwable boundary after restoring app/graphics state.
     if (frameError && !this.autoRender) throw frameError;
@@ -434,6 +466,9 @@ export default class App {
     if (wasWaiting) this.resetClock();
     const advance = this.clock.advance(timestamp, wasWaiting ? 0 : this.jedDelta);
     const next = this.requestedJed ?? (validDate(this.jed + advance) ? this.jed + advance : this.jed);
+    if (this.pendingBundled && this.renderer.asteroids?.catalogue !== this.pendingBundled.model) {
+      this.renderer.setAsteroids(this.pendingBundled.model, { jed: next, elapsed: this.elapsed }, { preservePrevious: true });
+    }
     if (loader?.source) {
       const ready = this.demandCatalog(next);
       const packed = this.syncCatalog(next);
@@ -448,10 +483,11 @@ export default class App {
     this._jed = next;
     this.elapsed += wasWaiting ? 0 : this.clock.seconds;
     this.renderer.captureFrame(this.frameState);
-    this.asteroidsDiscovered = this.renderer.update(this.frameState);
+    const count = this.renderer.update(this.frameState);
+    if (!this.deferReadouts) this.asteroidsDiscovered = count;
     if (this.isPlaying) this.stats.update();
     else this.stats.reset();
-    if (!loader?.source) this.updateGui();
+    if (!loader?.source && !this.deferReadouts) this.updateGui();
     return true;
   }
   watchResolution() {
@@ -477,7 +513,7 @@ export default class App {
     this.catalogOpening?.abort();
     this.catalogLoader?.dispose();
     this.activeSession?.loader.dispose();
-    this.catalogue = this.pendingSession = this.activeSession = null;
+    this.catalogue = this.pendingBundled = this.pendingSession = this.activeSession = null;
     this.graphicsError = "";
     this.setStatus("");
     window.removeEventListener("resize", this.resize);

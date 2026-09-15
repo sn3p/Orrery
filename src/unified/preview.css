@@ -31,3 +31,12 @@
 }
 
 .orrery-status { bottom: 64px; }
+.orrery-status a {
+  pointer-events: auto;
+  color: #aaa;
+  text-underline-offset: 3px;
+}
+.orrery-status a:focus-visible {
+  outline: 1px solid #999;
+  outline-offset: 2px;
+}

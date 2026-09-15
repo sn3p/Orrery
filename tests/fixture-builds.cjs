@@ -31,6 +31,9 @@ function sourceFingerprint() {
   // too, so a local prepared run cannot silently test yesterday's fixture.
   const inputs = [...files('src'), ...files('tests'), ...files('scripts'), ...files('catalog-profiles'), 'data/catalog.json',
     ...fs.readdirSync('.').filter(file => /^(webpack.*\.[cm]?js|.*\.config\.[cm]?js|\.babelrc|\.browserslistrc|package(-lock)?\.json)$/.test(file))].sort();
+  // Pinned source is a rendered/numerical Three oracle, not a runtime import.
+  if (fs.existsSync('migration/orrery3d')) inputs.push(...files('migration/orrery3d/src'),
+    'migration/orrery3d/tests/shader.js', 'migration/orrery3d/webpack.config.js');
   const hash = crypto.createHash('sha256');
   for (const file of inputs) hash.update(file).update('\0').update(fs.readFileSync(file)).update('\0');
   return hash.digest('hex');
@@ -55,6 +58,10 @@ async function prepare() {
   await require('./catalog-loading.cjs').build(catalog);
   manifest.fixtures.catalog = inventory(catalog);
   console.log('Prepared catalog');
+  const three = path.join(directory, 'three');
+  await require('./three-build.cjs').build(three);
+  manifest.fixtures.three = inventory(three);
+  console.log('Prepared three');
   fs.writeFileSync(path.join(directory, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
   return manifest;
 }

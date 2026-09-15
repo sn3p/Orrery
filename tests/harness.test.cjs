@@ -12,7 +12,7 @@ fs.mkdirSync('.context', { recursive: true });
 
 test('every runner entry imports without starting a standalone process', () => {
   for (const suite of ['assets', 'next', 'unified', 'gpu', 'rendering', 'options-browser',
-    'benchmark', 'scheduling', 'ui', 'hmr', 'next-dev', 'benchmark-clone', 'browser-environment', 'catalog-suite']) {
+    'benchmark', 'scheduling', 'ui', 'hmr', 'next-dev', 'benchmark-clone', 'browser-environment', 'catalog-suite', 'three', 'three-benchmark']) {
     assert.equal(typeof require(`./${suite}.cjs`).run, 'function', suite);
   }
 });
@@ -110,7 +110,8 @@ test('native discovery preserves coverage and each browser shard partitions it e
   const catalogueChromium = ['catalogue benchmark completion', 'catalogue configured preview development'];
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     const cases = all.filter(row => row.project === browser);
-    assert.equal(cases.length, 18);
+    assert.equal(cases.length, 23);
+    assert.equal(cases.filter(row => row.title.includes('Three ')).length, 5);
     for (const title of [...required, ...catalogue]) assert.equal(cases.filter(row => row.title.includes(title)).length, 1, `${browser}: ${title}`);
     const count = browser === 'webkit' ? 4 : 2;
     const shards = await Promise.all(Array.from({ length: count }, (_, i) => discover(`--project=${browser}`, `--shard=${i + 1}/${count}`)));
@@ -119,17 +120,18 @@ test('native discovery preserves coverage and each browser shard partitions it e
     assert.equal(new Set(shards.flat().map(row => row.id)).size, cases.length);
   }
   const chromiumOnly = all.filter(row => row.project === 'chromium-only');
-  assert.equal(chromiumOnly.length, 12);
+  assert.equal(chromiumOnly.length, 14);
   for (const title of catalogueChromium) assert.equal(chromiumOnly.filter(row => row.title.includes(title)).length, 1, title);
   const standalone = await discover('--config=playwright.standalone.config.cjs');
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     const cases = standalone.filter(row => row.project === browser);
-    assert.equal(cases.length, 10);
+    assert.equal(cases.length, 15);
+    assert.equal(cases.filter(row => row.title.includes('Three ')).length, 5);
     assert(cases.some(row => row.title.includes('raw App lifecycle')));
     assert(cases.every(row => !row.title.includes('legacy /')));
     for (const title of catalogue) assert.equal(cases.filter(row => row.title.includes(title)).length, 1, `${browser}: ${title}`);
   }
   const standaloneChromium = standalone.filter(row => row.project === 'chromium-only');
-  assert.equal(standaloneChromium.length, 5);
+  assert.equal(standaloneChromium.length, 7);
   for (const title of catalogueChromium) assert.equal(standaloneChromium.filter(row => row.title.includes(title)).length, 1, title);
 });

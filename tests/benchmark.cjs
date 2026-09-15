@@ -36,7 +36,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     for (const event of [null, "resize", "blur", "visibilitychange"]) {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
       await page.goto(server.url); await page.evaluate(() => window.ready);
-      await page.evaluate(event => {
+      await page.evaluate(({ event, setupDraws }) => {
         const { app } = fixture;
         window.work = { ticks: 0, draws: 0 };
         const tick = app.tick.bind(app), render = app.app.renderer.render.bind(app.app.renderer);
@@ -47,13 +47,13 @@ async function run({ browser, name, application = "legacy", output: artifactDire
             // Interrupt a measured frame, after sample() has registered its
             // listeners. Scheduling before a separate protocol call can fire
             // the event before the benchmark starts on a slow runner.
-            if (event && work.draws === 1) {
+            if (event && work.draws === setupDraws + 1) {
               (event === "visibilitychange" ? document : window).dispatchEvent(new Event(event));
             }
           }
           return render(options);
         };
-      }, event);
+      }, { event, setupDraws: application === 'unified' ? 1 : 0 });
       const run = page.evaluate(sample, { count: 100000, warmupMs: 50, sampleMs: 100 });
       if (event) {
         await assert.rejects(run, /interrupted/, `${event} during a measured frame invalidates the sample`);
@@ -79,7 +79,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
         const owner = method === "tick" ? app : app.app, original = owner[method];
         const upload = gl.bufferSubData;
         const add = EventTarget.prototype.addEventListener, remove = EventTarget.prototype.removeEventListener;
-        let listeners = 0, calls = 0;
+        let listeners = 0, calls = 0, faultInSample = false;
         const watched = (target, type) => [window, document, app.canvas].includes(target)
           && ["resize", "blur", "visibilitychange", "webglcontextlost"].includes(type);
         EventTarget.prototype.addEventListener = function(type, ...args) {
@@ -90,8 +90,13 @@ async function run({ browser, name, application = "legacy", output: artifactDire
           if (watched(this, type)) listeners--;
           return remove.call(this, type, ...args);
         };
-        owner[method] = () => { calls++; throw new Error(`forced ${method} failure`); };
-        window.failureCheck = () => ({ listeners, calls, uploadRestored: gl.bufferSubData === upload });
+        owner[method] = function(...args) {
+          calls++;
+          if (app.constructor.application === 'unified' && calls === 1) return original.apply(this, args);
+          faultInSample = listeners > 0 && gl.bufferSubData !== upload;
+          throw new Error(`forced ${method} failure`);
+        };
+        window.failureCheck = () => ({ listeners, calls, faultInSample, uploadRestored: gl.bufferSubData === upload });
         window.restoreFailure = () => {
           owner[method] = original;
           EventTarget.prototype.addEventListener = add; EventTarget.prototype.removeEventListener = remove;
@@ -105,8 +110,8 @@ async function run({ browser, name, application = "legacy", output: artifactDire
         ]), new RegExp(`forced ${method} failure`));
         await page.waitForTimeout(100);
         // A throwing unified draw makes one bounded repaint before stopping.
-        const calls = application === "unified" && method === "render" ? 2 : 1;
-        assert.deepEqual(await page.evaluate(() => failureCheck()), { listeners: 0, calls, uploadRestored: true });
+        const calls = application === "unified" ? (method === "render" ? 3 : 2) : 1;
+        assert.deepEqual(await page.evaluate(() => failureCheck()), { listeners: 0, calls, faultInSample: true, uploadRestored: true });
         await page.evaluate(() => restoreFailure());
         assert((await page.evaluate(sample, { count: 1000, warmupMs: 0, sampleMs: 50 })).frames > 0, "Same page can run after failure");
       } finally { clearTimeout(timer); await page.close(); }

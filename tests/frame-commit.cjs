@@ -247,12 +247,14 @@ async function bundledUploadFailure(browser, base, output, name, version = 2) {
     const failed = await page.evaluate(async () => {
       const app = window.app = catalogTest.app;
       app.autoRender = false; app.cancelRender(); app.jedDelta = 0;
-      // Use the actual historical entry and its full population, with a fresh
-      // mesh whose first GPU allocation has not yet run.
+      // Bundled attachment now draws synchronously. Unload its real GPU buffer
+      // to exercise allocation recovery on the completed historical scene.
+      // Initial and replacement first-draw faults live in three-bundled.cjs.
       const rows = await (await fetch('./data/catalog.json')).json();
       app.setAsteroids(rows);
       const cloud = app.renderer.asteroids, renderer = app.renderer.app.renderer, gl = renderer.gl;
       const basis = cloud.geometry.getBuffer('aBasis');
+      basis.unload();
       const before = { jed: app.jed, elapsed: app.elapsed, count: app.asteroidsDiscovered };
       window.uploadTarget = before.jed + 1;
       const bufferData = gl.bufferData, getError = gl.getError;
@@ -267,8 +269,8 @@ async function bundledUploadFailure(browser, base, output, name, version = 2) {
       };
       try {
         try { app.renderFrame(1000); } catch (error) { thrown = error.message; }
-        // A later invalidation must not convert the failed initial upload into
-        // a first-complete receipt or consume the requested date.
+        // A later invalidation must not consume a requested date after
+        // reallocation of the completed scene has failed.
         app.jed = uploadTarget;
         app.renderFrame(1100);
         gl.bindBuffer(gl.ARRAY_BUFFER, basis._gpuData[renderer.uid].buffer);
@@ -279,7 +281,7 @@ async function bundledUploadFailure(browser, base, output, name, version = 2) {
       } finally { gl.bufferData = bufferData; gl.getError = getError; }
     });
     assert.deepEqual(failed, { thrown: 'Unable to upload asteroid buffers.', attempts: 2, allocated: true,
-      frame: true, requested: true, firstDraw: false, failed: true, population: 100000, version },
+      frame: true, requested: true, firstDraw: true, failed: true, population: 100000, version },
     'A failed historical upload cannot publish a later frame, and repaint must rebuild actual GPU storage');
     await page.evaluate(() => { app.autoRender = true; });
     await page.getByRole('button', { name: 'Options' }).click();
@@ -292,7 +294,7 @@ async function bundledUploadFailure(browser, base, output, name, version = 2) {
       app.autoRender = false; app.cancelRender();
       return result;
     });
-    assert.deepEqual(invalidated, { retainedDate: true, requested: true, firstDraw: false, pending: null },
+    assert.deepEqual(invalidated, { retainedDate: true, requested: true, firstDraw: true, pending: null },
       'A real speed-control invalidation cannot resume a terminal graphics failure');
     await page.evaluate(() => {
       window.uploadLoss = app.renderer.app.renderer.gl.getExtension('WEBGL_lose_context');
