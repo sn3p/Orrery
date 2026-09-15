@@ -1,5 +1,6 @@
-// Instrument the real lazy production entry. Numerical helpers load only when
-// requested so production-entry checks can still inspect engine isolation.
+// Instrument lazy renderer startup with the explicit bundled-entry test oracle
+// (aliased by three-build.cjs). Public latest startup has separate entry checks.
+// Numerical helpers load only when requested to retain engine-isolation checks.
 import { app, ready } from "../src/unified/index.js";
 import { prepareCatalogue } from "../src/unified/catalog/prepareCatalogue.js";
 window.threeTest = { app, ready, prepareCatalogue,

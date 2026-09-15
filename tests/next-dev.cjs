@@ -35,6 +35,9 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     await until(() => /http:\/\/127\.0\.0\.1:\d+\//.test(log));
     const base = log.match(/http:\/\/127\.0\.0\.1:\d+\//)[0];
     const page = await browser.newPage();
+    const requests = [];
+    page.on("request", request => requests.push(request.url()));
+    if (!selection) await require("./default-catalog-route.cjs").routeDefaultCatalog(page);
     const errors = [], hotChunks = [];
     page.on("pageerror", error => errors.push(error.message));
     page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
@@ -57,6 +60,12 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     if (selection) {
       await page.waitForFunction(() => previewProbe.app.catalogLoader?.sceneComplete());
       assert.equal(await page.evaluate(() => previewProbe.app.catalogLoader.source.sourceId), selection.pin.sha256);
+    }
+    if (!selection) {
+      await page.waitForFunction(() => previewProbe.app.catalogLoader?.sceneComplete());
+      assert(requests.includes(require("./default-catalog-route.cjs").latestURL));
+      assert(!requests.some(url => url.endsWith('/data/catalog.json')), "Default development never fetches the legacy bundle");
+      assert.equal(await page.evaluate(() => previewProbe.app.catalogLoader.source.mode), "indexed");
     }
     assert.equal(await page.locator("#orrery canvas").count(), 1);
     assert.equal(await page.locator(".orrery-options").count(), 1);

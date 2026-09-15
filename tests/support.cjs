@@ -6,14 +6,14 @@ const webpack = require("webpack");
 async function compile(entry, output, { application = process.env.ORRERY_TEST_APP || 'legacy' } = {}) {
   const config = require("../webpack.config");
   const unified = application === "unified";
-  if (unified && entry === "./src/js/index.js") entry = "./src/unified/index.js";
+  if (unified && entry === "./src/js/index.js") entry = "./tests/bundled-entry.js";
   const aliases = unified ? Object.fromEntries([
     ["Orrery", "tests/unified-app.js"],
     ...["Asteroids", "Orbit", "Planet", "Controls"].map(name => [name, `src/unified/pixi/${name}.js`]),
   ].map(([name, target]) => [path.resolve(`src/js/${name}.js`), path.resolve(target)])) : {};
   // Absolute resolved aliases apply only to fixture builds. Public /next/
   // still uses its real lazy entry/config and is tested separately.
-  const plugins = unified && entry === "./src/unified/index.js"
+  const plugins = unified && entry === "./tests/bundled-entry.js"
     ? config.plugins.map(plugin => plugin.constructor.name === "HtmlWebpackPlugin"
       ? new (require("html-webpack-plugin"))({ template: "./src/unified/index.html" }) : plugin)
     : config.plugins;

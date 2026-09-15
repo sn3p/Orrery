@@ -17,6 +17,7 @@ const checkBuffer = async (page, ratio) => {
 
 module.exports = async (browser, url, output, name) => {
   const page = await browser.newPage({ viewport: { width: 800, height: 600 }, deviceScaleFactor: 3 });
+  if (new URL(url).pathname.endsWith('/next/')) await require('./default-catalog-route.cjs').routeDefaultCatalog(page);
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });

@@ -1,32 +1,44 @@
 # Shared catalogue loading in the preview
 
-The public root and `/next/` still use the historical 100,000-object catalogue.
-The preview also supports the reviewed producer indexed and whole-file contracts,
-including the separately versioned `latest.json` browser distribution. There is
-no catalogue selector or new runtime population cap. `/next/?renderer=three`
-uses the same selection and retained data; renderer switching remains a later unit.
+The `/next/` preview uses the complete available discovery catalogue by default,
+through `catalog-profiles/latest.json` and the reviewed indexed/latest loader.
+`/next/?renderer=three` uses the same source and retained population. Switching
+renderers does not fetch that population again or impose a population limit.
+
+“Complete” means all eligible records in the published discovery dataset, with
+real source coverage and known discovery dates. It does not mean all MPC objects.
+The date still determines which discoveries are visible: normal February 1980
+startup, speed and discovery animation are unchanged. The population is not all
+visible at startup. No catalogue environment variable or historical setting is
+needed, and source failures never silently fall back to the old bundle.
+
+The legacy root still imports `data/catalog.json` (100,000 objects). Keep that
+asset for root compatibility and rollback until unified-app promotion is accepted;
+then audit its importer, build and remaining consumers in the cleanup PR.
+The preview neither imports nor emits that file.
 
 ## Explicit development and test profiles
 
 From the root package:
 
 ```sh
-# Normal root + preview: historical 100k
+# Normal root: legacy bundle; preview: complete published discovery dataset
 npm run build
+npm run build:next
 npm run serve:next
 
 # Assembled root stays historical; preview selects the configured source
 CATALOG_CONFIG=catalog-profiles/ties-indexed.json npm run build
 CATALOG_CONFIG=catalog-profiles/ties-whole.json npm run serve:next
-CATALOG_CONFIG=catalog-profiles/latest.json npm run build:next
 
 # Verified private profile assembly, preserving prior output on failure
 npm run catalog:build -- catalog-profiles/ties-indexed.json .context/catalog-site
 npm run test:catalog
 ```
 
-`CATALOG_CONFIG` is an explicit selection for the preview. Development selection
-is fixed for the process; restart to select another source. The root development
+`CATALOG_CONFIG` optionally overrides the preview source for deterministic tests
+or a verified private profile. Omitting it selects the latest profile. Development
+selection is fixed for the process; restart to select another source. The root development
 command and Conductor's root destination retain their existing behavior. Configured
 preview output remains `dist/next`; overlapping output/static overrides fail.
 Configured production builds compile and stage privately, then atomically replace
@@ -38,11 +50,12 @@ Input protection resolves filesystem aliases before publication. Shared bundle
 caches coordinate installation per pin, preserve a verified concurrent winner,
 and restore previous contents if publication fails. Interrupted installation locks
 retain recovery data; after a five-minute wait, the error identifies the lock for
-inspection. An explicitly selected source fails
-with visible feedback; it never falls back to historical data.
+inspection. Source failures have visible feedback; none falls back to historical data.
+Offline startup reports a loading error with reload guidance. Existing bounded
+retries and online/demand recovery apply after a source has opened.
 
-The latest profile reads the producer descriptor once per page session, revalidates
-it on reload, and verifies its pinned index and content-addressed chunks. It does
+The default latest profile reads the producer descriptor once per page session,
+revalidates it on reload, and verifies its pinned index and content-addressed chunks. It does
 not need a local producer checkout, dataset, or network access during compilation.
 The producer browser distribution has no whole-file payload: whole mode is rejected.
 The two fixture profiles exercise indexed and whole delivery from the same complete
@@ -120,6 +133,13 @@ Three retains the source 3D presentation and date-based discovery fade; see
 
 ## Verification and measurements
 
+Public default-entry tests route hash-valid, small producer fixtures at the real
+compiled descriptor URL, including direct Three and reload. Explicit
+`tests/bundled-entry.js` builds retain whole-file inputs for renderer pixel/numeric
+oracles and bundled-loading regressions; these are test fixtures, not preview
+defaults. Live full-population verification is recorded separately with the
+observed descriptor/index pin and source coverage.
+
 `npm run test:node` includes real producer contract, transport, cancellation,
 provisioning, archive and neutral-model tests. `npm test` includes the actual
 configured production entry through fetch, CPU commitment, adapter upload/draw and
@@ -166,11 +186,11 @@ remain preserved by [the history-import record](history/orrery3d.md). The remain
 | --- | --- |
 | `src/js/catalog/{CatalogSource,CatalogLoader,contract}.js` | `src/unified/catalog/`; loader CPU ownership and explicit graphics receipt |
 | `src/js/prepareCatalogue.js` | `src/unified/catalog/prepareCatalogue.js`; neutral buffers, row diagnostics and Pixi precision bounds |
-| `scripts/build.cjs`, `catalog.cjs`, `catalog-archive.cjs` | Root `scripts/`; preview entry/output and historical default adaptation |
+| `scripts/build.cjs`, `catalog.cjs`, `catalog-archive.cjs` | Root `scripts/`; preview entry/output and legacy-root compatibility |
 | `webpack.app.config.cjs` | `webpack.next.app.config.cjs`; configured preview development/staging |
 | `tests/fixtures/{consumer-v1,browser-v1}` | Root `tests/fixtures/`; unchanged producer fixtures/provenance |
 | Source contract/delivery/loading tests and benchmark | Root catalogue tests and `benchmarks/catalog-loading.cjs`; actual Pixi/preview boundaries |
 
 All source is MIT-licensed; the imported license, original authorship/history and
-fixture provenance remain available. This port deliberately retains Orrery's
-historical default instead of adopting Orrery3D PR31's app-only default rollout.
+fixture provenance remain available. The preview default is now independently
+approved for Orrery. The legacy root retains its bundle until promotion; Orrery3D and OrreryData remain separately owned.

@@ -32,14 +32,16 @@ Build and bundle:
 npm run build
 ```
 
-The build includes an unlinked `/next/` Pixi preview while the current app
+The build includes an unlinked `/next/` preview while the current app
 stays at the root. Run `npm run serve:next` after building to develop the preview
 at `/next/` (uses `CONDUCTOR_PORT` when set, otherwise 3000). See the
 [approved unification plan](docs/unification.md) for source pins, scope, build
 isolation and verification. The preview uses an app-owned clock, HUD/options
-and lazy Pixi adapter with the same historical 100k catalogue. Explicit
-[indexed, whole and latest catalogue profiles](docs/catalog-loading.md) exercise
-the shared loader and incremental Pixi path without changing that default.
+and lazy Pixi/Three adapters with the complete available discovery catalogue by
+default, loaded from the producer’s latest descriptor. Discovery visibility still
+follows the simulation date. The legacy root keeps its 100k bundle until promotion.
+See [catalogue loading and test profiles](docs/catalog-loading.md) for source
+coverage, error handling and optional deterministic overrides.
 
 Watch changes and rebuild:
 
@@ -251,7 +253,7 @@ cd data
 ./download_data.sh && ./data_to_json.py
 ```
 
-The bundled `data/catalog.json` contains **100,000 objects**. Running the importer without a limit replaces it with all numbered minor planets that have matching discovery dates.
+The legacy root’s bundled `data/catalog.json` contains **100,000 objects**; `/next/` uses the published discovery catalogue independently. Running the importer without a limit replaces it with all numbered minor planets that have matching discovery dates.
 
 On **12 September 2026**, a full import of fresh MPC data produced **895,910 objects** from **1,563,495 orbital records**. Unnumbered objects lack matching discovery records in `NumberedMPs.txt` and are excluded. These counts change as MPC updates its datasets; see [issue #47](https://github.com/sn3p/Orrery/issues/47) for the verified counts and upstream limitation.
 

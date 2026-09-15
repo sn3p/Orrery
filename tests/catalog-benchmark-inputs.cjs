@@ -37,3 +37,20 @@ test("catalogue benchmark closes its HTTP server when browser launch fails", asy
     env: { ...process.env, DURATION_SECONDS: "0", PROFILES: "native", OUTPUT: path.join(directory, "report.json") },
   }), error => error.code === 1 && !error.killed && error.stderr.includes("controlled launch failure"));
 });
+
+test("historical benchmark CLI keeps an explicit whole-file oracle when preview defaults to latest", async t => {
+  const directory = await fs.mkdtemp(path.join(root, ".context/benchmark-historical-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const preload = path.join(directory, "stop-before-browser.cjs"), config = path.join(directory, "historical.json");
+  await fs.writeFile(config, JSON.stringify({ mode: "historical" }));
+  await fs.writeFile(preload, `require(${JSON.stringify(require.resolve("playwright"))}).chromium.launch = async () => { throw new Error("verified build before launch"); };`);
+  await assert.rejects(execute(process.execPath, ["--require", preload, "benchmarks/catalog-loading.cjs", config], {
+    cwd: root, timeout: 20000,
+    env: { ...process.env, DURATION_SECONDS: "0", PROFILES: "native", OUTPUT: path.join(directory, "report.json") },
+  }), error => error.code === 1 && !error.killed && error.stderr.includes("verified build before launch"));
+  const site = path.join(root, ".context/catalog-trial/site-historical");
+  assert.deepEqual(await fs.readFile(path.join(site, "data/catalog.json")), await fs.readFile(path.join(root, "data/catalog.json")));
+  const scripts = (await fs.readdir(path.join(site, "assets"))).filter(name => name.endsWith(".js"));
+  const code = (await Promise.all(scripts.map(name => fs.readFile(path.join(site, "assets", name), "utf8")))).join("\n");
+  assert(!code.includes(require("../catalog-profiles/latest.json").latest), "Historical CLI comparison cannot select the live producer");
+});

@@ -84,6 +84,9 @@ async function checkStatusContrast(page, expected) {
 }
 
 async function run({ browser, name, application = "legacy", output: artifactDirectory }) {
+  const unified = application === "unified";
+  const { routeDefaultCatalog, latestURL } = require("./default-catalog-route.cjs");
+  const catalogRequest = unified ? latestURL : "**/data/catalog.json";
   const dist = path.join(root, application === "unified" ? "dist/next" : "dist");
   const output = artifactDirectory || (path.join(root, application === "unified" ? ".context/pr2/unified-ui" : ".context/font-qa"));
   fs.mkdirSync(output, { recursive: true });
@@ -105,6 +108,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     for (const width of [1280, 390, 360]) {
       const context = await browser.newContext({ viewport: { width, height: width === 1280 ? 800 : 844 }, isMobile: width < 500, hasTouch: width < 500 });
       const page = await context.newPage();
+      if (unified) await routeDefaultCatalog(page);
       const errors = [];
       page.on("pageerror", error => errors.push(error.message));
       page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
@@ -134,13 +138,14 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     }
 
     const page = await browser.newPage({ viewport: { width: 360, height: 844 }, isMobile: true, hasTouch: true });
+    if (unified) await routeDefaultCatalog(page);
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
     let releaseCatalog;
     const catalogGate = new Promise(resolve => { releaseCatalog = resolve; });
     let releaseFont;
     const fontGate = new Promise(resolve => { releaseFont = resolve; });
-    await page.route("**/data/catalog.json", async route => { await catalogGate; await route.continue(); });
+    await page.route(catalogRequest, async route => { await catalogGate; await route.fallback(); });
     await page.route("**/*.woff2", async route => { await fontGate; await route.continue(); });
     await page.goto(url, { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => document.querySelector("#orrery-count").textContent === "0");
@@ -168,11 +173,13 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     assert.deepEqual(errors, [], "No JavaScript errors during loading or font fallback");
 
     await page.unroute("**/*.woff2");
-    await page.route("**/data/catalog.json", route => route.fulfill({ status: 503, body: "Unavailable" }));
+    await page.route(catalogRequest, route => route.fulfill({ status: 503, body: "Unavailable" }));
     await page.reload();
-    await page.waitForFunction(() => document.querySelector("#orrery-status").textContent.startsWith("Unable to load"));
+    const errorMessage = unified ? "Could not load the asteroid catalogue. Reload to try again."
+      : "Unable to load asteroids. Reload to try again.";
+    await page.waitForFunction(message => document.querySelector("#orrery-status").textContent === message, errorMessage);
     report.push({ width: 360, state: "catalog-error", ui: await checkTypography(page),
-      status: await checkStatusContrast(page, "Unable to load asteroids. Reload to try again.") });
+      status: await checkStatusContrast(page, errorMessage) });
     await page.screenshot({ path: path.join(output, "error-360.png") });
     assert.deepEqual(errors, [], "No JavaScript errors during catalogue failure");
     fs.writeFileSync(path.join(output, "results.json"), JSON.stringify(report, null, 2) + "\n");

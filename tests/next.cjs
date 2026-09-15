@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const webpack = require("webpack");
 const { serve } = require("./support.cjs");
+const { routeDefaultCatalog, latestURL, producerBase } = require("./default-catalog-route.cjs");
 
 async function compile(config) {
   const compiler = webpack(config);
@@ -29,7 +30,10 @@ async function run({ browser, name, application = "legacy", output: artifactDire
   fs.mkdirSync(directory, { recursive: true });
   const pages = path.join(directory, "pages");
   fs.mkdirSync(pages, { recursive: true });
-  if (!fs.existsSync(path.join(pages, "Orrery"))) fs.symlinkSync(path.resolve("dist"), path.join(pages, "Orrery"), "dir");
+  const publicRoot = path.resolve(process.env.ORRERY_DEFAULT_DIST || "dist");
+  const pagesRoot = path.join(pages, "Orrery");
+  if (fs.existsSync(pagesRoot) && fs.lstatSync(pagesRoot).isSymbolicLink() && fs.readlinkSync(pagesRoot) !== publicRoot) fs.unlinkSync(pagesRoot);
+  if (!fs.existsSync(pagesRoot)) fs.symlinkSync(publicRoot, pagesRoot, "dir");
 
   // Retain async CSS/data coverage alongside the real public Pixi lazy entry.
   const fixture = path.join(directory, "fixture");
@@ -38,7 +42,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
   } else await compileLazyProbe(fixture);
   fs.mkdirSync(path.join(fixture, "pages"), { recursive: true });
   if (!fs.existsSync(path.join(fixture, "pages/Orrery"))) fs.symlinkSync(path.join(fixture, "site"), path.join(fixture, "pages/Orrery"), "dir");
-  const root = await serve("dist"), nested = await serve(pages);
+  const root = await serve(process.env.ORRERY_DEFAULT_DIST || "dist"), nested = await serve(pages);
   const lazyRoot = await serve(path.join(fixture, "site")), lazyNested = await serve(path.join(fixture, "pages"));
   const results = [];
   try {
@@ -47,6 +51,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
         { width: 320, height: 568 }, { width: 844, height: 390 }]) {
         const page = await browser.newPage({ viewport });
         const errors = [], requests = [];
+        await routeDefaultCatalog(page);
         page.on("pageerror", error => errors.push(error.message));
         page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
         page.on("response", response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
@@ -99,11 +104,14 @@ async function run({ browser, name, application = "legacy", output: artifactDire
           await page.reload();
           await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent) > 0);
           assert.equal(await page.locator("#orrery canvas").count(), 1);
-          assert(requests.filter(url => !url.startsWith("data:")).every(request => request.startsWith(url)),
-            "All preview resources stay under its own static directory");
-          assert(requests.some(url => /\/data\/catalog.json$/.test(url)), "Preview fetches its own historical catalogue");
+          assert(requests.filter(url => !url.startsWith("data:")).every(request => request.startsWith(url) || request.startsWith(producerBase)),
+            "Preview assets stay in their static directory; catalogue requests use the selected producer");
+          assert.equal(requests.filter(url => url === latestURL).length, 2, "Default startup and reload discover latest without CATALOG_CONFIG");
+          assert(requests.some(url => /\/index-[a-f0-9]+\.json$/.test(url)), "Default preview resolves the verified index");
+          assert(requests.some(url => /\/chunks\/[a-f0-9]+\.json$/.test(url)), "Default preview loads indexed chunks");
+          assert(!requests.some(url => /\/data\/catalog.json$|\/full\/catalog/.test(url)), "Preview never requests historical or whole-file data");
           assert(requests.some(url => /\/pixi\.[\da-f]+\.js$/.test(url)), "Preview loads the real lazy Pixi adapter");
-          assert(!requests.some(url => /three|latest.json|orrery-data/i.test(url)), "No later renderer/producer rollout");
+          assert(!requests.some(url => /\/three\.[\da-f]+\.js$/.test(url)), "Pixi startup does not eagerly load Three");
           // Exercise the real return path, including the deployment prefix.
           await link.focus();
           await page.keyboard.press("Enter");
@@ -115,7 +123,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
         } finally { await page.close(); }
       }
     }
-    // Actual generated entry: HTTP/empty catalogue and missing lazy engine
+    // Actual generated entry: latest HTTP failure/empty indexed catalogue and missing lazy engine
     // recover on reload. Intentional HTTP503 diagnostics are kept separate
     // from the zero-error ordinary-entry assertions above.
     const failure = await browser.newPage({ viewport: { width: 390, height: 844 } });
@@ -124,17 +132,18 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     failure.on("console", message => { if (message.type() === "error") expectedDiagnostics.push(message.text()); });
     try {
       const url = `${nested.url}/Orrery/next/`;
-      await failure.route("**/data/catalog.json", route => route.fulfill({ status: 503, body: "Unavailable" }));
+      await failure.route(latestURL, route => route.fulfill({ status: 503, body: "Unavailable" }));
       await failure.goto(url);
-      await failure.getByRole("alert").filter({ hasText: "Unable to load" }).waitFor();
+      await failure.getByRole("alert").filter({ hasText: "Could not load the asteroid catalogue" }).waitFor();
       assert.equal(await failure.locator("#orrery-count").textContent(), "0");
       assert.equal(await failure.locator("#orrery canvas").count(), 1);
-      await failure.unroute("**/data/catalog.json");
-      await failure.route("**/data/catalog.json", route => route.fulfill({ json: [] }));
+      await failure.unroute(latestURL);
+      const removeEmpty = await routeDefaultCatalog(failure, { empty: true });
       await failure.reload();
       await failure.waitForFunction(() => document.querySelector("#orrery-date").textContent && document.querySelector("#orrery-status").textContent === "");
       assert.equal(await failure.locator("#orrery-count").textContent(), "0");
-      await failure.unroute("**/data/catalog.json");
+      await removeEmpty();
+      await routeDefaultCatalog(failure);
       await failure.route("**/assets/pixi.*.js", route => route.fulfill({ status: 503, body: "Unavailable" }));
       await failure.reload();
       await failure.getByRole("status").filter({ hasText: "Unable to start" }).waitFor();

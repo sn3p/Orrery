@@ -37,7 +37,7 @@ module.exports = defineConfig({
   },
   projects: [
     ...[...new Set(browsers)].map(name => ({
-      name, testMatch: ['browser.spec.cjs', 'catalog.spec.cjs', 'three.spec.cjs', 'switching.spec.cjs'], use: use(name),
+      name, testMatch: ['browser.spec.cjs', 'catalog.spec.cjs', 'three.spec.cjs', 'switching.spec.cjs', 'default-catalog.spec.cjs'], use: use(name),
     })),
     { name: 'chromium-only', testMatch: ['chromium.spec.cjs', 'catalog-chromium.spec.cjs'], use: use('chromium') },
   ],

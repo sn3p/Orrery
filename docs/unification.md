@@ -5,7 +5,7 @@ blueprint and start guide, with historical status reconciled and local planning
 paths removed. No further architecture approval is required. Each implementation
 unit still needs its own tests, review and explicit merge instruction.
 
-## Current unit: PR5, renderer switching and options
+## Current unit: complete discovery catalogue by default in `/next`
 
 These numbers identify planned review units, not GitHub PR numbers. PR1 shipped
 in [PR64](https://github.com/sn3p/Orrery/pull/64), PR2 in
@@ -16,9 +16,13 @@ in [PR64](https://github.com/sn3p/Orrery/pull/64), PR2 in
 PR3 shipped in [PR68](https://github.com/sn3p/Orrery/pull/68), retaining neutral CPU
 data, incremental Pixi packing and explicit indexed/whole/latest profiles.
 PR4 shipped in [PR70](https://github.com/sn3p/Orrery/pull/70), adding the lazy
-`/next/?renderer=three` entry using the same shell and catalogue. PR5 adds in-page
-renderer switching, separate views and the optional renderer control builder.
-The root and default preview keep Pixi and the historical 100k catalogue.
+`/next/?renderer=three` entry using the same shell and catalogue. PR5 shipped in
+[PR71](https://github.com/sn3p/Orrery/pull/71), adding in-page renderer switching,
+separate views and the optional renderer control builder.
+This inserted data-default unit makes the complete published discovery catalogue
+the normal `/next/` source for both engines, without an environment override or
+historical fallback. Chronological visibility and startup/date/speed stay unchanged.
+The root keeps its legacy 100k bundle until promotion; the preview excludes it.
 Promotion and cleanup remain PR6–PR7, with explicit release approval before PR6.
 See the [catalogue contract](catalog-loading.md) and [Three adapter](three-renderer.md).
 
@@ -60,13 +64,14 @@ Orrery3D snapshot. Keep live source stable until the promotion/cleanup units:
 | `three/ThreeRenderer.js` | Graphics/camera responsibilities from preserved Orrery3D `Orrery3D.js`; shared App keeps clock/loader/UI |
 | `three/{Asteroids,Planet,Orbit,Sun,createSphere}.js` | Orrery3D `93a3e1f`; source shader/presentation, retained neutral data and frame/draw commitment adaptation |
 | Shared imports from `src/js/` | Unchanged `PlaybackClock`, `Stats`, `utils`, `constants`, `planets`, `asteroidOrbits` |
-| Shared CSS/fonts/data | Unchanged existing styles/assets; preview identity/return and status placement are isolated in `preview.css` |
+| Shared CSS/fonts | Unchanged existing styles/assets; preview identity/return and status placement are isolated in `preview.css` |
 
 `asteroidOrbits` keeps the existing legacy Pixi packing and shared shader helpers.
 The preview retains full 3D bases and Float64 phase/date data independently from
 Pixi's mutable buffers. Its source is Orrery3D PR31 merge
-`93a3e1f4a36d8fdceb513bdfdca20beddb3348d6`. The source's separate hosted/default
-rollout does not alter Orrery's default.
+`93a3e1f4a36d8fdceb513bdfdca20beddb3348d6`. The preview's full-catalogue default
+is separately approved for Orrery; it does not change the legacy root or the
+source application's ownership.
 
 The preview is unlinked from the current application's UI and carries
 `noindex, nofollow`. Once merged and deployed it is public at
@@ -112,9 +117,9 @@ late-start costs and physical mobile hardware remain explicit measurement limits
 [Orrery3D PR31](https://github.com/sn3p/Orrery3D/pull/31) merged as `93a3e1f`.
 Its latest-descriptor and provisioning fixes are the PR3 reference. The producer's
 automatic Pages publication also landed in PR6 (`22a9e6d`); MPC acquisition and
-regeneration remain manual. Orrery's explicit latest profile consumes that browser
-contract. Orrery3D's app-only default rollout does not change Orrery's historical
-root or preview default. Neither data production nor public promotion is PR3 scope.
+regeneration remain manual. Orrery's default preview profile consumes that browser
+contract. This data-default unit follows PR5 and precedes PR6; it leaves the legacy
+root and data producer unchanged. Public promotion remains a separate approval.
 
 ## Approved product and architecture decisions
 
@@ -318,7 +323,7 @@ handoff. Review shared state/loader/switching changes independently.
 
 | Area | Required coverage |
 | --- | --- |
-| Entries/build | Clean install, root/preview/direct Three when available; domain and Pages subpaths; no cross-clean/collisions; lazy chunks; HMR/reload; default catalogue preserved |
+| Entries/build | Clean install, root/preview/direct Three when available; domain and Pages subpaths; no cross-clean/collisions; lazy chunks; HMR/reload; legacy root catalogue preserved; preview default uses complete discovery data |
 | Time | Pause/forward/reverse/startup date; unchanged speed/date on switching; hidden/long-stall exclusion; paused camera input and no recurring scene draws |
 | Catalogue | Same pinned bundled/indexed/whole population, malformed/empty input, equal-date splits, late chunks, buffering, retries/cancellation/replacement/stale work; no mixed pins/duplicates |
 | Loading switches | Partial retention, buffering/replacement, independent CPU/GPU prefixes, coherent date/count, no retained-data refetch, rapid teardown/failure recovery |
@@ -350,7 +355,8 @@ those features.
 The `/next/` options panel offers Pixi.js (2D) and Three.js (3D). Switching keeps
 one App, clock, HUD, retained CPU catalogue, date, requested speed and DPR choice.
 Each mode remembers its own view for this page. There is no camera conversion or
-browser-storage persistence. The original root and historical100k default remain.
+browser-storage persistence. The preview uses the same complete discovery source
+in both modes; the original root retains its historical100k bundle.
 
 The controller loads destination code while the outgoing camera remains usable,
 suspends playback and speculative catalogue lookahead, then disposes the outgoing

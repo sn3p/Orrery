@@ -1,17 +1,15 @@
 import App from "./App.js";
 import planets from "../js/planets.js";
-import catalogURL from "../../data/catalog.json";
 import "../css/main.css";
 import "./preview.css";
 import "../fonts/OFL.txt";
 
-const selection = typeof __CATALOG_SELECTION__ === "undefined" ? null : __CATALOG_SELECTION__;
+const selection = __CATALOG_SELECTION__;
 const app = new App({ container: document.getElementById("orrery"),
   renderer: new URLSearchParams(location.search).get("renderer") ?? "pixi",
   startJed: selection?.startJed, jedDelta: selection?.speed });
 const ready = app.init().then(() => {
   app.addPlanets(planets);
-  if (!selection) return app.loadAsteroids(catalogURL);
   const pin = selection.pin && { ...selection.pin, url: new URL(selection.pin.url, document.baseURI).href };
   return app.loadCatalog(pin, { mode: selection.mode, latest: selection.latest });
 }).catch(() => { /* App owns initialization error feedback and cleanup. */ });

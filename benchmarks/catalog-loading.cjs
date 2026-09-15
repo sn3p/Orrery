@@ -15,6 +15,7 @@ async function buildHistorical(output) {
   const webpack = require("webpack"), base = require("../webpack.next.config.js");
   await new Promise((resolve, reject) => {
     const compiler = webpack({ ...base, mode: "production", entry: "./tests/catalog-browser.js",
+      resolve: { alias: { [path.join(root, "src/unified/index.js")]: path.join(root, "tests/bundled-entry.js") } },
       output: { ...base.output, path: output } });
     compiler.run((error, stats) => compiler.close(() => {
       if (error || stats.hasErrors()) reject(error || new Error(stats.toString("errors-only")));
