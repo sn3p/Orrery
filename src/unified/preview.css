@@ -82,7 +82,7 @@
 }
 
 .orrery-identity a {
-  color: #aaa;
+  color: inherit;
   padding: 3px 0;
   margin: -3px 0;
   text-underline-offset: 3px;
