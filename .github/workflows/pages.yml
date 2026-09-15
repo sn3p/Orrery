@@ -87,24 +87,29 @@ jobs:
             name: Browser tests (firefox, shard 2/2)
           - browser: webkit
             project: webkit
-            shard: 1/2
+            shard: 1/4
             id: webkit-1
-            name: Browser tests (webkit, shard 1/2)
+            name: Browser tests (webkit, shard 1/4)
           - browser: webkit
             project: webkit
-            shard: 2/2
+            shard: 2/4
             id: webkit-2
-            name: Browser tests (webkit, shard 2/2)
+            name: Browser tests (webkit, shard 2/4)
+          - browser: webkit
+            project: webkit
+            shard: 3/4
+            id: webkit-3
+            name: Browser tests (webkit, shard 3/4)
+          - browser: webkit
+            project: webkit
+            shard: 4/4
+            id: webkit-4
+            name: Browser tests (webkit, shard 4/4)
           - browser: chromium
             project: chromium-only
             shard: 1/1
             id: chromium-only
             name: Chromium-only integration tests
-          - browser: chromium
-            project: standalone
-            shard: 1/1
-            id: standalone
-            name: Standalone preview tests (clean checkout)
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -130,21 +135,18 @@ jobs:
         run: sudo apt-get install -y xvfb xauth libgl1-mesa-dri libglx-mesa0
 
       - name: Download the assembled Pages artifact
-        if: matrix.project != 'standalone'
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: github-pages
           path: .context/pages-artifact
 
       - name: Extract the artifact for both entry points
-        if: matrix.project != 'standalone'
         run: |
           rm -rf dist
           mkdir dist
           tar -xf .context/pages-artifact/artifact.tar -C dist
 
       - name: Download reusable browser fixtures
-        if: matrix.project != 'standalone'
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           name: browser-fixtures
@@ -152,13 +154,8 @@ jobs:
 
       - name: Run browser regressions
         run: |
-          if [ "${{ matrix.project }}" = standalone ]; then
-            test ! -e dist/next
-            xvfb-run -a npm run test:unified
-          else
-            ORRERY_PREBUILT_FIXTURES="$PWD/.context/test-fixtures" \
-              xvfb-run -a npx playwright test --project="${{ matrix.project }}" --shard="${{ matrix.shard }}"
-          fi
+          ORRERY_PREBUILT_FIXTURES="$PWD/.context/test-fixtures" \
+            xvfb-run -a npx playwright test --project="${{ matrix.project }}" --shard="${{ matrix.shard }}"
         env:
           BROWSERS: ${{ matrix.browser }}
           ORRERY_TEST_GRAPHICS: mesa
@@ -188,10 +185,62 @@ jobs:
           include-hidden-files: true
           path: .context/playwright-blob
 
+  standalone:
+    name: Standalone preview tests (clean checkout)
+    # This job builds its own preview and fixtures. It needs no build artifact.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .tool-versions
+          cache: npm
+      - name: Install dependencies and browser
+        run: |
+          npm ci
+          npx playwright install --with-deps chrome
+      - name: Install virtual display and software graphics
+        run: sudo apt-get install -y xvfb xauth libgl1-mesa-dri libglx-mesa0
+      - name: Build and verify standalone preview
+        run: |
+          test ! -e dist/next
+          xvfb-run -a npm run test:unified
+        env:
+          BROWSERS: chromium
+          ORRERY_TEST_GRAPHICS: mesa
+          LIBGL_ALWAYS_SOFTWARE: 1
+          PLAYWRIGHT_BLOB_OUTPUT_NAME: report-standalone.zip
+      - name: Retain verification and diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: browser-results-standalone
+          include-hidden-files: true
+          path: |
+            .context/playwright-results/environment
+            .context/playwright-results/**/evidence/*.png
+            .context/playwright-results/**/evidence/*.json
+            .context/playwright-results/**/evidence/*.log
+            .context/playwright-results/**/trace.zip
+            .context/playwright-results/**/test-failed-*.png
+            .context/playwright-results/**/error-context.md
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-blob-standalone
+          include-hidden-files: true
+          path: .context/playwright-blob
+
   report:
     name: Browser test report
     if: ${{ !cancelled() }}
-    needs: browser-tests
+    needs: [browser-tests, standalone]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -225,7 +274,7 @@ jobs:
 
   deploy:
     if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
-    needs: [build, browser-tests]
+    needs: [build, browser-tests, standalone]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

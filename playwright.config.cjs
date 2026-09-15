@@ -29,7 +29,10 @@ module.exports = defineConfig({
   use: {
     actionTimeout: 30_000,
     navigationTimeout: 30_000,
-    trace: 'retain-on-failure',
+    // Recording every DOM snapshot and screencast is expensive for these WebGL
+    // tests. Keep actions/sources and failure screenshots; --trace on opts into
+    // full visual traces when investigating a specific case.
+    trace: { mode: 'retain-on-failure', snapshots: false, screenshots: false },
     screenshot: 'only-on-failure',
   },
   projects: [

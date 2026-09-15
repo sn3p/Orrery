@@ -23,16 +23,26 @@ After building the site, examples include:
 ```sh
 npx playwright test --list
 npx playwright test --project=firefox
-npx playwright test --project=webkit --shard=1/2
+npx playwright test --project=webkit --shard=1/4
 npx playwright test --project=chromium-only
 npx playwright show-report .context/playwright-report
 ```
 
-Both halves of a sharded run are required for complete coverage. The worker count
+Every shard of a sharded run is required for complete coverage. The worker count
 is one: these tests exercise substantial WebGL workloads, with CPU software
 rendering on CI. Separate machines supply parallelism. Native Playwright contexts
 are closed at the end of every case; output directories are unique per case,
 project and retry. Failed assertions fail the job; automatic retries are disabled.
+
+Options controls, display resolution and texture recovery are independent cases
+with separate timeout budgets. Stateful transitions inside each case remain
+together. This avoids consuming one case's timeout across three unrelated pages.
+
+Failure traces retain actions, sources and attachments. Continuous screencasts
+and per-action DOM snapshots are disabled because they add substantial overhead
+to software-rendered WebGL tests; failure screenshots and explicit visual checks
+are still retained. Use `npx playwright test --project=webkit --grep 'texture recovery'
+--trace on` to record a full visual trace for a targeted investigation.
 
 ## Coverage ownership
 
@@ -71,13 +81,16 @@ The ordinary-clone test clears prepared-fixture configuration and confirms
 generated test output does not dirty the source checkout. Fixture builds and
 Playwright reports are ignored by Git in ordinary clones too.
 
-CI has two shards for each browser, one Chromium-only job and one clean-checkout
-preview job. The latter verifies `dist/next` is absent before
+CI has two shards each for Chromium and Firefox, four for WebKit, one
+Chromium-only job and one clean-checkout preview job. WebKit has more shards
+because it was the slowest engine in the first hosted run. The preview job starts
+alongside the build because it consumes no prepared artifacts. It verifies
+`dist/next` is absent before
 `npm run test:unified`; it assembles the preview and its fixtures locally and runs
 the full standalone subset. Chrome channel and Xvfb/Mesa launch settings are
 preserved. Deployment requires the build and every matrix entry to succeed.
 
-Each matrix entry uploads a uniquely named blob report, plus JSON, screenshots
+Each test job uploads a uniquely named blob report, plus JSON, screenshots
 and failure traces. A report job merges them into the `browser-test-report`
 artifact even when tests fail. A merged report is diagnostic; the underlying
 test jobs remain the deployment gate. Hosted duration and cost must be measured

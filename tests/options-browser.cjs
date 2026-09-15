@@ -6,18 +6,28 @@ const { testOptions } = require('./options.cjs');
 const testPixelRatio = require('./pixel-ratio.cjs');
 const texture = require('./resolution-texture.cjs');
 
-async function run({ browser, name, application = "legacy", output: artifactDirectory, step = (_name, action) => action() }) {
+async function run({ browser, name, application = "legacy", output: artifactDirectory, part, step = (_name, action) => action() }) {
+  assert(part === undefined || ['options', 'pixelRatio', 'texture'].includes(part), `Unknown options check: ${part}`);
   const output = artifactDirectory || (application === 'unified' ? '.context/pr2/unified-options-browser' : '.context/dpr/checks');
   fs.mkdirSync(output, { recursive: true });
-  await build('./tests/rendering-fixture.js', path.join(output, 'fixture'), { application });
-  await build('./tests/init-fixture.js', path.join(output, 'init'), { application });
+  if (part === undefined || part === 'texture') {
+    await build('./tests/rendering-fixture.js', path.join(output, 'fixture'), { application });
+    await build('./tests/init-fixture.js', path.join(output, 'init'), { application });
+  }
   const production = await serve('dist'), fixture = await serve(output);
   const report = [];
   try {
-    const result = { browser: name, version: browser.version(),
-      options: await step("options interactions", () => testOptions(browser, production.url + (application === 'unified' ? '/next/' : '/'), output, name)),
-      pixelRatio: await step("pixel ratio and display transitions", () => testPixelRatio(browser, production.url + (application === 'unified' ? '/next/' : '/'), output, name)),
-      texture: await step("texture recovery", () => texture(browser, fixture.url, name)) };
+    const result = { browser: name, version: browser.version() };
+    const url = production.url + (application === 'unified' ? '/next/' : '/');
+    // These checks create independent pages and share no state. Native cases
+    // give each its own timeout; standalone invocation still runs all three.
+    for (const [key, label, action] of [
+      ['options', 'options interactions', () => testOptions(browser, url, output, name)],
+      ['pixelRatio', 'pixel ratio and display transitions', () => testPixelRatio(browser, url, output, name)],
+      ['texture', 'texture recovery', () => texture(browser, fixture.url, name)],
+    ]) {
+      if (part === undefined || part === key) result[key] = await step(label, action);
+    }
     report.push(result);
     console.log(JSON.stringify(result));
     assert(report.length > 0);

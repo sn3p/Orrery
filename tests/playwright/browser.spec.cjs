@@ -19,9 +19,15 @@ for (const application of ['legacy', 'unified']) {
     test(`rendering, readouts, lifecycle and production UI${tag}`, async ({ check }) => {
       await check('rendering', { application });
     });
-    test(`options, pixel ratio and texture lifecycle${tag}`, async ({ check }) => {
-      await check('options-browser', { application });
-    });
+    for (const [part, title] of [
+      ['options', 'options controls, keyboard and responsive layout'],
+      ['pixelRatio', 'pixel ratio and display transitions'],
+      ['texture', 'texture recovery and resolution lifecycle'],
+    ]) {
+      test(`${title}${tag}`, async ({ check }) => {
+        await check('options-browser', { application, part });
+      });
+    }
     test(`benchmark frames, resolution, interruption and recovery${tag}`, async ({ check }) => {
       await check('benchmark', { application });
     });

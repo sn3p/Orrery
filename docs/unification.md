@@ -286,7 +286,7 @@ its real HTML and lazy chunks at root and Pages prefixes. `benchmark:next`
 identifies unified execution independently of the benchmark runner source.
 After the build regression
 checks, CI uploads the final assembled Pages artifact and distinct compiled test
-fixtures. Each browser project runs across two shards with one worker per runner;
+fixtures. Chromium and Firefox use two shards each, and WebKit uses four, with one worker per runner;
 Chromium-only checks run once per applicable app in their own job.
 A separate Chromium job runs the standalone preview command from a
 clean checkout with no preview build. Deployment depends on all jobs.

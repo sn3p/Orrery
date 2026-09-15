@@ -85,12 +85,14 @@ async function discover(...args) {
 test('native discovery preserves coverage and each browser shard partitions it exactly once', async () => {
   const all = await discover();
   const required = ['production assets', 'preview entry', 'raw App lifecycle',
-    ...['legacy', 'unified'].flatMap(app => ['GPU numerics', 'rendering, readouts', 'options, pixel ratio', 'benchmark frames'].map(title => `${app} / ${title}`))];
+    ...['legacy', 'unified'].flatMap(app => ['GPU numerics', 'rendering, readouts', 'options controls',
+      'pixel ratio and display transitions', 'texture recovery', 'benchmark frames'].map(title => `${app} / ${title}`))];
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     const cases = all.filter(row => row.project === browser);
-    assert.equal(cases.length, 11);
+    assert.equal(cases.length, 15);
     for (const title of required) assert.equal(cases.filter(row => row.title.includes(title)).length, 1, `${browser}: ${title}`);
-    const shards = await Promise.all([1, 2].map(shard => discover(`--project=${browser}`, `--shard=${shard}/2`)));
+    const count = browser === 'webkit' ? 4 : 2;
+    const shards = await Promise.all(Array.from({ length: count }, (_, i) => discover(`--project=${browser}`, `--shard=${i + 1}/${count}`)));
     assert(shards.every(shard => shard.length > 0));
     assert.deepEqual(shards.flat().map(row => row.id).sort(), cases.map(row => row.id).sort());
     assert.equal(new Set(shards.flat().map(row => row.id)).size, cases.length);
@@ -99,7 +101,7 @@ test('native discovery preserves coverage and each browser shard partitions it e
   const standalone = await discover('--config=playwright.standalone.config.cjs');
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     const cases = standalone.filter(row => row.project === browser);
-    assert.equal(cases.length, 5);
+    assert.equal(cases.length, 7);
     assert(cases.some(row => row.title.includes('raw App lifecycle')));
     assert(cases.every(row => !row.title.includes('legacy /')));
   }
