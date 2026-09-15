@@ -45,21 +45,25 @@ Watch changes and rebuild:
 npm run watch
 ```
 
-Run numerical, production browser and benchmark checks with Google Chrome installed:
+Install the test browsers, then run numerical, production browser and benchmark checks:
 
 ```bash
+npx playwright install chrome firefox webkit
 npm test
 ```
 
 These checks cover GPU orbit accuracy, discovery markers, playback, catalogue
 replacement, context recovery, development hot updates, font loading and
-desktop/mobile layout. Results and screenshots are saved in `.context/gpu-orbits/`,
-`.context/hmr-test/`, `.context/font-qa/`, `.context/dpr/` and `.context/pr2/`.
+desktop/mobile layout. Playwright Test reports individual cases and lifecycle
+steps. Results, screenshots and failure traces are saved in
+`.context/playwright-results/`; open the HTML report with
+`npx playwright show-report .context/playwright-report`.
 The default browser suite also checks the preview against the legacy pixels,
 numerics, lifecycle and options; `npm run test:unified` builds the preview and
 runs that subset, including from a clean checkout after installing dependencies.
-To include Firefox and Playwright WebKit, install their browsers with
-`npx playwright install firefox webkit`, then run `BROWSERS=chromium,firefox,webkit npm test`.
+The default suite runs Chromium, Firefox and Playwright WebKit. For a local
+Chrome-only pass, use `BROWSERS=chromium npm test`. See
+[the browser test workflow](docs/browser-tests.md) for projects, shards and fixture builds.
 Playwright WebKit does not substitute for testing actual Safari or iOS.
 
 The UI uses self-hosted [JetBrains Mono Variable](src/fonts/README.md),

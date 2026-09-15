@@ -3,9 +3,9 @@ const path = require("node:path");
 const http = require("node:http");
 const webpack = require("webpack");
 
-async function build(entry, output) {
+async function compile(entry, output, { application = process.env.ORRERY_TEST_APP || 'legacy' } = {}) {
   const config = require("../webpack.config");
-  const unified = process.env.ORRERY_TEST_APP === "unified";
+  const unified = application === "unified";
   if (unified && entry === "./src/js/index.js") entry = "./src/unified/index.js";
   const aliases = unified ? Object.fromEntries([
     ["Orrery", "tests/unified-app.js"],
@@ -27,6 +27,15 @@ async function build(entry, output) {
   });
 }
 
+async function build(entry, output, options = {}) {
+  if (process.env.ORRERY_PREBUILT_FIXTURES) {
+    const { copyFixture } = require('./fixture-builds.cjs');
+    copyFixture(entry, output, options.application || process.env.ORRERY_TEST_APP || 'legacy');
+  } else {
+    await compile(entry, output, options);
+  }
+}
+
 async function serve(directory) {
   const root = path.resolve(directory);
   const server = http.createServer((req, res) => {
@@ -41,4 +50,4 @@ async function serve(directory) {
   return { url: `http://127.0.0.1:${server.address().port}`, close: () => new Promise(resolve => server.close(resolve)) };
 }
 
-module.exports = { build, serve };
+module.exports = { build, compile, serve };

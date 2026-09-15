@@ -17,10 +17,11 @@
     "serve": "webpack serve --mode development --open",
     "benchmark": "node benchmarks/run.cjs",
     "test:build": "node tests/build.cjs && node tests/next-build.cjs",
-    "test:node": "node --test tests/orbits.test.mjs tests/preparation.test.mjs tests/cpu-orbits.test.mjs tests/orbit-tracks.test.mjs tests/orbit-cache.test.mjs",
-    "test:browser": "node tests/browser-environment.cjs && node tests/assets.cjs && node tests/next.cjs && node tests/gpu.cjs && node tests/scheduling.cjs && node tests/rendering.cjs && node tests/ui.cjs && node tests/options-browser.cjs && node tests/benchmark.cjs && node tests/benchmark-clone.cjs && node tests/hmr.cjs && node tests/next-dev.cjs && node tests/unified-suite.cjs",
-    "test:unified": "npm run build:next && node tests/unified-suite.cjs",
-    "benchmark:next": "ORRERY_TEST_APP=unified node benchmarks/run.cjs"
+    "test:node": "node --test tests/orbits.test.mjs tests/preparation.test.mjs tests/cpu-orbits.test.mjs tests/orbit-tracks.test.mjs tests/orbit-cache.test.mjs tests/harness.test.cjs",
+    "test:browser": "playwright test",
+    "test:unified": "npm run build:next && playwright test --config playwright.standalone.config.cjs",
+    "benchmark:next": "ORRERY_TEST_APP=unified node benchmarks/run.cjs",
+    "test:fixtures": "node tests/fixture-builds.cjs"
   },
   "dependencies": {
     "dat.gui": "^0.7.9",
@@ -29,6 +30,7 @@
   "devDependencies": {
     "@babel/core": "^8.0.5",
     "@babel/preset-env": "^8.0.5",
+    "@playwright/test": "1.63.0",
     "babel-loader": "^10.1.1",
     "css-loader": "^7.1.5",
     "cssnano": "^9.0.4",
