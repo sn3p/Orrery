@@ -53,6 +53,11 @@ the fixture profiles. The pin contains the decoded `index.json` length and SHA-2
 A local bundle is resolved relative to its configuration. Alternatively supply
 `archive: { url, bytes, sha256 }` plus the independent index pin; acquisition,
 private staging, inventory, compressed/decoded content and provenance are verified.
+Manifest verification checks the original export's complete metadata and identity
+hash against the index and artifact descriptors. The original export tool version
+may differ from the indexed exporter version: re-indexing an older export preserves
+its original manifest. Full master-to-catalogue row reconciliation remains the
+producer's responsibility; browser adapters validate received catalogue records.
 Optional `retained` entries preserve explicitly chosen complete pins in a profile
 output. No public retention window or data release is promised by this mechanism.
 

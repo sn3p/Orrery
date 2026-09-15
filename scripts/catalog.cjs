@@ -79,14 +79,51 @@ async function verifyBundle(directory, pin) {
     if (decoded.bytes !== ref.bytes || decoded.sha256 !== ref.sha256) throw new Error("Gzip content mismatch: " + ref.url);
   }
   const manifest = parseJSON(await fs.readFile(path.join(directory, info.provenance.manifest.url), "utf8"));
+  const fields = (value, expected, label) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)
+      || !isDeepStrictEqual(Object.keys(value).sort(), expected.sort())) throw new Error("Manifest " + label + " fields mismatch.");
+  };
+  fields(manifest, ["data_version", "identity", "snapshot_version", "schema_version", "tool_version", "created_at",
+    "selection", "sources", "counts", "exclusions", "compression", "artifacts"], "fields");
   for (const key of ["selection", "counts", "exclusions", "sources", "snapshot_version", "schema_version"]) {
     if (!isDeepStrictEqual(manifest[key], info[key])) throw new Error("Manifest differs from index: " + key);
   }
   if (manifest.data_version !== info.catalog_id) throw new Error("Manifest catalog identity mismatch.");
+  if (typeof manifest.tool_version !== "string" || !manifest.tool_version.trim()) throw new Error("Manifest export tool version is invalid.");
+  // The index identifies the indexing tool, which may be newer than the
+  // original exporter. Bind the export's own version to its complete identity.
+  // Schema-defined key order and ASCII JSON match OrreryData identity_digest.
+  const selection = Object.fromEntries(["profile", "limit", "select", "sort"].map(key => [key, info.selection[key]]));
+  const identity = { snapshot_version: info.snapshot_version, tool_version: manifest.tool_version,
+    schema_version: info.schema_version, selection };
+  const encodedIdentity = JSON.stringify(identity).replace(/[\u007f-\uffff]/g,
+    character => "\\u" + character.charCodeAt(0).toString(16).padStart(4, "0"));
+  if (!isDeepStrictEqual(manifest.identity, identity)
+    || manifest.data_version !== "export-v1-" + createHash("sha256").update(encodedIdentity).digest("hex")) {
+    throw new Error("Manifest export identity mismatch.");
+  }
+  const created = manifest.created_at;
+  if (typeof created !== "string" || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(created)
+    || created.startsWith("0000") || !Number.isFinite(Date.parse(created))
+    || new Date(created).toISOString() !== created.replace("Z", ".000Z")) throw new Error("Manifest creation time is invalid.");
+  fields(manifest.compression, ["master", "catalog"], "compression");
+  for (const compression of Object.values(manifest.compression)) {
+    fields(compression, ["format", "level", "mtime", "zlib"], "compression");
+    if (compression.format !== "gzip" || compression.level !== 6 || compression.mtime !== 0
+      || typeof compression.zlib !== "string" || !/^[0-9]+(?:\.[0-9]+)+[a-zA-Z0-9.+-]*$/.test(compression.zlib)) {
+      throw new Error("Manifest compression metadata is invalid.");
+    }
+  }
   const fullRefs = references.filter(ref => ref.url.startsWith("full/"));
-  for (const ref of fullRefs.filter(ref => ref.url !== "full/manifest.json")) {
-    const entry = manifest.artifacts[path.basename(ref.url)];
-    if (entry?.bytes !== ref.bytes || entry?.sha256 !== ref.sha256) throw new Error("Manifest artifact mismatch: " + ref.url);
+  const artifacts = fullRefs.filter(ref => ref.url !== "full/manifest.json");
+  fields(manifest.artifacts, artifacts.map(ref => path.basename(ref.url)), "artifact");
+  for (const ref of artifacts) {
+    const name = path.basename(ref.url), expected = { bytes: ref.bytes, sha256: ref.sha256 };
+    if (name === "master.jsonl.gz") Object.assign(expected, { profile: "master", records: info.counts.master_records });
+    else if (["catalog.json", "catalog.json.gz"].includes(name)) {
+      Object.assign(expected, { profile: "discovery", records: info.counts.discovery_export });
+    }
+    if (!isDeepStrictEqual(manifest.artifacts[name], expected)) throw new Error("Manifest artifact mismatch: " + ref.url);
   }
   // The producer uses Python/ASCII lexical sorting, independent of locale.
   const expected = fullRefs.map(ref => path.basename(ref.url)).sort()
