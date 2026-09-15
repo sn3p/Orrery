@@ -17,7 +17,7 @@
     "serve": "webpack serve --mode development --open",
     "benchmark": "node benchmarks/run.cjs",
     "test:build": "node tests/build.cjs && node tests/next-build.cjs",
-    "test:node": "node --test tests/orbits.test.mjs tests/preparation.test.mjs tests/cpu-orbits.test.mjs tests/orbit-tracks.test.mjs tests/orbit-cache.test.mjs tests/catalog-source.cjs tests/catalog-latest.cjs tests/catalog-delivery.cjs tests/catalogue-model.test.mjs tests/harness.test.cjs",
+    "test:node": "node --test tests/orbits.test.mjs tests/preparation.test.mjs tests/cpu-orbits.test.mjs tests/orbit-tracks.test.mjs tests/orbit-cache.test.mjs tests/catalog-source.cjs tests/catalog-latest.cjs tests/catalog-delivery.cjs tests/catalogue-model.test.mjs tests/catalog-benchmark-inputs.cjs tests/harness.test.cjs",
     "test:browser": "playwright test",
     "test:unified": "npm run build:next && playwright test --config playwright.standalone.config.cjs",
     "benchmark:next": "ORRERY_TEST_APP=unified node benchmarks/run.cjs",

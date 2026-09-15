@@ -31,7 +31,14 @@ command and Conductor's root destination retain their existing behavior. Configu
 preview output remains `dist/next`; overlapping output/static overrides fail.
 Configured production builds compile and stage privately, then atomically replace
 the complete output. Combined builds protect both root and preview; standalone
-builds preserve the root sibling. A shared output lock prevents competing commits. An explicitly selected source fails
+builds preserve the root sibling. A shared output lock coordinates configured
+production builds; default builds and development servers retain their existing
+webpack output behavior and should not write the same output concurrently.
+Input protection resolves filesystem aliases before publication. Shared bundle
+caches coordinate installation per pin, preserve a verified concurrent winner,
+and restore previous contents if publication fails. Interrupted installation locks
+retain recovery data; after a five-minute wait, the error identifies the lock for
+inspection. An explicitly selected source fails
 with visible feedback; it never falls back to historical data.
 
 The latest profile reads the producer descriptor once per page session, revalidates
@@ -61,6 +68,8 @@ commits a contiguous prefix into one renderer-neutral numeric model, with origin
 row ordinals within the pin, full 3D orbital bases and Float64 phase/date data.
 It retains no parsed row graph. Source and catalogue identities accompany each
 batch; superseded generations cannot commit.
+Rejected HTTP responses cancel their bodies before returning the status error;
+successful responses without a readable body fail explicitly.
 
 The application owns demand, requested speed/date, replacement and the renderer
 lifetime. Pixi owns its projection, mutable phase and arrival buffers, textures and
@@ -82,6 +91,11 @@ A missing draw receipt restores and repaints the previous scene, retains the
 candidate's packing, and schedules another attempt. Bundled-catalogue frames use
 the same rollback boundary, including failed direct date changes; the requested
 date is applied only when a later draw succeeds.
+Throwing submissions also make one bounded attempt to repaint the retained scene.
+Failed uploads invalidate Pixi's recorded buffer version and capacity so a repaint
+cannot skip missing GPU storage. A terminal graphics failure prevents subsequent
+control invalidations from advancing or publishing a frame; context restoration
+or an explicit catalogue replacement can recover it.
 
 Requested dates survive source opening. Every discovery at or before a date is
 required, including ties across files. Paused/hidden state suppresses unnecessary
@@ -113,6 +127,11 @@ HEADLESS=1 DURATION_SECONDS=120 PROFILES=10mbps-100ms \
   npm run benchmark:catalog -- /absolute/path/indexed.json /absolute/path/whole.json
 node tests/history-import.cjs
 ```
+
+`DURATION_SECONDS` must be finite and non-negative; `PROFILES` accepts `native`
+and/or `10mbps-100ms`. Invalid settings fail before building. Empty catalogues are
+valid benchmark inputs. Browser contexts and the local server close on setup or
+launch failure.
 
 Measurements distinguish retained CPU backing storage, sampled peak heap/storage,
 nominal GPU capacity, transfer and the first complete GPU submission/completion.

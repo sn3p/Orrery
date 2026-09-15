@@ -9,7 +9,7 @@ const { stripVTControlCharacters } = require("node:util");
 const tar = require("tar");
 const { gzipSync } = require("node:zlib");
 const { acquireArchive, packBundle } = require("../scripts/catalog-archive.cjs");
-const { verifyBundle, hashFile, buildTrial, prepareCatalog } = require("../scripts/catalog.cjs");
+const { verifyBundle, hashFile, buildTrial, prepareCatalog, checkOutput, stageBundle } = require("../scripts/catalog.cjs");
 const cases = require("./fixtures/consumer-v1/cases.json");
 const root = path.resolve(__dirname, "..");
 const fixtures = path.join(__dirname, "fixtures/consumer-v1");
@@ -49,6 +49,188 @@ function npmArgs(args) {
   const cli = process.env.npm_execpath || path.resolve(path.dirname(process.execPath), "../lib/node_modules/npm/bin/npm-cli.js");
   return [cli, ...args];
 }
+
+test("output preflight protects canonical config, bundle and retained inputs", async t => {
+  const directory = await temporary(t), output = path.join(directory, "site");
+  await fs.mkdir(output);
+  const marker = path.join(output, "previous-site.txt");
+  await fs.writeFile(marker, "Previous output must survive rejected aliases.");
+  const settings = { mode: "indexed", latest: "https://example.com/latest.json" };
+  const actualConfig = path.join(output, "profile.json"), configAlias = path.join(directory, "current.json");
+  await fs.writeFile(actualConfig, JSON.stringify(settings));
+  await fs.symlink(actualConfig, configAlias);
+  const configHash = await hashFile(actualConfig);
+  await t.test("configuration symlink into output", async () => {
+    await assert.rejects(checkOutput(configAlias, output), /overlaps/);
+    await assert.rejects(buildTrial(configAlias, output), /overlaps/);
+    assert.deepEqual(await hashFile(actualConfig), configHash);
+    assert.equal(await fs.readFile(marker, "utf8"), "Previous output must survive rejected aliases.");
+  });
+  const inputs = path.join(output, "inputs"), inputAlias = path.join(directory, "input-alias");
+  await fs.mkdir(inputs);
+  await fs.symlink(inputs, inputAlias);
+  await fs.cp(path.join(fixtures, "ties"), path.join(inputs, "ties"), { recursive: true });
+  await fs.cp(path.join(fixtures, "empty"), path.join(inputs, "empty"), { recursive: true });
+  const config = path.join(directory, "profile.json");
+  for (const retained of [false, true]) await t.test(retained ? "retained bundle ancestor alias" : "selected bundle ancestor alias", async () => {
+    await fs.writeFile(config, JSON.stringify(retained
+      ? { mode: "indexed", bundle: path.join(fixtures, "ties"), pin,
+        retained: [{ bundle: path.join(inputAlias, "empty"), pin: cases.bundles.empty.pin }] }
+      : { mode: "indexed", bundle: path.join(inputAlias, "ties"), pin }));
+    await assert.rejects(checkOutput(config, output), /overlaps/);
+    await assert.rejects(buildTrial(config, output), /overlaps/);
+    await verifyBundle(path.join(inputs, "ties"), pin);
+    await verifyBundle(path.join(inputs, "empty"), cases.bundles.empty.pin);
+    assert.equal(await fs.readFile(marker, "utf8"), "Previous output must survive rejected aliases.");
+  });
+});
+
+test("canonical staging accepts disjoint aliases and rejects source overlap", async t => {
+  const directory = await temporary(t), inputs = path.join(directory, "inputs"), alias = path.join(directory, "input-alias");
+  await fs.mkdir(inputs);
+  await fs.cp(path.join(fixtures, "ties"), path.join(inputs, "ties"), { recursive: true });
+  await fs.symlink(inputs, alias);
+  const source = path.join(alias, "ties"), config = path.join(inputs, "profile.json"), configAlias = path.join(directory, "current.json");
+  await fs.writeFile(config, JSON.stringify({ mode: "indexed", bundle: source, pin,
+    retained: [{ bundle: path.join(fixtures, "empty"), pin: cases.bundles.empty.pin }] }));
+  await fs.symlink(config, configAlias);
+  await checkOutput(configAlias, path.join(directory, "new/output"));
+  const staged = await stageBundle(source, pin, path.join(directory, "cache"));
+  await verifyBundle(staged, pin);
+  const cacheAlias = path.join(directory, "cache-alias");
+  await fs.symlink(path.join(directory, "cache"), cacheAlias);
+  assert.equal(await stageBundle(source, pin, cacheAlias), staged, "Disjoint cache aliases resolve to the same delivery directory");
+  const nested = path.join(inputs, "ties/cache");
+  await assert.rejects(stageBundle(source, pin, nested), /disjoint/);
+  await assert.rejects(fs.stat(nested), { code: "ENOENT" });
+  await verifyBundle(path.join(inputs, "ties"), pin);
+});
+
+test("same-pin concurrent cold and repair staging preserves the verified winner", async t => {
+  const directory = await temporary(t), cache = path.join(directory, "cache");
+  const source = path.join(fixtures, "ties"), destination = path.join(cache, "delivery-v1-" + pin.sha256);
+  const originalCopy = fs.copyFile, originalRemove = fs.rm;
+  for (const repair of [false, true]) {
+    if (repair) await fs.appendFile(path.join(destination, "full/NOTICE.txt"), "corrupt cache to repair");
+    let copies = 0, removals = 0, copied, removed;
+    const bothCopied = new Promise(resolve => { copied = resolve; });
+    const bothRemoved = new Promise(resolve => { removed = resolve; });
+    const rendezvous = async promise => {
+      let timer;
+      try { await Promise.race([promise, new Promise(resolve => { timer = setTimeout(resolve, 500); })]); }
+      finally { clearTimeout(timer); }
+    };
+    // Both preparations finish their private copy before either can install.
+    // On the old path, order both removals before the competing renames so the
+    // filesystem race is deterministic instead of relying on scheduler timing.
+    fs.copyFile = async (from, to, ...args) => {
+      await originalCopy(from, to, ...args);
+      if (to.startsWith(cache + path.sep) && to.endsWith(path.sep + "index.json")) {
+        if (++copies === 2) copied();
+        await rendezvous(bothCopied);
+      }
+    };
+    fs.rm = async (target, ...args) => {
+      const result = await originalRemove(target, ...args);
+      if (target === destination) {
+        if (++removals === 2) removed();
+        await rendezvous(bothRemoved);
+      }
+      return result;
+    };
+    let results;
+    try { results = await Promise.allSettled([stageBundle(source, pin, cache), stageBundle(source, pin, cache)]); }
+    finally { fs.copyFile = originalCopy; fs.rm = originalRemove; }
+    assert.deepEqual(results.map(result => result.status), ["fulfilled", "fulfilled"],
+      results.map(result => result.reason?.stack).filter(Boolean).join("\n"));
+    assert(results.every(result => result.value === destination));
+    await verifyBundle(destination, pin);
+    const before = await fs.stat(destination);
+    const readers = Array.from({ length: 3 }, () => verifyBundle(destination, pin));
+    await Promise.all([...readers, stageBundle(source, pin, cache), stageBundle(source, pin, cache)]);
+    assert.equal((await fs.stat(destination)).ino, before.ino, "A verified winner remains in place for concurrent readers");
+    assert.deepEqual(await fs.readdir(cache), [path.basename(destination)], "Private stages and installation locks are cleaned up");
+  }
+});
+
+test("same-pin staging coordinates separate processes through cache aliases", async t => {
+  const directory = await temporary(t), cache = path.join(directory, "cache"), alias = path.join(directory, "cache-alias");
+  await fs.mkdir(cache);
+  await fs.symlink(cache, alias);
+  const source = path.join(fixtures, "ties"), destination = path.join(cache, "delivery-v1-" + pin.sha256);
+  const script = `const [source, cache, pin] = process.argv.slice(1);
+    require('./scripts/catalog.cjs').stageBundle(source, JSON.parse(pin), cache)
+      .then(directory => console.log(directory)).catch(error => { console.error(error); process.exitCode = 1; });`;
+  for (const repair of [false, true]) {
+    if (repair) await fs.appendFile(path.join(destination, "full/NOTICE.txt"), "repair across processes");
+    const results = await Promise.all([cache, alias, cache].map(target => command(["-e", script, source, target, JSON.stringify(pin)])));
+    for (const result of results) {
+      assert.equal(result.code, 0, result.output);
+      assert.equal(result.output.trim(), destination);
+    }
+    await verifyBundle(destination, pin);
+    assert.deepEqual(await fs.readdir(cache), [path.basename(destination)]);
+  }
+});
+
+test("failed cache repair publication restores the previous directory", async t => {
+  const directory = await temporary(t), cache = path.join(directory, "cache"), source = path.join(fixtures, "ties");
+  const destination = await stageBundle(source, pin, cache), notice = path.join(destination, "full/NOTICE.txt");
+  await fs.appendFile(notice, "damaged cache retained after failed repair");
+  const before = await hashFile(notice), originalRename = fs.rename;
+  fs.rename = async (from, to, ...args) => {
+    if (path.basename(from).startsWith(".staging-") && to === destination) throw new Error("Simulated cache publication failure");
+    return originalRename(from, to, ...args);
+  };
+  try { await assert.rejects(stageBundle(source, pin, cache), /Simulated cache publication failure/); }
+  finally { fs.rename = originalRename; }
+  assert.deepEqual(await hashFile(notice), before);
+  assert.deepEqual(await fs.readdir(cache), [path.basename(destination)]);
+  await stageBundle(source, pin, cache);
+  await verifyBundle(destination, pin);
+});
+
+test("pack CLI resolves output aliases before writing archives", async t => {
+  const directory = await temporary(t), inputs = path.join(directory, "inputs"), source = path.join(inputs, "bundle");
+  await fs.cp(path.join(fixtures, "ties"), source, { recursive: true });
+  const inputAlias = path.join(directory, "input-alias"), sourceAlias = path.join(directory, "source-alias");
+  await fs.symlink(inputs, inputAlias);
+  await fs.symlink(source, sourceAlias);
+  const config = path.join(directory, "profile.json");
+  await fs.writeFile(config, JSON.stringify({ bundle: path.join(inputAlias, "bundle"), pin }));
+  await t.test("archive alias into source preserves its verified inventory", async () => {
+    const filename = path.join(sourceAlias, "accidental.tar.gz");
+    const result = await command(["scripts/catalog.cjs", "pack", config, filename]);
+    try {
+      assert.notEqual(result.code, 0, result.output);
+      assert.match(result.output, /outside the source bundle/);
+      await assert.rejects(fs.lstat(filename), { code: "ENOENT" });
+      await verifyBundle(source, pin);
+    } finally { await fs.rm(filename, { force: true }); }
+  });
+  await t.test("archive alias outside .context is rejected", async () => {
+    const outside = await fs.mkdtemp(path.join(require("node:os").tmpdir(), "orrery-pack-outside-"));
+    t.after(() => fs.rm(outside, { recursive: true, force: true }));
+    const alias = path.join(directory, "outside-alias");
+    await fs.symlink(outside, alias);
+    const filename = path.join(alias, "escape.tar.gz");
+    const result = await command(["scripts/catalog.cjs", "pack", config, filename]);
+    assert.notEqual(result.code, 0, result.output);
+    assert.match(result.output, /inside .context/);
+    await assert.rejects(fs.lstat(filename), { code: "ENOENT" });
+    await verifyBundle(source, pin);
+  });
+  await t.test("disjoint archive and source ancestor aliases remain valid", async () => {
+    const archives = path.join(directory, "archives"), alias = path.join(directory, "archives-alias");
+    await fs.mkdir(archives);
+    await fs.symlink(archives, alias);
+    const filename = path.join(alias, "bundle.tar.gz");
+    const result = await command(["scripts/catalog.cjs", "pack", config, filename]);
+    assert.equal(result.code, 0, result.output);
+    assert.deepEqual(await hashFile(filename), JSON.parse(result.output).archive);
+    await verifyBundle(source, pin);
+  });
+});
 
 test("pinned HTTP archive acquisition: complete cold/warm/repair, transfer errors and independent index trust", async t => {
   const directory = await temporary(t), filename = path.join(directory, "bundle.tar.gz");

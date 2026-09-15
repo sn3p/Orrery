@@ -11,6 +11,45 @@ const identify = bytes => ({ bytes: bytes.length, sha256: createHash("sha256").u
 const collect = async iterator => { const events = []; for await (const event of iterator) events.push(event); return events; };
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+test("failed index requests cancel open HTTP error bodies before callers retry", async t => {
+  const { default: Source } = await import("../src/unified/catalog/CatalogSource.js");
+  let opened = 0, closed = 0, allClosed;
+  const done = new Promise(resolve => { allClosed = resolve; });
+  const instance = http.createServer((_req, res) => {
+    opened++;
+    res.on("close", () => { if (++closed === 3) allClosed(); });
+    res.writeHead(503, { "Content-Type": "application/json" });
+    res.write("An error body that the server deliberately keeps open.");
+  });
+  await new Promise(resolve => instance.listen(0, "127.0.0.1", resolve));
+  t.after(() => { instance.closeAllConnections(); return new Promise(resolve => instance.close(resolve)); });
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await assert.rejects(Source.open({ ...cases.bundles.ties.pin,
+      url: `http://127.0.0.1:${instance.address().port}/index.json` }), /Catalogue request failed \(503\)/);
+  }
+  let timer;
+  try {
+    await Promise.race([done, new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error("Rejected index requests retained their HTTP bodies")), 2000);
+    })]);
+  } finally { clearTimeout(timer); }
+  assert.equal(opened, 3); assert.equal(closed, 3);
+});
+
+test("verified responses reject absent bodies and preserve status errors when cancellation fails", async t => {
+  const { default: Source } = await import("../src/unified/catalog/CatalogSource.js");
+  const original = globalThis.fetch;
+  t.after(() => { globalThis.fetch = original; });
+  globalThis.fetch = async () => new Response(null, { status: 204 });
+  await assert.rejects(Source.open({ ...cases.bundles.ties.pin, url: "https://example.test/index.json" }), /Catalogue response has no body/);
+  let cancelled = 0;
+  globalThis.fetch = async () => new Response(new ReadableStream({
+    cancel() { cancelled++; throw new Error("controlled cancellation failure"); },
+  }), { status: 503 });
+  await assert.rejects(Source.open({ ...cases.bundles.ties.pin, url: "https://example.test/index.json" }), /Catalogue request failed \(503\)/);
+  assert.equal(cancelled, 1);
+});
+
 test("strict parsing does not retain the payload through legacy RegExp input", async () => {
   const { parseJSON } = await import("../src/unified/catalog/contract.js");
   const text = '{"sample":"' + "x".repeat(10000) + '"}';

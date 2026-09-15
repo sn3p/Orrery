@@ -7,6 +7,33 @@ const { createGunzip } = require("node:zlib");
 const { isDeepStrictEqual } = require("node:util");
 const root = path.resolve(__dirname, "..");
 const cache = path.join(root, ".context/catalog-cache");
+const overlaps = (a, b) => a === b || a.startsWith(b + path.sep) || b.startsWith(a + path.sep);
+
+// Outputs and generated caches may not exist yet. Resolve their existing
+// ancestors as well as complete input paths so aliases cannot hide overlap.
+async function canonicalPath(filename) {
+  filename = path.resolve(filename);
+  try { return await fs.realpath(filename); }
+  catch (error) {
+    const parent = path.dirname(filename);
+    if (error.code !== "ENOENT" || parent === filename) throw error;
+    return path.join(await canonicalPath(parent), path.basename(filename));
+  }
+}
+
+async function lockInstallation(directory) {
+  const deadline = Date.now() + 300_000;
+  while (true) {
+    try { await fs.mkdir(directory); return; }
+    catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      // A crashed publisher may leave recovery data here. Never steal its lock
+      // or delete the previous bundle; report its location after a bounded wait.
+      if (Date.now() >= deadline) throw new Error("Catalogue installation is locked: " + directory);
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+  }
+}
 
 async function hashFile(filename, decompress = false) {
   const input = createReadStream(filename), stream = decompress ? input.pipe(createGunzip()) : input;
@@ -75,8 +102,10 @@ async function stageBundle(source, pin, destinationRoot = cache) {
 async function stageVerifiedBundle(source, pin, destinationRoot, verified) {
   source = path.resolve(source);
   destinationRoot = path.resolve(destinationRoot);
-  if (source === destinationRoot || destinationRoot.startsWith(source + path.sep)
-    || source.startsWith(destinationRoot + path.sep)) throw new Error("Source and staging directories must be disjoint.");
+  if (overlaps(source, destinationRoot)) throw new Error("Source and staging directories must be disjoint.");
+  source = await fs.realpath(source);
+  destinationRoot = await canonicalPath(destinationRoot);
+  if (overlaps(source, destinationRoot)) throw new Error("Source and staging directories must be disjoint.");
   const { names } = verified;
   await fs.mkdir(destinationRoot, { recursive: true });
   const destination = path.join(destinationRoot, "delivery-v1-" + pin.sha256);
@@ -89,10 +118,30 @@ async function stageVerifiedBundle(source, pin, destinationRoot, verified) {
       await fs.copyFile(path.join(source, name), path.join(temp, name));
     }
     verified = await verifyBundle(temp, pin);
-    // Keep the old cache until its replacement is verified. Invalid source
-    // files must never destroy an existing usable cache or deployment copy.
-    await fs.rm(destination, { force: true, recursive: true });
-    await fs.rename(temp, destination);
+    // Different output builds share this cache. Serialize only publication,
+    // then recheck: another verified copy may have won while this one staged.
+    const lock = path.join(destinationRoot, ".install-" + pin.sha256);
+    await lockInstallation(lock);
+    const previous = path.join(lock, "previous");
+    let preserveRecovery = false;
+    try {
+      try { return { directory: destination, verified: await verifyBundle(destination, pin) }; }
+      catch { /* Only an absent or invalid destination may be replaced. */ }
+      let hadPrevious = false;
+      try { await fs.rename(destination, previous); hadPrevious = true; }
+      catch (error) { if (error.code !== "ENOENT") throw error; }
+      try { await fs.rename(temp, destination); }
+      catch (error) {
+        if (hadPrevious) {
+          try { await fs.rename(previous, destination); }
+          catch (restoreError) {
+            preserveRecovery = true;
+            throw new Error("Restore previous catalogue from " + previous, { cause: restoreError });
+          }
+        }
+        throw error;
+      }
+    } finally { if (!preserveRecovery) await fs.rm(lock, { force: true, recursive: true }); }
   } finally { await fs.rm(temp, { force: true, recursive: true }); }
   return { directory: destination, verified };
 }
@@ -149,11 +198,13 @@ async function checkOutput(configPath, output, assembled = false) {
     throw new Error("Trial output must be dist/next or a generated directory inside .context.");
   }
   const config = JSON.parse(await fs.readFile(configPath, "utf8"));
-  const overlaps = (a, b) => a === b || a.startsWith(b + path.sep) || b.startsWith(a + path.sep);
+  const canonicalOutput = await canonicalPath(output);
   const sources = [config, ...(Array.isArray(config.retained) ? config.retained : [])]
     .filter(input => typeof input?.bundle === "string").map(input => path.resolve(path.dirname(configPath), input.bundle));
   for (const protectedPath of [...sources, cache, path.join(root, ".context/catalog-downloads"), path.resolve(configPath)]) {
-    if (overlaps(output, protectedPath)) throw new Error("Trial output overlaps an input, config or cache.");
+    if (overlaps(output, protectedPath) || overlaps(canonicalOutput, await canonicalPath(protectedPath))) {
+      throw new Error("Trial output overlaps an input, config or cache.");
+    }
   }
   for (let directory = output; directory !== root; directory = path.dirname(directory)) {
     try { if ((await fs.lstat(directory)).isSymbolicLink()) throw new Error("Trial output must not traverse symlinks."); }
@@ -223,7 +274,15 @@ if (require.main === module) {
       if (!filename.startsWith(path.join(root, ".context") + path.sep) || !filename.endsWith(".tar.gz")) {
         throw new Error("Archive output must be a .tar.gz file inside .context.");
       }
-      if (filename.startsWith(bundle + path.sep)) throw new Error("Archive output must be outside the source bundle.");
+      const [canonicalFilename, canonicalBundle, canonicalContext] = await Promise.all([
+        canonicalPath(filename), fs.realpath(bundle), canonicalPath(path.join(root, ".context")),
+      ]);
+      if (!canonicalFilename.startsWith(canonicalContext + path.sep)) {
+        throw new Error("Archive output must be a .tar.gz file inside .context.");
+      }
+      if (overlaps(filename, bundle) || overlaps(canonicalFilename, canonicalBundle)) {
+        throw new Error("Archive output must be outside the source bundle.");
+      }
       try { await fs.lstat(filename); throw new Error("Archive output already exists."); }
       catch (error) { if (error.code !== "ENOENT") throw error; }
       await fs.mkdir(path.dirname(filename), { recursive: true });

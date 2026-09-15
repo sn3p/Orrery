@@ -369,14 +369,16 @@ export default class App {
       this.renderStatus();
     };
     try {
-      prepared = this.tick(timestamp) === true;
+      // Invalidations after a terminal failure may repaint the restored scene,
+      // but only explicit graphics/catalogue recovery can advance it again.
+      prepared = !this.renderFailure && this.tick(timestamp) === true;
       beforeRender?.();
       drawn = this.renderer.render();
     }
     catch (error) { fail(error); }
     const session = this.pendingSession ?? this.activeSession;
     const sameCatalogue = session && this.renderer.asteroids?.catalogue === session.model;
-    const committed = !frameError && drawn !== null && graphicsGeneration === this.rendererGeneration
+    const committed = !this.renderFailure && !frameError && drawn !== null && graphicsGeneration === this.rendererGeneration
       && (!session || (prepared && !session.adapterFailure && sameCatalogue
         && drawn >= session.loader.source.countThrough(this.jed)));
     if (committed && session) {
@@ -403,12 +405,12 @@ export default class App {
       this.renderer.restoreFrame(this.frameState);
       this.renderer.rollbackCatalogue({ retain: !frameError });
       this.resetClock();
-      if (!frameError && drawn === null && (prepared || !session) && !this.contextLost) {
-        // A skipped submission can clear the canvas. Repaint the restored
-        // scene now, then retry the retained candidate on a new frame.
+      if (drawn === null && (prepared || !session) && !this.contextLost) {
+        // A skipped or throwing submission can clear the canvas. Repaint the
+        // restored scene once, preserving the original error for manual callers.
         try { this.renderer.render(); }
-        catch (error) { fail(error); }
-        if (!frameError) this.requestRender();
+        catch (error) { if (!frameError) fail(error); }
+        if (!this.renderFailure) this.requestRender();
       }
     }
     this.renderer.commitFrame?.();

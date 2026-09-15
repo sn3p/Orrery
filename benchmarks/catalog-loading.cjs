@@ -110,33 +110,33 @@ async function serve(directory, port = 0) {
 
 async function measure(browser, url, profile, seconds, traffic = [], screenshotPath) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
-  const page = await context.newPage(), session = await context.newCDPSession(page);
-  const errors = [], transfers = [], requests = new Map(), memory = [];
-  let origin, originWall;
-  session.on("Network.requestWillBeSent", event => {
-    if (origin === undefined) { origin = event.timestamp; originWall = event.wallTime * 1000; }
-    requests.set(event.requestId, { url: event.request.url, received: 0 });
-  });
-  session.on("Network.dataReceived", event => {
-    const request = requests.get(event.requestId);
-    if (!request) return;
-    request.received += event.encodedDataLength;
-    transfers.push({ time: (event.timestamp - origin) * 1000, bytes: event.encodedDataLength, url: request.url });
-  });
-  session.on("Network.loadingFinished", event => {
-    const request = requests.get(event.requestId);
-    if (request) transfers.push({ time: (event.timestamp - origin) * 1000,
-      bytes: Math.max(0, event.encodedDataLength - request.received), url: request.url });
-  });
-  page.on("pageerror", error => errors.push(error.message));
-  page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
-  await session.send("Network.enable");
-  await session.send("Network.setCacheDisabled", { cacheDisabled: true });
-  if (profile === "10mbps-100ms") await session.send("Network.emulateNetworkConditions", {
-    offline: false, latency: 100, downloadThroughput: 10_000_000 / 8, uploadThroughput: 10_000_000 / 8,
-  });
-  await page.addInitScript(observe);
   try {
+    const page = await context.newPage(), session = await context.newCDPSession(page);
+    const errors = [], transfers = [], requests = new Map(), memory = [];
+    let origin, originWall;
+    session.on("Network.requestWillBeSent", event => {
+      if (origin === undefined) { origin = event.timestamp; originWall = event.wallTime * 1000; }
+      requests.set(event.requestId, { url: event.request.url, received: 0 });
+    });
+    session.on("Network.dataReceived", event => {
+      const request = requests.get(event.requestId);
+      if (!request) return;
+      request.received += event.encodedDataLength;
+      transfers.push({ time: (event.timestamp - origin) * 1000, bytes: event.encodedDataLength, url: request.url });
+    });
+    session.on("Network.loadingFinished", event => {
+      const request = requests.get(event.requestId);
+      if (request) transfers.push({ time: (event.timestamp - origin) * 1000,
+        bytes: Math.max(0, event.encodedDataLength - request.received), url: request.url });
+    });
+    page.on("pageerror", error => errors.push(error.message));
+    page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+    await session.send("Network.enable");
+    await session.send("Network.setCacheDisabled", { cacheDisabled: true });
+    if (profile === "10mbps-100ms") await session.send("Network.emulateNetworkConditions", {
+      offline: false, latency: 100, downloadThroughput: 10_000_000 / 8, uploadThroughput: 10_000_000 / 8,
+    });
+    await page.addInitScript(observe);
     const started = Date.now();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 90000 });
     await page.bringToFront();
@@ -164,7 +164,7 @@ async function measure(browser, url, profile, seconds, traffic = [], screenshotP
     const jumpStart = await page.evaluate(() => {
       const app = window.catalogTest.app;
       app.jedDelta = 0;
-      app.jed = app.catalogLoader?.source.info.date_counts.at(-1)[0] ?? app.catalogue.dates.at(-1);
+      app.jed = app.catalogLoader?.source.info.date_counts.at(-1)?.[0] ?? app.catalogue.dates.at(-1) ?? app.jed;
       return performance.now();
     });
     while (true) {
@@ -237,7 +237,14 @@ async function measure(browser, url, profile, seconds, traffic = [], screenshotP
 async function main() {
   const configs = process.argv.slice(2);
   if (!configs.length) throw new Error("Pass one or more local trial configuration JSON paths.");
-  const seconds = Number(process.env.DURATION_SECONDS ?? 120);
+  const duration = process.env.DURATION_SECONDS ?? "120", seconds = Number(duration);
+  if (!duration.trim() || !Number.isFinite(seconds * 1000) || seconds < 0) {
+    throw new Error("DURATION_SECONDS must be a non-negative finite duration.");
+  }
+  const profiles = (process.env.PROFILES ?? "native,10mbps-100ms").split(",");
+  if (profiles.some(profile => !["native", "10mbps-100ms"].includes(profile))) {
+    throw new Error("PROFILES must contain native and/or 10mbps-100ms.");
+  }
   const output = path.resolve(process.env.OUTPUT || ".context/catalog-trial/measurements.json");
   const report = { timestamp: new Date().toISOString(), hardware: { platform: os.platform(), arch: os.arch(),
     cpu: os.cpus()[0]?.model, logicalCpus: os.cpus().length, ram: os.totalmem() },
@@ -255,10 +262,11 @@ async function main() {
     const scriptFiles = (await fsp.readdir(directory, { recursive: true })).filter(name => name.endsWith(".js")).sort();
     const bundle = Buffer.concat(await Promise.all(scriptFiles.map(name => fsp.readFile(path.join(directory, name)))));
     const { server, url, traffic } = await serve(directory);
-    const browser = await chromium.launch({ channel: "chrome", headless: process.env.HEADLESS === "1" });
-    report.browser = browser.version(); report.headless = process.env.HEADLESS === "1";
+    let browser;
     try {
-      for (const profile of (process.env.PROFILES || "native,10mbps-100ms").split(",")) {
+      browser = await chromium.launch({ channel: "chrome", headless: process.env.HEADLESS === "1" });
+      report.browser = browser.version(); report.headless = process.env.HEADLESS === "1";
+      for (const profile of profiles) {
         console.log(JSON.stringify({ mode, profile, state: "starting" }));
         traffic.length = 0;
         const result = await measure(browser, url, profile, seconds, traffic,
@@ -269,7 +277,10 @@ async function main() {
           peakMB: result.sampledPeakCpuBytes / 1e6, maxCatalogMs: result.maxCatalogOperationMs, maxTaskMs: result.maxPageTaskMs,
           bytes: result.bytes, fullFps: result.fullFps }));
       }
-    } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
+    } finally {
+      try { await browser?.close(); }
+      finally { await new Promise(resolve => server.close(resolve)); }
+    }
   }
 }
 module.exports = { serve, measure };

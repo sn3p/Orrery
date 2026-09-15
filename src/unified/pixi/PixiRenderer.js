@@ -74,9 +74,20 @@ export default class PixiRenderer {
           // upload errors to this buffer operation, retaining prior OOM errors.
           if (gl.getError() === gl.OUT_OF_MEMORY) throw new Error("Unable to upload asteroid buffers.");
         }
-        const result = updateBuffer.call(buffers, buffer);
-        if (asteroidUpload && gl.getError() !== gl.NO_ERROR) throw new Error("Unable to upload asteroid buffers.");
-        return result;
+        try {
+          const result = updateBuffer.call(buffers, buffer);
+          if (asteroidUpload && gl.getError() !== gl.NO_ERROR) throw new Error("Unable to upload asteroid buffers.");
+          return result;
+        } catch (error) {
+          if (asteroidUpload) {
+            // Pixi records the version/capacity before the GL operation. A
+            // failed allocation or partial update must force a full upload
+            // into this same buffer, preserving its geometry/VAO bindings.
+            const gpu = buffer._gpuData[renderer.uid];
+            if (gpu) { gpu.updateID = -1; gpu.byteLength = 0; }
+          }
+          throw error;
+        }
       };
       this.resize(viewport);
       this.container.appendChild(this.canvas);

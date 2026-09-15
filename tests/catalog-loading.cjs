@@ -19,11 +19,12 @@ async function build(output, base) {
   await fs.writeFile(latestConfig, JSON.stringify({ latest: base + "/browser-fixtures/ties/latest.json",
     mode: "indexed", speed: 0, startJed: tie.through }));
   await buildTrial(latestConfig, path.join(output, "catalog-latest"), { entry: "./tests/catalog-browser.js" });
-  for (const mode of ["indexed", "whole"]) {
-    const configPath = path.join(output, "catalog-" + mode + ".json");
-    await fs.writeFile(configPath, JSON.stringify({ bundle: path.join(fixture, "ties"), pin: cases.bundles.ties.pin,
+  for (const name of ["ties", "empty"]) for (const mode of ["indexed", "whole"]) {
+    const target = "catalog-" + (name === "empty" ? "empty-" : "") + mode;
+    const configPath = path.join(output, target + ".json");
+    await fs.writeFile(configPath, JSON.stringify({ bundle: path.join(fixture, name), pin: cases.bundles[name].pin,
       mode, speed: 0, startJed: tie.through }));
-    await buildTrial(configPath, path.join(output, "catalog-" + mode), { entry: "./tests/catalog-browser.js" });
+    await buildTrial(configPath, path.join(output, target), { entry: "./tests/catalog-browser.js" });
   }
   const webpack = require("webpack"), historical = require("../webpack.next.config.js");
   await new Promise((resolve, reject) => {

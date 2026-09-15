@@ -4,7 +4,7 @@ const { measure } = require("../benchmarks/catalog-loading.cjs");
 
 async function run(browser, base, output) {
   const results = [];
-  for (const version of [1, 2]) for (const mode of ["indexed", "whole", "historical"]) {
+  for (const version of [1, 2]) for (const mode of ["empty-indexed", "empty-whole", "indexed", "whole", "historical"]) {
     const contexts = [];
     let fail, timer;
     const failed = new Promise((_, reject) => { fail = reject; });
@@ -31,7 +31,7 @@ async function run(browser, base, output) {
       assert(Number.isFinite(result.initialSubmissionMs) && result.initialSubmissionMs > 0);
       assert(Number.isFinite(result.initialGpuMs) && result.initialGpuMs >= result.initialSubmissionMs);
       assert.equal(result.initialMs, result.initialGpuMs);
-      assert.equal(result.population, mode === "historical" ? 100000 : 6);
+      assert.equal(result.population, mode.startsWith("empty-") ? 0 : mode === "historical" ? 100000 : 6);
       assert.equal(result.restoredDataRequests, 0);
       assert.deepEqual(result.errors, []);
       results.push({ benchmark: mode, webGLVersion: result.webGLVersion, method: result.initialGpuMethod,
