@@ -40,3 +40,18 @@
   outline: 1px solid #999;
   outline-offset: 2px;
 }
+
+.orrery-status button {
+  pointer-events: auto;
+  font: inherit;
+  color: #aaa;
+  background: #111;
+  border: 1px solid #555;
+  cursor: pointer;
+}
+
+/* The renderer name needs more room than the short Speed/DPR labels. */
+.orrery-options-panel .orrery-renderer-settings .property-name,
+.orrery-options-panel .orrery-renderer-option .property-name { width: 28% !important; }
+.orrery-options-panel .orrery-renderer-settings .c,
+.orrery-options-panel .orrery-renderer-option .c { width: 72% !important; }

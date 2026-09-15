@@ -41,8 +41,6 @@ export default class ThreeRenderer {
       this.camera.position.set(500, 500, 400);
       this.camera.up.set(0, 0, 1);
       this.camera.lookAt(this.scene.position);
-      this.controls = new OrbitControls(this.camera, this.canvas);
-      this.controls.addEventListener("change", this.requestRender);
       this.scene.add(new Sun().body);
       this.installDrawChecks();
       this.renderer.debug.onShaderError = () => {
@@ -51,6 +49,10 @@ export default class ThreeRenderer {
       this.initialized = true;
       this.resize(this.getViewport());
       this.container.appendChild(this.canvas);
+      // OrbitControls binds keyboard interception to getRootNode(). Connect
+      // after attachment so disposal removes it from the same document.
+      this.controls = new OrbitControls(this.camera, this.canvas);
+      this.controls.addEventListener("change", this.requestRender);
       this.canvas.addEventListener("webglcontextlost", this.onContextLost);
       this.canvas.addEventListener("webglcontextrestored", this.onContextRestored);
     } catch (error) { this.destroy(); throw error; }
@@ -221,6 +223,23 @@ export default class ThreeRenderer {
     this.renderer.setSize(viewport.width, viewport.height);
   }
 
+  captureView() {
+    return { position: this.camera.position.toArray(), up: this.camera.up.toArray(),
+      quaternion: this.camera.quaternion.toArray(), zoom: this.camera.zoom,
+      target: this.controls.target.toArray() };
+  }
+
+  restoreView(view) {
+    if (!view) return;
+    this.camera.position.fromArray(view.position);
+    this.camera.up.fromArray(view.up);
+    this.camera.zoom = view.zoom;
+    this.controls.target.fromArray(view.target);
+    this.controls.update();
+    this.camera.quaternion.fromArray(view.quaternion);
+    this.camera.updateProjectionMatrix();
+  }
+
   releaseSceneResources() {
     this.scene?.traverse(object => {
       object.geometry?.dispose();
@@ -245,6 +264,7 @@ export default class ThreeRenderer {
       const gl = this.renderer.getContext();
       for (const { name, original, checked } of this.glMethods ?? []) if (gl[name] === checked) gl[name] = original;
       this.renderer.dispose();
+      this.renderer.forceContextLoss();
     }
     this.canvas?.remove();
     this.scene?.clear();

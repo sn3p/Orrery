@@ -294,6 +294,26 @@ export default class PixiRenderer {
     this.viewHeight = height;
   }
 
+  captureView() {
+    return { x: this.stage.x - this.viewWidth / 2, y: this.stage.y - this.viewHeight / 2,
+      scale: this.stage.scale.x };
+  }
+
+  restoreView(view) {
+    if (!view) return;
+    this.stage.position.set(this.viewWidth / 2 + view.x, this.viewHeight / 2 + view.y);
+    this.stage.scale.set(view.scale);
+  }
+
+  // A mode restoration is not a discovery. End transient arrivals without
+  // changing the constructor/update semantics used for initial and new data.
+  restoreDiscoveries() {
+    const cloud = this.asteroids;
+    if (!cloud) return;
+    cloud.geometry.getBuffer("aDiscovery").data.fill(-1);
+    cloud.queueUpload("aDiscovery", 0, cloud.committedCount * 4);
+  }
+
   releaseApplication() {
     // Application.init can reject before assigning a renderer. Destroy the
     // stage in that case; Application.destroy itself assumes a renderer exists.

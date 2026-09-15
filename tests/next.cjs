@@ -81,7 +81,9 @@ async function run({ browser, name, application = "legacy", output: artifactDire
           await page.screenshot({ path: path.join(directory, `${name}-${label}-${viewport.width}.png`) });
           await page.getByRole("button", { name: "Options", exact: true }).click();
           const input = page.getByRole("textbox", { name: "Playback speed" });
-          assert(await input.evaluate(el => el === document.activeElement));
+          assert(await page.getByRole("combobox", { name: "Renderer", exact: true }).evaluate(el => el === document.activeElement));
+          await page.keyboard.press("Tab");
+          assert(await input.evaluate(el => el === document.activeElement), "Tab reaches speed after Renderer");
           await input.fill("0"); await input.press("Enter");
           await page.waitForFunction(() => document.querySelector("#orrery-fps").textContent === "0 FPS");
           const date = await page.locator("#orrery-date").textContent();

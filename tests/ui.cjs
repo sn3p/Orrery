@@ -15,7 +15,7 @@ async function checkTypography(page, { fontLoaded = true, waitForFont = true } =
       return { x, y, width, height };
     };
     const text = document.createRange();
-    text.selectNodeContents(document.querySelector(".dg .property-name"));
+    text.selectNodeContents(document.querySelector("input[aria-label='Playback speed']").closest("li").querySelector(".property-name"));
     const selectors = ["#orrery-date", "#orrery-fps", "#orrery-count", ".dg .property-name", ".dg input"];
     return {
       fonts: [...document.fonts].map(font => ({ family: font.family, status: font.status })),
@@ -112,6 +112,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent) > 0);
       report.push({ width, state: "loaded", ui: await checkTypography(page) });
 
+      if (await page.getByRole("combobox", { name: "Renderer", exact: true }).count()) await page.keyboard.press("Tab");
       assert(await page.getByRole("textbox", { name: "Playback speed" }).evaluate(input => input === document.activeElement), "Speed input is keyboard reachable");
       await setSpeed(page, 0);
       const date = await page.locator("#orrery-date").textContent();

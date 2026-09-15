@@ -19,8 +19,8 @@ exports.testOptions = async (browser, url, output, name) => {
   const checkSpacing = async () => {
     const spacing = await panel.evaluate(el => {
       const label = document.createRange();
-      label.selectNodeContents(el.querySelector(".property-name"));
-      const hint = el.querySelector("select").getAttribute("aria-describedby");
+      label.selectNodeContents(el.querySelector("input[aria-label='Playback speed']").closest("li").querySelector(".property-name"));
+      const hint = el.querySelector("select[aria-label='Rendering pixel ratio']").getAttribute("aria-describedby");
       const text = document.getElementById(hint).firstChild;
       const range = document.createRange();
       range.selectNodeContents(text);
@@ -71,7 +71,8 @@ exports.testOptions = async (browser, url, output, name) => {
     assert(toggleStyle.indicatorSize < toggleStyle.textSize, "Only the marker is smaller");
     assert(toggleStyle.gap > 0 && toggleStyle.gap < toggleStyle.textSize * 0.4,
       "Marker and word have a compact positive gap");
-    assert(await speed.evaluate(el => el === document.activeElement), "Opening moves focus to the first control");
+    assert(await panel.evaluate(el => el.querySelector("select[aria-label='Renderer']") === document.activeElement
+      || (!el.querySelector("select[aria-label='Renderer']") && el.querySelector("input") === document.activeElement)), "Opening moves focus to the first control");
     await expect(speed).toHaveAccessibleDescription("0 pauses; negative reverses. 1 = 60 days per second.");
     const dprHelp = await page.locator("#" + await dpr.getAttribute("aria-describedby")).textContent();
     assert.equal(dprHelp, "Rendering resolution. 2× is sharper but requires more graphics processing.");
