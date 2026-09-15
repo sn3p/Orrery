@@ -4,7 +4,7 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 
 async function run({ browser, name, application = "legacy", output: artifactDirectory,
-  catalogConfig = process.env.CATALOG_CONFIG, renderer = "pixi" }) {
+  catalogConfig = process.env.CATALOG_CONFIG, renderer = "pixi", command = "serve:next" }) {
   const selection = catalogConfig && JSON.parse(fs.readFileSync(catalogConfig, "utf8"));
   const directory = artifactDirectory || path.resolve(selection ? ".context/pr3/browser/dev" : ".context/next-preview/dev");
   fs.mkdirSync(directory, { recursive: true });
@@ -18,7 +18,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
   `);
   // Run the documented command on a dynamically assigned port. Add only a
   // test probe; actual preview HTML/styles, output paths and dev options apply.
-  const child = spawn("npm", ["run", "serve:next", "--", "--host", "127.0.0.1", "--port", "0",
+  const child = spawn("npm", ["run", command, "--", "--host", "127.0.0.1", "--port", "0",
     "--no-open", "--entry", entry], { stdio: ["ignore", "pipe", "pipe"], detached: true,
     env: { ...process.env, CATALOG_CONFIG: catalogConfig || "" } });
   let log = "";
@@ -44,9 +44,9 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     page.on("response", response => {
       if (/\.hot-update\.js$/.test(new URL(response.url()).pathname)) hotChunks.push(response.status());
     });
-    await page.goto(`${base}next/?renderer=${renderer}`);
+    await page.goto(`${base}?renderer=${renderer}`);
     await page.waitForFunction(() => window.previewProbe?.value === "initial");
-    assert.equal(await page.title(), "Orrery — Preview");
+    assert.equal(await page.title(), "Orrery");
     const documentId = await page.evaluate(() => previewProbe.documentId);
     for (const text of ["first edit", "second edit"]) {
       fs.writeFileSync(value, `export default ${JSON.stringify(text)};\n`);
@@ -79,7 +79,11 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     // The historical combined-build test covers the return destination. The
     // configured standalone preview does not require a root build to exist.
     if (!selection) {
-      await page.goto(base);
+      for (const suffix of ["next/", "next", "next/index.html"]) {
+        await page.goto(base + suffix + "?renderer=" + renderer + "&extra=a%20b#view");
+        await page.waitForURL(base + "?renderer=" + renderer + "&extra=a%20b#view");
+        await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent.replaceAll("\u202f", "")) > 0);
+      }
       await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent.replaceAll("\u202f", "")) > 0);
       assert.equal((await page.request.get(`${base}favicon.ico`)).status(), 204,
         "Returning to the static root has no missing automatic favicon request");

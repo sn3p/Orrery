@@ -1,16 +1,15 @@
 const legacy = require("./webpack.config");
-const preview = require("./webpack.next.app.config.cjs");
+const app = require("./webpack.app.config.cjs");
 
-// Cleaning dist must finish before the preview writes dist/next. This dependency
-// also applies when the Pages command explicitly passes --output-clean.
+// Keep old root assets for cached PR73 documents through release acceptance.
+// The unified compiler replaces index.html after the legacy build finishes.
 module.exports = async (_env, argv = {}) => {
-  // webpack-cli applies --output-path to EVERY compiler after loading this
-  // config. Reject it before either clean can run and erase a sibling build.
   if (argv.outputPath !== undefined) {
-    throw new Error("The assembled build does not accept --output-path: it would overlap the root and preview. Build dist, then copy the assembled directory.");
+    throw new Error("The assembled build does not accept --output-path: build dist, then copy the complete site.");
   }
+  const promoted = await app(_env, argv);
   return [
     { ...legacy, name: "legacy", output: { ...legacy.output, clean: true } },
-    { ...await preview(_env, argv), name: "preview", dependencies: ["legacy"] },
+    { ...promoted, name: "app", dependencies: ["legacy"], output: { ...promoted.output, clean: false } },
   ];
 };

@@ -16,7 +16,7 @@ async function run({ browser, name, output = '.context/full-catalogue/default-en
   const nested = await serve(pages);
   const results = [];
   try {
-    for (const [prefix, url] of [['root', server.url + '/next/'], ['pages', nested.url + '/Orrery/next/']]) {
+    for (const [prefix, url] of [['root', server.url + '/'], ['pages', nested.url + '/Orrery/']]) {
       for (const renderer of ['pixi', 'three']) {
         const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
         const requests = [], errors = [];

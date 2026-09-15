@@ -264,10 +264,11 @@ async function buildTrial(configPath, output = path.join(root, ".context/catalog
   try {
     const prepared = await prepareCatalog(configPath, { publicDefaults });
     const webpack = require("webpack"), base = require("../webpack.next.config.js");
-    const previewOutput = assembled ? path.join(temporary, "next") : temporary;
+    const previewOutput = temporary;
     await new Promise((resolve, reject) => {
-      const preview = { ...base, mode: "production", plugins: catalogPlugins(base, prepared.runtime), entry,
-        output: { ...base.output, path: previewOutput, clean: true } };
+      const preview = { ...base, mode: "production", plugins: [...catalogPlugins(base, prepared.runtime),
+          ...(assembled ? [new (require("./promotion.cjs").PromotionAssetsPlugin)()] : [])], entry,
+        output: { ...base.output, path: previewOutput, clean: !assembled } };
       const legacy = require("../webpack.config.js");
       const compiler = webpack(assembled ? [
         { ...legacy, mode: "production", name: "legacy", output: { ...legacy.output, path: temporary, clean: true } },
@@ -279,6 +280,7 @@ async function buildTrial(configPath, output = path.join(root, ".context/catalog
       }));
     });
     await stageCatalog(prepared, previewOutput);
+    if (assembled) await stageCatalog(prepared, path.join(temporary, "next"));
     let siteBytes = 0;
     for (const name of await fs.readdir(temporary, { recursive: true, withFileTypes: true })) {
       if (name.isFile()) siteBytes += (await fs.stat(path.join(name.parentPath, name.name))).size;
@@ -295,7 +297,7 @@ async function buildTrial(configPath, output = path.join(root, ".context/catalog
       }
       throw error;
     }
-    return { output, bundle: prepared.runtime?.pin ? path.join(output, assembled ? "next" : "", "data", path.basename(prepared.staged[0].directory)) : null,
+    return { output, bundle: prepared.runtime?.pin ? path.join(output, "data", path.basename(prepared.staged[0].directory)) : null,
       runtime: prepared.runtime, siteBytes, retained: prepared.staged.slice(prepared.runtime?.pin ? 1 : 0).map(item => item.pin.sha256) };
   } finally { if (!preserveRecovery) await fs.rm(lock, { force: true, recursive: true }); }
 }

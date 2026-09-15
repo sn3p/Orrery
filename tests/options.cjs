@@ -7,9 +7,9 @@ exports.openOptions = async page => {
   if (await trigger.getAttribute("aria-expanded") === "false") await trigger.click();
 };
 
-exports.testOptions = async (browser, url, output, name) => {
+exports.testOptions = async (browser, url, output, name, application = "legacy") => {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 });
-  if (new URL(url).pathname.endsWith('/next/')) await require('./default-catalog-route.cjs').routeDefaultCatalog(page);
+  if (application === 'unified') await require('./default-catalog-route.cjs').routeDefaultCatalog(page);
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });

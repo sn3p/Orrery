@@ -43,6 +43,10 @@ async function serve(directory) {
     if (pathname.endsWith("/favicon.ico")) { res.writeHead(204); res.end(); return; }
     const filename = path.resolve(root, "." + pathname + (pathname.endsWith("/") ? "index.html" : ""));
     if (!filename.startsWith(root + path.sep) || !fs.existsSync(filename)) { res.writeHead(404); res.end(); return; }
+    if (fs.statSync(filename).isDirectory()) {
+      res.writeHead(301, { Location: pathname + "/" + new URL(req.url, "http://localhost").search });
+      res.end(); return;
+    }
     res.setHeader("Content-Type", { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".woff2": "font/woff2" }[path.extname(filename)] || "application/octet-stream");
     fs.createReadStream(filename).pipe(res);
   });

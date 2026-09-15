@@ -17,9 +17,13 @@ for (const application of ['legacy', 'unified']) {
 test('legacy development hot updates and full reload', async ({ check }) => {
   await check('hmr');
 });
-test('preview development command, hot updates and return', async ({ check }) => {
-  await check('next-dev');
-});
+for (const command of ['serve', 'serve:next']) {
+  for (const renderer of ['pixi', 'three']) {
+    test(`${command} promoted development ${renderer}, hot updates and forwarding`, async ({ check }) => {
+      await check('next-dev', { command, renderer });
+    });
+  }
+}
 test('ordinary clean clone, HMR and default benchmark provenance', async ({ check }) => {
   await check('benchmark-clone');
 });

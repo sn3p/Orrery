@@ -90,7 +90,8 @@ async function run({ browser, name, application = "legacy", output: artifactDire
   const unified = application === "unified";
   const { routeDefaultCatalog, latestURL } = require("./default-catalog-route.cjs");
   const catalogRequest = unified ? latestURL : "**/data/catalog.json";
-  const dist = path.join(root, application === "unified" ? "dist/next" : "dist");
+  const dist = unified ? path.join(root, "dist") : path.join(artifactDirectory || ".context/font-qa", "legacy-site");
+  if (!unified) await require("./support.cjs").build("./src/js/index.js", dist, { application: "legacy" });
   const output = artifactDirectory || (path.join(root, application === "unified" ? ".context/pr2/unified-ui" : ".context/font-qa"));
   fs.mkdirSync(output, { recursive: true });
   // Serve the actual production files at the GitHub Pages subpath.

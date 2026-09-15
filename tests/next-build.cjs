@@ -35,18 +35,28 @@ async function compile(config) {
     fs.mkdirSync("dist/next", { recursive: true });
     fs.writeFileSync("dist/stale-root.txt", "old");
     fs.writeFileSync("dist/next/stale-preview.txt", "old");
-    const log = execFileSync("npm", ["run", "build", "--", "--output-clean"], { encoding: "utf8" });
+    const log = execFileSync("npm", ["run", "build", "--", round === 0 ? "--output-clean" : "--output-clean=true"], { encoding: "utf8" });
     fs.writeFileSync(path.join(directory, `build-${round}.log`), log);
-    assert.deepEqual(fingerprint("dist", true), original, "Assembled root is byte-identical to the standalone legacy build");
+    for (const [name, hash] of Object.entries(original)) {
+      if (name !== "index.html") assert.equal(fingerprint("dist")[name], hash, "Cached legacy asset retained: " + name);
+    }
+    assert.match(fs.readFileSync("dist/index.html", "utf8"), /<title>Orrery<\/title>/);
+    assert.match(fs.readFileSync("dist/next/index.html", "utf8"), /location.replace/);
+    assert(!fs.existsSync("dist/stale-root.txt"));
     assert(fs.existsSync("dist/next/index.html"));
-    assert(!fs.existsSync("dist/next/data/catalog.json"), "Preview excludes the legacy catalogue asset");
+    assert(!fs.existsSync("dist/next/data/catalog.json"), "Compatibility preview excludes the legacy catalogue asset");
     const javascript = files("dist/next").filter(name => name.endsWith(".js"))
       .map(name => fs.readFileSync(path.join("dist/next", name), "utf8")).join("\n");
     assert(javascript.includes(require("../catalog-profiles/latest.json").latest), "Default preview selects the producer descriptor");
     assert(!fs.existsSync("dist/next/stale-preview.txt"));
   }
+  const promoted = fingerprint("dist");
+  const retained = require("./fixtures/promotion/pr73-hashes.json");
+  for (const [name, hash] of Object.entries(retained)) {
+    if (!name.endsWith("index.html")) assert.equal(promoted[name], hash, "PR73 cached page dependency retained: " + name);
+  }
   execFileSync("npm", ["run", "build:next", "--", "--output-clean"], { stdio: "pipe" });
-  assert.deepEqual(fingerprint("dist", true), original, "Preview-only cleaning cannot delete or change the root");
+  assert.deepEqual(fingerprint("dist"), promoted, "Deprecated build:next alias emits the same complete promoted site");
   const overridden = path.join(directory, "output-override");
   fs.mkdirSync(overridden, { recursive: true });
   fs.writeFileSync(path.join(overridden, "index.html"), "existing site");
@@ -59,5 +69,5 @@ async function compile(config) {
     assert.deepEqual(fingerprint("dist"), savedDist, "Rejected override cannot alter either default entry");
   }
   fs.writeFileSync(path.join(directory, "legacy-hashes.json"), JSON.stringify(original, null, 2) + "\n");
-  console.log("Repeated Pages builds and preview-only rebuild preserve exact legacy output; overlapping CLI overrides fail before cleaning.");
+  console.log("Repeated Pages builds and compatibility alias preserve cached legacy assets; overlapping CLI overrides fail before cleaning.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

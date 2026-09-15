@@ -14,16 +14,18 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     await build('./tests/rendering-fixture.js', path.join(output, 'fixture'), { application });
     await build('./tests/init-fixture.js', path.join(output, 'init'), { application });
   }
-  const production = await serve('dist'), fixture = await serve(output);
+  const publicSite = application === 'unified' ? 'dist' : path.join(output, 'legacy-site');
+  if (application === 'legacy') await build('./src/js/index.js', publicSite, { application });
+  const production = await serve(publicSite), fixture = await serve(output);
   const report = [];
   try {
     const result = { browser: name, version: browser.version() };
-    const url = production.url + (application === 'unified' ? '/next/' : '/');
+    const url = production.url + '/';
     // These checks create independent pages and share no state. Native cases
     // give each its own timeout; standalone invocation still runs all three.
     for (const [key, label, action] of [
-      ['options', 'options interactions', () => testOptions(browser, url, output, name)],
-      ['pixelRatio', 'pixel ratio and display transitions', () => testPixelRatio(browser, url, output, name)],
+      ['options', 'options interactions', () => testOptions(browser, url, output, name, application)],
+      ['pixelRatio', 'pixel ratio and display transitions', () => testPixelRatio(browser, url, output, name, application)],
       ['texture', 'texture recovery', () => texture(browser, fixture.url, name)],
     ]) {
       if (part === undefined || part === key) result[key] = await step(label, action);
