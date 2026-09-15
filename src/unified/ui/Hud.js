@@ -9,11 +9,14 @@ export default class Hud {
     this.date = document.getElementById("orrery-date");
     this.fps = document.getElementById("orrery-fps");
     this.count = document.getElementById("orrery-count");
+    this.readouts = this.date.closest(".orrery-readouts");
+    if (this.readouts) this.readouts.hidden = true;
     this.lastDay = this.lastFps = this.lastCount = null;
     this.controls = new Options(app);
   }
 
-  update(jed, fps, count) {
+  update(jed, fps, count, ready) {
+    if (this.readouts && this.readouts.hidden === ready) this.readouts.hidden = !ready;
     // Match Date's millisecond truncation, including pre-Unix-epoch dates.
     const milliseconds = Math.trunc((jed - UNIX_EPOCH_JULIAN_DATE) * 86400000);
     const day = Math.floor(milliseconds / 86400000);

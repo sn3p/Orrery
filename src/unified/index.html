@@ -11,12 +11,14 @@
   <body>
     <div class="orrery" id="orrery"></div>
     <div class="orrery-fps" id="orrery-fps"></div>
-    <div class="orrery-status" id="orrery-status" role="status"></div>
     <footer class="orrery-footer">
-      <div class="orrery-readouts" role="group" aria-label="Simulation date and discovery count">
-        <span class="orrery-date" id="orrery-date"></span>
-        <span class="orrery-separator" aria-hidden="true">/</span>
-        <span class="orrery-count" id="orrery-count"></span>
+      <div class="orrery-summary">
+        <div class="orrery-status" id="orrery-status" role="status"></div>
+        <div class="orrery-readouts" role="group" aria-label="Simulation date and discovery count" hidden>
+          <span class="orrery-date" id="orrery-date"></span>
+          <span class="orrery-separator" aria-hidden="true">/</span>
+          <span class="orrery-count" id="orrery-count"></span>
+        </div>
       </div>
       <nav class="orrery-identity" aria-label="Orrery">
         <span>Orrery</span>

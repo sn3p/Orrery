@@ -19,6 +19,7 @@ async function checkTypography(page, { fontLoaded = true, waitForFont = true } =
     const selectors = ["#orrery-date", "#orrery-fps", "#orrery-count", ".dg .property-name", ".dg input"];
     return {
       unified: !!document.querySelector(".orrery-footer"),
+      readoutsHidden: !!document.querySelector(".orrery-readouts")?.hidden,
       fonts: [...document.fonts].map(font => ({ family: font.family, status: font.status })),
       styles: selectors.map(selector => {
         const style = getComputedStyle(document.querySelector(selector));
@@ -43,13 +44,14 @@ async function checkTypography(page, { fontLoaded = true, waitForFont = true } =
   assert(ui.slider.x + ui.slider.width <= ui.input.x, "Slider and input do not overlap");
   assert.equal(ui.width, page.viewportSize().width, "Mobile browsers use the device viewport width");
   assert.equal(ui.scrollWidth, ui.width, "No horizontal overflow");
-  for (const box of ui.boxes) {
+  for (const [index, box] of ui.boxes.entries()) {
+    if (ui.readoutsHidden && [0, 2].includes(index)) continue;
     assert(box.width > 0 && box.height > 0, "UI elements remain visible");
     assert(box.x >= 0 && box.x + box.width <= ui.width, "UI fits horizontally");
     assert(box.y >= 0 && box.y + box.height <= ui.height, "UI fits vertically");
   }
   assert(ui.boxes[1].y + ui.boxes[1].height <= ui.boxes[3].y, "FPS readout sits above the options controls");
-  assert(ui.boxes[0].x + ui.boxes[0].width < ui.boxes[2].x, "Date and count do not overlap");
+  if (!ui.readoutsHidden) assert(ui.boxes[0].x + ui.boxes[0].width < ui.boxes[2].x, "Date and count do not overlap");
   return ui;
 }
 

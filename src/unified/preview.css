@@ -41,6 +41,16 @@
   padding: 0;
 }
 
+.orrery-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.orrery-readouts[hidden] { display: none; }
+
 .orrery-separator { color: #666; }
 
 .orrery-identity {
@@ -73,6 +83,8 @@
 
 .orrery-identity a {
   color: #aaa;
+  padding: 3px 0;
+  margin: -3px 0;
   text-underline-offset: 3px;
   pointer-events: auto;
 }
@@ -83,7 +95,10 @@
   outline-offset: 2px;
 }
 
-.orrery-status { bottom: 64px; }
+.orrery-status {
+  position: static;
+  line-height: 18px;
+}
 .orrery-status a {
   pointer-events: auto;
   color: #aaa;
