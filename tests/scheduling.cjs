@@ -1,16 +1,14 @@
 const assert = require('node:assert/strict');
-const { launchBrowser } = require('./browsers.cjs');
 const { build, serve } = require('./support.cjs');
 
 const settle = page => page.evaluate(async () => {
   for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
 });
 
-(async () => {
-  const output = process.env.ORRERY_TEST_APP === 'unified' ? '.context/pr2/unified-scheduling' : '.context/paused-rendering/scheduling';
-  await build('./tests/rendering-fixture.js', output);
+async function run({ browser, application = "legacy", output: artifactDirectory }) {
+  const output = artifactDirectory || (application === 'unified' ? '.context/pr2/unified-scheduling' : '.context/paused-rendering/scheduling');
+  await build('./tests/rendering-fixture.js', output, { application });
   const server = await serve(output);
-  const browser = await launchBrowser("chromium");
   try {
     const page = await browser.newPage();
     await page.goto(server.url + '/?speed=1.5'); await page.evaluate(() => window.ready);
@@ -39,5 +37,8 @@ const settle = page => page.evaluate(async () => {
     await settle(page);
     assert.equal(await page.evaluate(() => fixture.probe.draws), 1, 'Disposal cancels pending work');
     console.log('Scheduling ownership: continuous RAF, stopped Pixi ticker, manual bootstrap/invalidation/render and disposal passed.');
-  } finally { await browser.close(); await server.close(); }
-})().catch(error => { console.error(error); process.exitCode = 1; });
+  } finally { await server.close(); }
+}
+
+module.exports = { run };
+if (require.main === module) require("./standalone.cjs").run(run, { chromiumOnly: true });

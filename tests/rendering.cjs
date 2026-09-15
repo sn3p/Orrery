@@ -1,7 +1,6 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { launchBrowser } = require('./browsers.cjs');
 const { build, serve } = require('./support.cjs');
 const lifecycle = require('./rendering-lifecycle.cjs');
 const initialization = require('./initialization.cjs');
@@ -11,7 +10,6 @@ const checkCPUOrbits = require('./cpu-orbits.cjs');
 const checkOrbitTracks = require('./orbit-tracks.cjs');
 const readouts = require('./readouts.cjs');
 const frameOperations = require('./frame-operations.cjs');
-const output = process.env.ORRERY_TEST_APP === 'unified' ? '.context/pr2/unified-rendering' : '.context/paused-rendering/checks';
 const settle = page => page.evaluate(async () => {
   for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
 });
@@ -211,59 +209,55 @@ async function markers(browser, url) {
   } finally { await page.close(); }
 }
 
-async function main() {
-  await build('./tests/rendering-fixture.js', path.join(output, 'fixture'));
-  await build('./src/js/index.js', path.join(output, 'production'));
-  await build('./tests/init-fixture.js', path.join(output, 'init'));
+async function run({ browser, name, application = "legacy", output: artifactDirectory, step = (_name, action) => action() }) {
+  const output = artifactDirectory || (application === 'unified' ? '.context/pr2/unified-rendering' : '.context/paused-rendering/checks');
+  await build('./tests/rendering-fixture.js', path.join(output, 'fixture'), { application });
+  await build('./src/js/index.js', path.join(output, 'production'), { application });
+  await build('./tests/init-fixture.js', path.join(output, 'init'), { application });
   const server = await serve(output), report = [];
   const fixtureURL = server.url + '/fixture';
   try {
-    for (const name of (process.env.BROWSERS || 'chromium').split(',')) {
-      const browser = await launchBrowser(name);
-      try {
-        const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-        const errors = [];
-        page.on('pageerror', e => errors.push(e.message));
-        page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-        await page.goto(fixtureURL + '/'); await page.evaluate(() => window.ready);
-        const sharedFrames = await frameOperations.frames(page);
-        const fps = await frameOperations.fps(page);
-        const readoutBoundaries = await readouts.boundaries(page);
-        const planetPhases = await checkPlanetPhases(page);
-        const cpuOrbits = await checkCPUOrbits(page);
-        const orbitTracks = await checkOrbitTracks(page);
-        await page.reload(); await page.evaluate(() => window.ready);
-        const sharedFramesAfterReload = await frameOperations.frames(page);
-        const fpsAfterReload = await frameOperations.fps(page);
-        const readoutsAfterReload = await readouts.boundaries(page);
-        const planetPhasesAfterReload = await checkPlanetPhases(page);
-        const cpuOrbitsAfterReload = await checkCPUOrbits(page);
-        const orbitTracksAfterReload = await checkOrbitTracks(page);
-        const result = { browser: name, version: browser.version(), sharedFrames, sharedFramesAfterReload, fps, fpsAfterReload, readoutBoundaries, readoutsAfterReload, planetPhases, planetPhasesAfterReload,
-          cpuOrbits, cpuOrbitsAfterReload, orbitTracks, orbitTracksAfterReload, paused: await paused(page),
-          invalidations: await invalidations(page), dpr: await dpr(page, name),
-          loading: await loading(page, fixtureURL), markers: await markers(browser, fixtureURL) };
-        await page.goto(fixtureURL + '/'); await page.evaluate(() => window.ready);
-        result.visibility = await lifecycle.visibility(page);
-        result.recovery = await lifecycle.recovery(page);
-        result.disposal = await lifecycle.disposal(page, server.url);
-        await page.goto(fixtureURL + '/?manual'); await page.evaluate(() => window.ready);
-        result.manualRecovery = await lifecycle.recovery(page, { manual: true });
-        result.manualDisposal = await lifecycle.disposal(page, server.url);
-        result.productionReadouts = await readouts.production(page, server.url + '/production/');
-        result.production = await lifecycle.production(browser, server.url + '/production/', output, name);
-        await page.goto(fixtureURL + '/?manual'); await page.evaluate(() => window.ready);
-        result.gui = await frameOperations.gui(page);
-        await page.goto(server.url + '/init/');
-        result.initialization = await initialization(page);
-        result.readoutLifetimes = await readouts.lifetimes(page);
-        result.status = await status(browser, server.url + '/production/', output, name);
-        assert.deepEqual(errors, [], 'No browser, shader or WebGL errors');
-        report.push(result); console.log(JSON.stringify(result));
-      } finally { await browser.close(); }
-    }
+    const page = await step("page", () => browser.newPage({ viewport: { width: 1280, height: 800 } }));
+    const errors = [];
+    page.on('pageerror', e => errors.push(e.message));
+    page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+    await page.goto(fixtureURL + '/'); await page.evaluate(() => window.ready);
+    const sharedFrames = await step("sharedFrames", () => frameOperations.frames(page));
+    const fps = await step("fps", () => frameOperations.fps(page));
+    const readoutBoundaries = await step("readoutBoundaries", () => readouts.boundaries(page));
+    const planetPhases = await step("planetPhases", () => checkPlanetPhases(page));
+    const cpuOrbits = await step("cpuOrbits", () => checkCPUOrbits(page));
+    const orbitTracks = await step("orbitTracks", () => checkOrbitTracks(page));
+    await page.reload(); await page.evaluate(() => window.ready);
+    const sharedFramesAfterReload = await step("sharedFramesAfterReload", () => frameOperations.frames(page));
+    const fpsAfterReload = await step("fpsAfterReload", () => frameOperations.fps(page));
+    const readoutsAfterReload = await step("readoutsAfterReload", () => readouts.boundaries(page));
+    const planetPhasesAfterReload = await step("planetPhasesAfterReload", () => checkPlanetPhases(page));
+    const cpuOrbitsAfterReload = await step("cpuOrbitsAfterReload", () => checkCPUOrbits(page));
+    const orbitTracksAfterReload = await step("orbitTracksAfterReload", () => checkOrbitTracks(page));
+    const result = { browser: name, version: browser.version(), sharedFrames, sharedFramesAfterReload, fps, fpsAfterReload, readoutBoundaries, readoutsAfterReload, planetPhases, planetPhasesAfterReload,
+      cpuOrbits, cpuOrbitsAfterReload, orbitTracks, orbitTracksAfterReload, paused: await paused(page),
+      invalidations: await invalidations(page), dpr: await dpr(page, name),
+      loading: await loading(page, fixtureURL), markers: await markers(browser, fixtureURL) };
+    await page.goto(fixtureURL + '/'); await page.evaluate(() => window.ready);
+    result.visibility = await step("visibility", () => lifecycle.visibility(page));
+    result.recovery = await step("recovery", () => lifecycle.recovery(page));
+    result.disposal = await step("disposal", () => lifecycle.disposal(page, server.url));
+    await page.goto(fixtureURL + '/?manual'); await page.evaluate(() => window.ready);
+    result.manualRecovery = await step("manualRecovery", () => lifecycle.recovery(page, { manual: true }));
+    result.manualDisposal = await step("manualDisposal", () => lifecycle.disposal(page, server.url));
+    result.productionReadouts = await step("productionReadouts", () => readouts.production(page, server.url + '/production/'));
+    result.production = await step("production", () => lifecycle.production(browser, server.url + '/production/', output, name));
+    await page.goto(fixtureURL + '/?manual'); await page.evaluate(() => window.ready);
+    result.gui = await step("gui", () => frameOperations.gui(page));
+    await page.goto(server.url + '/init/');
+    result.initialization = await step("initialization", () => initialization(page));
+    result.readoutLifetimes = await step("readoutLifetimes", () => readouts.lifetimes(page));
+    result.status = await step("status", () => status(browser, server.url + '/production/', output, name));
+    assert.deepEqual(errors, [], 'No browser, shader or WebGL errors');
+    report.push(result); console.log(JSON.stringify(result));
     fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify(report, null, 2) + '\n');
   } finally { await server.close(); }
 }
-if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1; });
-module.exports = { markers };
+module.exports = { markers, run };
+if (require.main === module) require("./standalone.cjs").run(run, { chromiumOnly: false });

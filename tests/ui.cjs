@@ -2,11 +2,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
-const { launchBrowser } = require("./browsers.cjs");
 
 const root = path.resolve(__dirname, "..");
-const dist = path.join(root, process.env.ORRERY_TEST_APP === "unified" ? "dist/next" : "dist");
-const output = path.join(root, process.env.ORRERY_TEST_APP === "unified" ? ".context/pr2/unified-ui" : ".context/font-qa");
 const fontName = "JetBrains Mono Variable";
 
 async function checkTypography(page, { fontLoaded = true, waitForFont = true } = {}) {
@@ -86,7 +83,9 @@ async function checkStatusContrast(page, expected) {
   return status;
 }
 
-async function main() {
+async function run({ browser, name, application = "legacy", output: artifactDirectory }) {
+  const dist = path.join(root, application === "unified" ? "dist/next" : "dist");
+  const output = artifactDirectory || (path.join(root, application === "unified" ? ".context/pr2/unified-ui" : ".context/font-qa"));
   fs.mkdirSync(output, { recursive: true });
   // Serve the actual production files at the GitHub Pages subpath.
   const server = http.createServer((req, res) => {
@@ -101,10 +100,8 @@ async function main() {
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${server.address().port}/Orrery/`;
-  let browser;
   const report = [];
   try {
-    browser = await launchBrowser("chromium");
     for (const width of [1280, 390, 360]) {
       const context = await browser.newContext({ viewport: { width, height: width === 1280 ? 800 : 844 }, isMobile: width < 500, hasTouch: width < 500 });
       const page = await context.newPage();
@@ -180,9 +177,10 @@ async function main() {
     fs.writeFileSync(path.join(output, "results.json"), JSON.stringify(report, null, 2) + "\n");
     console.log("UI checks passed: production font/license delivery, desktop/mobile typography, keyboard and slider playback, reload, delayed loading and font fallback.");
   } finally {
-    if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));
   }
 }
 
-main().catch(error => { console.error(error); process.exitCode = 1; });
+
+module.exports = { run };
+if (require.main === module) require("./standalone.cjs").run(run, { chromiumOnly: true });

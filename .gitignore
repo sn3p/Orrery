@@ -20,6 +20,11 @@ __pycache__/
 /.context/pr2/
 /.context/pages-artifact/
 /.context/browser-environment/
+/.context/test-fixtures/
+/.context/test-fixtures-probe-*/
+/.context/playwright-results/
+/.context/playwright-blob/
+/.context/playwright-report/
 
 # The preview is assembled from source alongside the tracked legacy build.
 /dist/next/

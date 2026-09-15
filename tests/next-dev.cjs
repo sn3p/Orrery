@@ -2,10 +2,9 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
-const { launchBrowser } = require("./browsers.cjs");
 
-(async () => {
-  const directory = path.resolve(".context/next-preview/dev");
+async function run({ browser, name, application = "legacy", output: artifactDirectory }) {
+  const directory = artifactDirectory || path.resolve(".context/next-preview/dev");
   fs.mkdirSync(directory, { recursive: true });
   const value = path.join(directory, "value.js"), entry = path.join(directory, "entry.js");
   fs.writeFileSync(value, 'export default "initial";\n');
@@ -29,11 +28,9 @@ const { launchBrowser } = require("./browsers.cjs");
       await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
-  let browser;
   try {
     await until(() => /http:\/\/127\.0\.0\.1:\d+\//.test(log));
     const base = log.match(/http:\/\/127\.0\.0\.1:\d+\//)[0];
-    browser = await launchBrowser("chromium");
     const page = await browser.newPage();
     const errors = [], hotChunks = [];
     page.on("pageerror", error => errors.push(error.message));
@@ -67,9 +64,11 @@ const { launchBrowser } = require("./browsers.cjs");
     assert.deepEqual(errors, []);
     console.log("Actual serve:next command serves /next/, applies hot chunks and reloads unaccepted edits.");
   } finally {
-    await browser?.close();
     if (child.exitCode === null) process.kill(-child.pid, "SIGTERM");
     await exited;
     fs.writeFileSync(path.join(directory, "server.log"), log);
   }
-})().catch(error => { console.error(error); process.exitCode = 1; });
+}
+
+module.exports = { run };
+if (require.main === module) require("./standalone.cjs").run(run, { chromiumOnly: true });

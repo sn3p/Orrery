@@ -6,13 +6,15 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const execute = promisify(execFile);
 
-(async () => {
+async function run({ browser, name, application = "legacy", output: artifactDirectory }) {
   const root = path.resolve(__dirname, '..');
-  const output = path.join(root, '.context/gpu-orbits/benchmark-clone');
+  const output = artifactDirectory || path.join(root, '.context/gpu-orbits/benchmark-clone');
   const clone = path.join(output, 'checkout');
   fs.mkdirSync(output, { recursive: true });
   fs.rmSync(clone, { recursive: true, force: true });
   const env = { ...process.env, GIT_CONFIG_GLOBAL: os.devNull, GIT_CONFIG_NOSYSTEM: '1', COUNTS: '1000', REPEATS: '1' };
+  delete env.ORRERY_PREBUILT_FIXTURES;
+  delete env.ORRERY_TEST_APP;
   delete env.BUNDLE; delete env.OUTPUT;
   try {
     // Real clone with default local excludes, not Conductor's worktree excludes.
@@ -49,4 +51,7 @@ const execute = promisify(execFile);
     fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify(report, null, 2) + '\n');
     console.log('Default benchmark after HMR tests in a clean ordinary clone retains verified source attribution.');
   } finally { fs.rmSync(clone, { recursive: true, force: true }); }
-})().catch(error => { console.error(error); process.exitCode = 1; });
+}
+
+module.exports = { run };
+if (require.main === module) require("./standalone.cjs").run(run, { chromiumOnly: true });

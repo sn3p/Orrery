@@ -3,11 +3,10 @@ const fs = require("node:fs");
 const path = require("node:path");
 const webpack = require("webpack");
 const DevServer = require("webpack-dev-server");
-const { launchBrowser } = require("./browsers.cjs");
 const config = require("../webpack.config");
 
-(async () => {
-  const directory = path.resolve(".context/hmr-test");
+async function run({ browser, name, application = "legacy", output: artifactDirectory }) {
+  const directory = artifactDirectory || path.resolve(".context/hmr-test");
   fs.mkdirSync(directory, { recursive: true });
   const valueFile = path.join(directory, "value.js");
   const entryFile = path.join(directory, "entry.js");
@@ -37,12 +36,10 @@ const config = require("../webpack.config");
       return middlewares;
     },
     client: { logging: "none" }, devMiddleware: { stats: "errors-only" } }, compiler);
-  let browser;
   try {
     const initial = nextBuild();
     await server.start();
     assert(!(await initial).hasErrors(), "Initial development compilation succeeds");
-    browser = await launchBrowser("chromium");
     const page = await browser.newPage();
     const errors = [], hotChunks = [];
     page.on("pageerror", error => errors.push(error.message));
@@ -78,8 +75,10 @@ const config = require("../webpack.config");
     await page.screenshot({ path: path.join(directory, "after-updates.png") });
     console.log("Development server applies two hot updates and reloads an unaccepted edit with the actual Orrery app rendered.");
   } finally {
-    await browser?.close();
     await server.stop();
     await new Promise((resolve, reject) => compiler.close(error => error ? reject(error) : resolve()));
   }
-})().catch(error => { console.error(error); process.exitCode = 1; });
+}
+
+module.exports = { run };
+if (require.main === module) require("./standalone.cjs").run(run, { chromiumOnly: true });

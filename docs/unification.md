@@ -262,11 +262,11 @@ generated/ignored; existing tracked legacy output handling is preserved.
 
 ## Verification contract
 
-Run `npm test` with Chrome installed. For the complete local browser matrix:
+The default Playwright Test suite runs all three browser engines:
 
 ```sh
-npx playwright install firefox webkit
-BROWSERS=chromium,firefox,webkit npm test
+npx playwright install chrome firefox webkit
+npm test
 ```
 
 `test:build` exercises mode/watch behavior, repeated actual Pages clean builds,
@@ -285,11 +285,14 @@ catalogue/date/viewport/DPR, including recovery. Public `/next/` is tested with
 its real HTML and lazy chunks at root and Pages prefixes. `benchmark:next`
 identifies unified execution independently of the benchmark runner source.
 After the build regression
-checks, CI uploads the final assembled Pages artifact for all three browser jobs
-to test. A separate Chromium job runs the standalone preview command from a
+checks, CI uploads the final assembled Pages artifact and distinct compiled test
+fixtures. Chromium and Firefox use two shards each, and WebKit uses four, with one worker per runner;
+Chromium-only checks run once per applicable app in their own job.
+A separate Chromium job runs the standalone preview command from a
 clean checkout with no preview build. Deployment depends on all jobs.
-Diagnostics are retained per browser and suite;
+Diagnostics are retained per case and merged into a Playwright HTML report;
 no root promotion is implicit.
+See [browser test workflow](browser-tests.md) for the coverage mapping and commands.
 
 Hosted Linux browser jobs use Xvfb and Mesa software rendering, with a preflight
 that records the actual renderer and requires WebGL2 so numerical coverage cannot

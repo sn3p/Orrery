@@ -3,9 +3,7 @@ const { exercisePreparation, exercisePreparationLoading } = require("./preparati
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { launchBrowser } = require("./browsers.cjs");
 const { build, serve } = require("./support.cjs");
-const output = process.env.ORRERY_TEST_APP === 'unified' ? '.context/pr2/unified-gpu' : path.resolve(".context/gpu-orbits/checks");
 
 async function exercise(page) {
   await page.evaluate(() => window.ready);
@@ -205,124 +203,122 @@ async function contextRecovery(page) {
   return { cycles: 2, uploads };
 }
 
-async function main() {
-  await build("./tests/browser.js", path.join(output, "fixture"));
-  await build("./src/js/index.js", path.join(output, "production"));
+async function run({ browser, name, application = "legacy", output: artifactDirectory, step = (_name, action) => action() }) {
+  const output = artifactDirectory || (application === 'unified' ? '.context/pr2/unified-gpu' : path.resolve(".context/gpu-orbits/checks"));
+  await build("./tests/browser.js", path.join(output, "fixture"), { application });
+  await build("./src/js/index.js", path.join(output, "production"), { application });
   const server = await serve(output), report = [];
   try {
-    for (const name of (process.env.BROWSERS || "chromium").split(",")) {
-      const browser = await launchBrowser(name);
-      try {
-        const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-        const errors = [];
-        page.on("pageerror", error => errors.push(error.message));
-        page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
-        await page.goto(server.url + "/fixture/");
-        const result = { browser: name, version: browser.version(), ...await exercise(page), phaseUploads: await exercisePhaseUploads(page), preparation: await exercisePreparation(page), pixels: await pixels(page), instances: await instancePixels(page), recovery: await contextRecovery(page) };
-        await page.screenshot({ path: path.join(output, `${name}-desktop.png`) });
-        const scale = await page.evaluate(() => fixture.app.stage.scale.x);
-        await page.mouse.move(500, 400); await page.mouse.wheel(0, -100);
-        await page.waitForFunction(before => fixture.app.stage.scale.x > before, scale);
-        await page.setViewportSize({ width: 390, height: 844 });
-        await page.waitForFunction(() => fixture.app.canvas.width === 390);
-        await page.evaluate(() => { fixture.app.app.render(); });
-        await page.screenshot({ path: path.join(output, `${name}-narrow.png`) });
-        assert.deepEqual(errors, [], "No GL, shader or JavaScript errors");
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on("pageerror", error => errors.push(error.message));
+    page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
+    await page.goto(server.url + "/fixture/");
+    const result = { browser: name, version: browser.version(), ...await step("orbital numerics and lifecycle", () => exercise(page)), phaseUploads: await step("phase uploads", () => exercisePhaseUploads(page)), preparation: await step("preparation", () => exercisePreparation(page)), pixels: await step("marker pixels", () => pixels(page)), instances: await step("instance pixels", () => instancePixels(page)), recovery: await step("context loss and restoration", () => contextRecovery(page)) };
+    await page.screenshot({ path: path.join(output, `${name}-desktop.png`) });
+    const scale = await page.evaluate(() => fixture.app.stage.scale.x);
+    await page.mouse.move(500, 400); await page.mouse.wheel(0, -100);
+    await page.waitForFunction(before => fixture.app.stage.scale.x > before, scale);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForFunction(() => fixture.app.canvas.width === 390);
+    await page.evaluate(() => { fixture.app.app.render(); });
+    await page.screenshot({ path: path.join(output, `${name}-narrow.png`) });
+    assert.deepEqual(errors, [], "No GL, shader or JavaScript errors");
 
-        result.preparationLoading = await exercisePreparationLoading(page, server.url);
-        await page.reload(); await page.evaluate(() => window.ready);
-        result.preparationReload = await exercisePreparation(page);
-        assert.deepEqual(errors, [], "Preparation failures/recovery/reload leave no browser errors");
+    result.preparationLoading = await exercisePreparationLoading(page, server.url);
+    await page.reload(); await page.evaluate(() => window.ready);
+    result.preparationReload = await exercisePreparation(page);
+    assert.deepEqual(errors, [], "Preparation failures/recovery/reload leave no browser errors");
 
-        // HTTP failure, malformed data, delayed/out-of-order replacement and disposal.
-        await page.route("**/failure", route => route.fulfill({ status: 200, body: "invalid json" }));
-        await page.evaluate(async url => {
-          const { app } = fixture, cloud = app.asteroids;
-          if (await app.loadAsteroids(url + "/failure")) throw new Error("Malformed JSON accepted");
-          if (app.asteroids !== cloud || !document.getElementById("orrery-status").textContent.includes("Unable")) throw new Error("Failed load discarded valid state or error feedback");
-        }, server.url);
-        let release;
-        const gate = new Promise(resolve => { release = resolve; });
-        await page.route("**/delayed", async route => { await gate; await route.fulfill({ status: 200, body: "[]" }).catch(() => {}); });
-        await page.evaluate(url => { window.pendingLoad = fixture.app.loadAsteroids(url + "/delayed"); }, server.url);
-        await page.evaluate(() => fixture.app.setAsteroids([fixture.catalog[0]]));
-        release(); await page.evaluate(() => pendingLoad);
-        assert.equal(await page.evaluate(() => fixture.app.asteroids.discoveryDates.length), 1);
-        await page.evaluate(() => {
-          const { app } = fixture, cloud = app.asteroids;
-          app.destroy(); app.destroy();
-          if (!cloud.destroyed || document.querySelector("canvas") || document.querySelector(".dg.main")) throw new Error("Application disposal leaked resources or UI");
-        });
-        await page.close();
+    // HTTP failure, malformed data, delayed/out-of-order replacement and disposal.
+    await page.route("**/failure", route => route.fulfill({ status: 200, body: "invalid json" }));
+    await page.evaluate(async url => {
+      const { app } = fixture, cloud = app.asteroids;
+      if (await app.loadAsteroids(url + "/failure")) throw new Error("Malformed JSON accepted");
+      if (app.asteroids !== cloud || !document.getElementById("orrery-status").textContent.includes("Unable")) throw new Error("Failed load discarded valid state or error feedback");
+    }, server.url);
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    await page.route("**/delayed", async route => { await gate; await route.fulfill({ status: 200, body: "[]" }).catch(() => {}); });
+    await page.evaluate(url => { window.pendingLoad = fixture.app.loadAsteroids(url + "/delayed"); }, server.url);
+    await page.evaluate(() => fixture.app.setAsteroids([fixture.catalog[0]]));
+    release(); await page.evaluate(() => pendingLoad);
+    assert.equal(await page.evaluate(() => fixture.app.asteroids.discoveryDates.length), 1);
+    await page.evaluate(() => {
+      const { app } = fixture, cloud = app.asteroids;
+      app.destroy(); app.destroy();
+      if (!cloud.destroyed || document.querySelector("canvas") || document.querySelector(".dg.main")) throw new Error("Application disposal leaked resources or UI");
+    });
+    await page.close();
 
-        const highDpr = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
-        await highDpr.goto(server.url + "/fixture/"); await highDpr.evaluate(() => window.ready);
-        result.dpr2 = await pixels(highDpr);
-        assert.equal(await highDpr.evaluate(() => fixture.app.canvas.width), 780);
-        await highDpr.screenshot({ path: path.join(output, `${name}-dpr2.png`) });
-        await highDpr.close();
+    const highDpr = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+    await highDpr.goto(server.url + "/fixture/"); await highDpr.evaluate(() => window.ready);
+    result.dpr2 = await pixels(highDpr);
+    assert.equal(await highDpr.evaluate(() => fixture.app.canvas.width), 780);
+    await highDpr.screenshot({ path: path.join(output, `${name}-dpr2.png`) });
+    await highDpr.close();
 
-        const production = await browser.newPage({ viewport: { width: 360, height: 844 } });
-        const productionErrors = [];
-        production.on("pageerror", error => productionErrors.push(error.message));
-        production.on("console", message => { if (message.type() === "error") productionErrors.push(message.text()); });
-        await production.goto(server.url + "/production/");
-        await production.waitForFunction(() => Number(document.getElementById("orrery-count").textContent) > 0);
-        await require("./options.cjs").openOptions(production);
-        const input = production.getByRole("textbox", { name: "Playback speed" });
-        await input.fill("0"); await input.press("Enter");
-        const date = await production.locator("#orrery-date").textContent();
-        await production.waitForTimeout(100);
-        assert.equal(await production.locator("#orrery-date").textContent(), date);
-        await input.fill("-1.5"); await input.press("Enter");
-        await production.waitForFunction(previous => document.getElementById("orrery-date").textContent < previous, date);
-        await production.screenshot({ path: path.join(output, `${name}-production.png`) });
-        assert.deepEqual(productionErrors, []);
-        const record = { a: 1, e: 0, i: 0, W: 0, w: 0, M: 0, n: 1, epoch: 2458600.5, disc: 2400000 };
-        for (const body of ["invalid", JSON.stringify([record, { ...record, a: 1e40, disc: 2399999 }])]) {
-          await production.route("**/data/catalog.json", route => route.fulfill({ status: 200, contentType: "application/json", body }));
-          await production.reload();
-          await production.getByRole("status").filter({ hasText: "Unable to load" }).waitFor();
-          assert.equal(await production.locator("#orrery-count").textContent(), "0");
-          await production.unroute("**/data/catalog.json");
-        }
-        await production.reload();
-        await production.waitForFunction(() => Number(document.getElementById("orrery-count").textContent) > 0);
-        assert.equal(await production.getByRole("status").textContent(), "");
-        assert.deepEqual(productionErrors, [], "Production reload recovers from preparation failures");
-        await production.close();
-        if (name === "chromium") {
-          const webgl1 = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-          await webgl1.addInitScript(() => {
-            const get = HTMLCanvasElement.prototype.getContext;
-            HTMLCanvasElement.prototype.getContext = function(type, ...args) {
-              return type === "webgl2" ? null : get.call(this, type, ...args);
-            };
-          });
-          await webgl1.goto(server.url + "/fixture/"); await webgl1.evaluate(() => window.ready);
-          result.webgl1 = await webgl1.evaluate(() => {
-            const { app, catalog } = fixture;
-            if (app.app.renderer.context.webGLVersion !== 1) throw new Error("Expected WebGL1");
-            app.setAsteroids(catalog.slice(0, 10)); app.jed = catalog[0].disc; app.tick(); app.app.render();
-            const gl = app.app.renderer.gl;
-            // Pixi emits pre-existing texture parameter warnings on WebGL1
-            // setup. Drain these before testing the discovery upload itself.
-            while (gl.getError() !== gl.NO_ERROR) {}
-            app.jed = catalog[5].disc; app.tick(); app.app.render();
-            if (gl.getError() !== gl.NO_ERROR) throw new Error("WebGL1 discovery upload overflow");
-            return { version: 1, discovered: app.asteroidsDiscovered };
-          });
-          result.webgl1.phaseUploads = await exercisePhaseUploads(webgl1);
-          result.webgl1.recovery = await contextRecovery(webgl1);
-          result.webgl1.pixels = await pixels(webgl1);
-          result.webgl1.instances = await instancePixels(webgl1);
-          await webgl1.close();
-        }
-        report.push(result);
-        fs.writeFileSync(path.join(output, "results.json"), JSON.stringify(report, null, 2) + "\n");
-        console.log(JSON.stringify(result));
-      } finally { await browser.close(); }
+    const production = await browser.newPage({ viewport: { width: 360, height: 844 } });
+    const productionErrors = [];
+    production.on("pageerror", error => productionErrors.push(error.message));
+    production.on("console", message => { if (message.type() === "error") productionErrors.push(message.text()); });
+    await production.goto(server.url + "/production/");
+    await production.waitForFunction(() => Number(document.getElementById("orrery-count").textContent) > 0);
+    await require("./options.cjs").openOptions(production);
+    const input = production.getByRole("textbox", { name: "Playback speed" });
+    await input.fill("0"); await input.press("Enter");
+    const date = await production.locator("#orrery-date").textContent();
+    await production.waitForTimeout(100);
+    assert.equal(await production.locator("#orrery-date").textContent(), date);
+    await input.fill("-1.5"); await input.press("Enter");
+    await production.waitForFunction(previous => document.getElementById("orrery-date").textContent < previous, date);
+    await production.screenshot({ path: path.join(output, `${name}-production.png`) });
+    assert.deepEqual(productionErrors, []);
+    const record = { a: 1, e: 0, i: 0, W: 0, w: 0, M: 0, n: 1, epoch: 2458600.5, disc: 2400000 };
+    for (const body of ["invalid", JSON.stringify([record, { ...record, a: 1e40, disc: 2399999 }])]) {
+      await production.route("**/data/catalog.json", route => route.fulfill({ status: 200, contentType: "application/json", body }));
+      await production.reload();
+      await production.getByRole("status").filter({ hasText: "Unable to load" }).waitFor();
+      assert.equal(await production.locator("#orrery-count").textContent(), "0");
+      await production.unroute("**/data/catalog.json");
     }
+    await production.reload();
+    await production.waitForFunction(() => Number(document.getElementById("orrery-count").textContent) > 0);
+    assert.equal(await production.getByRole("status").textContent(), "");
+    assert.deepEqual(productionErrors, [], "Production reload recovers from preparation failures");
+    await production.close();
+    if (name === "chromium") {
+      const webgl1 = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+      await webgl1.addInitScript(() => {
+        const get = HTMLCanvasElement.prototype.getContext;
+        HTMLCanvasElement.prototype.getContext = function(type, ...args) {
+          return type === "webgl2" ? null : get.call(this, type, ...args);
+        };
+      });
+      await webgl1.goto(server.url + "/fixture/"); await webgl1.evaluate(() => window.ready);
+      result.webgl1 = await webgl1.evaluate(() => {
+        const { app, catalog } = fixture;
+        if (app.app.renderer.context.webGLVersion !== 1) throw new Error("Expected WebGL1");
+        app.setAsteroids(catalog.slice(0, 10)); app.jed = catalog[0].disc; app.tick(); app.app.render();
+        const gl = app.app.renderer.gl;
+        // Pixi emits pre-existing texture parameter warnings on WebGL1
+        // setup. Drain these before testing the discovery upload itself.
+        while (gl.getError() !== gl.NO_ERROR) {}
+        app.jed = catalog[5].disc; app.tick(); app.app.render();
+        if (gl.getError() !== gl.NO_ERROR) throw new Error("WebGL1 discovery upload overflow");
+        return { version: 1, discovered: app.asteroidsDiscovered };
+      });
+      result.webgl1.phaseUploads = await exercisePhaseUploads(webgl1);
+      result.webgl1.recovery = await contextRecovery(webgl1);
+      result.webgl1.pixels = await pixels(webgl1);
+      result.webgl1.instances = await instancePixels(webgl1);
+      await webgl1.close();
+    }
+    report.push(result);
+    fs.writeFileSync(path.join(output, "results.json"), JSON.stringify(report, null, 2) + "\n");
+    console.log(JSON.stringify(result));
   } finally { await server.close(); }
 }
-main().catch(error => { console.error(error); process.exitCode = 1; });
+
+module.exports = { run };
+if (require.main === module) require("./standalone.cjs").run(run, { chromiumOnly: false });
