@@ -9,7 +9,7 @@ const { stripVTControlCharacters } = require("node:util");
 const tar = require("tar");
 const { gzipSync } = require("node:zlib");
 const { acquireArchive, packBundle } = require("../scripts/catalog-archive.cjs");
-const { verifyBundle, hashFile, buildTrial } = require("../scripts/catalog.cjs");
+const { verifyBundle, hashFile, buildTrial, prepareCatalog } = require("../scripts/catalog.cjs");
 const cases = require("./fixtures/consumer-v1/cases.json");
 const root = path.resolve(__dirname, "..");
 const fixtures = path.join(__dirname, "fixtures/consumer-v1");
@@ -166,6 +166,64 @@ test("private assembly preserves prior output on compile/final-copy failure and 
   await fs.mkdir(output + ".build-lock");
   await assert.rejects(buildTrial(config, output, { entry }), /locked/);
   await fs.rm(output + ".build-lock", { recursive: true });
+});
+
+test("configured builds reject unsupported start dates without replacing published output", async t => {
+  const directory = await temporary(t), config = path.join(directory, "config.json"), output = path.join(directory, "site");
+  const entry = path.join(directory, "entry.js");
+  await fs.writeFile(entry, "globalThis.selection = __CATALOG_SELECTION__;");
+  const settings = { mode: "indexed", latest: "http://127.0.0.1:9/latest.json" };
+  await fs.writeFile(config, JSON.stringify(settings));
+  await buildTrial(config, output, { entry });
+  const inventory = async target => {
+    const names = (await fs.readdir(target, { recursive: true, withFileTypes: true }))
+      .filter(item => item.isFile()).map(item => path.relative(target, path.join(item.parentPath, item.name))).sort();
+    return Promise.all(names.map(async name => ({ name, ...await hashFile(path.join(target, name)) })));
+  };
+  const before = await inventory(output), dist = path.join(root, "dist"), beforeDist = await inventory(dist);
+  const backup = path.join(directory, "original-dist");
+  await fs.cp(dist, backup, { recursive: true });
+  try {
+    for (const startJed of [1e300, -1e300, 2440587.5 - 100000001, 2440587.5 + 100000001]) {
+      await fs.writeFile(config, JSON.stringify({ ...settings, startJed }));
+      await assert.rejects(buildTrial(config, output, { entry }), /Invalid catalogue startJed/);
+      assert.deepEqual(await inventory(output), before);
+      await assert.rejects(fs.stat(output + ".build-lock"), { code: "ENOENT" });
+      for (const script of ["build", "build:next"]) {
+        const rejected = await command(npmArgs(["run", script, "--", "--output-clean"]), { CATALOG_CONFIG: config });
+        assert.notEqual(rejected.code, 0, rejected.output);
+        assert.match(rejected.output, /Invalid catalogue startJed/);
+        assert.deepEqual(await inventory(dist), beforeDist, "Rejected date preserves every published root/preview asset");
+        await assert.rejects(fs.stat(dist + ".build-lock"), { code: "ENOENT" });
+      }
+    }
+  } finally {
+    await fs.rm(dist, { recursive: true, force: true });
+    await fs.cp(backup, dist, { recursive: true });
+  }
+});
+
+test("catalogue profiles accept supported date boundaries and retain optional playback defaults", async t => {
+  const directory = await temporary(t), config = path.join(directory, "config.json");
+  const profiles = [{ mode: "indexed", latest: "http://127.0.0.1:9/latest.json" },
+    ...["indexed", "whole"].map(mode => ({ mode, bundle: path.join(fixtures, "ties"), pin }))];
+  for (const settings of profiles) {
+    for (const publicDefaults of [false, true]) {
+      for (const startJed of [2440587.5 - 100000000, 2444270.5, 2440587.5 + 100000000]) {
+        await fs.writeFile(config, JSON.stringify({ ...settings, startJed, speed: -1.5 }));
+        const { runtime } = await prepareCatalog(config, { publicDefaults });
+        assert.equal(runtime.startJed, startJed); assert.equal(runtime.speed, -1.5);
+      }
+      await fs.writeFile(config, JSON.stringify(settings));
+      const { runtime } = await prepareCatalog(config, { publicDefaults });
+      assert.equal(runtime.startJed, publicDefaults ? undefined : 2444270.5);
+      assert.equal(runtime.speed, publicDefaults ? undefined : 1.5);
+    }
+    for (const startJed of [1e300, -1e300, null, "2444270.5"]) {
+      await fs.writeFile(config, JSON.stringify({ ...settings, startJed }));
+      await assert.rejects(prepareCatalog(config), /Invalid catalogue startJed/);
+    }
+  }
 });
 
 test("explicit retention survives update and rollback with each original pin", async t => {

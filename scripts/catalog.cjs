@@ -100,9 +100,9 @@ async function stageVerifiedBundle(source, pin, destinationRoot, verified) {
 async function prepareCatalog(configPath, { publicDefaults = false } = {}) {
   const config = JSON.parse(await fs.readFile(configPath, "utf8"));
   if (!["indexed", "whole"].includes(config.mode)) throw new Error("Choose indexed or whole mode.");
-  for (const key of ["startJed", "speed"]) {
-    if (config[key] !== undefined && !Number.isFinite(config[key])) throw new Error("Invalid catalogue " + key + ".");
-  }
+  const { validDate } = await import("../src/js/asteroidOrbits.js");
+  if (config.startJed !== undefined && !validDate(config.startJed)) throw new Error("Invalid catalogue startJed.");
+  if (config.speed !== undefined && !Number.isFinite(config.speed)) throw new Error("Invalid catalogue speed.");
   const playback = {};
   if (config.startJed !== undefined || !publicDefaults) playback.startJed = config.startJed ?? 2444270.5;
   if (config.speed !== undefined || !publicDefaults) playback.speed = config.speed ?? 1.5;
