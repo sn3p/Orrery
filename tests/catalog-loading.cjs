@@ -7,6 +7,10 @@ const { buildTrial } = require("../scripts/catalog.cjs");
 const fixture = path.join(__dirname, "fixtures/consumer-v1");
 const tie = states.cases.find(item => item.id === "tie-gap-and-graphics-commit");
 
+function sceneComplete() {
+  return window.catalogTest?.app.catalogLoader?.sceneComplete() ?? false;
+}
+
 async function build(output, base) {
   await fs.mkdir(output, { recursive: true });
   await fs.cp(fixture, path.join(output, "catalog-fixtures"), { recursive: true });
@@ -168,8 +172,21 @@ async function run(browser, base, output, name) {
       assert.deepEqual(replacement, { accepted: false, closed: true, count: 0, complete: true });
       await page.evaluate(() => { const app = window.catalogTest.app; app.destroy(); app.destroy(); });
       assert.equal(await page.locator("canvas, .orrery-options").count(), 0);
-      await page.reload();
-      await page.waitForFunction(() => window.catalogTest?.app.catalogLoader.sceneComplete());
+      // Hold the real index response across reload so the exported app exists
+      // while its asynchronous catalogue loader is still absent.
+      let releaseIndex;
+      const indexGate = new Promise(resolve => { releaseIndex = resolve; });
+      const indexRoute = "**/data/*/index.json";
+      await page.route(indexRoute, async route => {
+        await indexGate; await route.continue().catch(() => {});
+      });
+      try {
+        await Promise.all([page.waitForRequest(indexRoute), page.reload()]);
+        assert.equal(await page.evaluate(() => window.catalogTest.app.catalogLoader), null);
+        assert.equal(await page.evaluate(sceneComplete), false, "Readiness stays false while the index is pending");
+        releaseIndex();
+        await page.waitForFunction(sceneComplete);
+      } finally { releaseIndex(); await page.unroute(indexRoute); }
       assert.equal(await page.locator("#orrery-count").textContent(), "4");
       assert.deepEqual(errors, []);
       results.push({ mode, reset, packed, graphicsRecovery: supported, producerStates: states.cases.map(item => item.id) });
@@ -183,7 +200,7 @@ async function run(browser, base, output, name) {
     await page.route("**/chunks/000001.json", route => ++attempts === 1
       ? route.fulfill({ status: 503, body: "unavailable" }) : route.continue());
     await page.goto(base + "/catalog-indexed/");
-    await page.waitForFunction(() => window.catalogTest?.app.catalogLoader.sceneComplete());
+    await page.waitForFunction(sceneComplete);
     assert.equal(attempts, 2);
     await page.unroute("**/chunks/000001.json");
     attempts = 0;
@@ -198,7 +215,7 @@ async function run(browser, base, output, name) {
     await page.screenshot({ path: path.join(output, name + "-catalog-error.png") });
     await page.unroute("**/chunks/000001.json");
     await page.reload();
-    await page.waitForFunction(() => window.catalogTest?.app.catalogLoader.sceneComplete());
+    await page.waitForFunction(sceneComplete);
     assert.equal(await page.locator("#orrery-count").textContent(), "4");
   } finally { await page.close(); }
 
@@ -274,7 +291,7 @@ async function run(browser, base, output, name) {
       requests++; await gate; await route.continue().catch(() => {});
     });
     await prefetch.goto(base + "/catalog-indexed/");
-    await prefetch.waitForFunction(() => window.catalogTest?.app.catalogLoader.sceneComplete());
+    await prefetch.waitForFunction(sceneComplete);
     assert.equal(requests, 0, "Paused initial population does not trigger lookahead");
     for (const pause of ["speed", "hidden"]) {
       await prefetch.evaluate(() => { window.catalogTest.app.jedDelta = 1.5; });
