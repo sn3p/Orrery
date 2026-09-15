@@ -153,8 +153,19 @@ async function run(browser, base, output, name) {
     assert.deepEqual(updateFailure, { restored: true, complete: false, failure: true });
 
     // Driver allocation errors are signaled by GL state, not thrown by Pixi.
-    await page.evaluate(pin => app.loadCatalog(pin), pins.ties);
-    await page.waitForFunction(() => app.catalogLoader.committedCount >= 4);
+    // The failed seek still requires all six rows. Hold the tail to prove
+    // that the old four-row prefix is insufficient to reach a GPU upload.
+    let releaseGpuTail;
+    const gpuTail = new Promise(resolve => { releaseGpuTail = resolve; });
+    const tailPattern = '**/catalog-fixtures/ties/chunks/000002.json';
+    await page.route(tailPattern, async route => { await gpuTail; await route.continue(); });
+    try {
+      await page.evaluate(pin => app.loadCatalog(pin), pins.ties);
+      await page.waitForFunction(() => app.catalogLoader.committedCount === 4);
+      assert.equal(await page.evaluate(() => app.catalogLoader.readyToDraw(app.requestedJed ?? app.jed)), false);
+    } finally { releaseGpuTail(); }
+    await page.waitForFunction(() => app.catalogLoader.readyToDraw(app.requestedJed ?? app.jed));
+    await page.unroute(tailPattern);
     const gpuFailure = await page.evaluate(() => {
       const gl = app.renderer.app.renderer.gl, getError = gl.getError, bufferData = gl.bufferData;
       let injected = false, pendingError = false;
