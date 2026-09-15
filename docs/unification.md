@@ -368,6 +368,17 @@ recurring invisible render loop. Adapter identity guards reject stale callbacks,
 including callbacks from a failed fallback. Destroy aborts pending transitions.
 Programmatic requests are serialized and coalesced to the latest queued mode.
 
+Planet additions validate the complete batch before changing the live scene or
+retained input. Each adapter reuses its preparation path for detached
+`validatePlanets(data, frame)` calls during the renderer-free interval; temporary
+resources are disposed and no other engine is loaded. Rejected batches cannot
+leave a live prefix or poison later reconstruction.
+
+Catalogue errors take precedence over an older nonterminal switch error;
+no-renderer recovery guidance remains available. New feedback and viewport
+resizes close the options panel when it would obscure the message, returning
+focus to the options trigger. The panel can be reopened to choose a renderer.
+
 Switching is not a discovery event. Restored Pixi markers do not replay historical
 arrival pulses; ordinary first loads and new discoveries keep their existing
 behavior. Three reconstructs its date-derived color fade. Camera controls,

@@ -126,7 +126,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       const url = `${nested.url}/Orrery/next/`;
       await failure.route("**/data/catalog.json", route => route.fulfill({ status: 503, body: "Unavailable" }));
       await failure.goto(url);
-      await failure.getByRole("status").filter({ hasText: "Unable to load" }).waitFor();
+      await failure.getByRole("alert").filter({ hasText: "Unable to load" }).waitFor();
       assert.equal(await failure.locator("#orrery-count").textContent(), "0");
       assert.equal(await failure.locator("#orrery canvas").count(), 1);
       await failure.unroute("**/data/catalog.json");

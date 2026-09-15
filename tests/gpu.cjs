@@ -278,7 +278,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     for (const body of ["invalid", JSON.stringify([record, { ...record, a: 1e40, disc: 2399999 }])]) {
       await production.route("**/data/catalog.json", route => route.fulfill({ status: 200, contentType: "application/json", body }));
       await production.reload();
-      await production.getByRole("status").filter({ hasText: "Unable to load" }).waitFor();
+      await production.locator("#orrery-status").filter({ hasText: "Unable to load" }).waitFor();
       assert.equal(await production.locator("#orrery-count").textContent(), "0");
       await production.unroute("**/data/catalog.json");
     }

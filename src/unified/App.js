@@ -138,6 +138,7 @@ export default class App {
       await this.renderer.init();
       if (this.destroyed) return;
       this.renderer.setOptions?.({ shared: { pixelRatio: this.pixelRatio }, renderer: this.rendererOptions[this.rendererId] });
+      this.validatePlanets = this.renderer.validatePlanets;
       this.setupGui();
       this.initialized = true;
       this.resize({ render: false });
@@ -184,8 +185,10 @@ export default class App {
 
   addPlanets(planets) {
     if (!this.initialized || this.destroyed) return;
-    this.planetBatches.push({ planets: [...planets], jed: this.jed });
-    this.renderer?.addPlanets(planets, this.frameState);
+    const batch = { planets: [...planets], jed: this.jed };
+    if (this.renderer) this.renderer.addPlanets(batch.planets, this.frameState);
+    else this.validatePlanets(batch.planets, this.frameState);
+    this.planetBatches.push(batch);
   }
 
   setAsteroids(data) {
@@ -239,7 +242,7 @@ export default class App {
       return this.setAsteroids(data);
     } catch (error) {
       if (this.destroyed || version !== this.loadVersion || controller.signal.aborted) return false;
-      this.setStatus("Unable to load asteroids. Reload to try again.");
+      this.setStatus("Unable to load asteroids. Reload to try again.", true);
       return false;
     }
   }
@@ -367,7 +370,10 @@ export default class App {
     if (status) {
       this.statusNode = status;
       status[STATUS_OWNER] = this;
-      status.textContent = this.switchMessage || (!this.renderer && this.switchError) || this.graphicsError || this.switchError || this.statusMessage || this.rendererNotice || "";
+      const message = this.switchMessage || (!this.renderer && this.switchError) || this.graphicsError
+        || (this.statusError && this.statusMessage) || this.switchError || this.statusMessage || this.rendererNotice || "";
+      const changed = status.firstChild?.textContent !== message;
+      status.textContent = message;
       if (this.switchError && !this.renderer && !this.destroyed) {
         const retry = document.createElement("button");
         retry.type = "button";
@@ -383,6 +389,7 @@ export default class App {
         status.append(" ", link);
       }
       status.setAttribute("role", (this.statusError && !this.graphicsError) || this.renderFailure || this.rendererRecovery || this.switchError ? "alert" : "status");
+      if (changed && message) this.gui?.controls.revealStatus(status);
     }
   }
   updateGui() { this.gui?.update(this.jed, this.stats.fps, this.asteroidsDiscovered); }
@@ -568,6 +575,7 @@ export default class App {
     this.appliedPixelRatio = this.effectivePixelRatio;
     this.watchResolution();
     this.gui.controls.updatePixelRatio();
+    if (this.statusNode?.textContent) this.gui.controls.revealStatus(this.statusNode);
     if (render) this.requestRender();
   }
   destroy() {

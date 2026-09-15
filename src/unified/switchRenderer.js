@@ -65,6 +65,7 @@ async function rebuild(app, create, id, signal) {
     app.switchCandidate = null;
     app.rendererId = id;
     app.createRenderer = create;
+    app.validatePlanets = renderer.validatePlanets;
     // Clear only adapter failures; a CPU preparation/source failure still owns
     // its own error and cannot be fixed by changing the graphics engine.
     for (const session of new Set([app.activeSession, app.pendingSession])) {

@@ -5,6 +5,29 @@ import Planet from "./Planet.js";
 import Orbit from "./Orbit.js";
 import Asteroids from "./Asteroids.js";
 
+function disposePlanets(batch) {
+  for (const { planet, orbit } of batch) {
+    planet.body.geometry.dispose();
+    planet.body.material.dispose();
+    orbit?.geometry.dispose();
+    orbit?.material.dispose();
+  }
+}
+
+function preparePlanets(data, jed) {
+  const batch = [];
+  try {
+    for (const item of data) {
+      const planet = new Planet(item.ephemeris, { name: item.name, size: item.size, color: item.color });
+      const entry = { planet };
+      batch.push(entry);
+      entry.orbit = Orbit.createOrbit(item.ephemeris, jed);
+      planet.render(jed);
+    }
+    return batch;
+  } catch (error) { disposePlanets(batch); throw error; }
+}
+
 // Three owns graphics and camera/input. App owns time, scheduling, UI and data.
 export default class ThreeRenderer {
   constructor({ container, invalidate, reportGraphicsState, getViewport }) {
@@ -105,13 +128,16 @@ export default class ThreeRenderer {
     return cloud;
   }
 
+  validatePlanets(data, { jed }) {
+    disposePlanets(preparePlanets(data, jed));
+  }
+
   addPlanets(data, { jed }) {
     if (this.destroyed) return;
-    for (const item of data) {
-      const planet = new Planet(item.ephemeris, { name: item.name, size: item.size, color: item.color });
+    const batch = preparePlanets(data, jed);
+    for (const { planet, orbit } of batch) {
       this.planets.push(planet);
-      this.scene.add(Orbit.createOrbit(item.ephemeris, jed), planet.body);
-      planet.render(jed);
+      this.scene.add(orbit, planet.body);
     }
     this.requestRender();
   }

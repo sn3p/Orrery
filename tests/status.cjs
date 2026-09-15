@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 
 async function check(page) {
-  const status = page.getByRole('status');
+  const status = page.locator('#orrery-status');
   const metrics = await status.evaluate(element => {
     const style = getComputedStyle(element);
     const rgb = value => value.match(/[\d.]+/g).slice(0, 3).map(Number);
@@ -44,7 +44,7 @@ module.exports = async (browser, url, output, name) => {
       const loading = await check(page);
       await page.screenshot({ path: path.join(output, `${name}-loading-${width}.png`) });
       release();
-      await page.getByRole('status').filter({ hasText: 'Unable to load' }).waitFor();
+      await page.locator('#orrery-status').filter({ hasText: 'Unable to load' }).waitFor();
       const failed = await check(page);
       await page.screenshot({ path: path.join(output, `${name}-failure-${width}.png`) });
       assert.deepEqual(errors, []);

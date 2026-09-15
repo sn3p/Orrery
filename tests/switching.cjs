@@ -99,7 +99,110 @@ async function state(browser, base, output, name) {
   } finally { await page.close(); }
 }
 
-async function failures(browser, base) {
+async function reviewRegressions(browser, base, output, name) {
+  for (const id of ['pixi', 'three']) {
+    const { page, errors } = await boot(browser, base, id);
+    try {
+      await page.evaluate(async () => {
+        const check = (ok, message) => { if (!ok) throw new Error(message); };
+        const valid = app.planetBatches[0].planets[0];
+        const invalid = { ...valid, ephemeris: { ...valid.ephemeris, e: 2 } };
+        const retained = app.planetBatches.length, count = app.renderer.planets.length;
+        let disposed = 0;
+        const proto = app.rendererId === 'three' ? Object.getPrototypeOf(app.renderer.planets[0].body.geometry) : null;
+        const dispose = proto?.dispose, ownDispose = proto && Object.hasOwn(proto, 'dispose');
+        if (proto) proto.dispose = function() { disposed++; return dispose.call(this); };
+        try {
+          const lateInvalid = { ...valid, ephemeris: { ...valid.ephemeris, n: 1e-307 } };
+          for (const batch of [[invalid], [valid, invalid], [lateInvalid]]) {
+            let rejected = false;
+            try { app.addPlanets(batch); } catch { rejected = true; }
+            check(rejected && app.planetBatches.length === retained, 'Rejected planets never enter retention');
+            check(app.renderer.planets.length === count, 'Rejected mixed batch leaves no live prefix');
+          }
+          if (proto) check(disposed > 0, 'Rejected Three batch disposes staged bodies');
+        } finally { if (proto) { if (ownDispose) proto.dispose = dispose; else delete proto.dispose; } }
+        // Retained validation also works during the renderer-free interval.
+        Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+        const target = app.rendererId === 'pixi' ? 'three' : 'pixi';
+        const pending = app.switchRenderer(target);
+        while (!app.switchCandidate?.initialized) await new Promise(resolve => setTimeout(resolve, 0));
+        check(!app.renderer, 'Exercise renderer-free preparation');
+        let rejected = false;
+        try { app.addPlanets([valid, invalid]); } catch { rejected = true; }
+        check(rejected && app.planetBatches.length === retained, 'Invalid late batch cannot poison reconstruction');
+        app.addPlanets([valid]);
+        Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+        document.dispatchEvent(new Event('visibilitychange'));
+        check(await pending && app.renderer.planets.length === count + 1, 'Validated late batch reaches destination');
+        const previous = app.rendererId, next = previous === 'pixi' ? 'three' : 'pixi';
+        const load = app.rendererRegistry[next].load, make = await load();
+        app.rendererRegistry[next].load = async () => options => {
+          const candidate = make(options); candidate.init = () => { throw new Error('controlled target failure'); }; return candidate;
+        };
+        check(!await app.switchRenderer(next) && app.rendererId === previous && !!app.renderer, 'Fallback survives rejected input');
+        app.rendererRegistry[next].load = load;
+        check(await app.switchRenderer(next) && app.renderer.planets.length === count + 1, 'Roundtrip retains only accepted planets');
+      });
+      assert.deepEqual(errors, []);
+    } finally { await page.close(); }
+  }
+  for (const mode of ['bundled', 'indexed']) {
+    const { page, errors } = await boot(browser, base);
+    try {
+      await page.route('**/review-invalid.json', route => route.fulfill({ json: {} }));
+      await page.evaluate(async ({ mode, pin, base }) => {
+        app.rendererRegistry.three.load = async () => { throw new Error('controlled switch failure'); };
+        await app.switchRenderer('three');
+        const url = base + '/review-invalid.json';
+        if (mode === 'bundled') await app.loadAsteroids(url);
+        else await app.loadCatalog({ ...pin, url });
+      }, { mode, pin: cases.bundles.ties.pin, base });
+      assert.match(await page.locator('#orrery-status').textContent(), /Unable to load|Could not load/);
+      assert.match(await page.locator('#orrery-status').textContent(), /Reload to try again/);
+      assert.equal(await page.locator('#orrery-status').getAttribute('role'), 'alert');
+      assert.deepEqual(errors, []);
+    } finally { await page.close(); }
+  }
+  for (const viewport of [{ width: 568, height: 200 }, { width: 320, height: 200 }]) {
+    const { page, errors } = await boot(browser, base, 'pixi', viewport);
+    try {
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.evaluate(() => { app.rendererRegistry.three.load = () => new Promise((resolve, reject) => { window.rejectSwitch = () => reject(new Error('controlled code failure')); }); });
+      const trigger = page.getByRole('button', { name: 'Options', exact: true });
+      await trigger.click();
+      await page.getByRole('combobox', { name: 'Renderer', exact: true }).selectOption('three');
+      await page.waitForFunction(() => !!window.rejectSwitch);
+      assert.equal(await trigger.getAttribute('aria-expanded'), 'true', 'Desktop options remain open');
+      await page.setViewportSize(viewport);
+      await page.waitForFunction(() => app.renderer.viewport.width === innerWidth && app.renderer.viewport.height === innerHeight);
+      const visibleStatus = async label => {
+        assert.equal(await trigger.getAttribute('aria-expanded'), 'false', label + ': overlapping panel closes');
+        assert(await trigger.evaluate(el => el === document.activeElement), label + ': focus returns to trigger');
+        assert(await page.locator('#orrery-status').evaluate(el => {
+          const r = el.getBoundingClientRect();
+          return r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth
+            && [r.top + 1, (r.top + r.bottom) / 2, r.bottom - 1].every(y => !document.elementsFromPoint((r.left + r.right) / 2, y).some(node => node.closest?.('.orrery-options-panel')));
+        }), label + ': feedback is in viewport and unobscured');
+        await page.screenshot({ path: path.join(output, `${name}-review-${viewport.width}-${label}.png`) });
+      };
+      await visibleStatus('loading');
+      // Reopening remains possible while waiting; new failure must reveal itself.
+      await trigger.click();
+      assert(await page.getByRole('textbox', { name: 'Playback speed' }).evaluate(el => el === document.activeElement), 'Pending switch opens at an enabled control');
+      await page.evaluate(() => rejectSwitch());
+      await page.waitForFunction(() => !app.switching && !!app.switchError);
+      await visibleStatus('failure');
+      await trigger.click();
+      assert.equal(await trigger.getAttribute('aria-expanded'), 'true', 'Mode choices remain accessible for retry');
+      await page.keyboard.press('Escape');
+      assert.deepEqual(errors, []);
+    } finally { await page.close(); }
+  }
+}
+
+async function failures(browser, base, output, name) {
+  await reviewRegressions(browser, base, output, name);
   const { page, errors } = await boot(browser, base);
   try {
     await page.evaluate(async ({ pin, base }) => {

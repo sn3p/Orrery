@@ -62,7 +62,7 @@ async function setSpeed(page, value) {
 }
 
 async function checkStatusContrast(page, expected) {
-  const status = await page.getByRole("status").evaluate(element => {
+  const status = await page.locator("#orrery-status").evaluate(element => {
     const { x, y, width, height } = element.getBoundingClientRect();
     return { text: element.textContent, color: getComputedStyle(element).color,
       background: getComputedStyle(element).backgroundColor,

@@ -79,6 +79,13 @@ export default class Options {
     }
   }
 
+  revealStatus(status) {
+    if (this.panel.hidden) return;
+    const panel = this.panel.getBoundingClientRect(), feedback = status.getBoundingClientRect();
+    if (panel.left < feedback.right && panel.right > feedback.left
+      && panel.top < feedback.bottom && panel.bottom > feedback.top) this.setOpen(false);
+  }
+
   unmountRenderer() {
     const focused = this.rendererFolder?.domElement.contains(document.activeElement);
     this.disposeRendererControls?.();
@@ -118,7 +125,7 @@ export default class Options {
     this.panel.hidden = !open;
     this.indicator.textContent = open ? "[-]" : "[+]";
     this.trigger.setAttribute("aria-expanded", String(open));
-    if (open) this.rendererSelect.focus();
+    if (open) (this.rendererSelect.disabled ? this.speed.domElement.querySelector("input") : this.rendererSelect).focus();
     else if (restoreFocus && hadFocus) this.trigger.focus();
   }
 

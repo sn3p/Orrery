@@ -1,7 +1,25 @@
-import { Application, ParticleContainer, Graphics } from "pixi.js";
+import { Application, ParticleContainer, Graphics, Texture } from "pixi.js";
 import Controls from "./Controls.js";
 import Planet from "./Planet.js";
 import Asteroids from "./Asteroids.js";
+
+function disposePlanets(batch) {
+  for (const { orbit } of batch) orbit?.destroy();
+}
+
+function preparePlanets(data, jed, texture) {
+  const batch = [];
+  try {
+    for (const item of data) {
+      const planet = new Planet(item.ephemeris, texture, { name: item.name, size: item.size, color: item.color });
+      const entry = { planet };
+      batch.push(entry);
+      entry.orbit = planet.orbit.drawOrbit(jed);
+      planet.render(jed);
+    }
+    return batch;
+  } catch (error) { disposePlanets(batch); throw error; }
+}
 
 // Pixi owns graphics and input. Frame time, scheduling, data requests and UI
 // belong to App. The current viewport is read again after async GPU setup.
@@ -149,24 +167,20 @@ export default class PixiRenderer {
     this.stage.addChild(sun);
   }
 
-  addPlanets(planets, { jed }) {
+  // Detached validation remains usable after context disposal, without
+  // importing another engine or retaining this renderer's texture/scene.
+  validatePlanets(data, { jed }) {
+    disposePlanets(preparePlanets(data, jed, Texture.WHITE));
+  }
+
+  addPlanets(data, { jed }) {
     if (this.destroyed) return;
-    planets.forEach((data) => {
-      const planet = new Planet(data.ephemeris, this.circleTexture, {
-        name: data.name,
-        size: data.size,
-        color: data.color,
-      });
-
-      // Draw orbit
-      const orbit = planet.orbit.drawOrbit(jed);
+    const batch = preparePlanets(data, jed, this.circleTexture);
+    for (const { planet, orbit } of batch) {
       this.stage.addChild(orbit);
-
-      // Add planet
       this.planets.push(planet);
       this.planetContainer.addParticle(planet.body);
-      planet.render(jed);
-    });
+    }
     this.requestRender();
   }
 
