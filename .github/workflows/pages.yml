@@ -170,9 +170,9 @@ jobs:
           include-hidden-files: true
           path: |
             .context/playwright-results/environment
-            .context/playwright-results/**/evidence/*.png
-            .context/playwright-results/**/evidence/*.json
-            .context/playwright-results/**/evidence/*.log
+            .context/playwright-results/**/evidence/**/*.png
+            .context/playwright-results/**/evidence/**/*.json
+            .context/playwright-results/**/evidence/**/*.log
             .context/playwright-results/**/trace.zip
             .context/playwright-results/**/test-failed-*.png
             .context/playwright-results/**/error-context.md
@@ -223,9 +223,9 @@ jobs:
           include-hidden-files: true
           path: |
             .context/playwright-results/environment
-            .context/playwright-results/**/evidence/*.png
-            .context/playwright-results/**/evidence/*.json
-            .context/playwright-results/**/evidence/*.log
+            .context/playwright-results/**/evidence/**/*.png
+            .context/playwright-results/**/evidence/**/*.json
+            .context/playwright-results/**/evidence/**/*.log
             .context/playwright-results/**/trace.zip
             .context/playwright-results/**/test-failed-*.png
             .context/playwright-results/**/error-context.md

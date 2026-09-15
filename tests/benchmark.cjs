@@ -104,7 +104,9 @@ async function run({ browser, name, application = "legacy", output: artifactDire
           new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Benchmark hung after a frame error")), 2000); }),
         ]), new RegExp(`forced ${method} failure`));
         await page.waitForTimeout(100);
-        assert.deepEqual(await page.evaluate(() => failureCheck()), { listeners: 0, calls: 1, uploadRestored: true });
+        // A throwing unified draw makes one bounded repaint before stopping.
+        const calls = application === "unified" && method === "render" ? 2 : 1;
+        assert.deepEqual(await page.evaluate(() => failureCheck()), { listeners: 0, calls, uploadRestored: true });
         await page.evaluate(() => restoreFailure());
         assert((await page.evaluate(sample, { count: 1000, warmupMs: 0, sampleMs: 50 })).frames > 0, "Same page can run after failure");
       } finally { clearTimeout(timer); await page.close(); }

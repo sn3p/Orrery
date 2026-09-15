@@ -5,18 +5,22 @@ blueprint and start guide, with historical status reconciled and local planning
 paths removed. No further architecture approval is required. Each implementation
 unit still needs its own tests, review and explicit merge instruction.
 
-## Current unit: PR2, shared shell and Pixi preview
+## Current unit: PR3, shared catalogue loading
 
 These numbers identify planned review units, not GitHub PR numbers. PR1 shipped
-in [PR64](https://github.com/sn3p/Orrery/pull/64), merged as
-`6c7e8b8ebab3bd7e69e66ff6a72e76ad84937c77`. PR2 replaces the placeholder with the
-existing Pixi presentation behind an application controller. Current Orrery
-continues at the root, with unchanged source and historical 100k catalogue.
-The preview ships exactly the same catalogue bytes. No Three, indexed loader,
-producer default, selector, new product controls or persistence are added.
+in [PR64](https://github.com/sn3p/Orrery/pull/64), PR2 in
+[PR65](https://github.com/sn3p/Orrery/pull/65), and history import H in
+[PR67](https://github.com/sn3p/Orrery/pull/67). H's merge `e1e80ec` preserves all
+147 original commits; a fresh full master clone passed the ancestry/tree verifier.
+
+PR3 adopts the reviewed loader into the shared preview, with retained neutral CPU
+data, incremental Pixi packing and explicit indexed/whole/latest profiles.
+The root and default preview keep the historical 100k catalogue. No Three,
+selector, promotion, new product controls or persistence are added. See the
+[catalogue contract, source mapping and verification](catalog-loading.md).
 
 `src/unified/App.js` owns Julian day, requested speed, active presentation time,
-one scheduler, shared DPR choice, initialization/disposal, the bundled fetch
+one scheduler, shared DPR choice, initialization/disposal, catalogue sources
 and loading/error feedback. `ui/Hud.js` and `ui/Options.js` bind one existing-style
 HUD/options panel. `pixi/PixiRenderer.js` owns scene/projection, GPU allocations,
 textures, CPU planets, wheel zoom, resize and context recovery; it consumes
@@ -46,16 +50,16 @@ stable until the explicit promotion/cleanup units:
 | --- | --- |
 | `App.js`, `ui/Hud.js`, `pixi/PixiRenderer.js` | Responsibilities extracted from `src/js/Orrery.js` |
 | `ui/Options.js` | `src/js/Gui.js`, identical behavior with renamed class |
-| `pixi/Asteroids.js`, `Planet.js`, `Orbit.js`, `Controls.js` | Temporary copies; only helper import paths differ |
+| `pixi/Planet.js`, `Orbit.js`, `Controls.js` | Temporary copies; only helper import paths differ |
+| `pixi/Asteroids.js` | Original GPU shader/effects plus neutral catalogue packing, append ranges and draw acknowledgement |
 | Shared imports from `src/js/` | Unchanged `PlaybackClock`, `Stats`, `utils`, `constants`, `planets`, `asteroidOrbits` |
 | Shared CSS/fonts/data | Unchanged existing styles/assets; preview identity/return and status placement are isolated in `preview.css` |
 
-`asteroidOrbits` still contains the existing Pixi-oriented packing and shader
-helper. PR2 reuses it without adopting a new neutral catalogue model. Canonical
-CPU data ownership, reviewed indexed/whole loading and incremental GPU uploads
-belong to PR3. Its newer reviewed source includes Orrery3D PR31 merge
-`93a3e1f4a36d8fdceb513bdfdca20beddb3348d6`; reconcile the final producer contract
-then. Orrery3D's separate hosted/default change does not alter Orrery's default.
+`asteroidOrbits` keeps the existing legacy Pixi packing and shared shader helpers.
+The preview retains full 3D bases and Float64 phase/date data independently from
+Pixi's mutable buffers. Its source is Orrery3D PR31 merge
+`93a3e1f4a36d8fdceb513bdfdca20beddb3348d6`. The source's separate hosted/default
+rollout does not alter Orrery's default.
 
 The preview is unlinked from the current application's UI and carries
 `noindex, nofollow`. Once merged and deployed it is public at
@@ -69,9 +73,9 @@ Verified September 14, 2026 against GitHub and local Git objects:
 
 | Input | Pinned revision | Role |
 | --- | --- | --- |
-| [Orrery master](https://github.com/sn3p/Orrery/tree/5e4eb1c02cf0e2bbef3538f5fa1537f97f9c4a77) | `5e4eb1c02cf0e2bbef3538f5fa1537f97f9c4a77` | Current Pixi behavior, visuals, tests and historical catalogue |
-| [Orrery3D PR30 merge](https://github.com/sn3p/Orrery3D/commit/f8c914c96534abf94ed9b33c55f389e13b2d2faf) | `f8c914c96534abf94ed9b33c55f389e13b2d2faf` | Reviewed loader and Three source for later ports |
-| [orrery-data PR4](https://github.com/sn3p/orrery-data/tree/f6f4a1d4e807362417c74ecbd2b74ce73306d41d) | `f6f4a1d4e807362417c74ecbd2b74ce73306d41d` | Producer 0.4.0, consumer contract v1 and real fixtures |
+| [Orrery master](https://github.com/sn3p/Orrery/tree/e1e80ec00a23ba7d2d99e3df625d512ec3486a41) | `e1e80ec00a23ba7d2d99e3df625d512ec3486a41` | Current Pixi behavior, visuals, tests and historical catalogue |
+| [Orrery3D PR31 merge](https://github.com/sn3p/Orrery3D/commit/93a3e1f4a36d8fdceb513bdfdca20beddb3348d6) | `93a3e1f4a36d8fdceb513bdfdca20beddb3348d6` | Adopted loader; preserved Three reference for PR4 |
+| [orrery-data PR5](https://github.com/sn3p/orrery-data/commit/c01d694d71c1734aa9d600afd7f0c58d81654b66) | `c01d694d71c1734aa9d600afd7f0c58d81654b66` | Consumer/browser contracts and real fixtures |
 
 [PR30](https://github.com/sn3p/Orrery3D/pull/30) merged at
 **2026-09-14T10:23:14Z**. Its tree
@@ -81,7 +85,7 @@ Verified September 14, 2026 against GitHub and local Git objects:
 Chromium, Firefox, WebKit and Pages deployment. This satisfies the prerequisite
 for PR1; old blueprint observations describing an open draft are superseded.
 
-The later port must carry the [final review fixes](https://github.com/sn3p/Orrery3D/blob/f8c914c96534abf94ed9b33c55f389e13b2d2faf/docs/catalog-trial-review-response.md):
+The loader port preserves the [final review fixes](https://github.com/sn3p/Orrery3D/blob/f8c914c96534abf94ed9b33c55f389e13b2d2faf/docs/catalog-trial-review-response.md):
 opening/shader failures preserve unaffected rendering; pending dates survive
 loading; speculative exhaustion recovers only on meaningful demand; cancellation
 preserves required reads; preparation/commit failures do not retry as network
@@ -96,17 +100,14 @@ profile has 895,910 dated records in 114 chunks; the full master also includes
 667,585 records without matched discovery dates. Index pin: 265,372 decoded
 bytes, SHA-256 `bf4252e0e20b6db07df83a2d87f731788235067fbcd2d3a78c98f92083880db2`.
 Chunking does not eliminate full-capacity allocations. Transfer, buffering,
-late-start costs, physical mobile hardware and delivery acceptance remain explicit
-later checks. Do not fabricate discovery dates or claim this is all orbital data.
+late-start costs and physical mobile hardware remain explicit measurement limits. Do not fabricate discovery dates or claim this is all orbital data.
 
-[Orrery3D PR31](https://github.com/sn3p/Orrery3D/pull/31),
-`sn3p/enable-indexed-catalog-default`, was open at
-`1e547e8132d23d2653ef46a9b4a6dee13690df83` when PR1 started. Its separate data
-selection/provisioning work does not block this scaffold. Recheck its final
-reviewed revision and any producer-hosting decisions before planned PR3.
-Changing Orrery3D's default does not itself change Orrery's default. A proposed
-shared current-data host remains separate work; this scaffold adopts no hosting
-or release-distribution contract.
+[Orrery3D PR31](https://github.com/sn3p/Orrery3D/pull/31) merged as `93a3e1f`.
+Its latest-descriptor and provisioning fixes are the PR3 reference. The producer's
+automatic Pages publication also landed in PR6 (`22a9e6d`); MPC acquisition and
+regeneration remain manual. Orrery's explicit latest profile consumes that browser
+contract. Orrery3D's app-only default rollout does not change Orrery's historical
+root or preview default. Neither data production nor public promotion is PR3 scope.
 
 ## Approved product and architecture decisions
 

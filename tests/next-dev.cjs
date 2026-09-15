@@ -3,21 +3,24 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 
-async function run({ browser, name, application = "legacy", output: artifactDirectory }) {
-  const directory = artifactDirectory || path.resolve(".context/next-preview/dev");
+async function run({ browser, name, application = "legacy", output: artifactDirectory,
+  catalogConfig = process.env.CATALOG_CONFIG }) {
+  const selection = catalogConfig && JSON.parse(fs.readFileSync(catalogConfig, "utf8"));
+  const directory = artifactDirectory || path.resolve(selection ? ".context/pr3/browser/dev" : ".context/next-preview/dev");
   fs.mkdirSync(directory, { recursive: true });
   const value = path.join(directory, "value.js"), entry = path.join(directory, "entry.js");
   fs.writeFileSync(value, 'export default "initial";\n');
   fs.writeFileSync(entry, `
-    import ${JSON.stringify(path.resolve("src/unified/index.js"))};
+    import { app } from ${JSON.stringify(path.resolve("src/unified/index.js"))};
     import value from "./value.js";
-    window.previewProbe = { value, documentId: crypto.randomUUID() };
+    window.previewProbe = { app, value, documentId: crypto.randomUUID() };
     module.hot.accept("./value.js", () => { window.previewProbe.value = value; });
   `);
   // Run the documented command on a dynamically assigned port. Add only a
   // test probe; actual preview HTML/styles, output paths and dev options apply.
   const child = spawn("npm", ["run", "serve:next", "--", "--host", "127.0.0.1", "--port", "0",
-    "--no-open", "--entry", entry], { stdio: ["ignore", "pipe", "pipe"], detached: true });
+    "--no-open", "--entry", entry], { stdio: ["ignore", "pipe", "pipe"], detached: true,
+    env: { ...process.env, CATALOG_CONFIG: catalogConfig || "" } });
   let log = "";
   child.stdout.on("data", data => log += data); child.stderr.on("data", data => log += data);
   const exited = new Promise(resolve => child.on("exit", resolve));
@@ -51,16 +54,28 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     fs.appendFileSync(entry, "\nwindow.previewProbe.reloaded = true;\n");
     await page.waitForFunction(previous => previewProbe.reloaded && previewProbe.documentId !== previous, documentId);
     await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent) > 0);
+    if (selection) {
+      await page.waitForFunction(() => previewProbe.app.catalogLoader?.sceneComplete());
+      assert.equal(await page.evaluate(() => previewProbe.app.catalogLoader.source.sourceId), selection.pin.sha256);
+    }
     assert.equal(await page.locator("#orrery canvas").count(), 1);
     assert.equal(await page.locator(".orrery-options").count(), 1);
     await page.reload();
     await page.waitForFunction(() => previewProbe.reloaded);
+    if (selection) {
+      await page.waitForFunction(() => previewProbe.app.catalogLoader?.sceneComplete());
+      assert.equal(await page.evaluate(() => previewProbe.app.catalogLoader.source.sourceId), selection.pin.sha256);
+    }
     await page.screenshot({ path: path.join(directory, "after-updates.png") });
-    await page.getByRole("link", { name: "Open Orrery", exact: true }).click();
-    await page.waitForURL(base);
-    await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent) > 0);
-    assert.equal((await page.request.get(`${base}favicon.ico`)).status(), 204,
-      "Returning to the static root has no missing automatic favicon request");
+    // The historical combined-build test covers the return destination. The
+    // configured standalone preview does not require a root build to exist.
+    if (!selection) {
+      await page.getByRole("link", { name: "Open Orrery", exact: true }).click();
+      await page.waitForURL(base);
+      await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent) > 0);
+      assert.equal((await page.request.get(`${base}favicon.ico`)).status(), 204,
+        "Returning to the static root has no missing automatic favicon request");
+    }
     assert.deepEqual(errors, []);
     console.log("Actual serve:next command serves /next/, applies hot chunks and reloads unaccepted edits.");
   } finally {

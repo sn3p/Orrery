@@ -7,12 +7,12 @@ const { promisify } = require('node:util');
 const execute = promisify(execFile);
 const cli = require.resolve('@playwright/test/cli');
 const { build } = require('./support.cjs');
-const { inventory, sourceFingerprint } = require('./fixture-builds.cjs');
+const { copyPrepared, inventory, sourceFingerprint } = require('./fixture-builds.cjs');
 fs.mkdirSync('.context', { recursive: true });
 
 test('every runner entry imports without starting a standalone process', () => {
   for (const suite of ['assets', 'next', 'unified', 'gpu', 'rendering', 'options-browser',
-    'benchmark', 'scheduling', 'ui', 'hmr', 'next-dev', 'benchmark-clone', 'browser-environment']) {
+    'benchmark', 'scheduling', 'ui', 'hmr', 'next-dev', 'benchmark-clone', 'browser-environment', 'catalog-suite']) {
     assert.equal(typeof require(`./${suite}.cjs`).run, 'function', suite);
   }
 });
@@ -37,6 +37,17 @@ test('prepared build boundary rejects absent, corrupt, stale and wrong-variant a
     assert.equal(fs.readFileSync(path.join(output, 'bundle.js'), 'utf8'), 'verified fixture');
     await assert.rejects(build('./tests/browser.js', output, { application: 'unified' }), /Missing prepared fixture/);
     await assert.rejects(build('./unknown.js', output), /No prepared fixture/);
+    assert.throws(() => copyPrepared('catalog', output), /Missing prepared fixture/);
+    const catalog = path.join(root, 'catalog/catalog-indexed');
+    fs.mkdirSync(catalog, { recursive: true });
+    fs.writeFileSync(path.join(catalog, 'bundle.js'), 'verified catalogue entry');
+    manifest.fixtures.catalog = inventory(path.join(root, 'catalog')); save();
+    copyPrepared('catalog', output);
+    fs.writeFileSync(path.join(output, 'catalog-indexed/bundle.js'), 'consumer mutation');
+    copyPrepared('catalog', output);
+    assert.equal(fs.readFileSync(path.join(output, 'catalog-indexed/bundle.js'), 'utf8'), 'verified catalogue entry');
+    fs.appendFileSync(path.join(catalog, 'bundle.js'), 'corrupt');
+    assert.throws(() => copyPrepared('catalog', output), /Prepared fixture changed/);
     fs.appendFileSync(path.join(fixture, 'bundle.js'), 'corrupt');
     await assert.rejects(build('./tests/browser.js', output), /Prepared fixture changed/);
     manifest.source = 'different revision'; save();
@@ -48,22 +59,30 @@ test('prepared build boundary rejects absent, corrupt, stale and wrong-variant a
   }
 });
 
-test('fixture identity includes PostCSS config changes and is portable between checkouts', async () => {
+test('fixture identity includes compiler, catalogue provisioning and profile changes and is portable between checkouts', async () => {
   const root = fs.mkdtempSync(path.resolve('.context/test-fixtures-probe-'));
   const fingerprint = async cwd => (await execute(process.execPath, ['-e',
     `process.stdout.write(require(${JSON.stringify(require.resolve('./fixture-builds.cjs'))}).sourceFingerprint())`], { cwd })).stdout;
   try {
     for (const name of ['first', 'second']) {
       const checkout = path.join(root, name);
-      for (const directory of ['src', 'tests', 'data']) fs.mkdirSync(path.join(checkout, directory), { recursive: true });
+      for (const directory of ['src', 'tests', 'data', 'scripts', 'catalog-profiles']) fs.mkdirSync(path.join(checkout, directory), { recursive: true });
       fs.writeFileSync(path.join(checkout, 'data/catalog.json'), '[]');
       fs.writeFileSync(path.join(checkout, 'postcss.config.js'), 'module.exports = { plugins: [] };');
+      fs.writeFileSync(path.join(checkout, 'scripts/catalog.cjs'), 'module.exports = {};');
+      fs.writeFileSync(path.join(checkout, 'catalog-profiles/ties-indexed.json'), '{"mode":"indexed"}');
     }
     const first = path.join(root, 'first'), second = path.join(root, 'second');
     const original = await fingerprint(first);
     assert.equal(await fingerprint(second), original, 'Checkout location does not change fixture identity');
     fs.writeFileSync(path.join(first, 'postcss.config.js'), 'module.exports = { plugins: ["changed"] };');
     assert.notEqual(await fingerprint(first), original, 'CSS compiler configuration invalidates prepared fixtures');
+    const withCompilerChange = await fingerprint(first);
+    fs.appendFileSync(path.join(first, 'scripts/catalog.cjs'), '// changed');
+    assert.notEqual(await fingerprint(first), withCompilerChange, 'Catalogue provisioning changes invalidate prepared fixtures');
+    const withProvisioningChange = await fingerprint(first);
+    fs.writeFileSync(path.join(first, 'catalog-profiles/ties-indexed.json'), '{"mode":"whole"}');
+    assert.notEqual(await fingerprint(first), withProvisioningChange, 'Catalogue profile changes invalidate prepared fixtures');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -87,23 +106,30 @@ test('native discovery preserves coverage and each browser shard partitions it e
   const required = ['production assets', 'preview entry', 'raw App lifecycle',
     ...['legacy', 'unified'].flatMap(app => ['GPU numerics', 'rendering, readouts', 'options controls',
       'pixel ratio and display transitions', 'texture recovery', 'benchmark frames'].map(title => `${app} / ${title}`))];
+  const catalogue = ['catalogue loading, demand, transport', 'catalogue replacement, recovery', 'catalogue frame commits'];
+  const catalogueChromium = ['catalogue benchmark completion', 'catalogue configured preview development'];
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     const cases = all.filter(row => row.project === browser);
-    assert.equal(cases.length, 15);
-    for (const title of required) assert.equal(cases.filter(row => row.title.includes(title)).length, 1, `${browser}: ${title}`);
+    assert.equal(cases.length, 18);
+    for (const title of [...required, ...catalogue]) assert.equal(cases.filter(row => row.title.includes(title)).length, 1, `${browser}: ${title}`);
     const count = browser === 'webkit' ? 4 : 2;
     const shards = await Promise.all(Array.from({ length: count }, (_, i) => discover(`--project=${browser}`, `--shard=${i + 1}/${count}`)));
     assert(shards.every(shard => shard.length > 0));
     assert.deepEqual(shards.flat().map(row => row.id).sort(), cases.map(row => row.id).sort());
     assert.equal(new Set(shards.flat().map(row => row.id)).size, cases.length);
   }
-  assert.equal(all.filter(row => row.project === 'chromium-only').length, 10);
+  const chromiumOnly = all.filter(row => row.project === 'chromium-only');
+  assert.equal(chromiumOnly.length, 12);
+  for (const title of catalogueChromium) assert.equal(chromiumOnly.filter(row => row.title.includes(title)).length, 1, title);
   const standalone = await discover('--config=playwright.standalone.config.cjs');
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     const cases = standalone.filter(row => row.project === browser);
-    assert.equal(cases.length, 7);
+    assert.equal(cases.length, 10);
     assert(cases.some(row => row.title.includes('raw App lifecycle')));
     assert(cases.every(row => !row.title.includes('legacy /')));
+    for (const title of catalogue) assert.equal(cases.filter(row => row.title.includes(title)).length, 1, `${browser}: ${title}`);
   }
-  assert.equal(standalone.filter(row => row.project === 'chromium-only').length, 3);
+  const standaloneChromium = standalone.filter(row => row.project === 'chromium-only');
+  assert.equal(standaloneChromium.length, 5);
+  for (const title of catalogueChromium) assert.equal(standaloneChromium.filter(row => row.title.includes(title)).length, 1, title);
 });

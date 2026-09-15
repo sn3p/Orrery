@@ -29,7 +29,7 @@ function inventory(root) {
 function sourceFingerprint() {
   // Portable between checkouts of this exact source. Include uncommitted edits
   // too, so a local prepared run cannot silently test yesterday's fixture.
-  const inputs = [...files('src'), ...files('tests'), 'data/catalog.json',
+  const inputs = [...files('src'), ...files('tests'), ...files('scripts'), ...files('catalog-profiles'), 'data/catalog.json',
     ...fs.readdirSync('.').filter(file => /^(webpack.*\.[cm]?js|.*\.config\.[cm]?js|\.babelrc|\.browserslistrc|package(-lock)?\.json)$/.test(file))].sort();
   const hash = crypto.createHash('sha256');
   for (const file of inputs) hash.update(file).update('\0').update(fs.readFileSync(file)).update('\0');
@@ -51,6 +51,10 @@ async function prepare() {
   const lazy = path.join(directory, 'lazy-preview');
   await compileLazyProbe(lazy);
   manifest.fixtures['lazy-preview'] = inventory(path.join(lazy, 'site'));
+  const catalog = path.join(directory, 'catalog');
+  await require('./catalog-loading.cjs').build(catalog);
+  manifest.fixtures.catalog = inventory(catalog);
+  console.log('Prepared catalog');
   fs.writeFileSync(path.join(directory, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
   return manifest;
 }

@@ -39,6 +39,13 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     // entry/probe files must not taint a subsequent benchmark's source stamp.
     await execute(process.execPath, ['tests/hmr.cjs'], { cwd: clone, env, timeout: 60000 });
     assert.equal((await git('status', '--porcelain')).stdout, '', 'HMR test outputs leave the source clean');
+    // Real catalogue builds create shared caches and generated sites. In an
+    // ordinary clone they must not taint a later benchmark's source stamp.
+    for (const target of ['.context/catalog-site', '.context/pr3/browser/catalog-indexed', '.context/catalog-trial/site-indexed']) {
+      await execute(process.execPath, ['scripts/catalog.cjs', 'build', 'catalog-profiles/ties-indexed.json', target],
+        { cwd: clone, env, timeout: 30000 });
+      assert.equal((await git('status', '--porcelain')).stdout, '', 'Catalogue outputs leave the source clean');
+    }
     await execute('npm', ['run', 'benchmark'], { cwd: clone, env, timeout: 30000 });
     const report = JSON.parse(fs.readFileSync(path.join(clone, '.context/gpu-orbits/benchmark/results.json')));
     assert.equal(report.complete, true);
@@ -48,8 +55,11 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     assert.equal((await git('status', '--porcelain')).stdout, '', 'Only generated outputs were ignored');
     fs.writeFileSync(path.join(clone, 'src/provenance-probe.txt'), 'real untracked source');
     assert.match((await git('status', '--porcelain')).stdout, /src\/provenance-probe.txt/);
+    fs.writeFileSync(path.join(clone, '.context/catalog-profile.json'), '{"userConfiguration":true}');
+    assert.match((await git('status', '--porcelain', '--untracked-files=all')).stdout, /\.context\/catalog-profile.json/,
+      'Only generated catalogue directories are ignored, not user configurations');
     fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify(report, null, 2) + '\n');
-    console.log('Default benchmark after HMR tests in a clean ordinary clone retains verified source attribution.');
+    console.log('Default benchmark after HMR and catalogue builds in an ordinary clone retains verified source attribution.');
   } finally { fs.rmSync(clone, { recursive: true, force: true }); }
 }
 

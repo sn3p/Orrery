@@ -1,0 +1,11 @@
+{
+  "mode": "whole",
+  "bundle": "../tests/fixtures/consumer-v1/ties",
+  "pin": {
+    "url": "index.json",
+    "sha256": "f6d1d7e141cae032e700d9cda3aeffd78793b8353f00a377f4ea79c27bd33947",
+    "bytes": 3333
+  },
+  "startJed": 2451544.5,
+  "speed": 0
+}
