@@ -160,6 +160,8 @@ async function parity(browser, base, output, name) {
       }
       await target.getByRole('button', { name: 'Options', exact: true }).click();
       const speed = target.getByRole('textbox', { name: 'Playback speed' });
+      assert(await target.getByRole("combobox", { name: "Renderer", exact: true }).evaluate(el => el === document.activeElement));
+      await target.keyboard.press("Tab");
       assert(await speed.evaluate(el => el === document.activeElement));
       for (const selector of ['.preview-identity', '.orrery-date', '.orrery-count', '.orrery-options-panel']) {
         const box = await target.locator(selector).boundingBox();

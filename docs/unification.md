@@ -5,7 +5,7 @@ blueprint and start guide, with historical status reconciled and local planning
 paths removed. No further architecture approval is required. Each implementation
 unit still needs its own tests, review and explicit merge instruction.
 
-## Current unit: PR4, Three adapter
+## Current unit: PR5, renderer switching and options
 
 These numbers identify planned review units, not GitHub PR numbers. PR1 shipped
 in [PR64](https://github.com/sn3p/Orrery/pull/64), PR2 in
@@ -15,9 +15,11 @@ in [PR64](https://github.com/sn3p/Orrery/pull/64), PR2 in
 
 PR3 shipped in [PR68](https://github.com/sn3p/Orrery/pull/68), retaining neutral CPU
 data, incremental Pixi packing and explicit indexed/whole/latest profiles.
-PR4 adds the lazy `/next/?renderer=three` entry using the same shell and catalogue.
+PR4 shipped in [PR70](https://github.com/sn3p/Orrery/pull/70), adding the lazy
+`/next/?renderer=three` entry using the same shell and catalogue. PR5 adds in-page
+renderer switching, separate views and the optional renderer control builder.
 The root and default preview keep Pixi and the historical 100k catalogue.
-Renderer switching/options, promotion and cleanup remain PR5–PR7.
+Promotion and cleanup remain PR6–PR7, with explicit release approval before PR6.
 See the [catalogue contract](catalog-loading.md) and [Three adapter](three-renderer.md).
 
 `src/unified/App.js` owns Julian day, requested speed, active presentation time,
@@ -342,3 +344,56 @@ share/export, legend, exploration, outer planets and date ranges. Three discover
 emphasis is Three-specific; date-range scope remains Orrery with former 3D
 applicability unresolved. No adapter abstraction is added merely to anticipate
 those features.
+
+## Renderer switching
+
+The `/next/` options panel offers Pixi.js (2D) and Three.js (3D). Switching keeps
+one App, clock, HUD, retained CPU catalogue, date, requested speed and DPR choice.
+Each mode remembers its own view for this page. There is no camera conversion or
+browser-storage persistence. The original root and historical100k default remain.
+
+The controller loads destination code while the outgoing camera remains usable,
+suspends playback and speculative catalogue lookahead, then disposes the outgoing
+graphics before constructing the destination. Packing yields between 8,192-row
+batches. Retained records, planets, current options, viewport and saved/default
+view are restored before the complete draw receipt commits the renderer choice.
+A zero visible population is a valid complete frame; future retained rows remain
+available. Pending catalogue replacements/seeks stay owned by normal App frame
+transactions. Transition time is excluded from resumed playback.
+
+Loading failure leaves the outgoing renderer in place. Creation, packing or draw
+failure disposes the candidate and rebuilds the previous mode. If that also fails,
+feedback offers retry and the common selector remains available; there is no
+recurring invisible render loop. Adapter identity guards reject stale callbacks,
+including callbacks from a failed fallback. Destroy aborts pending transitions.
+Programmatic requests are serialized and coalesced to the latest queued mode.
+
+Planet additions validate the complete batch before changing the live scene or
+retained input. Each adapter reuses its preparation path for detached
+`validatePlanets(data, frame)` calls during the renderer-free interval; temporary
+resources are disposed and no other engine is loaded. Rejected batches cannot
+leave a live prefix or poison later reconstruction.
+
+Catalogue errors take precedence over an older nonterminal switch error;
+no-renderer recovery guidance remains available. New feedback and viewport
+resizes close the options panel when it would obscure the message, returning
+focus to the options trigger. The panel can be reopened to choose a renderer.
+
+Switching is not a discovery event. Restored Pixi markers do not replay historical
+arrival pulses; ordinary first loads and new discoveries keep their existing
+behavior. Three reconstructs its date-derived color fade. Camera controls,
+projection, colors, sizes, planets, tracks and GPU orbital evaluation remain
+adapter-owned. Both adapters release their context on final disposal.
+
+Registry entries keep engine-free labels and lazy `load()` factories. An optional
+`buildOptions({ gui, values, setOptions, addHint })` uses the existing dat.gui
+primitives and returns its listener cleanup function. Defaults and validated
+options live under a stable renderer ID; `validateOptions(next)` must reject
+unsupported/invalid values before the setter changes App or graphics. Empty
+sections are omitted and outgoing controls are removed. A fixture setting tests
+this boundary; no new public camera or effect controls are included.
+
+`tests/playwright/switching.spec.cjs` registers real-entry state, failure,
+retained-data, lifecycle and fixture-options tests in all browser projects and
+standalone preview coverage. Production asset/lazy isolation, source visual and
+numerical parity, loader and finite benchmark checks remain separate gates.

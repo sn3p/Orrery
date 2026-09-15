@@ -1,7 +1,25 @@
-import { Application, ParticleContainer, Graphics } from "pixi.js";
+import { Application, ParticleContainer, Graphics, Texture } from "pixi.js";
 import Controls from "./Controls.js";
 import Planet from "./Planet.js";
 import Asteroids from "./Asteroids.js";
+
+function disposePlanets(batch) {
+  for (const { orbit } of batch) orbit?.destroy();
+}
+
+function preparePlanets(data, jed, texture) {
+  const batch = [];
+  try {
+    for (const item of data) {
+      const planet = new Planet(item.ephemeris, texture, { name: item.name, size: item.size, color: item.color });
+      const entry = { planet };
+      batch.push(entry);
+      entry.orbit = planet.orbit.drawOrbit(jed);
+      planet.render(jed);
+    }
+    return batch;
+  } catch (error) { disposePlanets(batch); throw error; }
+}
 
 // Pixi owns graphics and input. Frame time, scheduling, data requests and UI
 // belong to App. The current viewport is read again after async GPU setup.
@@ -149,24 +167,20 @@ export default class PixiRenderer {
     this.stage.addChild(sun);
   }
 
-  addPlanets(planets, { jed }) {
+  // Detached validation remains usable after context disposal, without
+  // importing another engine or retaining this renderer's texture/scene.
+  validatePlanets(data, { jed }) {
+    disposePlanets(preparePlanets(data, jed, Texture.WHITE));
+  }
+
+  addPlanets(data, { jed }) {
     if (this.destroyed) return;
-    planets.forEach((data) => {
-      const planet = new Planet(data.ephemeris, this.circleTexture, {
-        name: data.name,
-        size: data.size,
-        color: data.color,
-      });
-
-      // Draw orbit
-      const orbit = planet.orbit.drawOrbit(jed);
+    const batch = preparePlanets(data, jed, this.circleTexture);
+    for (const { planet, orbit } of batch) {
       this.stage.addChild(orbit);
-
-      // Add planet
       this.planets.push(planet);
       this.planetContainer.addParticle(planet.body);
-      planet.render(jed);
-    });
+    }
     this.requestRender();
   }
 
@@ -292,6 +306,26 @@ export default class PixiRenderer {
     this.stage.position.y += (height - this.viewHeight) / 2;
     this.viewWidth = width;
     this.viewHeight = height;
+  }
+
+  captureView() {
+    return { x: this.stage.x - this.viewWidth / 2, y: this.stage.y - this.viewHeight / 2,
+      scale: this.stage.scale.x };
+  }
+
+  restoreView(view) {
+    if (!view) return;
+    this.stage.position.set(this.viewWidth / 2 + view.x, this.viewHeight / 2 + view.y);
+    this.stage.scale.set(view.scale);
+  }
+
+  // A mode restoration is not a discovery. End transient arrivals without
+  // changing the constructor/update semantics used for initial and new data.
+  restoreDiscoveries() {
+    const cloud = this.asteroids;
+    if (!cloud) return;
+    cloud.geometry.getBuffer("aDiscovery").data.fill(-1);
+    cloud.queueUpload("aDiscovery", 0, cloud.committedCount * 4);
   }
 
   releaseApplication() {

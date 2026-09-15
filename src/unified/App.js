@@ -6,7 +6,8 @@ import Hud from "./ui/Hud.js";
 import CatalogSource from "./catalog/CatalogSource.js";
 import CatalogLoader from "./catalog/CatalogLoader.js";
 import { allocateCatalogue, appendCatalogue, prepareCatalogue } from "./catalog/prepareCatalogue.js";
-import { selectRenderer } from "./renderers.js";
+import { selectRenderer, renderers } from "./renderers.js";
+import switchRenderer from "./switchRenderer.js";
 
 // Shared across module replacements so stale disposal cannot erase a new App's feedback.
 const STATUS_OWNER = Symbol.for("orrery.statusOwner");
@@ -23,7 +24,11 @@ export default class App {
     if (this.fixedResolution !== undefined && (this.autoRender || !Number.isFinite(this.fixedResolution) || this.fixedResolution <= 0)) {
       throw new Error("Fixed resolution requires manual rendering and a positive finite value.");
     }
-    const selection = selectRenderer(options.renderer);
+    this.rendererRegistry = options.renderers ?? renderers;
+    this.rendererOptions = Object.fromEntries(Object.entries(this.rendererRegistry).map(([id, entry]) => [id, { ...entry.defaults }]));
+    this.rendererViews = {};
+    this.planetBatches = [];
+    const selection = selectRenderer(options.renderer, this.rendererRegistry);
     this.rendererId = selection.id;
     this.rendererNotice = selection.notice;
     this.createRenderer = options.createRenderer ?? selection.create;
@@ -83,7 +88,7 @@ export default class App {
   set jed(value) {
     if (this.destroyed || Object.is(value, this.requestedJed ?? this._jed)) return;
     if (!validDate(value)) throw new Error("Invalid playback date.");
-    if (this.catalogOpening || this.catalogLoader?.source) {
+    if (this.switching || this.catalogOpening || this.catalogLoader?.source) {
       this.requestedJed = value;
       this.resetClock();
       this.demandCatalog();
@@ -100,6 +105,7 @@ export default class App {
     if (!Number.isFinite(value)) throw new Error("Invalid playback speed.");
     const wasPlaying = this.isPlaying;
     this._jedDelta = value;
+    this.gui?.controls.speed?.updateDisplay();
     this.demandCatalog();
     if (!wasPlaying || !this.isPlaying) this.resetClock();
     this.requestRender();
@@ -126,13 +132,13 @@ export default class App {
 
   async initialize() {
     try {
-      const renderer = this.createRenderer({ container: this.container,
-        invalidate: () => this.requestRender(), reportGraphicsState: this.onGraphicsState,
-        getViewport: () => this.viewport });
+      const renderer = this.createRenderer(this.rendererContext(this.rendererToken = {}));
       this.renderer = renderer instanceof Promise ? await renderer : renderer;
       if (this.destroyed) { this.renderer.destroy(); return; }
       await this.renderer.init();
       if (this.destroyed) return;
+      this.renderer.setOptions?.({ shared: { pixelRatio: this.pixelRatio }, renderer: this.rendererOptions[this.rendererId] });
+      this.validatePlanets = this.renderer.validatePlanets;
       this.setupGui();
       this.initialized = true;
       this.resize({ render: false });
@@ -154,15 +160,41 @@ export default class App {
     }
   }
 
+  rendererContext(token) {
+    return { container: this.container, getViewport: () => this.viewport,
+      invalidate: () => { if (!this.destroyed && this.rendererToken === token) this.requestRender(); },
+      reportGraphicsState: (lost, error) => {
+        if (this.destroyed || this.rendererToken !== token) return;
+        token.lost = lost;
+        if (this.switching === "preparing") return;
+        this.onGraphicsState(lost, error);
+      } };
+  }
+
+  switchRenderer(id) { return switchRenderer(this, id); }
+
+  setRendererOptions(id, changes) {
+    const entry = this.rendererRegistry[id];
+    if (!entry || !entry.validateOptions || !changes || typeof changes !== "object") throw new Error("Unsupported renderer options.");
+    const next = { ...this.rendererOptions[id], ...changes };
+    if (!entry.validateOptions(next)) throw new Error("Invalid renderer options.");
+    if (id === this.rendererId && this.switching !== "preparing") this.renderer?.setOptions?.({ shared: { pixelRatio: this.pixelRatio }, renderer: next });
+    this.rendererOptions[id] = next;
+    this.requestRender();
+  }
+
   addPlanets(planets) {
     if (!this.initialized || this.destroyed) return;
-    this.renderer.addPlanets(planets, this.frameState);
+    const batch = { planets: [...planets], jed: this.jed };
+    if (this.renderer) this.renderer.addPlanets(batch.planets, this.frameState);
+    else this.validatePlanets(batch.planets, this.frameState);
+    this.planetBatches.push(batch);
   }
 
   setAsteroids(data) {
     if (!this.initialized || this.destroyed) return false;
     const model = prepareCatalogue(data, this.jed);
-    const previous = this.pendingBundled?.previous ?? this.renderer.frameState
+    const previous = this.pendingBundled?.previous ?? this.renderer?.frameState
       ?? { ...this.frameState, count: this.asteroidsDiscovered };
     this.pendingBundled = { model, previous };
     this.catalogOpening?.abort();
@@ -210,7 +242,7 @@ export default class App {
       return this.setAsteroids(data);
     } catch (error) {
       if (this.destroyed || version !== this.loadVersion || controller.signal.aborted) return false;
-      this.setStatus("Unable to load asteroids. Reload to try again.");
+      this.setStatus("Unable to load asteroids. Reload to try again.", true);
       return false;
     }
   }
@@ -283,8 +315,8 @@ export default class App {
       && !this.catalogLoader.sceneComplete(this.requestedJed ?? this.catalogLoader.date));
   }
   demandCatalog(date = this.requestedJed ?? this.jed) {
-    const hidden = document.hidden || this.contextLost || !!this.catalogOpening;
-    return this.catalogLoader?.demand(date, { playing: this.isPlaying && !this.catalogOpening, hidden }) ?? !this.catalogOpening;
+    const hidden = document.hidden || !this.renderer || this.contextLost || !!this.catalogOpening || !!this.switching;
+    return this.catalogLoader?.demand(date, { playing: this.isPlaying && !!this.renderer && !this.catalogOpening && !this.switching, hidden }) ?? !this.catalogOpening;
   }
   onCatalogChange() {
     if (this.catalogWaiting) this.resetClock();
@@ -338,7 +370,17 @@ export default class App {
     if (status) {
       this.statusNode = status;
       status[STATUS_OWNER] = this;
-      status.textContent = this.graphicsError || this.statusMessage || this.rendererNotice || "";
+      const message = this.switchMessage || (!this.renderer && this.switchError) || this.graphicsError
+        || (this.statusError && this.statusMessage) || this.switchError || this.statusMessage || this.rendererNotice || "";
+      const changed = status.firstChild?.textContent !== message;
+      status.textContent = message;
+      if (this.switchError && !this.renderer && !this.destroyed) {
+        const retry = document.createElement("button");
+        retry.type = "button";
+        retry.textContent = "Retry visualization";
+        retry.onclick = () => { void this.switchRenderer(this.failedRendererId); };
+        status.append(" ", retry);
+      }
       if (this.rendererRecovery) {
         const link = document.createElement("a"), url = new URL(location.href);
         url.searchParams.set("renderer", "pixi");
@@ -346,7 +388,8 @@ export default class App {
         link.textContent = "Open Pixi preview";
         status.append(" ", link);
       }
-      status.setAttribute("role", (this.statusError && !this.graphicsError) || this.renderFailure || this.rendererRecovery ? "alert" : "status");
+      status.setAttribute("role", (this.statusError && !this.graphicsError) || this.renderFailure || this.rendererRecovery || this.switchError ? "alert" : "status");
+      if (changed && message) this.gui?.controls.revealStatus(status);
     }
   }
   updateGui() { this.gui?.update(this.jed, this.stats.fps, this.asteroidsDiscovered); }
@@ -357,7 +400,7 @@ export default class App {
       && !this.pendingBundled && !this.renderFailure && !this.graphicsRecoveryPending && !this.deferReadouts) this.updateGui();
   }
   requestRender() {
-    if (!this.autoRender || !this.initialized || this.destroyed || document.hidden || this.contextLost || this.animationFrame !== null) return;
+    if (!this.autoRender || !this.initialized || this.destroyed || document.hidden || this.contextLost || !this.renderer || this.switching === "preparing" || this.animationFrame !== null) return;
     this.animationFrame = requestAnimationFrame(this.render);
   }
   cancelRender() {
@@ -367,19 +410,26 @@ export default class App {
   render(timestamp = performance.now()) {
     this.cancelRender();
     this.renderFrame(timestamp);
-    const packing = this.catalogLoader && !this.catalogLoader.error
+    const packing = this.renderer && this.catalogLoader && !this.catalogLoader.error
       && this.renderer.needsCatalogPacking?.((this.pendingSession ?? this.activeSession)?.model);
-    if (!this.renderFailure && ((this.isPlaying && !this.catalogWaiting) || packing)) this.requestRender();
+    if (!this.switching && !this.renderFailure && ((this.isPlaying && !this.catalogWaiting) || packing)) this.requestRender();
   }
   renderFrame(timestamp = performance.now(), { beforeRender, afterRender } = {}) {
-    if (this.destroyed || !this.initialized) return;
+    if (this.destroyed || !this.initialized || !this.renderer) return;
+    if (this.switching) {
+      this.resetClock();
+      if (this.switching === "loading" && !document.hidden && !this.contextLost) {
+        try { this.renderer.render(); } catch { /* Rebuilding provides recovery after loading. */ }
+      }
+      return;
+    }
     if (document.hidden || this.contextLost) { this.resetClock(); return; }
     // Direct tick/Pixi callers may leave a snapshot from an earlier update.
     // Rollback must use only state captured within this frame transaction.
     this.renderer.commitFrame?.();
     // A direct seek changes App.jed before its draw. The adapter still owns
     // the previous scene, including changes made through direct tick callers.
-    const previous = this.pendingBundled?.previous ?? this.renderer.frameState
+    const previous = this.pendingBundled?.previous ?? this.renderer?.frameState
       ?? { jed: this.jed, elapsed: this.elapsed, count: this.asteroidsDiscovered };
     const requested = this.requestedJed ?? (this.jed !== previous.jed ? this.jed : null);
     const graphicsGeneration = this.rendererGeneration;
@@ -473,7 +523,7 @@ export default class App {
     afterRender?.();
   }
   tick(timestamp = performance.now()) {
-    if (this.destroyed || !this.initialized) return;
+    if (this.destroyed || !this.initialized || !this.renderer || this.switching) return;
     if (document.hidden || this.contextLost) { this.resetClock(); return; }
     // Direct ticks support already committed bundled scenes. Pending/streamed
     // data needs renderFrame's receipt and rollback boundary before activation,
@@ -521,10 +571,11 @@ export default class App {
   }
   resize({ render = true } = {}) {
     if (this.destroyed || !this.initialized) return;
-    this.renderer.resize(this.viewport);
+    this.renderer?.resize(this.viewport);
     this.appliedPixelRatio = this.effectivePixelRatio;
     this.watchResolution();
     this.gui.controls.updatePixelRatio();
+    if (this.statusNode?.textContent) this.gui.controls.revealStatus(this.statusNode);
     if (render) this.requestRender();
   }
   destroy() {
@@ -532,7 +583,7 @@ export default class App {
     // Clear it on later explicit disposal, without touching a newer App's UI.
     this.renderFailure = null;
     this.rendererRecovery = this.graphicsRecoveryPending = false;
-    this.rendererNotice = this.graphicsError = this.statusMessage = "";
+    this.rendererNotice = this.graphicsError = this.statusMessage = this.switchError = this.switchMessage = "";
     this.statusError = false;
     if (this.statusNode?.[STATUS_OWNER] === this) {
       this.statusNode.textContent = "";
@@ -542,6 +593,9 @@ export default class App {
     this.statusNode = null;
     if (this.destroyed) return;
     this.destroyed = true;
+    this.switchController?.abort();
+    this.rendererToken = null;
+    this.switchCandidate?.destroy();
     this.cancelRender();
     this.loadVersion++;
     this.loadController?.abort();
