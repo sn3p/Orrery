@@ -1,4 +1,18 @@
 /* Shared by both preview renderers; the legacy route keeps its corner HUD. */
+:root { --font-ui-size: 12px; }
+
+.orrery-options-hint,
+.orrery-options-indicator { font-size: var(--font-ui-size); }
+
+.orrery-date,
+.orrery-count,
+.orrery-fps {
+  color: #999;
+  font-variant-numeric: tabular-nums;
+}
+
+.orrery-options-panel .dg .c input { color: #999 !important; }
+
 .orrery-footer {
   position: fixed;
   bottom: 8px;

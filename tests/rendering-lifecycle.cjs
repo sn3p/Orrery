@@ -176,7 +176,7 @@ exports.production = async (browser, url, output, name) => {
     await idle();
     const pausedDate = await page.locator('#orrery-date').textContent();
     release();
-    await page.waitForFunction(() => Number(document.querySelector('#orrery-count').textContent) > 0);
+    await page.waitForFunction(() => Number(document.querySelector('#orrery-count').textContent.replaceAll(",", "")) > 0);
     assert((await idle()) > 0, 'Delayed production fetch automatically repaints while paused');
     assert.equal(await page.locator('#orrery-date').textContent(), pausedDate);
     assert.equal(await page.locator('#orrery-status').textContent(), '');

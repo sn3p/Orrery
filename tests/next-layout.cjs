@@ -25,5 +25,25 @@ exports.check = async page => {
   assert.equal(layout.scrollWidth, layout.width, 'No horizontal overflow');
   assert.equal(await page.locator('.preview-identity').count(), 0);
   assert.equal(await page.getByRole('link', { name: 'Open Orrery' }).count(), 0);
+  const styles = await page.locator('.orrery-date, .orrery-count, .orrery-fps, .orrery-identity, .orrery-options-trigger, .orrery-options-indicator, .orrery-options-hint, .dg .property-name, .dg input, .dg select')
+    .evaluateAll(elements => elements.map(element => getComputedStyle(element).fontSize));
+  assert(styles.every(size => size === '12px'), 'All preview text uses 12px');
   return layout;
+};
+
+// Typography stress only: real catalogue/count semantics are checked by the
+// rendering suites. Reserve space for longer numbers even with the fallback font.
+exports.checkLongReadouts = async page => {
+  const saved = await page.locator('#orrery-count').textContent();
+  const font = await page.locator('body').evaluate(el => el.style.fontFamily);
+  try {
+    for (const family of ['', 'monospace']) {
+      await page.locator('body').evaluate((el, family) => { el.style.fontFamily = family; }, family);
+      await page.locator('#orrery-count').evaluate(el => { el.textContent = '1,234,567'; });
+      await exports.check(page);
+    }
+  } finally {
+    await page.locator('#orrery-count').evaluate((el, text) => { el.textContent = text; }, saved);
+    await page.locator('body').evaluate((el, family) => { el.style.fontFamily = family; }, font);
+  }
 };

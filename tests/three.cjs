@@ -54,7 +54,7 @@ async function entries(browser, base, output, name) {
         assert(!requests.some(url => url.includes('/' + (renderer === 'three' ? 'pixi' : 'three') + '.')));
         if (renderer === 'unknown') assert.equal(await page.locator('#orrery-status').textContent(), 'Unknown renderer. Showing Pixi.');
         await page.reload();
-        await page.waitForFunction(() => Number(document.querySelector('#orrery-count').textContent) > 0);
+        await page.waitForFunction(() => Number(document.querySelector('#orrery-count').textContent.replaceAll(",", "")) > 0);
         // Existing Pixi/WebGL1 texture setup emits this exact WebKit diagnostic
         // on the no-fault baseline too (see frame-commit.cjs). Keep it recorded;
         // every other console error and all Three errors remain failures.
@@ -122,7 +122,7 @@ async function entries(browser, base, output, name) {
         await page.getByRole('alert').filter({ hasText: 'Unable to start the 3D visualization' }).waitFor();
       }
       await link.click();
-      await page.waitForFunction(() => Number(document.querySelector('#orrery-count').textContent) > 0);
+      await page.waitForFunction(() => Number(document.querySelector('#orrery-count').textContent.replaceAll(",", "")) > 0);
       assert.equal(await page.evaluate(() => threeTest.app.rendererId), 'pixi');
       assert.deepEqual(unhandled, []);
       results.push({ failure: kind, accessiblePixiRecovery: true });
@@ -156,6 +156,8 @@ async function parity(browser, base, output, name) {
         }
         assert(raster(expected.pixels).equals(raster(actual.pixels)), `${name} ${viewport.width} DPR${dpr} ${label}: exact Three source/target canvas`);
         assert.equal(actual.count, expected.count);
+        assert.equal(await target.locator('#orrery-count').textContent(), expected.count.toLocaleString('en-US'),
+          'The committed Three discovery count is grouped for display');
         results.push({ viewport, dpr, label, exact: true, count: actual.count });
       }
       await require('./next-layout.cjs').check(target);

@@ -2,6 +2,8 @@ import { fromJED } from "../../js/utils.js";
 import { UNIX_EPOCH_JULIAN_DATE } from "../../js/constants.js";
 import Options from "./Options.js";
 
+const countFormat = new Intl.NumberFormat("en-US");
+
 export default class Hud {
   constructor(app) {
     this.date = document.getElementById("orrery-date");
@@ -24,7 +26,7 @@ export default class Hud {
       this.lastFps = fps;
     }
     if (count !== this.lastCount) {
-      this.count.textContent = count;
+      this.count.textContent = countFormat.format(count);
       this.lastCount = count;
     }
   }

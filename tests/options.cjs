@@ -28,19 +28,20 @@ exports.testOptions = async (browser, url, output, name) => {
       const lines = [...range.getClientRects()];
       range.setStart(text, text.textContent.lastIndexOf("processing"));
       return {
+        unified: !!document.querySelector(".orrery-footer"),
         gap: el.querySelector(".slider").getBoundingClientRect().left - label.getBoundingClientRect().right,
         lines: lines.length,
-        secondLineTop: lines[1]?.top,
+        lastLineTop: lines.at(-1)?.top,
         lastWordTop: range.getBoundingClientRect().top,
       };
     });
     assert(spacing.gap >= 8, "Speed label keeps at least 8px of visible space before the slider");
-    assert.equal(spacing.lines, 2, "DPR help fits on two lines");
-    assert(Math.abs(spacing.lastWordTop - spacing.secondLineTop) < 1, "Processing fits on the second line");
+    assert.equal(spacing.lines, spacing.unified ? 3 : 2, "DPR help wraps within the panel at its UI font size");
+    assert(Math.abs(spacing.lastWordTop - spacing.lastLineTop) < 1, "Help text remains within the expected last line");
   };
   try {
     await page.goto(url);
-    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent) > 0);
+    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll(",", "")) > 0);
     assert.equal(await trigger.count(), 1, "Production has an options trigger");
     assert.equal(await trigger.textContent(), "[+] options");
     assert(await panel.isHidden(), "Options start closed");
@@ -62,6 +63,7 @@ exports.testOptions = async (browser, url, output, name) => {
       word.setStart(el.lastChild, 1);
       word.setEnd(el.lastChild, el.lastChild.length);
       return {
+        unified: !!document.querySelector(".orrery-footer"),
         textSize: parseFloat(getComputedStyle(el).fontSize),
         labelSize: parseFloat(getComputedStyle(document.querySelector(".dg .property-name")).fontSize),
         indicatorSize: parseFloat(getComputedStyle(indicator).fontSize),
@@ -69,7 +71,8 @@ exports.testOptions = async (browser, url, output, name) => {
       };
     });
     assert.equal(toggleStyle.textSize, toggleStyle.labelSize, "Options keeps the original label size");
-    assert(toggleStyle.indicatorSize < toggleStyle.textSize, "Only the marker is smaller");
+    if (toggleStyle.unified) assert.equal(toggleStyle.indicatorSize, 12, "Preview marker shares the 12px UI size");
+    else assert(toggleStyle.indicatorSize < toggleStyle.textSize, "Legacy marker stays smaller");
     assert(toggleStyle.gap > 0 && toggleStyle.gap < toggleStyle.textSize * 0.4,
       "Marker and word have a compact positive gap");
     assert(await panel.evaluate(el => el.querySelector("select[aria-label='Renderer']") === document.activeElement
@@ -166,7 +169,7 @@ exports.testOptions = async (browser, url, output, name) => {
     await exports.openOptions(page);
     assert.equal(await speed.inputValue(), "-1.5", "Closing keeps playback settings");
     await page.reload();
-    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent) > 0);
+    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll(",", "")) > 0);
     assert(await panel.isHidden(), "Reload starts with a closed panel");
     assert.equal(await trigger.textContent(), "[+] options");
     await exports.openOptions(page);

@@ -45,7 +45,7 @@ async function paused(page) {
   });
   await settle(page);
   assert.equal((await snapshot(page)).draws, before + 1, 'Synchronous date/request invalidations coalesce');
-  assert.equal(await page.locator('#orrery-count').textContent(), '100000');
+  assert.equal((await page.locator('#orrery-count').textContent()).replaceAll(',', ''), '100000');
   assert.equal(await page.locator('#orrery-date').textContent(), '2019-04-27');
   for (const value of [1.5, -1.5]) {
     const stopped = await idle(page);
@@ -76,7 +76,7 @@ async function invalidations(page) {
   const emptyImage = await page.evaluate(() => fixture.probe.image);
   await page.evaluate(() => fixture.app.loadAsteroids(fixture.catalogURL));
   await idle(page);
-  assert.equal(await page.locator('#orrery-count').textContent(), '100000');
+  assert.equal((await page.locator('#orrery-count').textContent()).replaceAll(',', ''), '100000');
   assert.notEqual(await page.evaluate(() => fixture.probe.image), emptyImage, 'Successful replacement repaints pixels');
   const invalid = await page.evaluate(() => {
     const {app, probe} = fixture, previous = app.asteroids, draws = probe.draws;
@@ -140,7 +140,7 @@ async function loading(page, url) {
     const loaded = await idle(page);
     assert(loaded.draws > paused.draws, 'Delayed catalogue triggers a real paused repaint');
     assert.equal(loaded.jed, paused.jed); assert.equal(loaded.elapsed, paused.elapsed);
-    assert(Number(await page.locator('#orrery-count').textContent()) > 0);
+    assert(Number((await page.locator('#orrery-count').textContent()).replaceAll(',', '')) > 0);
     assert.equal(await page.locator('#orrery-status').textContent(), '');
     // Scene population can also happen after the initial empty scene settled.
     await page.unroute('**/data/catalog.json');

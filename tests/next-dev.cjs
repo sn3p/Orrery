@@ -56,7 +56,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     assert(hotChunks.length >= 2 && hotChunks.every(status => status === 200));
     fs.appendFileSync(entry, "\nwindow.previewProbe.reloaded = true;\n");
     await page.waitForFunction(previous => previewProbe.reloaded && previewProbe.documentId !== previous, documentId);
-    await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent) > 0);
+    await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent.replaceAll(",", "")) > 0);
     if (selection) {
       await page.waitForFunction(() => previewProbe.app.catalogLoader?.sceneComplete());
       assert.equal(await page.evaluate(() => previewProbe.app.catalogLoader.source.sourceId), selection.pin.sha256);
@@ -80,7 +80,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     // configured standalone preview does not require a root build to exist.
     if (!selection) {
       await page.goto(base);
-      await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent) > 0);
+      await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent.replaceAll(",", "")) > 0);
       assert.equal((await page.request.get(`${base}favicon.ico`)).status(), 204,
         "Returning to the static root has no missing automatic favicon request");
     }
