@@ -5,7 +5,7 @@ blueprint and start guide, with historical status reconciled and local planning
 paths removed. No further architecture approval is required. Each implementation
 unit still needs its own tests, review and explicit merge instruction.
 
-## Current unit: PR3, shared catalogue loading
+## Current unit: PR4, Three adapter
 
 These numbers identify planned review units, not GitHub PR numbers. PR1 shipped
 in [PR64](https://github.com/sn3p/Orrery/pull/64), PR2 in
@@ -13,11 +13,12 @@ in [PR64](https://github.com/sn3p/Orrery/pull/64), PR2 in
 [PR67](https://github.com/sn3p/Orrery/pull/67). H's merge `e1e80ec` preserves all
 147 original commits; a fresh full master clone passed the ancestry/tree verifier.
 
-PR3 adopts the reviewed loader into the shared preview, with retained neutral CPU
+PR3 shipped in [PR68](https://github.com/sn3p/Orrery/pull/68), retaining neutral CPU
 data, incremental Pixi packing and explicit indexed/whole/latest profiles.
-The root and default preview keep the historical 100k catalogue. No Three,
-selector, promotion, new product controls or persistence are added. See the
-[catalogue contract, source mapping and verification](catalog-loading.md).
+PR4 adds the lazy `/next/?renderer=three` entry using the same shell and catalogue.
+The root and default preview keep Pixi and the historical 100k catalogue.
+Renderer switching/options, promotion and cleanup remain PR5–PR7.
+See the [catalogue contract](catalog-loading.md) and [Three adapter](three-renderer.md).
 
 `src/unified/App.js` owns Julian day, requested speed, active presentation time,
 one scheduler, shared DPR choice, initialization/disposal, catalogue sources
@@ -25,6 +26,8 @@ and loading/error feedback. `ui/Hud.js` and `ui/Options.js` bind one existing-st
 HUD/options panel. `pixi/PixiRenderer.js` owns scene/projection, GPU allocations,
 textures, CPU planets, wheel zoom, resize and context recovery; it consumes
 frame state and requests invalidation without fetching or advancing a clock.
+`three/ThreeRenderer.js` uses the same boundary for Three scene resources,
+3D orbital packing, perspective camera, OrbitControls and graphics restoration.
 Pixi's automatic ticker stays stopped and has no app clock callback. Manual
 `renderFrame(timestamp, hooks)` shares the same update/draw boundary.
 
@@ -36,15 +39,15 @@ failed replacements keep usable data. Graphics-recovery errors retain their
 feedback even if an outstanding data request subsequently succeeds.
 
 Startup remains local `new Date(1980, 1)` with speed 1.5 (90 days/second), the existing
-250 ms stall cap, 3× discovery markers shrinking over 2/3 active seconds, and
-fresh 1× DPR on every load. Suspension does not overwrite requested speed.
-The source has wheel zoom, with stage translation retained through resize;
-new drag-pan/touch/keyboard camera gestures are not introduced by extraction.
+250 ms stall cap and fresh 1× DPR on every load. Suspension does not overwrite
+requested speed. Pixi keeps 3× discovery markers shrinking over 2/3 active seconds,
+wheel zoom and stage translation through resize. Three keeps the source's
+date-based discovery fade and OrbitControls camera gestures.
 
 ### Temporary source mapping
 
-All source mappings below originate at PR64's merged tree. Keep live source
-stable until the explicit promotion/cleanup units:
+The Pixi mappings originate at PR64's merged tree; Three uses the preserved
+Orrery3D snapshot. Keep live source stable until the promotion/cleanup units:
 
 | Preview | Legacy source / change |
 | --- | --- |
@@ -52,6 +55,8 @@ stable until the explicit promotion/cleanup units:
 | `ui/Options.js` | `src/js/Gui.js`, identical behavior with renamed class |
 | `pixi/Planet.js`, `Orbit.js`, `Controls.js` | Temporary copies; only helper import paths differ |
 | `pixi/Asteroids.js` | Original GPU shader/effects plus neutral catalogue packing, append ranges and draw acknowledgement |
+| `three/ThreeRenderer.js` | Graphics/camera responsibilities from preserved Orrery3D `Orrery3D.js`; shared App keeps clock/loader/UI |
+| `three/{Asteroids,Planet,Orbit,Sun,createSphere}.js` | Orrery3D `93a3e1f`; source shader/presentation, retained neutral data and frame/draw commitment adaptation |
 | Shared imports from `src/js/` | Unchanged `PlaybackClock`, `Stats`, `utils`, `constants`, `planets`, `asteroidOrbits` |
 | Shared CSS/fonts/data | Unchanged existing styles/assets; preview identity/return and status placement are isolated in `preview.css` |
 
@@ -69,12 +74,12 @@ only after all build and browser gates pass.
 
 ## Source pins and prerequisite
 
-Verified September 14, 2026 against GitHub and local Git objects:
+Source pins rechecked September 15, 2026 against GitHub and local Git objects:
 
 | Input | Pinned revision | Role |
 | --- | --- | --- |
-| [Orrery master](https://github.com/sn3p/Orrery/tree/e1e80ec00a23ba7d2d99e3df625d512ec3486a41) | `e1e80ec00a23ba7d2d99e3df625d512ec3486a41` | Current Pixi behavior, visuals, tests and historical catalogue |
-| [Orrery3D PR31 merge](https://github.com/sn3p/Orrery3D/commit/93a3e1f4a36d8fdceb513bdfdca20beddb3348d6) | `93a3e1f4a36d8fdceb513bdfdca20beddb3348d6` | Adopted loader; preserved Three reference for PR4 |
+| [Orrery PR68 merge](https://github.com/sn3p/Orrery/tree/b7ec81ea4a22f3f30d9e958875a4b3aa9bf5b5e4) | `b7ec81ea4a22f3f30d9e958875a4b3aa9bf5b5e4` | Shared catalogue, Pixi behavior, native tests and historical catalogue |
+| [Orrery3D PR31 merge](https://github.com/sn3p/Orrery3D/commit/93a3e1f4a36d8fdceb513bdfdca20beddb3348d6) | `93a3e1f4a36d8fdceb513bdfdca20beddb3348d6` | Adopted loader and Three source reference |
 | [orrery-data PR5](https://github.com/sn3p/orrery-data/commit/c01d694d71c1734aa9d600afd7f0c58d81654b66) | `c01d694d71c1734aa9d600afd7f0c58d81654b66` | Consumer/browser contracts and real fixtures |
 
 [PR30](https://github.com/sn3p/Orrery3D/pull/30) merged at

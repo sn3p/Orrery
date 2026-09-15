@@ -11,7 +11,10 @@ module.exports = async (browser, url) => {
       const { app } = fixture;
       const original = app.renderFrame;
       window.frames = [];
+      window.setupFrames = 0;
       app.renderFrame = function(timestamp, hooks) {
+        // Synchronous bundled setup is outside the measured sample.
+        if (!hooks) { setupFrames++; return original.call(this, timestamp); }
         const events = [], restores = [];
         const wrap = (owner, key, label) => {
           const saved = owner[key]; restores.push(() => { owner[key] = saved; });
@@ -25,7 +28,7 @@ module.exports = async (browser, url) => {
             beforeRender: () => { events.push('beforeDraw'); hooks.beforeRender(); },
             afterRender: () => { events.push('afterDraw'); hooks.afterRender(); },
           });
-          frames.push({ events, timestamp, jed: app.jed, fps: app.stats.fps,
+          frames.push({ events, timestamp, jed: app.jed, fps: app.stats.fps, deferredReadouts: app.constructor.application === 'unified',
             readout: document.getElementById('orrery-fps').textContent });
           return result;
         } finally { restores.reverse().forEach(restore => restore()); }
@@ -33,9 +36,11 @@ module.exports = async (browser, url) => {
     });
     const run = await page.evaluate(sample, { count: 1000, warmupMs: 50, sampleMs: 80 });
     const frames = await page.evaluate(() => window.frames);
+    const setupFrames = await page.evaluate(() => window.setupFrames);
+    assert.equal(setupFrames, frames[0].deferredReadouts ? 1 : 0, 'Only bundled preview setup draws outside the measured frames');
     assert(run.frames > 0 && frames.length >= run.frames);
     for (const frame of frames) {
-      assert.deepEqual(frame.events, ['clock', 'asteroids', ...Array(6).fill('planet'), 'fps', 'gui', 'beforeDraw', 'draw', 'afterDraw']);
+      assert.deepEqual(frame.events, ['clock', 'asteroids', ...Array(6).fill('planet'), 'fps', ...(frame.deferredReadouts ? ['beforeDraw', 'draw', 'gui'] : ['gui', 'beforeDraw', 'draw']), 'afterDraw']);
       assert.equal(frame.readout, `${frame.fps} FPS`);
       assert(Math.abs(frame.jed - frames[0].jed - (frame.timestamp - frames[0].timestamp) * 0.09) < 1e-8, 'Benchmark advances the dated view exactly once');
     }
@@ -44,6 +49,7 @@ module.exports = async (browser, url) => {
     }
     await page.waitForTimeout(100);
     assert.equal(await page.evaluate(() => frames.length), frames.length, 'Shared benchmark helper creates no background frames');
+    assert.equal(await page.evaluate(() => window.setupFrames), setupFrames, 'No background frames bypass the measurement hooks');
 
     const interruptions = [];
     for (const event of ['resize', 'blur', 'visibilitychange', 'webglcontextlost']) {

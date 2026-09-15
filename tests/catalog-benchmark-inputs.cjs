@@ -9,7 +9,7 @@ const execute = promisify(execFile), root = path.resolve(__dirname, "..");
 
 test("catalogue benchmark rejects invalid duration and network profiles before building", async () => {
   for (const [name, values] of [["DURATION_SECONDS", ["", " ", "NaN", "Infinity", "-1", "1e308"]],
-    ["PROFILES", ["", "native,", "native,unknown", "10mbps"]]]) {
+    ["PROFILES", ["", "native,", "native,unknown", "10mbps"]], ["RENDERER", ["", "unknown", "constructor"]]]) {
     for (const value of values) {
       await assert.rejects(execute(process.execPath, ["benchmarks/catalog-loading.cjs", "/missing-config.json"], {
         cwd: root, timeout: 5000,

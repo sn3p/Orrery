@@ -170,13 +170,13 @@ export default class PixiRenderer {
     this.requestRender();
   }
 
-  setAsteroids(data, { jed, elapsed }) {
+  setAsteroids(data, { jed, elapsed }, { preservePrevious = false } = {}) {
     if (this.destroyed) return 0;
     // Prepare/allocate completely before replacing the usable scene.
     const next = new Asteroids(data, this.circleTexture, jed, elapsed,
       this.app.renderer.context.webGLVersion === 2);
     this.discardStagedCatalogue();
-    this.installAsteroids(next);
+    this.installAsteroids(next, preservePrevious);
     return next.geometry.instanceCount;
   }
 

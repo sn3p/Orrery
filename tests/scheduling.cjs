@@ -17,7 +17,8 @@ async function run({ browser, application = "legacy", output: artifactDirectory 
     await page.waitForFunction(n => fixture.probe.draws >= n + 3, before);
     await page.goto(server.url + '/?manual'); await page.evaluate(() => window.ready);
     await settle(page);
-    assert.equal(await page.evaluate(() => fixture.probe.draws), 0, 'Manual bootstrap does not draw');
+    const setupDraws = application === 'unified' ? 1 : 0;
+    assert.equal(await page.evaluate(() => fixture.probe.draws), setupDraws, 'Only preview bundled attachment submits a synchronous setup frame');
     await page.evaluate(() => {
       const {app} = fixture;
       app.jed += 1; app.jedDelta = -1.5;
@@ -25,17 +26,17 @@ async function run({ browser, application = "legacy", output: artifactDirectory 
       app.onVisibilityChange();
     });
     await settle(page);
-    assert.equal(await page.evaluate(() => fixture.probe.draws), 0, 'Manual state changes do not schedule');
+    assert.equal(await page.evaluate(() => fixture.probe.draws), setupDraws, 'Manual state changes do not schedule');
     await page.evaluate(() => fixture.app.render(1000));
     await settle(page);
-    assert.equal(await page.evaluate(() => fixture.probe.draws), 1, 'Explicit render draws exactly once');
+    assert.equal(await page.evaluate(() => fixture.probe.draws), setupDraws + 1, 'Explicit render draws exactly once');
     assert.equal(await page.evaluate(() => fixture.app.animationFrame), null);
     await page.evaluate(() => {
       const {app} = fixture;
       app.autoRender = true; app.requestRender(); app.destroy(); app.destroy();
     });
     await settle(page);
-    assert.equal(await page.evaluate(() => fixture.probe.draws), 1, 'Disposal cancels pending work');
+    assert.equal(await page.evaluate(() => fixture.probe.draws), setupDraws + 1, 'Disposal cancels pending work');
     console.log('Scheduling ownership: continuous RAF, stopped Pixi ticker, manual bootstrap/invalidation/render and disposal passed.');
   } finally { await server.close(); }
 }

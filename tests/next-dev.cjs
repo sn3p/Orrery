@@ -4,7 +4,7 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 
 async function run({ browser, name, application = "legacy", output: artifactDirectory,
-  catalogConfig = process.env.CATALOG_CONFIG }) {
+  catalogConfig = process.env.CATALOG_CONFIG, renderer = "pixi" }) {
   const selection = catalogConfig && JSON.parse(fs.readFileSync(catalogConfig, "utf8"));
   const directory = artifactDirectory || path.resolve(selection ? ".context/pr3/browser/dev" : ".context/next-preview/dev");
   fs.mkdirSync(directory, { recursive: true });
@@ -41,7 +41,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     page.on("response", response => {
       if (/\.hot-update\.js$/.test(new URL(response.url()).pathname)) hotChunks.push(response.status());
     });
-    await page.goto(`${base}next/`);
+    await page.goto(`${base}next/?renderer=${renderer}`);
     await page.waitForFunction(() => window.previewProbe?.value === "initial");
     assert.equal(await page.title(), "Orrery — Preview");
     const documentId = await page.evaluate(() => previewProbe.documentId);

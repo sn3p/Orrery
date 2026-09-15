@@ -30,8 +30,10 @@ function observe() {
     const entry = mark(name, options);
     if (name === "catalog:first-complete" && window.catalogMetrics.initialSubmissionMs === undefined) {
       window.catalogMetrics.initialSubmissionMs = entry.startTime;
-      const renderer = window.catalogTest.app.renderer.app.renderer, gl = renderer.gl;
-      window.catalogMetrics.webGLVersion = renderer.context.webGLVersion;
+      const adapter = window.catalogTest.app.renderer, renderer = adapter.renderer ?? adapter.app.renderer;
+      const gl = renderer.getContext?.() ?? renderer.gl;
+      window.catalogMetrics.webGLVersion = renderer.context?.webGLVersion ?? 2;
+      window.catalogMetrics.renderer = window.catalogTest.app.rendererId;
       if (typeof gl.fenceSync === "function") {
         window.catalogMetrics.initialGpuMethod = "fenceSync";
         const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -187,7 +189,8 @@ async function measure(browser, url, profile, seconds, traffic = [], screenshotP
     await page.evaluate(() => { window.catalogTest.app.jedDelta = 0; });
     const requestsBeforeRestore = transfers.length;
     const restoreStart = Date.now();
-    await page.evaluate(() => { window.restoreExt = catalogTest.app.renderer.app.renderer.gl.getExtension("WEBGL_lose_context"); restoreExt.loseContext(); });
+    await page.evaluate(() => { const adapter = catalogTest.app.renderer, renderer = adapter.renderer ?? adapter.app.renderer;
+      window.restoreExt = (renderer.getContext?.() ?? renderer.gl).getExtension("WEBGL_lose_context"); restoreExt.loseContext(); });
     await page.waitForFunction(() => catalogTest.app.contextLost);
     await page.evaluate(() => restoreExt.restoreContext());
     await page.waitForFunction(() => !catalogTest.app.contextLost && (catalogTest.app.catalogLoader?.sceneComplete() ?? true));
@@ -195,7 +198,10 @@ async function measure(browser, url, profile, seconds, traffic = [], screenshotP
     const restoredDataRequests = transfers.slice(requestsBeforeRestore).filter(item => /chunks|catalog.json/.test(item.url)).length;
     if (screenshotPath) await page.screenshot({ path: screenshotPath });
     const data = await page.evaluate(() => {
-      const app = window.catalogTest.app, gl = app.renderer.app.renderer.gl, debug = gl.getExtension("WEBGL_debug_renderer_info");
+      const app = window.catalogTest.app, renderer = app.renderer.renderer ?? app.renderer.app.renderer;
+      const gl = renderer.getContext?.() ?? renderer.gl, debug = gl.getExtension("WEBGL_debug_renderer_info");
+      const geometry = app.renderer.asteroids.geometry;
+      const arrays = geometry.buffers ? geometry.buffers.map(b => b.data) : Object.values(geometry.attributes).map(a => a.array);
       return { ...window.catalogMetrics, measures: performance.getEntriesByType("measure").filter(entry => entry.name.startsWith("catalog:"))
         .map(entry => ({ name: entry.name, start: entry.startTime, duration: entry.duration })),
         gpu: gl.getParameter(debug ? debug.UNMASKED_RENDERER_WEBGL : gl.RENDERER),
@@ -204,8 +210,8 @@ async function measure(browser, url, profile, seconds, traffic = [], screenshotP
         population: app.catalogue.count,
         canonicalBytes: ["p", "q", "elements", "phases", "dates", "rows"].reduce((n, key) => n + app.catalogue[key].byteLength, 0),
         catalogCpuBytes: [...new Set([...Object.values(app.catalogue).filter(ArrayBuffer.isView).map(a => a.buffer),
-          ...app.renderer.asteroids.geometry.buffers.map(b => b.data.buffer)])].reduce((n, b) => n + b.byteLength, 0),
-        nominalGpuBytes: app.renderer.asteroids.geometry.buffers.reduce((n, b) => n + b.data.byteLength, 0) };
+          ...arrays.map(a => a.buffer)])].reduce((n, b) => n + b.byteLength, 0),
+        nominalGpuBytes: arrays.reduce((n, a) => n + a.byteLength, 0) };
     });
     const bytesAt = time => transfers.filter(entry => entry.time <= time).reduce((sum, entry) => sum + entry.bytes, 0);
     const originBytesAt = time => traffic.filter(entry => entry.time - originWall <= time).reduce((sum, entry) => sum + entry.bytes, 0);
@@ -245,12 +251,14 @@ async function main() {
   if (profiles.some(profile => !["native", "10mbps-100ms"].includes(profile))) {
     throw new Error("PROFILES must contain native and/or 10mbps-100ms.");
   }
+  const renderer = process.env.RENDERER ?? "pixi";
+  if (!["pixi", "three"].includes(renderer)) throw new Error("RENDERER must be pixi or three.");
   const output = path.resolve(process.env.OUTPUT || ".context/catalog-trial/measurements.json");
   const report = { timestamp: new Date().toISOString(), hardware: { platform: os.platform(), arch: os.arch(),
     cpu: os.cpus()[0]?.model, logicalCpus: os.cpus().length, ram: os.totalmem() },
     base: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
     workingTree: execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim(),
-    metricNotes: "Cold separate browser contexts, HTTP gzip including index/app, 1280x800 DPR1. initialSubmissionMs is renderer.render return; initialMs/initialGpuMs measures GPU completion after that first complete scene, not compositor presentation. initialGpuMethod identifies WebGL2 fenceSync polling or the blocking WebGL1 finish fallback; webGLVersion records Pixi's actual renderer. originBodyBytes counts encoded bodies submitted to origin writes, including aborted/speculative responses, excludes HTTP headers, and can precede delivery through Chrome throttling. CDP bytes include headers/partial downloads but can undercount cancelled gzip; retain both. Memory=Runtime usedSize+backingStorageSize, retained after forced GC; sampled peak ~250ms is a lower bound, excludes GPU/native allocations and may miss synchronous peaks. Catalog-associated long tasks overlap measured operations, not every millisecond is attributable. Timed playback then separate late jump and 3s full-population rendering; no phone certification.",
+    metricNotes: "Cold separate browser contexts, HTTP gzip including index/app, 1280x800 DPR1. initialSubmissionMs is renderer.render return; initialMs/initialGpuMs measures GPU completion after that first complete scene, not compositor presentation. initialGpuMethod identifies WebGL2 fenceSync polling or the blocking WebGL1 finish fallback; webGLVersion and renderer record the active graphics backend. originBodyBytes counts encoded bodies submitted to origin writes, including aborted/speculative responses, excludes HTTP headers, and can precede delivery through Chrome throttling. CDP bytes include headers/partial downloads but can undercount cancelled gzip; retain both. Memory=Runtime usedSize+backingStorageSize, retained after forced GC; sampled peak ~250ms is a lower bound, excludes GPU/native allocations and may miss synchronous peaks. Catalog-associated long tasks overlap measured operations, not every millisecond is attributable. Timed playback then separate late jump and 3s full-population rendering; no phone certification.",
     results: [] };
   await fsp.mkdir(path.dirname(output), { recursive: true });
   for (const config of configs) {
@@ -269,7 +277,7 @@ async function main() {
       for (const profile of profiles) {
         console.log(JSON.stringify({ mode, profile, state: "starting" }));
         traffic.length = 0;
-        const result = await measure(browser, url, profile, seconds, traffic,
+        const result = await measure(browser, url + "?renderer=" + renderer, profile, seconds, traffic,
           path.join(path.dirname(output), mode + '-' + profile + '-full.png'));
         report.results.push({ mode, config: built.runtime, appBundleSha256: createHash("sha256").update(bundle).digest("hex"), ...result });
         await fsp.writeFile(output, JSON.stringify(report, null, 2));

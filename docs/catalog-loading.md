@@ -3,8 +3,8 @@
 The public root and `/next/` still use the historical 100,000-object catalogue.
 The preview also supports the reviewed producer indexed and whole-file contracts,
 including the separately versioned `latest.json` browser distribution. There is
-no catalogue selector or new runtime population cap. Three and renderer switching
-remain later unification units.
+no catalogue selector or new runtime population cap. `/next/?renderer=three`
+uses the same selection and retained data; renderer switching remains a later unit.
 
 ## Explicit development and test profiles
 
@@ -77,14 +77,14 @@ Rejected HTTP responses cancel their bodies before returning the status error;
 successful responses without a readable body fail explicitly.
 
 The application owns demand, requested speed/date, replacement and the renderer
-lifetime. Pixi owns its projection, mutable phase and arrival buffers, textures and
-GPU resources. Canonical arrays are read-only to the adapter and are never detached
-by disposal or rebasing. Pixi catch-up is capped at 8,192 rows per application task,
+lifetime. Each adapter owns graphics resources and mutable packing: Pixi projection
+and arrival buffers, or Three scalar phase/discovery arrays and camera. Canonical arrays are read-only to the adapter and are never detached
+by disposal or rebasing. Both adapters cap catch-up at 8,192 rows per application task,
 including late starts and resumption after graphics loss. Preallocation remains:
 chunked transport does not eliminate full-capacity GPU allocation.
 
 A prepared prefix is not a draw receipt. The app keeps the last complete date/count
-while buffering and publishes the new state only after the active Pixi mesh is
+while buffering and publishes the new state only after the active asteroid cloud is
 submitted, its buffers are current and allocation/upload checks pass. Shader/link
 and upload failures do not establish readiness. An empty prefix does not upload a
 full asteroid cloud. Replacement temporarily retains the previous scene until the
@@ -114,13 +114,15 @@ rebase cadence, negative-X/positive-Y projection, 2/3-active-second discovery ef
 and WebGL1 full-update fallback. Direct `setAsteroids`, manual frames and benchmark
 inspection remain supported. Manual frame failures propagate after cleanup so
 finite benchmarks can stop; automatic failures update the status and stop recurring
-draws. No Three buffers or renderer are retained.
+draws. Only the selected engine and its packing are loaded.
+Three retains the source 3D presentation and date-based discovery fade; see
+[its adapter contract and source mapping](three-renderer.md).
 
 ## Verification and measurements
 
 `npm run test:node` includes real producer contract, transport, cancellation,
 provisioning, archive and neutral-model tests. `npm test` includes the actual
-configured production entry through fetch, CPU commitment, Pixi upload/draw and
+configured production entry through fetch, CPU commitment, adapter upload/draw and
 HUD, plus the existing legacy/preview numerical, rendered, input, options,
 DPR, lifecycle, development and benchmark suites. `npm run test:catalog` selects
 the native Playwright catalogue cases; loading, lifecycle and frame commitment
@@ -139,12 +141,13 @@ node tests/history-import.cjs
 
 `DURATION_SECONDS` must be finite and non-negative; `PROFILES` accepts `native`
 and/or `10mbps-100ms`. Invalid settings fail before building. Empty catalogues are
-valid benchmark inputs. Browser contexts and the local server close on setup or
+valid benchmark inputs. `RENDERER=three` selects the direct Three entry;
+`RENDERER=pixi` is the default. Other renderer IDs fail before building. Browser contexts and the local server close on setup or
 launch failure.
 
 Measurements distinguish retained CPU backing storage, sampled peak heap/storage,
 nominal GPU capacity, transfer and the first complete GPU submission/completion.
-Reports identify Pixi's actual `webGLVersion` and `initialGpuMethod`: WebGL2
+Reports identify the active `renderer`, `webGLVersion` and `initialGpuMethod`: WebGL2
 `fenceSync` polling or the blocking WebGL1 `finish()` fallback. These timestamps
 are not compositor presentation or physical-phone certification. A whole-file
 control still has large parse/preparation tasks; late starts must obtain the
