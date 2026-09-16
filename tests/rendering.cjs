@@ -210,7 +210,7 @@ async function markers(browser, url) {
 }
 
 async function run({ browser, name, application = "unified", output: artifactDirectory, step = (_name, action) => action() }) {
-  const output = artifactDirectory || (application === 'unified' ? '.context/pr2/unified-rendering' : '.context/paused-rendering/checks');
+  const output = artifactDirectory || '.context/pr2/unified-rendering';
   await build('./tests/rendering-fixture.js', path.join(output, 'fixture'), { application });
   await build('./tests/bundled-entry.js', path.join(output, 'production'), { application });
   await build('./tests/init-fixture.js', path.join(output, 'init'), { application });

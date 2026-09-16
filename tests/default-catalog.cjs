@@ -11,8 +11,7 @@ async function run({ browser, name, output = '.context/full-catalogue/default-en
   fs.mkdirSync(pages, { recursive: true });
   const nestedRoot = path.join(pages, 'Orrery');
   const publicRoot = path.resolve(process.env.ORRERY_DEFAULT_DIST || 'dist');
-  if (fs.existsSync(nestedRoot) && fs.lstatSync(nestedRoot).isSymbolicLink() && fs.readlinkSync(nestedRoot) !== publicRoot) fs.unlinkSync(nestedRoot);
-  if (!fs.existsSync(nestedRoot)) fs.symlinkSync(publicRoot, nestedRoot, 'dir');
+  require('./deployment.cjs').replaceDeploymentLink(publicRoot, nestedRoot);
   const nested = await serve(pages);
   const results = [];
   try {

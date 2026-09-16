@@ -20,6 +20,6 @@ window.ready = (async () => {
   const catalog = JSON.parse(text);
   const parseEnd = performance.now();
   catalog.sort((a, b) => a.disc - b.disc);
-  window.fixture = { app, application: app.constructor.application ?? "legacy", catalog, planets, initialSpeed, timings: { initMs: fetchStart - initStart,
+  window.fixture = { app, application: app.constructor.application ?? "unified", catalog, planets, initialSpeed, timings: { initMs: fetchStart - initStart,
     fetchMs: parseStart - fetchStart, parseMs: parseEnd - parseStart } };
 })();

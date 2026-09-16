@@ -12,7 +12,7 @@ const execute = promisify(execFile);
 const hash = value => crypto.createHash("sha256").update(value).digest("hex");
 
 async function run({ browser, name, application = "unified", output: artifactDirectory }) {
-  const artifacts = artifactDirectory || (application === "unified" ? ".context/pr2/unified-benchmark-test" : ".context/gpu-orbits/benchmark-test");
+  const artifacts = artifactDirectory || ".context/pr2/unified-benchmark-test";
   const directory = path.join(artifacts, "app");
   fs.rmSync(artifacts, { recursive: true, force: true });
   await build("./tests/fixture.js", directory, { application });
@@ -121,7 +121,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
 }
 
 async function runCLI({ application = "unified", output: artifactDirectory }) {
-  const artifacts = artifactDirectory || (application === "unified" ? ".context/pr2/unified-benchmark-cli" : ".context/gpu-orbits/benchmark-cli");
+  const artifacts = artifactDirectory || ".context/pr2/unified-benchmark-cli";
   const directory = path.join(artifacts, "app");
   fs.rmSync(artifacts, { recursive: true, force: true });
   const invalidOutput = path.join(artifacts, "invalid-input");

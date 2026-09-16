@@ -225,7 +225,6 @@ async function run({ browser, name, application = "unified", output: artifactDir
           }
           if (viewport.width === 1280 && dpr === 1) {
             for (let cycle = 0; cycle < 2; cycle++) {
-              const images = [];
               for (const p of pages) {
                 await p.bringToFront(); await p.waitForFunction(() => !document.hidden);
                 const before = await p.evaluate(() => {
@@ -240,9 +239,8 @@ async function run({ browser, name, application = "unified", output: artifactDir
                 await p.waitForFunction(() => !app.contextLost);
                 const after = await p.evaluate(() => { app.renderFrame(0); return scene.canvas.toDataURL(); });
                 assert(raster(after).equals(raster(before)), 'Graphics recovery restores exact mature pixels');
-                images.push(after);
               }
-              comparisons.push({ viewport, dpr, label: `recovery-${cycle + 1}`, equal: true });
+              comparisons.push({ viewport, dpr, label: `recovery-${cycle + 1}`, recoveredExactly: true });
             }
           }
         } finally { for (const p of pages) await p.close(); }

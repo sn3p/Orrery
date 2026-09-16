@@ -40,17 +40,31 @@ for (const dependency of ['manifest', 'helper']) {
     const compiler = webpack({ mode: 'development', context: root, entry: './entry.js',
       output: { path: path.join(root, 'out'), filename: 'bundle.js' },
       module: { rules: [require(helperFile).rule] } });
-    const events = [], waiters = [];
-    const next = () => events.length ? Promise.resolve(events.shift())
-      : new Promise(resolve => waiters.push(resolve));
+    const events = [];
+    let wake;
+    async function nextMatching(matches, label) {
+      const deadline = Date.now() + 5000;
+      while (true) {
+        while (events.length) {
+          const event = events.shift();
+          assert.ifError(event.error);
+          if (matches(event.stats)) return event.stats;
+        }
+        const remaining = deadline - Date.now();
+        assert(remaining > 0, `Timed out waiting for ${label}`);
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => { wake = null; reject(new Error(`Timed out waiting for ${label}`)); }, remaining);
+          wake = () => { clearTimeout(timer); wake = null; resolve(); };
+        });
+      }
+    }
     const watcher = compiler.watch({ aggregateTimeout: 10 }, (error, stats) => {
       const event = { error, stats };
-      if (waiters.length) waiters.shift()(event); else events.push(event);
+      events.push(event);
+      wake?.();
     });
     try {
-      const initial = await next();
-      assert.ifError(initial.error);
-      assert(!initial.stats.hasErrors(), initial.stats.toString('errors-only'));
+      await nextMatching(stats => !stats.hasErrors(), 'initial fixture compilation');
       assert.deepEqual(fs.readFileSync(path.join(root, 'out/data/catalog.json')), bytes);
       const changedFile = dependency === 'manifest' ? pinFile : helperFile;
       const original = fs.readFileSync(changedFile, 'utf8');
@@ -58,14 +72,11 @@ for (const dependency of ['manifest', 'helper']) {
         ? JSON.stringify({ ...JSON.parse(pin), sha256: '0'.repeat(64) })
         : original.replace('return bytes;', 'throw new Error("changed validation helper");');
       fs.writeFileSync(changedFile, changed);
-      const rebuilt = await next();
-      assert.ifError(rebuilt.error);
-      assert(rebuilt.stats.hasErrors(), `Changed ${dependency} must affect the same watch process`);
-      assert.match(rebuilt.stats.toString('errors-only'), dependency === 'manifest' ? /pinned source/ : /changed validation helper/);
+      const expected = dependency === 'manifest' ? /pinned source/ : /changed validation helper/;
+      await nextMatching(stats => stats.hasErrors() && expected.test(stats.toString('errors-only')),
+        `changed ${dependency} validation in the same watcher`);
       fs.writeFileSync(changedFile, original);
-      const recovered = await next();
-      assert.ifError(recovered.error);
-      assert(!recovered.stats.hasErrors(), recovered.stats.toString('errors-only'));
+      await nextMatching(stats => !stats.hasErrors(), `restored ${dependency} compilation`);
       assert.deepEqual(fs.readFileSync(path.join(root, 'out/data/catalog.json')), bytes);
     } finally {
       await new Promise((resolve, reject) => watcher.close(error => error ? reject(error) : resolve()));

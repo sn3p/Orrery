@@ -90,7 +90,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
   const { routeDefaultCatalog, latestURL } = require("./default-catalog-route.cjs");
   const catalogRequest = latestURL;
   const dist = path.join(root, "dist");
-  const output = artifactDirectory || (path.join(root, application === "unified" ? ".context/pr2/unified-ui" : ".context/font-qa"));
+  const output = artifactDirectory || path.join(root, ".context/pr2/unified-ui");
   fs.mkdirSync(output, { recursive: true });
   // Serve the actual production files at the GitHub Pages subpath.
   const server = http.createServer((req, res) => {

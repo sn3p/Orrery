@@ -14,7 +14,7 @@ test('path policy preserves risky changes, unions groups and defaults unknown fi
   assert.equal(plan(['src/js/Gui.js']).groups, 'core,ui,graphics,data');
   assert.equal(plan(['src/unified/ui/Options.js']).groups, 'core,ui');
   assert.equal(plan(['src/unified/compat/pr73-assets/main.js.gz']).groups, 'core,ui,build,dev');
-  for (const file of ['src/js/index.js', 'src/unified/index.js', 'src/unified/index.html', 'src/unified/renderers.js']) {
+  for (const file of ['src/unified/index.js', 'src/unified/index.html', 'src/unified/renderers.js']) {
     assert.equal(plan([file]).groups, 'core,ui,build,dev', file);
     for (const suffix of ['.map', '.old', '.gz', '/nested.js', '.copy.js']) {
       const unknown = file + suffix;
@@ -28,7 +28,7 @@ test('path policy preserves risky changes, unions groups and defaults unknown fi
   assert.equal(data.groups, 'core,data,build'); assert(data.buildTests);
   assert.equal(plan(['src/css/main.css', 'catalog-profiles/latest.json']).groups, 'core,ui,data,build');
   for (const file of ['package-lock.json', '.github/workflows/pages.yml', 'tests/gpu.cjs',
-    'tests/new.spec.cjs', 'scripts/build.cjs', 'webpack.config.js', 'src/new-runtime.js', 'migration/orrery3d/src/App.js',
+    'src/js/index.js', 'tests/new.spec.cjs', 'scripts/build.cjs', 'webpack.config.js', 'src/new-runtime.js', 'migration/orrery3d/src/App.js',
     'src/unified/index.mjs', 'src/unified/index.css', 'src/unified/renderers.json', 'src/js/index']) {
     assert.equal(plan([file]).groups, 'full', file);
     assert(plan([file]).buildTests, file);
@@ -56,10 +56,11 @@ test('reduced prepared manifest reaches the real public-assets browser boundary'
   const manifest = { version: 1, source: sourceFingerprint(), fixtures: {} };
   // The consumer checks exact catalogue/fonts and actual prepared-build routing
   // before opening a browser. Missing policy keys must fail at this boundary.
+  const catalog = require('./historical-catalog.cjs').readCatalog();
   for (const key of fixtureKeys(['core'])) {
     const directory = path.join(root, key);
     fs.mkdirSync(path.join(directory, 'data'), { recursive: true });
-    fs.writeFileSync(path.join(directory, 'data/catalog.json'), require('./historical-catalog.cjs').readCatalog());
+    fs.writeFileSync(path.join(directory, 'data/catalog.json'), catalog);
     fs.cpSync('src/fonts', path.join(directory, 'fonts'), { recursive: true });
     fs.writeFileSync(path.join(directory, 'bundle.js'), '// prepared test fixture');
     manifest.fixtures[key] = inventory(directory);

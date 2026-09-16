@@ -10,7 +10,7 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, "../.context/fixture-site"),
     filename: "bundle.js",
-    // Keep one app bundle without disabling the callback wrapper HMR needs.
+    // Keep the single bundle.js contract checked by the fixture asset tests.
     asyncChunks: false,
   },
   module: { rules: [...require("../webpack.assets.cjs").rules, require("./historical-catalog.cjs").rule] },

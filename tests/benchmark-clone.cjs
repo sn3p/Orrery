@@ -60,7 +60,11 @@ async function run({ browser, name, application = "unified", output: artifactDir
       'Only generated catalogue directories are ignored, not user configurations');
     fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify(report, null, 2) + '\n');
     console.log('Default benchmark after HMR and catalogue builds in an ordinary clone retains verified source attribution.');
-  } finally { fs.rmSync(clone, { recursive: true, force: true }); }
+  } finally {
+    const serverLog = path.join(clone, '.context/next-preview/dev/server.log');
+    if (fs.existsSync(serverLog)) fs.copyFileSync(serverLog, path.join(output, 'server.log'));
+    fs.rmSync(clone, { recursive: true, force: true });
+  }
 }
 
 module.exports = { run };

@@ -27,7 +27,7 @@ function plan(files, { full = false } = {}) {
     // Only explicitly harmless paths bypass testing; unknown/deleted code is full.
     if (/^(docs\/|(?:README|LICENSE|AGENTS)(?:\.[^/]*)?$)/.test(file)) continue;
     code = true;
-    if (/^src\/(?:js\/index\.js$|unified\/(?:index\.(?:js|html)$|renderers\.js$|compat\/))/.test(file)) {
+    if (/^src\/(?:unified\/(?:index\.(?:js|html)$|renderers\.js$|compat\/))/.test(file)) {
       selected.add('ui'); selected.add('build'); selected.add('dev'); buildTests = true;
     } else if (/^src\/(?:js\/index|unified\/(?:index|renderers))(?:[./]|$)/.test(file)) {
       // Unknown entry-like files must not fall through to broad JS coverage.

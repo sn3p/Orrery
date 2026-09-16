@@ -204,7 +204,7 @@ async function contextRecovery(page) {
 }
 
 async function run({ browser, name, application = "unified", output: artifactDirectory, step = (_name, action) => action() }) {
-  const output = artifactDirectory || (application === 'unified' ? '.context/pr2/unified-gpu' : path.resolve(".context/gpu-orbits/checks"));
+  const output = artifactDirectory || '.context/pr2/unified-gpu';
   await build("./tests/browser.js", path.join(output, "fixture"), { application });
   await build("./tests/bundled-entry.js", path.join(output, "production"), { application });
   const server = await serve(output), report = [];

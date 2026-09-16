@@ -12,8 +12,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
   const dist = path.join(directory, "fixture-site");
   await require("./support.cjs").build("./tests/bundled-entry.js", dist, { application: "unified" });
   const nested = path.join(directory, "Orrery");
-  fs.rmSync(nested, { recursive: true, force: true });
-  fs.symlinkSync(path.resolve(dist), nested, "dir");
+  require("./deployment.cjs").replaceDeploymentLink(dist, nested);
   assert.equal(fs.realpathSync(nested), fs.realpathSync(dist), "Nested deployment must serve the current fixture");
   const catalog = require("./historical-catalog.cjs").readCatalog();
   assert.equal(JSON.parse(catalog).length, 100000);

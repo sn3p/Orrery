@@ -6,7 +6,7 @@ const settle = page => page.evaluate(async () => {
 });
 
 async function run({ browser, application = "unified", output: artifactDirectory }) {
-  const output = artifactDirectory || (application === 'unified' ? '.context/pr2/unified-scheduling' : '.context/paused-rendering/scheduling');
+  const output = artifactDirectory || '.context/pr2/unified-scheduling';
   await build('./tests/rendering-fixture.js', output, { application });
   const server = await serve(output);
   try {
