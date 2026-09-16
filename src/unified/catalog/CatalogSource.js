@@ -29,6 +29,11 @@ function linkCancellation(controller, signals) {
   return () => { for (const signal of signals) signal.removeEventListener("abort", cancel); };
 }
 
+// Source-wide bound on files in flight. Two slots reached ~2 MB/s against a
+// 2.6-3.4 MB/s speed-8 demand in the 2000s; three roughly doubles supply on the
+// same connection while keeping memory and request pressure bounded.
+export const FILE_SLOTS = 3;
+
 // The slot lasts until the consumer resumes after yielding, so verified records
 // waiting for ordered commitment count toward the same bound as network work.
 class FileSlots {
@@ -54,7 +59,7 @@ class FileSlots {
         reject(aborted());
       };
       signal.addEventListener("abort", cancel, { once: true });
-      if (this.active < 2) entry.start();
+      if (this.active < FILE_SLOTS) entry.start();
       else this.waiting.push(entry);
     });
   }
@@ -185,7 +190,7 @@ export default class CatalogSource {
     };
     try {
       check(combined);
-      enqueue(); enqueue();
+      for (let slot = 0; slot < FILE_SLOTS; slot++) enqueue();
       while (pending.length) {
         let result = await pending.shift();
         check(combined);

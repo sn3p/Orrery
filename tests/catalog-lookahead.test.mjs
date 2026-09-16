@@ -49,14 +49,14 @@ test('slow years keep the minimum chunk lookahead', () => {
 test('fast playback through dense years covers LOOKAHEAD_SECONDS of simulated time', () => {
   const source = makeSource(spans);
   const date = source.info.chunks[4].first_disc;
-  const loader = playing(source, date, 60);
-  const horizon = date + 60 * LOOKAHEAD_SECONDS;
+  const loader = playing(source, date, 180 / LOOKAHEAD_SECONDS);
+  const horizon = date + 180;
   const covered = source.info.chunks.filter(c => c.first_disc <= horizon).length;
   assert(covered > 5 + MIN_LOOKAHEAD_CHUNKS, 'fixture exercises the time-based branch');
   assert.equal(chunkOf(source, loader.targetEnd()), covered);
-  loader.demand(date, { daysPerSecond: 30 });
+  loader.demand(date, { daysPerSecond: 90 / LOOKAHEAD_SECONDS });
   assert.equal(chunkOf(source, loader.targetEnd()), 5 + MIN_LOOKAHEAD_CHUNKS, 'lower speed shrinks the target');
-  loader.demand(date, { daysPerSecond: -480 });
+  loader.demand(date, { daysPerSecond: -4800 });
   assert.equal(chunkOf(source, loader.targetEnd()), 5 + MIN_LOOKAHEAD_CHUNKS, 'reverse playback needs no forward horizon');
 });
 
@@ -65,8 +65,8 @@ test('a discovery-date tie crossing chunks at the horizon includes every tied ch
   // date, beyond the minimum-chunk floor of 5 + MIN_LOOKAHEAD_CHUNKS.
   const source = makeSource([365 * 20, 365 * 5, 365, 120, 180, 0, 0, 0, 0, 30, 30, 30, 365 * 10]);
   const date = source.info.chunks[4].first_disc;
-  const loader = playing(source, date, 60);
-  const horizon = date + 60 * LOOKAHEAD_SECONDS;
+  const loader = playing(source, date, 180 / LOOKAHEAD_SECONDS);
+  const horizon = date + 180;
   assert.equal(source.info.chunks[4].last_disc, horizon);
   assert.equal(source.info.chunks[8].first_disc, horizon);
   assert(source.info.chunks[9].first_disc > horizon);

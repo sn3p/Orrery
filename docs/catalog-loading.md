@@ -77,7 +77,7 @@ the browser-local February 1980 start and speed 1.5 unless overridden. Private
 
 ## Ownership and completeness
 
-`CatalogSource` owns verified transport, cancellation and two source-wide file
+`CatalogSource` owns verified transport, cancellation and three source-wide file
 slots. A slot remains held through ordered parsing and CPU preparation. The loader
 commits a contiguous prefix into one renderer-neutral numeric model, with original
 row ordinals within the pin, full 3D orbital bases and Float64 phase/date data.
@@ -114,9 +114,10 @@ or an explicit catalogue replacement can recover it.
 
 Requested dates survive source opening. Every discovery at or before a date is
 required, including ties across files. While playing forward, speculative reads
-cover three seconds of playback at the current speed, never fewer than three
-chunks, using the chunk discovery-date bounds; at speed 8 in the 2000s this is
-about 30 chunks, in the 1980s still three. Paused/hidden state suppresses
+cover ten seconds of playback at the current speed, never fewer than three
+chunks, using the chunk discovery-date bounds; at speed 8 the horizon spans
+thirteen years, so the dense 2000s download during the sparse decades before
+them, while the 1980s at normal speed still need only three chunks. Paused/hidden state suppresses
 lookahead; required reads remain bounded. The numeric model is preallocated at
 full capacity, so lookahead does not grow retained memory. Network failures have bounded automatic
 retries and demand/resume/online recovery. Preparation/adapter failures are distinct
