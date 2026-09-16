@@ -1,7 +1,10 @@
 module.exports = function(source) {
-  // Invalidate watch builds if provenance or validation changes too.
-  this.addDependency(require.resolve('./historical-catalog.cjs'));
-  this.addDependency(require.resolve('./fixtures/historical100k/manifest.json'));
+  // Watch invalidation must also reload Node's cached validation dependencies.
+  for (const dependency of ['./historical-catalog.cjs', './fixtures/historical100k/manifest.json']) {
+    const filename = require.resolve(dependency);
+    this.addDependency(filename);
+    delete require.cache[filename];
+  }
   return require('./historical-catalog.cjs').decodeCatalog(source);
 };
 module.exports.raw = true;
