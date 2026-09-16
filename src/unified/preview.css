@@ -168,6 +168,8 @@
   font-size: var(--font-ui-size);
   line-height: 18px;
 }
+/* Browsers without <dialog> support would otherwise render the card inline. */
+.orrery-intro:not([open]) { display: none; }
 .orrery-intro::backdrop { background: rgba(0, 0, 0, 0.6); }
 .orrery-intro-card { padding: 16px; }
 .orrery-intro h1 {

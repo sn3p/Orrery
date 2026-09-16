@@ -22,7 +22,7 @@ source on GitHub.
 
 ## Development
 
-Use Node.js 24.15 or later (see `.tool-versions`), then:
+Use Node.js 24.15 or later in the 24.x line (see `.tool-versions`), then:
 
 ```bash
 npm ci               # install
