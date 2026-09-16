@@ -2,7 +2,7 @@ const { test } = require('./fixtures.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 
-test('historical fixture assets, nested deployment, keyboard and reload', async ({ check }, testInfo) => {
+test('historical fixture assets, nested deployment, keyboard and reload', { tag: ['@core', '@ui', '@build'] }, async ({ check }, testInfo) => {
   const output = testInfo.outputPath('evidence');
   const nested = path.join(output, 'Orrery'), prior = path.join(output, 'legacy-site');
   for (const state of ['stale', 'dangling', 'fresh']) {
@@ -18,23 +18,25 @@ test('historical fixture assets, nested deployment, keyboard and reload', async 
     });
   }
 });
-test('preview entry, responsive layouts, lazy assets and recovery', async ({ check }) => {
+test('preview entry, responsive layouts, lazy assets and recovery', { tag: ['@core', '@ui', '@build'] }, async ({ check }) => {
   await check('next');
 });
-test('preview footer loading, buffering, failure and empty states @standalone', async ({ check }) => {
+test('preview footer loading, buffering, failure and empty states', { tag: ['@ui', '@data'] }, async ({ check }) => {
   await check('next-status');
 });
-test('raw App lifecycle, scene states and exact recovery @standalone', async ({ check }) => {
+test('raw App lifecycle, scene states and exact recovery', { tag: ['@graphics'] }, async ({ check }) => {
   await check('unified', { application: 'unified' });
+});
+test('representative production scene and recovery checks', { tag: ['@core'] }, async ({ check }) => {
+  await check('unified', { application: 'unified', compact: true });
 });
 
 for (const application of ['unified']) {
   test.describe(application, () => {
-    const tag = application === 'unified' ? ' @standalone' : '';
-    test(`GPU numerics, uploads, pixels and recovery${tag}`, async ({ check }) => {
+    test('GPU numerics, uploads, pixels and recovery', { tag: ['@graphics'] }, async ({ check }) => {
       await check('gpu', { application });
     });
-    test(`rendering, readouts, lifecycle and production UI${tag}`, async ({ check }) => {
+    test('rendering, readouts, lifecycle and production UI', { tag: application === 'unified' ? ['@graphics', '@ui'] : ['@graphics'] }, async ({ check }) => {
       await check('rendering', { application });
     });
     for (const [part, title] of [
@@ -42,20 +44,19 @@ for (const application of ['unified']) {
       ['pixelRatio', 'pixel ratio and display transitions'],
       ['texture', 'texture recovery and resolution lifecycle'],
     ]) {
-      test(`${title}${tag}`, async ({ check }) => {
+      test(title, { tag: application === 'unified' ? ['@graphics', '@ui'] : ['@graphics'] }, async ({ check }) => {
         await check('options-browser', { application, part });
       });
     }
-    test(`benchmark frames, resolution, interruption and recovery${tag}`, async ({ check }) => {
+    test('benchmark frames, resolution, interruption and recovery', { tag: ['@graphics'] }, async ({ check }) => {
       await check('benchmark', { application });
     });
   });
 }
 
-test('promoted root, retired preview route, missing chunks and recovery @standalone', async ({ check }) => {
+test('promoted root, retired preview route, missing chunks and recovery', { tag: ['@build'] }, async ({ check }) => {
   await check('promotion');
 });
-
-test('configured promotion, root catalogue pins and chronological loading @standalone', async ({ check }) => {
+test('configured promotion, root catalogue pins and chronological loading', { tag: ['@build'] }, async ({ check }) => {
   await check('promotion', { method: 'configured' });
 });

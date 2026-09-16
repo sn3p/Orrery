@@ -1,4 +1,5 @@
 const { defineConfig } = require('@playwright/test');
+const { grep } = require('./tests/ci-policy.cjs');
 const { launchOptions } = require('./tests/browsers.cjs');
 
 const browsers = (process.env.BROWSERS || 'chromium,firefox,webkit').split(',');
@@ -37,8 +38,8 @@ module.exports = defineConfig({
   },
   projects: [
     ...[...new Set(browsers)].map(name => ({
-      name, testMatch: ['browser.spec.cjs', 'catalog.spec.cjs', 'three.spec.cjs', 'switching.spec.cjs', 'default-catalog.spec.cjs'], use: use(name),
+      name, grep: grep(name), testMatch: ['smoke.spec.cjs', 'browser.spec.cjs', 'catalog.spec.cjs', 'three.spec.cjs', 'switching.spec.cjs', 'default-catalog.spec.cjs'], use: use(name),
     })),
-    { name: 'chromium-only', testMatch: ['chromium.spec.cjs', 'catalog-chromium.spec.cjs'], use: use('chromium') },
+    { name: 'chromium-only', grep: grep('chromium-only'), testMatch: ['chromium.spec.cjs', 'catalog-chromium.spec.cjs'], use: use('chromium') },
   ],
 });

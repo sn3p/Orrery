@@ -6,18 +6,82 @@ on:
   pull_request:
     branches: [master]
   workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * *'
 
 permissions:
   contents: read
 
-# Retain up to 100 pending updates without interrupting the active deployment.
+# PR updates supersede obsolete checks; production deployments keep their queue.
 concurrency:
-  group: pages-${{ github.ref }}
-  cancel-in-progress: false
-  queue: max
+  group: pages-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  queue: ${{ github.event_name == 'pull_request' && 'single' || 'max' }}
 
 jobs:
+  plan:
+    name: Select test coverage
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.plan.outputs.code }}
+      build-tests: ${{ steps.plan.outputs.build-tests }}
+      groups: ${{ steps.plan.outputs.groups }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Select required groups from the actual change range
+        id: plan
+        run: node scripts/ci-plan.cjs
+
+  node:
+    name: Fast Node regressions
+    needs: plan
+    if: needs.plan.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .tool-versions
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - run: npm run test:node:fast
+
+  build-tests:
+    name: Build and CLI integration regressions
+    needs: plan
+    if: needs.plan.outputs.build-tests == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .tool-versions
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      # These tests mutate dist, isolated from the artifact-producing job.
+      - run: npm run build && npm run test:integration
+
   build:
+    needs: plan
+    if: needs.plan.outputs.code == 'true'
+    env:
+      ORRERY_TEST_GROUPS: ${{ needs.plan.outputs.groups }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -38,9 +102,6 @@ jobs:
       - name: Build site from source
         run: npm run build -- --output-clean
 
-      - name: Verify build isolation and numerical regressions
-        run: npm run test:build && npm run test:node
-
       - name: Prepare reusable browser fixtures
         run: npm run test:fixtures
 
@@ -58,58 +119,15 @@ jobs:
 
   browser-tests:
     name: ${{ matrix.name }}
-    needs: build
+    needs: [plan, build]
+    if: needs.plan.outputs.code == 'true'
+    env:
+      ORRERY_TEST_GROUPS: ${{ needs.plan.outputs.groups }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - browser: chromium
-            project: chromium
-            shard: 1/2
-            id: chromium-1
-            name: Browser tests (chromium, shard 1/2)
-          - browser: chromium
-            project: chromium
-            shard: 2/2
-            id: chromium-2
-            name: Browser tests (chromium, shard 2/2)
-          - browser: firefox
-            project: firefox
-            shard: 1/2
-            id: firefox-1
-            name: Browser tests (firefox, shard 1/2)
-          - browser: firefox
-            project: firefox
-            shard: 2/2
-            id: firefox-2
-            name: Browser tests (firefox, shard 2/2)
-          - browser: webkit
-            project: webkit
-            shard: 1/4
-            id: webkit-1
-            name: Browser tests (webkit, shard 1/4)
-          - browser: webkit
-            project: webkit
-            shard: 2/4
-            id: webkit-2
-            name: Browser tests (webkit, shard 2/4)
-          - browser: webkit
-            project: webkit
-            shard: 3/4
-            id: webkit-3
-            name: Browser tests (webkit, shard 3/4)
-          - browser: webkit
-            project: webkit
-            shard: 4/4
-            id: webkit-4
-            name: Browser tests (webkit, shard 4/4)
-          - browser: chromium
-            project: chromium-only
-            shard: 1/1
-            id: chromium-only
-            name: Chromium-only integration tests
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -186,8 +204,10 @@ jobs:
           path: .context/playwright-blob
 
   standalone:
-    name: Standalone unified tests (clean checkout)
-    # This job builds its own promoted site and fixtures. It needs no build artifact.
+    name: Clean-checkout smoke (Pixi and Three)
+    needs: plan
+    if: needs.plan.outputs.code == 'true'
+    # Two public-entry tests build independently; no prepared fixture download.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -239,8 +259,8 @@ jobs:
 
   report:
     name: Browser test report
-    if: ${{ !cancelled() }}
-    needs: [browser-tests, standalone]
+    if: ${{ !cancelled() && needs.plan.outputs.code == 'true' }}
+    needs: [plan, browser-tests, standalone]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -272,9 +292,23 @@ jobs:
           include-hidden-files: true
           path: .context/playwright-report
 
+  ci:
+    name: CI
+    if: always()
+    needs: [plan, node, build, build-tests, browser-tests, standalone]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Require every selected check
+        run: node scripts/ci-gate.cjs
+        env:
+          CI_NEEDS: ${{ toJSON(needs) }}
+
   deploy:
-    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
-    needs: [build, browser-tests, standalone]
+    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request' && github.event_name != 'schedule' && needs.plan.outputs.code == 'true'
+    needs: [plan, build, ci]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

@@ -52,7 +52,8 @@ Install the test browsers, then run numerical, production browser and benchmark 
 
 ```bash
 npx playwright install chrome firefox webkit
-npm test
+npm run test:pr  # everyday checks
+npm test         # complete regression matrix
 ```
 
 These checks cover GPU orbit accuracy, discovery markers, playback, catalogue
@@ -61,9 +62,10 @@ desktop/mobile layout. Playwright Test reports individual cases and lifecycle
 steps. Results, screenshots and failure traces are saved in
 `.context/playwright-results/`; open the HTML report with
 `npx playwright show-report .context/playwright-report`.
-The default browser suite checks current production numerics, pixels, lifecycle
-and options; `npm run test:unified` builds the app and
-runs that subset, including from a clean checkout after installing dependencies.
+The default browser suite checks current production pixels, numerics,
+lifecycle and options. `npm run test:unified` builds the public app and
+runs two clean-checkout smoke cases, one per renderer. CI automatically expands
+coverage for relevant changes and runs the full matrix nightly.
 The default suite runs Chromium, Firefox and Playwright WebKit. For a local
 Chrome-only pass, use `BROWSERS=chromium npm test`. See
 [the browser test workflow](docs/browser-tests.md) for projects, shards and fixture builds.
@@ -214,15 +216,16 @@ catalogue is unchanged; these measurements do not establish a new data limit.
 
 ## Deployment
 
-[GitHub Pages](https://sn3p.github.io/Orrery/) updates automatically after every
-push or merged pull request to `master`. The [GitHub Pages workflow](.github/workflows/pages.yml)
+[GitHub Pages](https://sn3p.github.io/Orrery/) updates after code changes are pushed
+or merged to `master` and the selected checks pass. The
+[GitHub Pages workflow](.github/workflows/pages.yml)
 installs locked dependencies with the Node.js version in `.tool-versions`, builds
 a clean `dist/` from source, and deploys it. Pull requests targeting `master` check
 the production build without deploying. A failed build prevents deployment.
 
-Overlapping runs for the same branch retain up to 100 pending runs, processed in
-the order they enter GitHub's concurrency queue. New runs beyond that limit are
-canceled by GitHub; see the [queue documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#example-queueing-multiple-pending-runs).
+New PR updates cancel obsolete runs for that PR. Production runs retain up to
+100 pending runs, processed in the order they enter GitHub's concurrency queue.
+New production runs beyond that limit are canceled by GitHub; see the [queue documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#example-queueing-multiple-pending-runs).
 
 No local build, generated-file commit, or push to `gh-pages` is needed to deploy.
 The workflow publishes the checked-in catalogue; it does not download fresh MPC

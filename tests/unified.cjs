@@ -17,7 +17,7 @@ function raster(image) {
   return Buffer.concat([header, require('node:zlib').inflateSync(Buffer.concat(data))]);
 }
 
-async function run({ browser, name, application = "unified", output: artifactDirectory }) {
+async function run({ browser, name, application = "unified", output: artifactDirectory, compact = false }) {
   const output = artifactDirectory || '.context/pr2/contracts';
   // Raw production controller: no ticker-bridge facade or retired class aliases.
   await build('./tests/unified-fixture.js', path.join(output, 'fixture'), { application });
@@ -149,8 +149,8 @@ async function run({ browser, name, application = "unified", output: artifactDir
     } finally { releaseLoad(); await page.close(); }
 
     const comparisons = [];
-    for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
-      for (const dpr of [1, 2]) {
+    for (const viewport of (compact ? [{ width: 390, height: 844 }] : [{ width: 1280, height: 800 }, { width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }])) {
+      for (const dpr of (compact ? [1] : [1, 2])) {
         const pages = [];
         try {
           for (const application of ['App']) {
@@ -168,11 +168,13 @@ async function run({ browser, name, application = "unified", output: artifactDir
             }, application);
           }
           const scenes = new Map();
-          for (const [label, jed, elapsed, scale] of [
+          for (const [label, jed, elapsed, scale] of (compact ? [
+            ['sparse-half', 2415020.5, 1 / 3, 1], ['dense-mature', 2458600.5, 1, 1],
+          ] : [
             ['sparse-fresh', 2415020.5, 0, 1], ['sparse-half', 2415020.5, 1 / 3, 1], ['sparse-mature', 2415020.5, 1, 1],
             ['dense-fresh', 2458600.5, 0, 1], ['dense-half', 2458600.5, 1 / 3, 1], ['dense-mature', 2458600.5, 1, 1],
             ['zoom', 2458600.5, 1, 4], ['overview', 2458600.5, 1, 0.35], ['reverse', 2444269.5, 1, 1],
-          ]) {
+          ])) {
             const results = [];
             for (const p of pages) {
               // Firefox backgrounds the previous page when another opens;
@@ -205,7 +207,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
             assert.equal(results[0].date, new Date((jed - 2440587.5) * 86400000).toISOString().slice(0, 10), 'HUD date agrees with independent UTC conversion');
             assert(results[0].litPixels > 0, 'Raw App renders visible scene pixels');
             const pixels = raster(results[0].pixels);
-            for (const earlier of label === 'dense-mature' ? ['dense-fresh', 'dense-half', 'sparse-mature']
+            for (const earlier of label === 'dense-mature' ? (compact ? ['sparse-half'] : ['dense-fresh', 'dense-half', 'sparse-mature'])
               : ['zoom', 'overview', 'reverse'].includes(label) ? ['dense-mature'] : []) {
               assert(!pixels.equals(scenes.get(earlier)), `${label} produces different pixels from ${earlier}`);
             }

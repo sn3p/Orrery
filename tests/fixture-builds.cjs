@@ -40,9 +40,11 @@ function sourceFingerprint() {
 }
 
 async function prepare() {
+  const keys = require('./ci-policy.cjs').fixtureKeys();
+  const needed = key => !keys || keys.has(key);
   fs.rmSync(directory, { recursive: true, force: true });
   const manifest = { version: 1, source: sourceFingerprint(), fixtures: {} };
-  for (const definition of definitions) {
+  for (const definition of definitions.filter(item => needed(item.key))) {
     const output = path.join(directory, definition.key);
     await compile(definition.entry, output, definition);
     manifest.fixtures[definition.key] = inventory(output);
