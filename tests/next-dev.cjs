@@ -4,7 +4,7 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 
 async function run({ browser, name, application = "legacy", output: artifactDirectory,
-  catalogConfig = process.env.CATALOG_CONFIG, renderer = "pixi" }) {
+  catalogConfig = process.env.CATALOG_CONFIG, renderer = "pixi", command = "serve:next" }) {
   const selection = catalogConfig && JSON.parse(fs.readFileSync(catalogConfig, "utf8"));
   const directory = artifactDirectory || path.resolve(selection ? ".context/pr3/browser/dev" : ".context/next-preview/dev");
   fs.mkdirSync(directory, { recursive: true });
@@ -18,7 +18,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
   `);
   // Run the documented command on a dynamically assigned port. Add only a
   // test probe; actual preview HTML/styles, output paths and dev options apply.
-  const child = spawn("npm", ["run", "serve:next", "--", "--host", "127.0.0.1", "--port", "0",
+  const child = spawn("npm", ["run", command, "--", "--host", "127.0.0.1", "--port", "0",
     "--no-open", "--entry", entry], { stdio: ["ignore", "pipe", "pipe"], detached: true,
     env: { ...process.env, CATALOG_CONFIG: catalogConfig || "" } });
   let log = "";
@@ -44,9 +44,9 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     page.on("response", response => {
       if (/\.hot-update\.js$/.test(new URL(response.url()).pathname)) hotChunks.push(response.status());
     });
-    await page.goto(`${base}next/?renderer=${renderer}`);
+    await page.goto(`${base}?renderer=${renderer}`);
     await page.waitForFunction(() => window.previewProbe?.value === "initial");
-    assert.equal(await page.title(), "Orrery — Preview");
+    assert.equal(await page.title(), "Orrery");
     const documentId = await page.evaluate(() => previewProbe.documentId);
     for (const text of ["first edit", "second edit"]) {
       fs.writeFileSync(value, `export default ${JSON.stringify(text)};\n`);
@@ -76,16 +76,24 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       assert.equal(await page.evaluate(() => previewProbe.app.catalogLoader.source.sourceId), selection.pin.sha256);
     }
     await page.screenshot({ path: path.join(directory, "after-updates.png") });
-    // The historical combined-build test covers the return destination. The
-    // configured standalone preview does not require a root build to exist.
-    if (!selection) {
-      await page.goto(base);
-      await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent.replaceAll("\u202f", "")) > 0);
-      assert.equal((await page.request.get(`${base}favicon.ico`)).status(), 204,
-        "Returning to the static root has no missing automatic favicon request");
+    // Old on-disk preview HTML must not leak through dev's static fallback.
+    const stale = path.resolve('dist/next/index.html');
+    const previous = fs.existsSync(stale) ? fs.readFileSync(stale) : null;
+    fs.mkdirSync(path.dirname(stale), { recursive: true });
+    fs.writeFileSync(stale, '<title>Stale preview</title>');
+    try {
+      for (const suffix of ["next/", "next", "next/index.html"]) {
+        const response = await page.request.get(base + suffix + "?renderer=" + renderer + "&extra=a%20b");
+        assert.equal(response.status(), 404);
+        assert(new URL(response.url()).pathname.startsWith('/next'));
+      }
+    } finally {
+      if (previous) fs.writeFileSync(stale, previous);
+      else fs.unlinkSync(stale);
     }
+    assert.equal((await page.request.get(`${base}favicon.ico`)).status(), 204);
     assert.deepEqual(errors, []);
-    console.log("Actual serve:next command serves /next/, applies hot chunks and reloads unaccepted edits.");
+    console.log("Actual development command serves root, rejects old preview entries, applies hot chunks and reloads unaccepted edits.");
   } finally {
     if (child.exitCode === null) process.kill(-child.pid, "SIGTERM");
     await exited;

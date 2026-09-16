@@ -1,5 +1,11 @@
 /* Shared by both preview renderers; the legacy route keeps its corner HUD. */
-:root { --font-ui-size: 12px; }
+:root {
+  --font-ui-size: 12px;
+  --color-hud: #888;
+  --color-options-label: #ccc;
+  --color-options-value: #aaa;
+  --color-options-help: #808080;
+}
 
 .orrery-options-hint,
 .orrery-options-indicator { font-size: var(--font-ui-size); }
@@ -7,11 +13,16 @@
 .orrery-date,
 .orrery-count,
 .orrery-fps {
-  color: #999;
+  color: var(--color-hud);
   font-variant-numeric: tabular-nums;
 }
 
-.orrery-options-panel .dg .c input { color: #999 !important; }
+.orrery-options-panel .dg .property-name { color: var(--color-options-label) !important; }
+.orrery-options-hint { color: var(--color-options-help); }
+.orrery-options-panel .dg .c input,
+.orrery-options-panel .dg .c:hover input,
+.orrery-options-panel .dg .c input:focus,
+.orrery-options-panel .dg .c select { color: var(--color-options-value) !important; }
 
 .orrery-footer {
   position: fixed;
@@ -23,7 +34,6 @@
   justify-content: space-between;
   align-items: flex-end;
   gap: 8px 16px;
-  pointer-events: none;
 }
 
 .orrery-readouts,
@@ -55,7 +65,7 @@
 
 .orrery-identity {
   margin-left: auto;
-  color: #888;
+  color: var(--color-hud);
 }
 
 .orrery-options {
@@ -66,6 +76,7 @@
 
 .orrery-options-trigger {
   margin-left: 0;
+  color: var(--color-hud);
 }
 
 .orrery-options-panel {
@@ -98,6 +109,8 @@
 .orrery-status {
   position: static;
   line-height: 18px;
+  color: var(--color-hud);
+  pointer-events: auto;
 }
 .orrery-status a {
   pointer-events: auto;

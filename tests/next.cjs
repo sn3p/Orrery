@@ -57,11 +57,11 @@ async function run({ browser, name, application = "legacy", output: artifactDire
         page.on("response", response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
         page.on("request", request => requests.push(request.url()));
         try {
-          const url = `${base}next/`;
+          const url = base;
           assert.equal((await page.goto(url)).status(), 200);
           await page.evaluate(() => document.fonts.ready);
-          assert.equal(await page.title(), "Orrery — Preview");
-          assert.match(await page.locator('meta[name="robots"]').getAttribute("content"), /noindex/);
+          assert.equal(await page.title(), "Orrery");
+          assert.equal(await page.locator('meta[name="robots"]').count(), 0);
           await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent.replaceAll("\u202f", "")) > 0);
           assert.equal(await page.locator("#orrery canvas").count(), 1);
           assert.equal(await page.getByRole("button", { name: "Options", exact: true }).count(), 1);
@@ -115,10 +115,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
           assert(!requests.some(url => /\/data\/catalog.json$|\/full\/catalog/.test(url)), "Preview never requests historical or whole-file data");
           assert(requests.some(url => /\/pixi\.[\da-f]+\.js$/.test(url)), "Preview loads the real lazy Pixi adapter");
           assert(!requests.some(url => /\/three\.[\da-f]+\.js$/.test(url)), "Pixi startup does not eagerly load Three");
-          // The legacy destination still works when visited directly.
-          await page.goto(base);
-          await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent.replaceAll("\u202f", "")) > 0);
-          assert.equal(await page.locator("#orrery canvas").count(), 1);
+          assert.equal((await page.request.get(base + "next/")).status(), 404);
           assert.deepEqual(errors, []);
           results.push({ browser: name, path: label, viewport, reload: true, keyboardLink: true, isolated: true });
         } finally { await page.close(); }
@@ -132,7 +129,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     failure.on("pageerror", error => failureErrors.push(error.message));
     failure.on("console", message => { if (message.type() === "error") expectedDiagnostics.push(message.text()); });
     try {
-      const url = `${nested.url}/Orrery/next/`;
+      const url = `${nested.url}/Orrery/`;
       await failure.route(latestURL, route => route.fulfill({ status: 503, body: "Unavailable" }));
       await failure.goto(url);
       await failure.getByRole("alert").filter({ hasText: "Could not load the asteroid catalogue" }).waitFor();

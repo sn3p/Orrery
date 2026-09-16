@@ -1,8 +1,8 @@
-# Shared catalogue loading in the preview
+# Shared catalogue loading
 
-The `/next/` preview uses the complete available discovery catalogue by default,
+The unified root uses the complete available discovery catalogue by default,
 through `catalog-profiles/latest.json` and the reviewed indexed/latest loader.
-`/next/?renderer=three` uses the same source and retained population. Switching
+`/?renderer=three` uses the same source and retained population. Switching
 renderers does not fetch that population again or impose a population limit.
 
 “Complete” means all eligible records in the published discovery dataset, with
@@ -12,22 +12,22 @@ startup, speed and discovery animation are unchanged. The population is not all
 visible at startup. No catalogue environment variable or historical setting is
 needed, and source failures never silently fall back to the old bundle.
 
-The legacy root still imports `data/catalog.json` (100,000 objects). Keep that
+Cached legacy root documents still import `data/catalog.json` (100,000 objects). Keep that
 asset for root compatibility and rollback until unified-app promotion is accepted;
 then audit its importer, build and remaining consumers in the cleanup PR.
-The preview neither imports nor emits that file.
+The unified application never requests that file. Production temporarily retains it for old documents.
 
 ## Explicit development and test profiles
 
 From the root package:
 
 ```sh
-# Normal root: legacy bundle; preview: complete published discovery dataset
+# Normal root: complete published discovery dataset
 npm run build
 npm run build:next
 npm run serve:next
 
-# Assembled root stays historical; preview selects the configured source
+# Root selects the configured source; cached preview paths retain the same pins
 CATALOG_CONFIG=catalog-profiles/ties-indexed.json npm run build
 CATALOG_CONFIG=catalog-profiles/ties-whole.json npm run serve:next
 
@@ -36,16 +36,15 @@ npm run catalog:build -- catalog-profiles/ties-indexed.json .context/catalog-sit
 npm run test:catalog
 ```
 
-`CATALOG_CONFIG` optionally overrides the preview source for deterministic tests
+`CATALOG_CONFIG` optionally overrides the unified app source for deterministic tests
 or a verified private profile. Omitting it selects the latest profile. Development
-selection is fixed for the process; restart to select another source. The root development
-command and Conductor's root destination retain their existing behavior. Configured
-preview output remains `dist/next`; overlapping output/static overrides fail.
-Configured production builds compile and stage privately, then atomically replace
-the complete output. Combined builds protect both root and preview; standalone
-builds preserve the root sibling. A shared output lock coordinates configured
-production builds; default builds and development servers retain their existing
-webpack output behavior and should not write the same output concurrently.
+selection is fixed for the process; restart to select another source. Both development
+commands serve root; old `/next` page URLs return 404. Production output is `dist/`; overlapping
+output/static overrides fail. Configured production builds compile and stage privately,
+then atomically replace the complete output, including old root assets, preview asset
+paths and configured `/next/data/` pins. Both build command aliases use a shared output
+lock. Default builds and development servers retain webpack's output behavior and
+should not write the same output concurrently.
 Input protection resolves filesystem aliases before publication. Shared bundle
 caches coordinate installation per pin, preserve a verified concurrent winner,
 and restore previous contents if publication fails. Interrupted installation locks
