@@ -25,7 +25,7 @@ async function build(output) {
       ].map(([name, file]) => [path.isAbsolute(name) ? name : path.join(root, `migration/orrery3d/src/js/${name}`), path.join(root, file)])) } },
   ];
   for (const config of configs) await new Promise((resolve, reject) => {
-    const compiler = webpack({ ...config, context: root, mode: 'production', performance: { hints: false } });
+    const compiler = webpack({ ...config, module: { rules: [...config.module.rules, require("./historical-catalog.cjs").rule] }, context: root, mode: 'production', performance: { hints: false } });
     compiler.run((error, stats) => compiler.close(() => {
       if (error || stats.hasErrors()) reject(error || new Error(stats.toString('errors-only')));
       else resolve();

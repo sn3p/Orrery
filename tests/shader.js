@@ -1,4 +1,4 @@
-import Asteroids from "../src/js/Asteroids";
+import Asteroids from "../src/unified/pixi/Asteroids";
 import { orbitGLSL, REFERENCE_JED, REBASE_DAYS, MAX_PHASE_ADVANCE } from "../src/js/asteroidOrbits";
 
 const check = (condition, message) => { if (!condition) throw new Error(message); };

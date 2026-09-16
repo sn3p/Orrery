@@ -2,7 +2,7 @@
 // Public preview startup is tested separately through src/unified/index.js.
 import App from "../src/unified/App.js";
 import planets from "../src/js/planets.js";
-import catalogURL from "../data/catalog.json";
+import catalogURL from "./fixtures/historical100k/catalog.json.gz";
 import "../src/css/main.css";
 import "../src/unified/preview.css";
 import "../src/fonts/OFL.txt";

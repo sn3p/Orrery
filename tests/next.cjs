@@ -25,7 +25,7 @@ async function compileLazyProbe(fixture) {
   assert([...stats.compilation.chunks].some(chunk => !chunk.canBeInitial()), "Preview supports real lazy chunks");
 }
 
-async function run({ browser, name, application = "legacy", output: artifactDirectory }) {
+async function run({ browser, name, application = "unified", output: artifactDirectory }) {
   const directory = artifactDirectory || path.resolve(".context/next-preview/browser");
   fs.mkdirSync(directory, { recursive: true });
   const pages = path.join(directory, "pages");

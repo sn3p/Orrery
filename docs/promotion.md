@@ -53,12 +53,15 @@ a retained artifact can also be served separately for local verification.
 
 ## Remaining cleanup
 
-Unit 7a removes public compatibility payloads. It deliberately retains the
-historical 100k source dataset/importer, legacy renderer test references and
-`migration/orrery3d` snapshot: current numerical, rendered and benchmark tests use
-them. Migrate those consumers in subsequent review units before deletion. Keep
-independent numerical references, licenses, benchmark provenance and all original
-imported Git commits. Test-only legacy builds are not deployed.
+Unit 7a removed public compatibility payloads. Unit 7b moves the exact historical
+100k catalogue to a compressed, attributed test fixture and retires the importer
+and duplicate legacy application. Current tests import production classes;
+benchmark hashes still cover the exact decompressed catalogue bytes.
+
+Unit 7c still owns `migration/orrery3d`: extract and attribute its independent
+shader/numerical oracles before removing the snapshot. Preserve relevant licenses,
+provenance and all original imported Git commits. Historical rollback checkouts
+and artifacts remain independent of current fixture builds.
 
 Copy/help and buffering follow-ups remain separate. Orrery3D's move notice and
 site link need their own review unit; repository archival requires explicit approval.

@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Texture } from "pixi.js";
-import Orbit from "../src/js/Orbit.js";
-import Planet from "../src/js/Planet.js";
+import Orbit from "../src/unified/pixi/Orbit.js";
+import Planet from "../src/unified/pixi/Planet.js";
 import planets from "../src/js/planets.js";
 import reference from "./cpu-reference.cjs";
 

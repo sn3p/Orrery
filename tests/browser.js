@@ -1,5 +1,5 @@
 import "./fixture";
-import Orrery from "../src/js/Orrery";
+import Orrery from "./unified-app";
 import { shaderAccuracy, reference } from "./shader";
 import { prepareOrbits, REFERENCE_JED, REBASE_DAYS } from "../src/js/asteroidOrbits";
 import * as PIXI from "pixi.js";

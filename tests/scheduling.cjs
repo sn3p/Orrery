@@ -5,7 +5,7 @@ const settle = page => page.evaluate(async () => {
   for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
 });
 
-async function run({ browser, application = "legacy", output: artifactDirectory }) {
+async function run({ browser, application = "unified", output: artifactDirectory }) {
   const output = artifactDirectory || (application === 'unified' ? '.context/pr2/unified-scheduling' : '.context/paused-rendering/scheduling');
   await build('./tests/rendering-fixture.js', output, { application });
   const server = await serve(output);
@@ -17,7 +17,7 @@ async function run({ browser, application = "legacy", output: artifactDirectory 
     await page.waitForFunction(n => fixture.probe.draws >= n + 3, before);
     await page.goto(server.url + '/?manual'); await page.evaluate(() => window.ready);
     await settle(page);
-    const setupDraws = application === 'unified' ? 1 : 0;
+    const setupDraws = 1;
     assert.equal(await page.evaluate(() => fixture.probe.draws), setupDraws, 'Only preview bundled attachment submits a synchronous setup frame');
     await page.evaluate(() => {
       const {app} = fixture;

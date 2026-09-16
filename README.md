@@ -61,8 +61,8 @@ desktop/mobile layout. Playwright Test reports individual cases and lifecycle
 steps. Results, screenshots and failure traces are saved in
 `.context/playwright-results/`; open the HTML report with
 `npx playwright show-report .context/playwright-report`.
-The default browser suite also checks the unified app against the legacy pixels,
-numerics, lifecycle and options; `npm run test:unified` builds the app and
+The default browser suite checks current production numerics, pixels, lifecycle
+and options; `npm run test:unified` builds the app and
 runs that subset, including from a clean checkout after installing dependencies.
 The default suite runs Chromium, Firefox and Playwright WebKit. For a local
 Chrome-only pass, use `BROWSERS=chromium npm test`. See
@@ -189,8 +189,8 @@ symbolic links and other non-regular build inputs are rejected. The source stamp
 itself is excluded from its own fingerprint. Local builds save a matching
 `benchmark-source.json` with the checkout revision and dirty
 state, including untracked source changes during compilation. Each report and run
-identifies the executed `application` (`legacy`, `unified`, or `unknown` for older
-external fixtures), independently of the runner environment; `BUNDLE=/path/to/app npm run benchmark` uses that build record only while
+identifies the executed `application` (`unified` for current builds; older external fixtures may identify
+`legacy` or `unknown`), independently of the runner environment; `BUNDLE=/path/to/app npm run benchmark` uses that build record only while
 its build fingerprint still matches. Default test/benchmark outputs are Git-ignored
 in ordinary clones as well as Conductor workspaces. Missing or stale records
 report an unknown source revision, separately from the runner's revision.
@@ -248,30 +248,16 @@ GitHub's built-in token; no personal access token or deploy key is needed.
 ## Historical test data
 
 The public app reads the catalogue published by [orrery-data](https://github.com/sn3p/orrery-data).
-The following importer is retained for historical tests and benchmarks; it does
-not update the public app. Its consumers will be migrated in the next cleanup.
+Tests and benchmarks use an immutable [historical 100k fixture](tests/fixtures/historical100k/README.md).
+It retains the original catalogue bytes, compressed in the repository with source
+provenance and a verified SHA-256. Test builders decompress it to an asynchronous
+JSON resource; it is never included in the production site. The old local importer
+and `npm run setup` have been retired. Data updates belong to the producer.
 
-Data files are stored in the `data` directory.
-You can either download the data files manually using the links above, or use the download script:
-
-Download the data and parse it to JSON:
-
-```bash
-cd data
-./download_data.sh && ./data_to_json.py
-```
-
-The retained legacy `data/catalog.json` contains **100,000 objects**; the main app uses the published discovery catalogue independently. It remains only as a historical test/benchmark input and is not deployed. Running the importer without a limit replaces it with all numbered minor planets that have matching discovery dates.
-
-On **12 September 2026**, a full import of fresh MPC data produced **895,910 objects** from **1,563,495 orbital records**. Unnumbered objects lack matching discovery records in `NumberedMPs.txt` and are excluded. These counts change as MPC updates its datasets; see [issue #47](https://github.com/sn3p/Orrery/issues/47) for the verified counts and upstream limitation.
-
-A full export produces a large JSON file and is expensive to render. You can limit the maximum number of results by passing a number as an argument:
-
-```bash
-./data_to_json.py 9999
-```
-
-The limit selects the first matching objects in MPCORB order, then sorts them by discovery date. It does not sample across the full discovery timeline.
+On **12 September 2026**, a full import of fresh MPC data produced **895,910 objects**
+from **1,563,495 orbital records**. Unnumbered objects lacked matching discovery
+records in `NumberedMPs.txt` and were excluded; these are historical counts, not
+current coverage guarantees. See [issue #47](https://github.com/sn3p/Orrery/issues/47).
 
 ## Screenshot
 

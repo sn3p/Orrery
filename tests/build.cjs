@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn, execFileSync } = require("node:child_process");
 const webpack = require("webpack");
-const config = require("../webpack.config");
+const config = require("./webpack-fixture.cjs");
 
 (async () => {
   const directory = path.resolve(".context/build-test");
@@ -45,7 +45,7 @@ const config = require("../webpack.config");
   const output = path.join(directory, "watch");
   fs.rmSync(output, { recursive: true, force: true });
   const wrapper = path.join(directory, "webpack.cjs");
-  fs.writeFileSync(wrapper, `const base = require(${JSON.stringify(path.resolve("webpack.config.js"))});\n`
+  fs.writeFileSync(wrapper, `const base = require(${JSON.stringify(path.resolve("tests/webpack-fixture.cjs"))});\n`
     + `module.exports = { ...base, entry: ${JSON.stringify(entry)}, output: { ...base.output, path: ${JSON.stringify(output)} }, stats: "errors-only" };\n`);
   const child = spawn(process.execPath, [require.resolve("webpack-cli/bin/cli.js"), "--mode", "development", "--watch", "--config", wrapper], {
     env: { ...process.env, NODE_ENV: "production" }, stdio: ["ignore", "pipe", "pipe"], detached: true,

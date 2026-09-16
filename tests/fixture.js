@@ -1,7 +1,7 @@
 // Separate entry point: exercise the production classes without shipping test globals.
-import Orrery from "../src/js/Orrery";
+import Orrery from "./unified-app";
 import planets from "../src/js/planets";
-import catalogURL from "../data/catalog.json";
+import catalogURL from "./fixtures/historical100k/catalog.json.gz";
 import "../src/css/main.css";
 
 window.ready = (async () => {

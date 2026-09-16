@@ -1,6 +1,6 @@
 const { test } = require('./fixtures.cjs');
 
-for (const application of ['legacy', 'unified']) {
+for (const application of ['unified']) {
   test.describe(application, () => {
     const tag = application === 'unified' ? ' @standalone' : '';
     test(`RAF scheduling ownership${tag}`, async ({ check }) => {
@@ -14,9 +14,6 @@ for (const application of ['legacy', 'unified']) {
     });
   });
 }
-test('legacy development hot updates and full reload', async ({ check }) => {
-  await check('hmr');
-});
 for (const command of ['serve', 'serve:next']) {
   for (const renderer of ['pixi', 'three']) {
     test(`${command} promoted development ${renderer}, hot updates and retired preview route`, async ({ check }) => {

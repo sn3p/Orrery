@@ -15,9 +15,9 @@ const checkBuffer = async (page, ratio) => {
   assert.deepEqual(await dimensions(page), { canvas: expected, buffer: expected });
 };
 
-module.exports = async (browser, url, output, name, application = "legacy") => {
+module.exports = async (browser, url, output, name, application = "unified") => {
   const page = await browser.newPage({ viewport: { width: 800, height: 600 }, deviceScaleFactor: 3 });
-  if (application === 'unified') await require('./default-catalog-route.cjs').routeDefaultCatalog(page);
+  await require('./default-catalog-route.cjs').routeDefaultCatalog(page);
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });

@@ -6,7 +6,7 @@ const { testOptions } = require('./options.cjs');
 const testPixelRatio = require('./pixel-ratio.cjs');
 const texture = require('./resolution-texture.cjs');
 
-async function run({ browser, name, application = "legacy", output: artifactDirectory, part, step = (_name, action) => action() }) {
+async function run({ browser, name, application = "unified", output: artifactDirectory, part, step = (_name, action) => action() }) {
   assert(part === undefined || ['options', 'pixelRatio', 'texture'].includes(part), `Unknown options check: ${part}`);
   const output = artifactDirectory || (application === 'unified' ? '.context/pr2/unified-options-browser' : '.context/dpr/checks');
   fs.mkdirSync(output, { recursive: true });
@@ -14,8 +14,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     await build('./tests/rendering-fixture.js', path.join(output, 'fixture'), { application });
     await build('./tests/init-fixture.js', path.join(output, 'init'), { application });
   }
-  const publicSite = application === 'unified' ? 'dist' : path.join(output, 'legacy-site');
-  if (application === 'legacy') await build('./src/js/index.js', publicSite, { application });
+  const publicSite = 'dist';
   const production = await serve(publicSite), fixture = await serve(output);
   const report = [];
   try {

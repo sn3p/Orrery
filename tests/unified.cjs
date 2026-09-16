@@ -17,10 +17,9 @@ function raster(image) {
   return Buffer.concat([header, require('node:zlib').inflateSync(Buffer.concat(data))]);
 }
 
-async function run({ browser, name, application = "legacy", output: artifactDirectory }) {
+async function run({ browser, name, application = "unified", output: artifactDirectory }) {
   const output = artifactDirectory || '.context/pr2/contracts';
-  assert.equal(application, 'legacy', 'Raw comparison must not alias the legacy reference');
-  // No alias: compare the actual legacy class and actual production controller.
+  // Raw production controller: no ticker-bridge facade or retired class aliases.
   await build('./tests/unified-fixture.js', path.join(output, 'fixture'), { application });
   const server = await serve(output), report = [];
   try {
@@ -154,7 +153,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       for (const dpr of [1, 2]) {
         const pages = [];
         try {
-          for (const application of ['Legacy', 'App']) {
+          for (const application of ['App']) {
             const p = await browser.newPage({ viewport, deviceScaleFactor: dpr });
             pages.push(p);
             p.on('pageerror', e => errors.push(e.message));
@@ -168,6 +167,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
               window.catalog = await (await fetch(fixture.catalogURL)).json();
             }, application);
           }
+          const scenes = new Map();
           for (const [label, jed, elapsed, scale] of [
             ['sparse-fresh', 2415020.5, 0, 1], ['sparse-half', 2415020.5, 1 / 3, 1], ['sparse-mature', 2415020.5, 1, 1],
             ['dense-fresh', 2458600.5, 0, 1], ['dense-half', 2458600.5, 1 / 3, 1], ['dense-mature', 2458600.5, 1, 1],
@@ -190,17 +190,34 @@ async function run({ browser, name, application = "legacy", output: artifactDire
                   buffers: scene.asteroids.geometry.buffers.length,
                   bufferBytes: scene.asteroids.geometry.buffers.reduce((n, b) => n + b.data.byteLength, 0),
                   phaseBytes: scene.asteroids.phases.byteLength, dateBytes: scene.asteroids.discoveryDates.byteLength } };
+              result.expectedCount = catalog.filter(row => row.disc <= jed).length;
+              const gl = scene.app.renderer.gl;
+              const pixels = new Uint8Array(scene.canvas.width * scene.canvas.height * 4);
+              gl.readPixels(0, 0, scene.canvas.width, scene.canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+              result.litPixels = 0;
+              for (let i = 0; i < pixels.length; i += 4) {
+                if (Math.max(pixels[i], pixels[i + 1], pixels[i + 2]) > 20) result.litPixels++;
+              }
               return result;
               }, { jed, elapsed, scale }));
             }
-            assert(raster(results[1].pixels).equals(raster(results[0].pixels)) && results[1].date === results[0].date && results[1].count === results[0].count, `${name} ${label} ${viewport.width}x${viewport.height} DPR${dpr}: exact scene pixels/HUD`);
-            assert.deepEqual(results[1].resources, results[0].resources, 'Retained scene/GPU/CPU resource counts match');
-            comparisons.push({ viewport, dpr, label, equal: true, resources: results[1].resources });
+            assert.equal(results[0].count, results[0].expectedCount, 'Rendered HUD population matches independent fixture chronology');
+            assert.equal(results[0].date, new Date((jed - 2440587.5) * 86400000).toISOString().slice(0, 10), 'HUD date agrees with independent UTC conversion');
+            assert(results[0].litPixels > 0, 'Raw App renders visible scene pixels');
+            const pixels = raster(results[0].pixels);
+            for (const earlier of label === 'dense-mature' ? ['dense-fresh', 'dense-half', 'sparse-mature']
+              : ['zoom', 'overview', 'reverse'].includes(label) ? ['dense-mature'] : []) {
+              assert(!pixels.equals(scenes.get(earlier)), `${label} produces different pixels from ${earlier}`);
+            }
+            scenes.set(label, pixels);
+            assert.equal(results[0].resources.planets, 6);
+            assert(results[0].resources.bufferBytes > 0 && results[0].resources.dateBytes === 100000 * 8);
+            comparisons.push({ viewport, dpr, label, count: results[0].count, date: results[0].date, litPixels: results[0].litPixels, resources: results[0].resources });
             if (dpr === 1 && ['dense-mature', 'sparse-half'].includes(label)) {
               for (let i = 0; i < pages.length; i++) {
                 await pages[i].bringToFront(); await pages[i].waitForFunction(() => !document.hidden);
                 await pages[i].evaluate(() => app.renderFrame(0));
-                await pages[i].screenshot({ path: path.join(output, `${name}-${i ? 'preview' : 'legacy'}-${viewport.width}-${label}.png`) });
+                await pages[i].screenshot({ path: path.join(output, `${name}-current-${viewport.width}-${label}.png`) });
               }
             }
           }
@@ -223,17 +240,16 @@ async function run({ browser, name, application = "legacy", output: artifactDire
                 assert(raster(after).equals(raster(before)), 'Graphics recovery restores exact mature pixels');
                 images.push(after);
               }
-              assert(raster(images[0]).equals(raster(images[1])), 'Legacy and preview recovery pixels match');
               comparisons.push({ viewport, dpr, label: `recovery-${cycle + 1}`, equal: true });
             }
           }
         } finally { for (const p of pages) await p.close(); }
       }
     }
-    assert.deepEqual(errors, [], 'No browser errors during raw lifecycle and parity comparisons');
+    assert.deepEqual(errors, [], 'No browser errors during raw lifecycle and scene checks');
     report.push({ browser: name, lifecycle, comparisons });
     fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify(report, null, 2) + '\n');
-    console.log(`${name}: raw App lifecycle and ${comparisons.length} exact legacy/preview scene+HUD comparisons passed.`);
+    console.log(`${name}: raw App lifecycle and ${comparisons.length} current scene/HUD and exact recovery checks passed.`);
   } finally { await server.close(); }
 }
 

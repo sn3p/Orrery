@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 
-async function run({ browser, name, application = "legacy", output: artifactDirectory,
+async function run({ browser, name, application = "unified", output: artifactDirectory,
   catalogConfig = process.env.CATALOG_CONFIG, renderer = "pixi", command = "serve:next" }) {
   const selection = catalogConfig && JSON.parse(fs.readFileSync(catalogConfig, "utf8"));
   const directory = artifactDirectory || path.resolve(selection ? ".context/pr3/browser/dev" : ".context/next-preview/dev");

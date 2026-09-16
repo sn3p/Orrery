@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import Orbit from "../src/js/Orbit.js";
+import Orbit from "../src/unified/pixi/Orbit.js";
 import planets from "../src/js/planets.js";
 import reference from "./cpu-reference.cjs";
 
