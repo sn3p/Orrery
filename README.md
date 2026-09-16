@@ -8,7 +8,7 @@ then fade to grey as the date advances. One app offers a
 [3D](https://sn3p.github.io/Orrery/?renderer=three) (Three.js) renderer; switch in
 the options panel.
 
-| [2D](https://sn3p.github.io/Orrery) | [3D](https://sn3p.github.io/Orrery/?renderer=three) |
+| [2D](https://sn3p.github.io/Orrery) (Pixi.js) | [3D](https://sn3p.github.io/Orrery/?renderer=three) (Three.js) |
 |---|---|
 | ![Orrery in the 2D renderer](screenshot.png) | ![Orrery in the 3D renderer](screenshot-three.png) |
 
