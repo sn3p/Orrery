@@ -17,7 +17,7 @@ function raster(image) {
   return Buffer.concat([header, require('node:zlib').inflateSync(Buffer.concat(data))]);
 }
 
-async function run({ browser, name, application = "legacy", output: artifactDirectory }) {
+async function run({ browser, name, application = "legacy", output: artifactDirectory, compact = false }) {
   const output = artifactDirectory || '.context/pr2/contracts';
   assert.equal(application, 'legacy', 'Raw comparison must not alias the legacy reference');
   // No alias: compare the actual legacy class and actual production controller.
@@ -150,8 +150,8 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     } finally { releaseLoad(); await page.close(); }
 
     const comparisons = [];
-    for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
-      for (const dpr of [1, 2]) {
+    for (const viewport of (compact ? [{ width: 390, height: 844 }] : [{ width: 1280, height: 800 }, { width: 390, height: 844 }, { width: 320, height: 568 }, { width: 844, height: 390 }])) {
+      for (const dpr of (compact ? [1] : [1, 2])) {
         const pages = [];
         try {
           for (const application of ['Legacy', 'App']) {
@@ -168,11 +168,13 @@ async function run({ browser, name, application = "legacy", output: artifactDire
               window.catalog = await (await fetch(fixture.catalogURL)).json();
             }, application);
           }
-          for (const [label, jed, elapsed, scale] of [
+          for (const [label, jed, elapsed, scale] of (compact ? [
+            ['sparse-half', 2415020.5, 1 / 3, 1], ['dense-mature', 2458600.5, 1, 1],
+          ] : [
             ['sparse-fresh', 2415020.5, 0, 1], ['sparse-half', 2415020.5, 1 / 3, 1], ['sparse-mature', 2415020.5, 1, 1],
             ['dense-fresh', 2458600.5, 0, 1], ['dense-half', 2458600.5, 1 / 3, 1], ['dense-mature', 2458600.5, 1, 1],
             ['zoom', 2458600.5, 1, 4], ['overview', 2458600.5, 1, 0.35], ['reverse', 2444269.5, 1, 1],
-          ]) {
+          ])) {
             const results = [];
             for (const p of pages) {
               // Firefox backgrounds the previous page when another opens;
