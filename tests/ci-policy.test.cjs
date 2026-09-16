@@ -14,13 +14,22 @@ test('path policy preserves risky changes, unions groups and defaults unknown fi
   assert.equal(plan(['src/js/Gui.js']).groups, 'core,ui,graphics,data');
   assert.equal(plan(['src/unified/ui/Options.js']).groups, 'core,ui');
   assert.equal(plan(['src/unified/compat/pr73-assets/main.js.gz']).groups, 'core,ui,build,dev');
+  for (const file of ['src/js/index.js', 'src/unified/index.js', 'src/unified/index.html', 'src/unified/renderers.js']) {
+    assert.equal(plan([file]).groups, 'core,ui,build,dev', file);
+    for (const suffix of ['.map', '.old', '.gz', '/nested.js', '.copy.js']) {
+      const unknown = file + suffix;
+      assert.equal(plan([unknown]).groups, 'full', unknown);
+      assert(plan([unknown]).buildTests, unknown);
+    }
+  }
   assert(plan(['src/unified/index.html']).buildTests);
   assert.equal(plan(['src/unified/App.js']).groups, 'core,ui,graphics,data');
   const data = plan(['src/unified/catalog/CatalogLoader.js']);
   assert.equal(data.groups, 'core,data,build'); assert(data.buildTests);
   assert.equal(plan(['src/css/main.css', 'catalog-profiles/latest.json']).groups, 'core,ui,data,build');
   for (const file of ['package-lock.json', '.github/workflows/pages.yml', 'tests/gpu.cjs',
-    'tests/new.spec.cjs', 'scripts/build.cjs', 'webpack.config.js', 'src/new-runtime.js', 'migration/orrery3d/src/App.js']) {
+    'tests/new.spec.cjs', 'scripts/build.cjs', 'webpack.config.js', 'src/new-runtime.js', 'migration/orrery3d/src/App.js',
+    'src/unified/index.mjs', 'src/unified/index.css', 'src/unified/renderers.json', 'src/js/index']) {
     assert.equal(plan([file]).groups, 'full', file);
     assert(plan([file]).buildTests, file);
   }
@@ -90,6 +99,25 @@ test('planner CLI handles real PR divergence, rename/delete, push, missing histo
   assert.equal(run('push', { before: 'a'.repeat(40), after: head }).groups, 'full');
   for (const name of ['schedule', 'workflow_dispatch', 'unknown']) assert.equal(run(name, {}).groups, 'full');
   assert.equal(fromEvent('push', { before: base, after: head }, () => '').code, false);
+
+  // Exercise the workflow's real Git diff and output boundary, not only the
+  // pure classifier: entry-like additions and their deletions must run full.
+  git('checkout', '-q', 'topic');
+  for (const file of ['src/js/index.js.map', 'src/unified/renderers.js.old', 'src/unified/index.html.gz']) {
+    const before = git('rev-parse', 'HEAD').trim();
+    fs.mkdirSync(path.dirname(path.join(directory, file)), { recursive: true });
+    fs.writeFileSync(path.join(directory, file), 'unknown entry-like file');
+    git('add', file); git('commit', '-qm', 'add unknown entry-like file');
+    const after = git('rev-parse', 'HEAD').trim();
+    for (const result of [run('push', { before, after }),
+      run('pull_request', { pull_request: { base: { sha: before }, head: { sha: after } } })]) {
+      assert.equal(result.groups, 'full', file);
+      assert.equal(result['build-tests'], 'true', file);
+      assert.equal(result.code, 'true', file);
+    }
+    git('rm', '-q', file); git('commit', '-qm', 'remove unknown entry-like file');
+    assert.equal(run('push', { before: after, after: git('rev-parse', 'HEAD').trim() }).groups, 'full', file);
+  }
 });
 
 test('native selection retains core in Chromium, smoke in other engines and two independent standalone cases', () => {
