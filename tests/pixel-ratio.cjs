@@ -177,9 +177,11 @@ module.exports = async (browser, url, output, name, application = "unified") => 
     await page.addInitScript(() => {
       Object.defineProperty(window, "localStorage", { get() { throw new DOMException("Storage blocked", "SecurityError"); } });
     });
-    await page.reload(); await boot(); await checkBuffer(page, 1);
+    // Blocked storage cannot remember the introduction, so it returns on every visit.
+    const dismissIntro = async () => { await page.locator('#orrery-intro[open]').waitFor(); await page.keyboard.press('Escape'); };
+    await page.reload(); await dismissIntro(); await boot(); await checkBuffer(page, 1);
     await choose("2"); await checkBuffer(page, 2);
-    await page.reload(); await boot(); await checkBuffer(page, 1);
+    await page.reload(); await dismissIntro(); await boot(); await checkBuffer(page, 1);
     assert.deepEqual(errors, []);
   } finally {
     if (cdp) await cdp.detach();

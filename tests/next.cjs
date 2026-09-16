@@ -78,11 +78,9 @@ async function run({ browser, name, application = "unified", output: artifactDir
           // macOS WebKit follows Safari's default: Option-Tab includes
           // native links. Other supported browsers/platforms use Tab.
           await page.keyboard.press(name === "webkit" && process.platform === "darwin" ? "Alt+Tab" : "Tab");
-          const link = page.getByRole("link", { name: "GitHub", exact: true });
-          assert(await link.evaluate(element => element === document.activeElement));
-          assert.equal(await link.evaluate(element => getComputedStyle(element).outlineStyle), "solid");
-          assert.equal(await link.getAttribute("href"), "https://github.com/sn3p/Orrery");
-          assert.equal(await link.getAttribute("target"), "_blank");
+          const about = page.getByRole("button", { name: "About Orrery", exact: true });
+          assert(await about.evaluate(element => element === document.activeElement));
+          assert.equal(await about.evaluate(element => getComputedStyle(element).outlineStyle), "solid");
           await require("./next-layout.cjs").check(page);
           await page.screenshot({ path: path.join(directory, `${name}-${label}-${viewport.width}.png`) });
           await page.getByRole("button", { name: "Options", exact: true }).click();
@@ -148,7 +146,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
         "Unable to start the visualization. Please reload to try again.",
         "A failed renderer download gives recovery guidance without claiming WebGL is missing");
       assert.equal(await failure.locator("canvas, .orrery-options").count(), 0);
-      assert(await failure.getByRole("link", { name: "GitHub", exact: true }).isVisible());
+      assert(await failure.getByRole("button", { name: "About Orrery", exact: true }).isVisible());
       await failure.unroute("**/assets/pixi.*.js");
       await failure.reload();
       await failure.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);

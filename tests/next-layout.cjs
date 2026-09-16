@@ -29,8 +29,8 @@ exports.check = async page => {
   assert.equal(layout.scrollWidth, layout.width, 'No horizontal overflow');
   assert.equal(await page.locator('.preview-identity').count(), 0);
   assert.equal(await page.getByRole('link', { name: 'Open Orrery' }).count(), 0);
-  assert((await page.getByRole('link', { name: 'GitHub', exact: true }).boundingBox()).height >= 24,
-    'The small footer text retains a comfortable link target');
+  assert((await page.getByRole('button', { name: 'About Orrery', exact: true }).boundingBox()).height >= 24,
+    'The small footer text retains a comfortable target');
   const styles = await page.locator('.orrery-date, .orrery-count, .orrery-fps, .orrery-identity, .orrery-options-trigger, .orrery-options-indicator, .orrery-options-hint, .dg .property-name, .dg input, .dg select')
     .evaluateAll(elements => elements.map(element => getComputedStyle(element).fontSize));
   assert(styles.every(size => size === '12px'), 'All preview text uses 12px');
