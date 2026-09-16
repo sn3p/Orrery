@@ -27,6 +27,7 @@ async function run({ browser, name, output = '.context/ui-polish/status' }) {
   const files = fixtureFiles();
   const index = JSON.parse(files.get([...files.keys()].find(key => key.startsWith('index-'))));
   const lastChunk = producerBase + index.chunks.at(-1).url;
+  const precedingChunk = producerBase + index.chunks.at(-2).url;
   const results = [];
   try {
     for (const renderer of ['pixi', 'three']) {
@@ -35,11 +36,13 @@ async function run({ browser, name, output = '.context/ui-polish/status' }) {
         const page = await browser.newPage({ viewport });
         const errors = [];
         page.on('pageerror', error => errors.push(error.message));
-        let releaseLatest, releaseChunk, failChunk = true;
+        let releaseLatest, releasePreceding, releaseChunk, failChunk = true;
         const latestGate = new Promise(resolve => { releaseLatest = resolve; });
+        const precedingGate = new Promise(resolve => { releasePreceding = resolve; });
         const chunkGate = new Promise(resolve => { releaseChunk = resolve; });
         await routeDefaultCatalog(page);
         await page.route(latestURL, async route => { await latestGate; await route.fallback(); });
+        await page.route(precedingChunk, async route => { await precedingGate; await route.fallback(); });
         await page.route(lastChunk, async route => {
           await chunkGate;
           if (failChunk) await route.fulfill({ status: 503, body: 'Controlled failure' });
@@ -52,6 +55,15 @@ async function run({ browser, name, output = '.context/ui-polish/status' }) {
           await checkStatus(page, false);
           await capture('initial');
           releaseLatest();
+          await page.getByRole('status').filter({ hasText: 'Buffering asteroids' }).waitFor();
+          // Force the intermediate buffering state observed on hosted WebKit.
+          // Its message clears when this chunk commits, before the final stall.
+          assert(Number(await page.locator('#orrery-count').textContent()) < index.chunks.at(-1).start);
+          releasePreceding();
+          // A committed HUD count proves the preceding chunk has been drawn.
+          // Only the withheld final chunk can cause buffering after this point.
+          await page.waitForFunction(count => document.querySelector('#orrery-count').textContent === String(count),
+            index.chunks.at(-1).start);
           await page.getByRole('status').filter({ hasText: 'Buffering asteroids' }).waitFor();
           await checkStatus(page, true);
           const before = await page.locator('.orrery-readouts').textContent();
@@ -85,7 +97,7 @@ async function run({ browser, name, output = '.context/ui-polish/status' }) {
             readouts: await page.locator('.orrery-readouts').textContent(), errors });
           await capture('unexpected-failure');
           throw error;
-        } finally { releaseLatest(); releaseChunk(); await page.close(); }
+        } finally { releaseLatest(); releasePreceding(); releaseChunk(); await page.close(); }
       }
     }
     fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify(results, null, 2));
