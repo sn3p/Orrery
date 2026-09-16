@@ -34,10 +34,8 @@ __pycache__/
 /.context/catalog-trial/
 /.context/pr3/browser/
 
-# Generated promoted chunks and temporary compatibility paths.
-/dist/next/
-/dist/assets/
-/dist/index.html
+# Generated site (source assets and licenses live under src/).
+/dist/
 /.context/promotion/
 
 # Conductor settings for this machine

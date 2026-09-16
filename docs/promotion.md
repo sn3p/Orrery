@@ -1,81 +1,64 @@
-# Root promotion and rollback
+# Release and rollback
 
-This review unit promotes the shared Pixi/Three app after polish PR73
-(`2b2326e330d729da194f3fa38cb24fc60f9cf94d`). Merging to master triggers the
-Pages release. A draft PR or local verification is not release approval.
+PR74 promoted the unified Pixi/Three app to root. Its merged Pages release was
+verified on September 16, 2026: all 38 deployed files matched the artifact;
+Chromium, Firefox and WebKit passed live startup, chronology, switching, reverse
+and reload checks in both modes. Retired preview entries returned 404.
 
-## Entries and compatibility
+## Current public build
 
-- `/` starts Pixi; `/?renderer=three` starts Three. Existing unknown-renderer
-  fallback, source errors, retry, date/count and switching behavior remain.
-- `/next`, `/next/` and `/next/index.html` have no public page or forwarding to the app;
-  they return 404 (a static host may first normalize `/next` to `/next/`). Open `/` or `/?renderer=three` directly.
-- Assets use the HTML/script deployment base, including `/Orrery/` on Pages.
-- Keep PR73's root `bundle.js`, `main.css`, fonts and historical catalogue bytes,
-  and its `/next/` JS/CSS/font paths, until promoted-release acceptance. Cached
-  documents and open sessions can finish loading their old code and data.
-  Configured builds stage current and explicitly retained data pins at both root
-  and old preview paths. They also compile the default PR73 asset set: cached
-  PR73 HTML keeps its original latest source; opening the root selects the new profile.
-  Reloading an old preview URL or using its old recovery link returns 404, so
-  cached preview users must navigate to `/` or `/?renderer=three` explicitly.
-  The 900 MB site budget includes all compatibility assets and data copies.
-- New visits receive the unified root; its source never falls back to historical
-  data. The temporary “Open Pixi preview” recovery label is retained. Current CSS has
-  separate HUD, label, value and help colors; the original compiled PR73 stylesheet
-  and scripts with changed hashes are frozen in `src/unified/compat/` for cached
-  HTML and removed during cleanup. The current Pixi adapter releases texture
-  bindings before replacing or destroying their source.
-  Missing lazy chunks show existing recovery guidance; reload obtains current
-  HTML, and Three failures also provide a Pixi recovery link.
+- `/` starts Pixi; `/?renderer=three` starts Three. Assets resolve relative to
+  the deployment base, including `/Orrery/` on Pages.
+- `/next`, `/next/` and `/next/index.html` remain retired, without forwarding.
+- Unit 7a compiles only the current application. It removes PR73's legacy root
+  bundle, historical catalogue, old CSS and duplicate `/next/` assets from the
+  site, plus the frozen compatibility snapshots. Current root assets are unchanged.
+- Cached PR73 documents can no longer load their removed dependencies. Open
+  `/` or `/?renderer=three` to load the current application; reloading a retired
+  preview URL still returns 404. Current missing-chunk guidance and Pixi recovery
+  remain available.
+- Configured builds publish verified data and explicitly retained pins only
+  under root `data/`. Atomic replacement, input protection and the 900 MB site
+  budget remain enforced. Use `npm run build` or its `build:next` alias;
+  direct configured invocation of `webpack.build.config.js` fails before cleaning.
+- `serve` and `serve:next` use the root application. `watch` retains current
+  root chunks and catalogue pins, removes old payloads and rejects clean overrides.
+  Avoid simultaneous writers to the same output.
 
-`npm run build` and `build:next` assemble the same complete `dist/` site.
-`serve` and `serve:next` serve the main application; `watch` rebuilds that app.
-Generated root HTML and hashed chunks are ignored, rather than committing HTML
-that references absent generated files. The older tracked legacy assets remain
-until cleanup; a fresh checkout needs a build or the development server.
-Configured builds retain their atomic publication and input-protection checks.
-Use `npm run build` or `build:next` for configured production output; direct
-configured invocation of `webpack.build.config.js` is rejected before cleaning.
-Do not run multiple builds/dev writers against the same output simultaneously.
+Generated `dist/` is ignored. Source fonts and their license remain in `src/fonts/`
+and are emitted by the app build. A clean checkout requires a build or dev server.
 
-## Before release approval
+## Verification and release
 
-1. Run build/Node/browser/history tests, including production root/Pages URLs,
-   both engines, removed preview entries and root query behavior, cached PR73 assets, missing chunks,
-   source failures/retry, development/HMR and polish layouts.
-2. Retain the complete PR73 site and its SHA-256 inventory outside the workspace
-   and independently of expiring CI artifacts. Keep the source commit and lockfile.
-   Verify the retained files before using them.
-3. Restore that artifact into a separate directory and serve it. Verify its legacy
-   root and both original `/next/` modes, including their data/asset paths. Keep the
-   result separate from candidate verification.
-4. Review the complete diff and independent findings. Publish as a draft. Request
-   release approval only after the candidate and rollback are concrete and verified.
+Before merging, run build, Node, browser and history checks. Cover actual
+root/subpath entries, both renderers, lazy errors/recovery, catalogue failures,
+configured sources, development/HMR and responsive layouts. Review the complete
+change and independent findings. PRs are drafts by default; merge/release requires
+explicit approval. After release, verify the actual deployed files and both modes.
+A merged commit or successful Pages workflow alone is not live acceptance.
 
-## Release and recovery
+## Rollback
 
-After explicit release/merge approval, merge the reviewed PR and verify the deployed
-root, both mode URLs, retired `/next` entries and a stale session against the live site.
-Do not infer live acceptance from local tests, merged source or a Pages job alone.
+Keep known-good source, lockfile, complete site and SHA-256 inventory independently
+of expiring CI artifacts. Verify retained bytes before restoring them. PR73's
+pre-promotion baseline is `2b2326e330d729da194f3fa38cb24fc60f9cf94d`; the accepted
+PR74 baseline is `d378c28a3b5b1dae58de0264cd8c6ab6a3a04ed6`.
 
-If rollback is needed, use a **fresh branch and workspace** to revert the promotion
-merge, preserving PR73 and any separately accepted intervening changes. Build and
-verify the restored legacy root and original preview entries, then obtain explicit
-approval for the rollback merge/release. The normal Pages workflow rebuilds that
-source; it does not rely on finding an old Actions artifact. A retained site can
-also be restored for local verification without fetching or building dependencies.
-Do not reuse a merged promotion branch or silently overwrite later master changes.
+Use a **fresh branch/workspace** for any rollback. Revert the relevant change while
+preserving separately accepted intervening work, build and verify both renderer
+entries, then obtain explicit merge/release approval. Never reuse a merged PR
+branch or silently overwrite later master changes. The normal Pages workflow can
+rebuild a pinned source checkout with `npm ci && npm run build -- --output-clean`;
+a retained artifact can also be served separately for local verification.
 
-The source baseline can be reconstructed in a separate checkout at the pinned
-PR73 commit with `npm ci && npm run build -- --output-clean`. Compare its complete
-inventory to the retained artifact before considering it an exact restoration.
+## Remaining cleanup
 
-## Later cleanup
+Unit 7a removes public compatibility payloads. It deliberately retains the
+historical 100k source dataset/importer, legacy renderer test references and
+`migration/orrery3d` snapshot: current numerical, rendered and benchmark tests use
+them. Migrate those consumers in subsequent review units before deletion. Keep
+independent numerical references, licenses, benchmark provenance and all original
+imported Git commits. Test-only legacy builds are not deployed.
 
-After accepting the live promoted release, planned unit 7 removes obsolete legacy
-code, preview build plumbing and cached-page compatibility assets. Audit the old
-100,000-row dataset, importer/build inputs, tests, benchmarks and provenance before
-removing or moving them. Explicitly document any retained test fixture. Preserve
-rollback evidence and original imported Git ancestry. Orrery3D's move notice is a
-separate review unit; repository archival requires its own approval.
+Copy/help and buffering follow-ups remain separate. Orrery3D's move notice and
+site link need their own review unit; repository archival requires explicit approval.

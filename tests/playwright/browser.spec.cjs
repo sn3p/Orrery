@@ -37,10 +37,10 @@ for (const application of ['legacy', 'unified']) {
   });
 }
 
-test('promoted root, retired preview route, cached PR73 sessions and missing chunks @standalone', async ({ check }) => {
+test('promoted root, retired preview route, missing chunks and recovery @standalone', async ({ check }) => {
   await check('promotion');
 });
 
-test('configured promotion, cached preview pins and chronological loading @standalone', async ({ check }) => {
+test('configured promotion, root catalogue pins and chronological loading @standalone', async ({ check }) => {
   await check('promotion', { method: 'configured' });
 });

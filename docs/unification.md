@@ -5,35 +5,24 @@ blueprint and start guide, with historical status reconciled and local planning
 paths removed. No further architecture approval is required. Each implementation
 unit still needs its own tests, review and explicit merge instruction.
 
-## Current unit: root promotion after UI polish
+## Current unit: production compatibility cleanup
 
-These numbers identify planned review units, not GitHub PR numbers. PR1 shipped
-in [PR64](https://github.com/sn3p/Orrery/pull/64), PR2 in
-[PR65](https://github.com/sn3p/Orrery/pull/65), and history import H in
-[PR67](https://github.com/sn3p/Orrery/pull/67). H's merge `e1e80ec` preserves all
-147 original commits; a fresh full master clone passed the ancestry/tree verifier.
+The unified app shipped through PR64–PR74: shared shell/Pixi, original-history
+import, reviewed loader, Three, switching, full catalogue, UI polish and root
+promotion. PR74's live release was verified on September 16, 2026 across Chromium,
+Firefox and WebKit, with deployed files matching its Pages artifact.
 
-PR3 shipped in [PR68](https://github.com/sn3p/Orrery/pull/68), retaining neutral CPU
-data, incremental Pixi packing and explicit indexed/whole/latest profiles.
-PR4 shipped in [PR70](https://github.com/sn3p/Orrery/pull/70), adding the lazy
-`/next/?renderer=three` entry using the same shell and catalogue. PR5 shipped in
-[PR71](https://github.com/sn3p/Orrery/pull/71), adding in-page renderer switching,
-separate views and the optional renderer control builder.
-[PR72](https://github.com/sn3p/Orrery/pull/72) made the complete published discovery
-catalogue the default for both engines. [PR73](https://github.com/sn3p/Orrery/pull/73)
-polished the shared controls, footer and loading feedback.
+Unit 7a removes duplicate production compilation, legacy root payloads and
+frozen PR73 preview compatibility assets. Current app source, rendered behavior
+and root asset bytes stay unchanged. Configured builds stage pins once at root;
+watch keeps current root chunks/pins while removing retired payloads.
 
-This is planned unit 6: serve that unified application at root and retire the
-old preview entry. Chronological visibility, startup/date/speed
-and both renderer scenes stay unchanged. Shared UI polish gives HUD, labels,
-values and help separate colors and lets the footer receive pointer input.
-The Pixi adapter also releases shader texture bindings before texture replacement
-or disposal, preventing warnings during DPR changes and renderer switching.
-Legacy 100k assets remain for
-cached-page compatibility, rollback and test/benchmark oracles until cleanup.
-Explicit release approval is required before merging this candidate. Planned
-unit 7 cleanup follows acceptance of the live promoted release.
-See the [catalogue contract](catalog-loading.md) and [Three adapter](three-renderer.md).
+The remaining unit 7 work is split into subsequent review units: migrate the
+historical 100k/importer/test/benchmark consumers, then remove obsolete renderer
+source and the imported snapshot while retaining independent numerical checks,
+licenses, provenance and original Git ancestry. Existing legacy builds are
+verification references only. See [release/rollback](promotion.md),
+[catalogue loading](catalog-loading.md) and the [Three adapter](three-renderer.md).
 
 `src/unified/App.js` owns Julian day, requested speed, active presentation time,
 one scheduler, shared DPR choice, initialization/disposal, catalogue sources
@@ -255,17 +244,15 @@ any explicitly approved archival.
 
 ## Build and development
 
-The root-promotion candidate now serves the unified application at `/` and
+The unified application serves at `/` and
 `/?renderer=three`. `/next`, `/next/` and `/next/index.html` return 404;
 there is no preview page or redirect to the app.
-See [release and rollback](promotion.md) for acceptance and temporary compatibility.
+See [release and rollback](promotion.md) for acceptance and recovery.
 
 
-`webpack.config.js` retains the legacy compiler for test oracles and cached-page
-assets. `webpack.next.config.js` retains the lazy application compiler primitives;
+`webpack.config.js` retains the legacy compiler for test oracles only. `webpack.next.config.js` retains the lazy application compiler primitives;
 `webpack.app.config.cjs` configures the root app and development.
-`webpack.build.config.js` first cleans/builds the legacy assets, then replaces its
-HTML with the unified root without deleting compatibility files. The build command
+`webpack.build.config.js` compiles only the current application. The build command
 owns cleaning once; Pages' `--output-clean` remains supported. Output-path overrides
 are rejected before cleaning. Build `dist/` and copy the complete directory to relocate it.
 
@@ -280,13 +267,13 @@ npm run serve:next            # compatibility alias: same root development serve
 
 Root URLs work in development without a previous build; retired preview entries
 return 404 even when old HTML remains in the static output.
-Normal and configured production commands keep the old root assets and duplicate
-unified compiler assets at their PR73 `/next/` paths. Configured catalogue builds
-also retain their staged current/explicitly retained pins under `/next/data/`.
+Normal and configured production commands emit only current root assets. Configured
+catalogue builds stage current and explicitly retained pins under root `data/`.
 Development selects the configured source at process startup. The old
-`webpack.next.app.config.cjs` and test-only nested compilation remain until cleanup.
-Legacy source, imported source snapshot, tests, data/importer and benchmark oracles
-remain in this review unit. Promotion does not remove them or rewrite Git history.
+`webpack.next.app.config.cjs` and test-only nested compilation remain until the
+remaining fixture consumers are migrated. Legacy source, imported snapshot,
+data/importer and benchmark oracles remain test references, not deployed payloads.
+Original Git history and rollback artifacts remain preserved.
 
 ## Verification contract
 
@@ -298,7 +285,7 @@ npm test
 ```
 
 `test:build` exercises mode/watch behavior, repeated actual Pages clean builds,
-byte equality for retained PR73 assets and repeated promoted-build/alias safety.
+absence of retired public payloads and repeated promoted-build/alias safety.
 `test:browser` covers both renderers at the promoted root, assets and lazy chunks,
 real legacy behavior plus development HMR/reload. `test:unified` also runs the
 strict GPU, scheduling, rendering/lifecycle, UI/DPR and finite benchmark probes
@@ -310,7 +297,7 @@ only for existing probes, including their explicit stopped-ticker calls;
 production has no facade or ticker bridge. Separate raw-App tests verify async
 failures/disposal, actual clock ownership and exact scene/HUD parity at fixed
 catalogue/date/viewport/DPR, including recovery. Public root and removed `/next/` entries are tested with real HTML and lazy chunks
-at root and Pages prefixes, including cached PR73 documents. `benchmark:next`
+at root and Pages prefixes, including missing-chunk recovery. `benchmark:next`
 identifies unified execution independently of the benchmark runner source.
 After the build regression
 checks, CI uploads the final assembled Pages artifact and distinct compiled test
@@ -338,7 +325,7 @@ handoff. Review shared state/loader/switching changes independently.
 
 | Area | Required coverage |
 | --- | --- |
-| Entries/build | Clean install, root/preview/direct Three when available; domain and Pages subpaths; no cross-clean/collisions; lazy chunks; HMR/reload; legacy root catalogue preserved; preview default uses complete discovery data |
+| Entries/build | Clean install, current root/direct Three; domain and Pages subpaths; retired payloads absent; lazy chunks; HMR/reload; complete discovery source with no historical fallback |
 | Time | Pause/forward/reverse/startup date; unchanged speed/date on switching; hidden/long-stall exclusion; paused camera input and no recurring scene draws |
 | Catalogue | Same pinned bundled/indexed/whole population, malformed/empty input, equal-date splits, late chunks, buffering, retries/cancellation/replacement/stale work; no mixed pins/duplicates |
 | Loading switches | Partial retention, buffering/replacement, independent CPU/GPU prefixes, coherent date/count, no retained-data refetch, rapid teardown/failure recovery |
@@ -349,7 +336,7 @@ handoff. Review shared state/loader/switching changes independently.
 | Interaction | Desktop/narrow/short viewports, overflow/wrapping/control placement, keyboard/focus/labels/Escape/outside dismissal, mouse/touch and error/loading copy; no console errors |
 | Compatibility | Chromium/Firefox/WebKit; Pixi's WebGL compatibility; optional Three's WebGL2 requirement must not block Pixi |
 | Performance | Historical 100k and real indexed trial data; first complete draw, cold/warm switches, CPU/GPU/frame timing, transfer and retained/peak memory; fixed baselines and agreed budgets |
-| Release | Assembled static entries throughout preview, both promoted mode URLs, removed preview entries, cached/missing chunks, legacy notice/destination and prior-version rollback |
+| Release | Both public mode URLs and current assets, retired preview entries/payloads, missing-chunk recovery, separately owned legacy notice/destination and prior-version rollback |
 
 PR1 exercises the scaffold and legacy rows. Renderer ports, shared state, loader
 adoption, switching, indexed scale and release/device acceptance remain assigned
@@ -371,7 +358,7 @@ The root options panel offers Pixi.js (2D) and Three.js (3D). Switching keeps
 one App, clock, HUD, retained CPU catalogue, date, requested speed and DPR choice.
 Each mode remembers its own view for this page. There is no camera conversion or
 browser-storage persistence. The app uses the same complete discovery source
-in both modes; cached legacy documents can still access their historical 100k bundle.
+in both modes. The historical 100k bundle is no longer part of the public site.
 
 The controller loads destination code while the outgoing camera remains usable,
 suspends playback and speculative catalogue lookahead, then disposes the outgoing

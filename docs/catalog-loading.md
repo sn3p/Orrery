@@ -12,10 +12,9 @@ startup, speed and discovery animation are unchanged. The population is not all
 visible at startup. No catalogue environment variable or historical setting is
 needed, and source failures never silently fall back to the old bundle.
 
-Cached legacy root documents still import `data/catalog.json` (100,000 objects). Keep that
-asset for root compatibility and rollback until unified-app promotion is accepted;
-then audit its importer, build and remaining consumers in the cleanup PR.
-The unified application never requests that file. Production temporarily retains it for old documents.
+The historical `data/catalog.json` remains only for existing test and benchmark
+oracles. Production does not emit or request it. The old importer and its remaining
+consumers require a separate migration before source deletion.
 
 ## Explicit development and test profiles
 
@@ -27,7 +26,7 @@ npm run build
 npm run build:next
 npm run serve:next
 
-# Root selects the configured source; cached preview paths retain the same pins
+# Root selects the configured source and retains explicitly listed root pins
 CATALOG_CONFIG=catalog-profiles/ties-indexed.json npm run build
 CATALOG_CONFIG=catalog-profiles/ties-whole.json npm run serve:next
 
@@ -41,8 +40,7 @@ or a verified private profile. Omitting it selects the latest profile. Developme
 selection is fixed for the process; restart to select another source. Both development
 commands serve root; old `/next` page URLs return 404. Production output is `dist/`; overlapping
 output/static overrides fail. Configured production builds compile and stage privately,
-then atomically replace the complete output, including old root assets, preview asset
-paths and configured `/next/data/` pins. Both build command aliases use a shared output
+then atomically replace the complete current-app output, including root `data/` pins. Both build command aliases use a shared output
 lock. Default builds and development servers retain webpack's output behavior and
 should not write the same output concurrently.
 Input protection resolves filesystem aliases before publication. Shared bundle
@@ -73,7 +71,7 @@ producer's responsibility; browser adapters validate received catalogue records.
 Optional `retained` entries preserve explicitly chosen complete pins in a profile
 output. No public retention window or data release is promised by this mechanism.
 
-`startJed` and `speed` are optional. Normal configured preview commands preserve
+`startJed` and `speed` are optional. Normal configured app commands preserve
 the browser-local February 1980 start and speed 1.5 unless overridden. Private
 `catalog:build` trials use deterministic JD 2444270.5/speed 1.5 defaults.
 
@@ -135,7 +133,7 @@ Three retains the source 3D presentation and date-based discovery fade; see
 Public default-entry tests route hash-valid, small producer fixtures at the real
 compiled descriptor URL, including direct Three and reload. Explicit
 `tests/bundled-entry.js` builds retain whole-file inputs for renderer pixel/numeric
-oracles and bundled-loading regressions; these are test fixtures, not preview
+oracles and bundled-loading regressions; these are test fixtures, not public
 defaults. Live full-population verification is recorded separately with the
 observed descriptor/index pin and source coverage.
 
@@ -147,7 +145,7 @@ DPR, lifecycle, development and benchmark suites. `npm run test:catalog` selects
 the native Playwright catalogue cases; loading, lifecycle and frame commitment
 run in all three browser projects, with benchmark and configured development
 checks in the Chromium-only project. These cases are also part of
-`npm run test:unified`, which builds the standalone preview before running its
+`npm run test:unified`, which builds the current app before running its
 tests. CI retains its Mesa/Xvfb path
 and the existing strict numerical thresholds.
 
@@ -185,11 +183,11 @@ remain preserved by [the history-import record](history/orrery3d.md). The remain
 | --- | --- |
 | `src/js/catalog/{CatalogSource,CatalogLoader,contract}.js` | `src/unified/catalog/`; loader CPU ownership and explicit graphics receipt |
 | `src/js/prepareCatalogue.js` | `src/unified/catalog/prepareCatalogue.js`; neutral buffers, row diagnostics and Pixi precision bounds |
-| `scripts/build.cjs`, `catalog.cjs`, `catalog-archive.cjs` | Root `scripts/`; preview entry/output and legacy-root compatibility |
+| `scripts/build.cjs`, `catalog.cjs`, `catalog-archive.cjs` | Root `scripts/`; current app output and atomic publication |
 | `webpack.app.config.cjs` | `webpack.next.app.config.cjs`; configured preview development/staging |
 | `tests/fixtures/{consumer-v1,browser-v1}` | Root `tests/fixtures/`; unchanged producer fixtures/provenance |
 | Source contract/delivery/loading tests and benchmark | Root catalogue tests and `benchmarks/catalog-loading.cjs`; actual Pixi/preview boundaries |
 
 All source is MIT-licensed; the imported license, original authorship/history and
-fixture provenance remain available. The preview default is now independently
-approved for Orrery. The legacy root retains its bundle until promotion; Orrery3D and OrreryData remain separately owned.
+fixture provenance remain available. The public default is now independently
+approved for Orrery. The legacy bundle is now test-only; Orrery3D and OrreryData remain separately owned.

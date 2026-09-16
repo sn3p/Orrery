@@ -36,7 +36,8 @@ The unified app runs at `/`, with Pixi by default and Three at
 `/?renderer=three`. The old `/next` entry is removed; use `/` or `/?renderer=three`. Both modes use the complete published discovery catalogue;
 discovery visibility follows the simulation date. `npm run serve` uses
 `CONDUCTOR_PORT` when set, otherwise 3000. `serve:next` and `build:next` remain
-compatibility aliases for the main app during the promotion period.
+aliases for the main app. Production builds emit only the unified application;
+retired root and preview payloads are no longer deployed.
 
 See [catalogue loading](docs/catalog-loading.md), the
 [unification plan](docs/unification.md) and [release/rollback procedure](docs/promotion.md).
@@ -60,8 +61,8 @@ desktop/mobile layout. Playwright Test reports individual cases and lifecycle
 steps. Results, screenshots and failure traces are saved in
 `.context/playwright-results/`; open the HTML report with
 `npx playwright show-report .context/playwright-report`.
-The default browser suite also checks the preview against the legacy pixels,
-numerics, lifecycle and options; `npm run test:unified` builds the preview and
+The default browser suite also checks the unified app against the legacy pixels,
+numerics, lifecycle and options; `npm run test:unified` builds the app and
 runs that subset, including from a clean checkout after installing dependencies.
 The default suite runs Chromium, Firefox and Playwright WebKit. For a local
 Chrome-only pass, use `BROWSERS=chromium npm test`. See
@@ -244,7 +245,11 @@ Repository setup (once, also required for forks): in **Settings → Pages**, set
 merged into `master` before automatic or manual deployment is available. It uses
 GitHub's built-in token; no personal access token or deploy key is needed.
 
-## Get updated data
+## Historical test data
+
+The public app reads the catalogue published by [orrery-data](https://github.com/sn3p/orrery-data).
+The following importer is retained for historical tests and benchmarks; it does
+not update the public app. Its consumers will be migrated in the next cleanup.
 
 Data files are stored in the `data` directory.
 You can either download the data files manually using the links above, or use the download script:
@@ -256,7 +261,7 @@ cd data
 ./download_data.sh && ./data_to_json.py
 ```
 
-The retained legacy `data/catalog.json` contains **100,000 objects**; the main app uses the published discovery catalogue independently. The old asset remains temporarily for cached-page compatibility, rollback and existing tests/benchmarks. Running the importer without a limit replaces it with all numbered minor planets that have matching discovery dates.
+The retained legacy `data/catalog.json` contains **100,000 objects**; the main app uses the published discovery catalogue independently. It remains only as a historical test/benchmark input and is not deployed. Running the importer without a limit replaces it with all numbered minor planets that have matching discovery dates.
 
 On **12 September 2026**, a full import of fresh MPC data produced **895,910 objects** from **1,563,495 orbital records**. Unnumbered objects lack matching discovery records in `NumberedMPs.txt` and are excluded. These counts change as MPC updates its datasets; see [issue #47](https://github.com/sn3p/Orrery/issues/47) for the verified counts and upstream limitation.
 

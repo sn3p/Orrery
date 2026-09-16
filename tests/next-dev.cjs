@@ -76,20 +76,25 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       assert.equal(await page.evaluate(() => previewProbe.app.catalogLoader.source.sourceId), selection.pin.sha256);
     }
     await page.screenshot({ path: path.join(directory, "after-updates.png") });
-    // Old on-disk preview HTML must not leak through dev's static fallback.
-    const stale = path.resolve('dist/next/index.html');
-    const previous = fs.existsSync(stale) ? fs.readFileSync(stale) : null;
-    fs.mkdirSync(path.dirname(stale), { recursive: true });
-    fs.writeFileSync(stale, '<title>Stale preview</title>');
+    // Retired HTML and payloads cannot leak through the disk fallback.
+    const retired = ['next/index.html', 'next/stale-chunk.js', 'bundle.js', 'main.css', 'data/catalog.json'];
+    const previous = new Map(retired.map(name => [name, fs.existsSync('dist/' + name) ? fs.readFileSync('dist/' + name) : null]));
+    const directories = ['dist/next', 'dist/data'].filter(name => !fs.existsSync(name));
+    for (const name of retired) {
+      fs.mkdirSync(path.dirname('dist/' + name), { recursive: true });
+      fs.writeFileSync('dist/' + name, 'Stale public payload');
+    }
     try {
-      for (const suffix of ["next/", "next", "next/index.html"]) {
+      for (const suffix of ['next', 'next/', ...retired]) {
         const response = await page.request.get(base + suffix + "?renderer=" + renderer + "&extra=a%20b");
-        assert.equal(response.status(), 404);
-        assert(new URL(response.url()).pathname.startsWith('/next'));
+        assert.equal(response.status(), 404, 'Retired path: ' + suffix);
       }
     } finally {
-      if (previous) fs.writeFileSync(stale, previous);
-      else fs.unlinkSync(stale);
+      for (const [name, bytes] of previous) {
+        if (bytes !== null) fs.writeFileSync('dist/' + name, bytes);
+        else fs.rmSync('dist/' + name, { force: true });
+      }
+      for (const directory of directories) fs.rmdirSync(directory);
     }
     assert.equal((await page.request.get(`${base}favicon.ico`)).status(), 204);
     assert.deepEqual(errors, []);
