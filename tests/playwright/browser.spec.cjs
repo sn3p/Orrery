@@ -9,6 +9,9 @@ test('preview entry, responsive layouts, lazy assets and recovery', { tag: ['@co
 test('preview footer loading, buffering, failure and empty states', { tag: ['@ui', '@data'] }, async ({ check }) => {
   await check('next-status');
 });
+test('first-visit introduction, playback hold and About', { tag: ['@core', '@ui'] }, async ({ check }) => {
+  await check('intro');
+});
 test('raw App lifecycle, scene states and exact recovery', { tag: ['@graphics', '@extended'] }, async ({ check }) => {
   await check('unified', { application: 'unified' });
 });

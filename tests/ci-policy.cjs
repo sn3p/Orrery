@@ -44,7 +44,7 @@ function plan(files, { full = false } = {}) {
       allGroups = true;
     } else if (/^src\/css\/dat-gui\.css$/.test(file)) {
       selected.add('graphics'); selected.add('ui');
-    } else if (/^(src\/css\/|src\/fonts\/|src\/index\.html$|src\/unified\/preview\.css$|src\/unified\/ui\/(?:Hud|Options)\.js$)/.test(file)) selected.add('ui');
+    } else if (/^(src\/css\/|src\/fonts\/|src\/index\.html$|src\/unified\/preview\.css$|src\/unified\/ui\/(?:Hud|Options|Intro)\.js$)/.test(file)) selected.add('ui');
     else if (/^(src\/unified\/catalog\/|catalog-profiles\/|data\/)/.test(file)) {
       selected.add('data'); selected.add('build'); buildTests = true;
     } else if (/^(src\/(?:unified\/|js\/|shaders\/))/.test(file)) {

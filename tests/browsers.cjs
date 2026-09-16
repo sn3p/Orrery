@@ -20,5 +20,30 @@ function launchOptions(name) {
   };
 }
 
-const launchBrowser = name => browsers[name].launch(launchOptions(name));
-module.exports = { launchBrowser, launchOptions };
+// The public app opens its introduction on a first visit and holds playback
+// while it is open. Suites start with it dismissed; tests/intro.cjs covers the
+// first visit itself through firstVisitContext.
+const INTRO = Symbol("orrery.introDismissed");
+const dismissIntro = () => { try { localStorage.setItem("orrery.intro", "seen"); } catch { /* opaque origin */ } };
+
+function withIntroDismissed(browser) {
+  if (browser[INTRO]) return browser;
+  const newContext = browser.newContext.bind(browser), newPage = browser.newPage.bind(browser);
+  browser[INTRO] = { newContext };
+  browser.newContext = async (...args) => {
+    const context = await newContext(...args);
+    await context.addInitScript(dismissIntro);
+    return context;
+  };
+  browser.newPage = async (...args) => {
+    const page = await newPage(...args);
+    await page.addInitScript(dismissIntro);
+    return page;
+  };
+  return browser;
+}
+
+const firstVisitContext = (browser, options) => (browser[INTRO]?.newContext ?? browser.newContext.bind(browser))(options);
+
+const launchBrowser = async name => withIntroDismissed(await browsers[name].launch(launchOptions(name)));
+module.exports = { launchBrowser, launchOptions, withIntroDismissed, firstVisitContext };

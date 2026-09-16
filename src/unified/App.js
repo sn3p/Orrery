@@ -33,6 +33,7 @@ export default class App {
     this.rendererNotice = selection.notice;
     this.createRenderer = options.createRenderer ?? selection.create;
     this._pixelRatio = "1";
+    this.held = false;
     this.clock = new PlaybackClock();
     this.elapsed = 0;
     this.asteroidsDiscovered = 0;
@@ -111,7 +112,17 @@ export default class App {
     if (!wasPlaying || !this.isPlaying) this.resetClock();
     this.requestRender();
   }
-  get isPlaying() { return this.jedDelta !== 0; }
+  get isPlaying() { return this.jedDelta !== 0 && !this.held; }
+  // Hold playback without changing the chosen speed, e.g. while the introduction is open.
+  hold(held) {
+    held = !!held;
+    if (this.destroyed || held === this.held) return;
+    const wasPlaying = this.isPlaying;
+    this.held = held;
+    this.demandCatalog();
+    if (wasPlaying !== this.isPlaying) this.resetClock();
+    this.requestRender();
+  }
   get pixelRatio() { return this._pixelRatio; }
   set pixelRatio(value) {
     if (this.destroyed || !["1", "2"].includes(value) || value === this._pixelRatio) return;
@@ -544,7 +555,7 @@ export default class App {
     const loader = this.catalogLoader;
     const wasWaiting = this.catalogWaiting;
     if (wasWaiting) this.resetClock();
-    const advance = this.clock.advance(timestamp, wasWaiting ? 0 : this.jedDelta);
+    const advance = this.clock.advance(timestamp, wasWaiting || this.held ? 0 : this.jedDelta);
     const next = this.requestedJed ?? (validDate(this.jed + advance) ? this.jed + advance : this.jed);
     if (this.pendingBundled && this.renderer.asteroids?.catalogue !== this.pendingBundled.model) {
       this.renderer.setAsteroids(this.pendingBundled.model, { jed: next, elapsed: this.elapsed }, { preservePrevious: true });

@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const base = require('@playwright/test');
+const { withIntroDismissed } = require('../browsers.cjs');
 
 exports.test = base.test.extend({
   graphics: [async ({ browser, browserName }, use, workerInfo) => {
@@ -15,6 +16,7 @@ exports.test = base.test.extend({
   }, { scope: 'worker', auto: true }],
 
   check: async ({ browser, browserName }, use, testInfo) => {
+    withIntroDismissed(browser);
     const contexts = new Set(browser.contexts());
     const output = testInfo.outputPath('evidence');
     fs.mkdirSync(output, { recursive: true });

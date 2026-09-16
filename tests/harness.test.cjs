@@ -113,14 +113,14 @@ async function discover(...args) {
 
 test('native discovery preserves coverage and each browser shard partitions it exactly once', async () => {
   const all = await discover();
-  const required = ['historical fixture assets', 'preview entry', 'preview footer loading', 'promoted root', 'configured promotion', 'default indexed catalogue', 'development texture lifecycle', 'raw App lifecycle',
+  const required = ['historical fixture assets', 'preview entry', 'preview footer loading', 'first-visit introduction', 'promoted root', 'configured promotion', 'default indexed catalogue', 'development texture lifecycle', 'raw App lifecycle',
     ...['unified'].flatMap(app => ['GPU numerics', 'rendering, readouts', 'options controls',
       'pixel ratio and display transitions', 'texture recovery', 'benchmark frames'].map(title => `${app} / ${title}`))];
   const catalogue = ['catalogue loading, demand, transport', 'catalogue replacement, recovery', 'catalogue frame commits'];
   const catalogueChromium = ['catalogue benchmark completion', 'catalogue configured preview development'];
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     const cases = all.filter(row => row.project === browser);
-    assert.equal(cases.length, 31);
+    assert.equal(cases.length, 32);
     assert.equal(cases.filter(row => row.title.includes('Three ')).length, 5);
     assert.equal(cases.filter(row => row.title.includes('Renderer switching ')).length, 6);
     for (const title of [...required, ...catalogue]) assert.equal(cases.filter(row => row.title.includes(title)).length, 1, `${browser}: ${title}`);

@@ -26,13 +26,13 @@ npx playwright test --list
 npx playwright show-report .context/playwright-report
 ```
 
-The core selection has **24 executions**: 19 Chromium production/functional
+The core selection has **25 executions**: 20 Chromium production/functional
 checks, one Chromium scheduling check, and two public-renderer smoke cases each
-in Firefox and WebKit. CI's separate clean-checkout job adds two more, for **26**.
-Routine CI's all-groups selection has **40 executions**, plus the two
+in Firefox and WebKit. CI's separate clean-checkout job adds two more, for **27**.
+Routine CI's all-groups selection has **41 executions**, plus the two
 independent clean-checkout cases. Even a test/configuration change uses this
 budget; narrower affected groups select fewer Chromium cases. The complete
-browser selection retains **106 executions**.
+browser selection retains **109 executions**.
 The old 33-case standalone repeat is replaced by two independent smoke cases.
 
 | Group | Coverage |

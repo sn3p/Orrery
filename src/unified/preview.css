@@ -136,3 +136,64 @@
 .orrery-options-panel .orrery-renderer-option .property-name { width: 28% !important; }
 .orrery-options-panel .orrery-renderer-settings .c,
 .orrery-options-panel .orrery-renderer-option .c { width: 72% !important; }
+
+.orrery-about {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 3px 0;
+  margin: -3px 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.orrery-about:hover { color: #ddd; }
+.orrery-about:focus-visible {
+  outline: 1px solid #999;
+  outline-offset: 2px;
+}
+
+.orrery-intro {
+  width: 440px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 16px);
+  box-sizing: border-box;
+  margin: auto;
+  padding: 0;
+  border: 1px solid #333;
+  background: #111;
+  color: #ccc;
+  font-size: var(--font-ui-size);
+  line-height: 18px;
+}
+.orrery-intro::backdrop { background: rgba(0, 0, 0, 0.6); }
+.orrery-intro-card { padding: 16px; }
+.orrery-intro h1 {
+  margin: 0 0 12px;
+  font-size: var(--font-ui-size);
+  font-weight: 600;
+  color: #eee;
+}
+.orrery-intro p { margin: 0 0 12px; }
+.orrery-intro code { font: inherit; color: #eee; }
+.orrery-intro-links { color: var(--color-hud); }
+.orrery-intro a {
+  color: #ddd;
+  text-underline-offset: 3px;
+}
+.orrery-intro a:focus-visible,
+.orrery-intro-close:focus-visible {
+  outline: 1px solid #999;
+  outline-offset: 2px;
+}
+.orrery-intro-close {
+  font: inherit;
+  color: #ccc;
+  background: #1a1a1a;
+  border: 1px solid #555;
+  padding: 3px 12px;
+  cursor: pointer;
+}
+.orrery-intro-close:hover { color: #fff; border-color: #888; }
