@@ -88,8 +88,9 @@ export default class CatalogLoader {
     const chunks = this.source.info.chunks;
     const requiredChunks = count ? this.chunkIndex(chunk => chunk.end < count) + 1 : 0;
     if (!(this.initialRendered && this.playing && !this.hidden)) return chunks[requiredChunks - 1]?.end ?? 0;
-    // Reverse playback only needs the committed prefix; forward playback covers
-    // LOOKAHEAD_SECONDS of simulated time, never fewer than MIN_LOOKAHEAD_CHUNKS.
+    // Playback always reads at least MIN_LOOKAHEAD_CHUNKS beyond the required
+    // rows. Forward playback also covers LOOKAHEAD_SECONDS of simulated time;
+    // reverse playback has no forward horizon, so it keeps the minimum only.
     const horizon = this.date + Math.max(0, this.daysPerSecond) * LOOKAHEAD_SECONDS;
     const horizonChunks = this.chunkIndex(chunk => chunk.last_disc < horizon) + 1;
     const target = Math.min(chunks.length, Math.max(requiredChunks + MIN_LOOKAHEAD_CHUNKS, horizonChunks));
