@@ -113,8 +113,12 @@ control invalidations from advancing or publishing a frame; context restoration
 or an explicit catalogue replacement can recover it.
 
 Requested dates survive source opening. Every discovery at or before a date is
-required, including ties across files. Paused/hidden state suppresses unnecessary
-lookahead; required reads remain bounded. Network failures have bounded automatic
+required, including ties across files. While playing forward, speculative reads
+cover three seconds of playback at the current speed, never fewer than three
+chunks, using the chunk discovery-date bounds; at speed 8 in the 2000s this is
+about 30 chunks, in the 1980s still three. Paused/hidden state suppresses
+lookahead; required reads remain bounded. The numeric model is preallocated at
+full capacity, so lookahead does not grow retained memory. Network failures have bounded automatic
 retries and demand/resume/online recovery. Preparation/adapter failures are distinct
 from transport failures. Buffering, hidden time and graphics suspension do not age
 Pixi arrivals or produce playback catch-up.
