@@ -91,8 +91,10 @@ export default class CatalogLoader {
     // Playback always reads at least MIN_LOOKAHEAD_CHUNKS beyond the required
     // rows. Forward playback also covers LOOKAHEAD_SECONDS of simulated time;
     // reverse playback has no forward horizon, so it keeps the minimum only.
+    // Equal discovery dates may continue into later chunks, so include every
+    // chunk that starts at or before the horizon, not just the first reaching it.
     const horizon = this.date + Math.max(0, this.daysPerSecond) * LOOKAHEAD_SECONDS;
-    const horizonChunks = this.chunkIndex(chunk => chunk.last_disc < horizon) + 1;
+    const horizonChunks = this.chunkIndex(chunk => chunk.first_disc <= horizon);
     const target = Math.min(chunks.length, Math.max(requiredChunks + MIN_LOOKAHEAD_CHUNKS, horizonChunks));
     return chunks[target - 1]?.end ?? 0;
   }

@@ -5,9 +5,12 @@ import CatalogLoader, { LOOKAHEAD_SECONDS, MIN_LOOKAHEAD_CHUNKS } from '../src/u
 // Chunk shape of the live catalogue: fixed row counts, so date spans shrink from
 // decades to weeks. Dates are Julian days; 2451545 is 2000-01-01.
 const J2000 = 2451545;
+// A zero span continues the previous chunk's last date: a discovery-date tie
+// crossing the chunk boundary, as the producer contract allows.
 function makeSource(spans, rows = 100) {
   const chunks = []; let start = 0, date = J2000 - 365 * 30;
   for (const span of spans) {
+    if (span === 0) date = chunks.at(-1).last_disc;
     chunks.push({ start, end: start + rows, first_disc: date, last_disc: date + span, url: `c${chunks.length}.json` });
     start += rows; date += span + 1;
   }
@@ -48,13 +51,27 @@ test('fast playback through dense years covers LOOKAHEAD_SECONDS of simulated ti
   const date = source.info.chunks[4].first_disc;
   const loader = playing(source, date, 60);
   const horizon = date + 60 * LOOKAHEAD_SECONDS;
-  const covered = source.info.chunks.findIndex(c => c.last_disc >= horizon) + 1;
+  const covered = source.info.chunks.filter(c => c.first_disc <= horizon).length;
   assert(covered > 5 + MIN_LOOKAHEAD_CHUNKS, 'fixture exercises the time-based branch');
   assert.equal(chunkOf(source, loader.targetEnd()), covered);
   loader.demand(date, { daysPerSecond: 30 });
   assert.equal(chunkOf(source, loader.targetEnd()), 5 + MIN_LOOKAHEAD_CHUNKS, 'lower speed shrinks the target');
   loader.demand(date, { daysPerSecond: -480 });
   assert.equal(chunkOf(source, loader.targetEnd()), 5 + MIN_LOOKAHEAD_CHUNKS, 'reverse playback needs no forward horizon');
+});
+
+test('a discovery-date tie crossing chunks at the horizon includes every tied chunk', () => {
+  // Chunk 4 ends exactly at the horizon; chunks 5 to 8 all start on that same
+  // date, beyond the minimum-chunk floor of 5 + MIN_LOOKAHEAD_CHUNKS.
+  const source = makeSource([365 * 20, 365 * 5, 365, 120, 180, 0, 0, 0, 0, 30, 30, 30, 365 * 10]);
+  const date = source.info.chunks[4].first_disc;
+  const loader = playing(source, date, 60);
+  const horizon = date + 60 * LOOKAHEAD_SECONDS;
+  assert.equal(source.info.chunks[4].last_disc, horizon);
+  assert.equal(source.info.chunks[8].first_disc, horizon);
+  assert(source.info.chunks[9].first_disc > horizon);
+  assert.equal(chunkOf(source, loader.targetEnd()), 9);
+  assert(loader.targetEnd() >= source.countThrough(horizon), 'every discovery at or before the horizon is targeted');
 });
 
 test('lookahead is capped at the catalogue end and speed must be finite', () => {
