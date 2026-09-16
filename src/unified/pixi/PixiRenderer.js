@@ -1,4 +1,4 @@
-import { Application, ParticleContainer, Graphics, Texture } from "pixi.js";
+import { Application, ParticleContainer, ParticleShader, Graphics, Texture } from "pixi.js";
 import Controls from "./Controls.js";
 import Planet from "./Planet.js";
 import Asteroids from "./Asteroids.js";
@@ -132,7 +132,9 @@ export default class PixiRenderer {
     this.addSun();
 
     // Planets keep the existing CPU orbit path and particle rendering.
-    this.planetContainer = new ParticleContainer({ texture: this.circleTexture });
+    // Own the shader so texture replacement can unbind the old source before
+    // disposal, even when the particle container does not draw that frame.
+    this.planetContainer = new ParticleContainer({ texture: this.circleTexture, shader: new ParticleShader() });
     this.stage.addChild(this.planetContainer);
   }
 
@@ -152,6 +154,7 @@ export default class PixiRenderer {
     this.circleTexture = this.createCircleTexture();
     for (const planet of this.planets) planet.body.texture = this.circleTexture;
     this.planetContainer.texture = this.circleTexture;
+    this.planetContainer.shader.resources.uTexture = this.circleTexture.source;
     this.planetContainer.update();
     this.asteroids?.setTexture(this.circleTexture);
     this.stagedAsteroids?.setTexture(this.circleTexture);
@@ -345,9 +348,11 @@ export default class PixiRenderer {
     this.asteroids?.destroy();
     this.stagedAsteroids?.destroy();
     this.catalogueTransition?.previous?.destroy();
-    this.circleTexture?.destroy(true);
     // A pending async init cleans itself as soon as Pixi finishes.
     if (this.initialized) this.releaseApplication();
+    // ParticleContainer destroys its shader; release every binding before the
+    // shared texture source (also used by the asteroid shaders) is destroyed.
+    this.circleTexture?.destroy(true);
     this.initialized = false;
   }
 }

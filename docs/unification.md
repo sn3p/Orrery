@@ -24,9 +24,11 @@ catalogue the default for both engines. [PR73](https://github.com/sn3p/Orrery/pu
 polished the shared controls, footer and loading feedback.
 
 This is planned unit 6: serve that unified application at root and retire the
-old preview entry. Chronological visibility, startup/date/speed, runtime JavaScript
+old preview entry. Chronological visibility, startup/date/speed
 and both renderer scenes stay unchanged. Shared UI polish gives HUD, labels,
 values and help separate colors and lets the footer receive pointer input.
+The Pixi adapter also releases shader texture bindings before texture replacement
+or disposal, preventing warnings during DPR changes and renderer switching.
 Legacy 100k assets remain for
 cached-page compatibility, rollback and test/benchmark oracles until cleanup.
 Explicit release approval is required before merging this candidate. Planned
