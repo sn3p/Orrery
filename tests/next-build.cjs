@@ -35,15 +35,15 @@ async function compile(config) {
     fs.mkdirSync("dist/next", { recursive: true });
     fs.writeFileSync("dist/stale-root.txt", "old");
     fs.writeFileSync("dist/next/stale-preview.txt", "old");
+    fs.writeFileSync("dist/next/index.html", "old redirect");
     const log = execFileSync("npm", ["run", "build", "--", round === 0 ? "--output-clean" : "--output-clean=true"], { encoding: "utf8" });
     fs.writeFileSync(path.join(directory, `build-${round}.log`), log);
     for (const [name, hash] of Object.entries(original)) {
       if (name !== "index.html") assert.equal(fingerprint("dist")[name], hash, "Cached legacy asset retained: " + name);
     }
     assert.match(fs.readFileSync("dist/index.html", "utf8"), /<title>Orrery<\/title>/);
-    assert.match(fs.readFileSync("dist/next/index.html", "utf8"), /location.replace/);
     assert(!fs.existsSync("dist/stale-root.txt"));
-    assert(fs.existsSync("dist/next/index.html"));
+    assert(!fs.existsSync("dist/next/index.html"), "Build removes the retired preview entry");
     assert(!fs.existsSync("dist/next/data/catalog.json"), "Compatibility preview excludes the legacy catalogue asset");
     const javascript = files("dist/next").filter(name => name.endsWith(".js"))
       .map(name => fs.readFileSync(path.join("dist/next", name), "utf8")).join("\n");

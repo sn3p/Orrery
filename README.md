@@ -33,8 +33,7 @@ npm run build
 ```
 
 The unified app runs at `/`, with Pixi by default and Three at
-`/?renderer=three`. Old `/next/` links forward to the main app, preserving their
-query and fragment. Both modes use the complete published discovery catalogue;
+`/?renderer=three`. The old `/next` entry is removed; use `/` or `/?renderer=three`. Both modes use the complete published discovery catalogue;
 discovery visibility follows the simulation date. `npm run serve` uses
 `CONDUCTOR_PORT` when set, otherwise 3000. `serve:next` and `build:next` remain
 compatibility aliases for the main app during the promotion period.

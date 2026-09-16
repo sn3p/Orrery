@@ -23,8 +23,8 @@ separate views and the optional renderer control builder.
 catalogue the default for both engines. [PR73](https://github.com/sn3p/Orrery/pull/73)
 polished the shared controls, footer and loading feedback.
 
-This is planned unit 6: serve that unified application at root and forward the
-old preview URLs. Chronological visibility, startup/date/speed, runtime modules
+This is planned unit 6: serve that unified application at root and retire the
+old preview entry. Chronological visibility, startup/date/speed, runtime modules
 and both renderer presentations stay unchanged. Legacy 100k assets remain for
 cached-page compatibility, rollback and test/benchmark oracles until cleanup.
 Explicit release approval is required before merging this candidate. Planned
@@ -79,7 +79,7 @@ is separately approved for Orrery; it does not change the preserved legacy sourc
 source application's ownership.
 
 The promoted app uses the main public URL `https://sn3p.github.io/Orrery/`.
-Old preview links forward there, preserving query and fragment. PR heads are not
+Old preview page URLs return 404; no redirect to the app remains. PR heads are not
 deployed; an explicitly approved merge to master releases the assembled site.
 The main HTML no longer carries preview branding or a noindex directive.
 
@@ -200,7 +200,7 @@ in the existing tests. Selection, filtering and follow features are later scope.
 | 3 — Reviewed loader | Reuse final reviewed loader/contract/provisioning/fixtures; retained CPU data and incremental Pixi upload | Bundled/indexed/whole conformance, ties, buffering, replacement/retry/cancellation/recovery and memory checks |
 | 4 — Three adapter | Port final Three renderer onto that shell/loader; direct Three entry | Both engines independently pass data/numeric/visual/lifecycle baselines; Pixi starts without Three/WebGL2 |
 | 5 — Switching/options | Enable selector, separate views and renderer-specific options hook | Repeated switching, in-flight loading, partial-init errors, option isolation and resource cleanup |
-| 6 — Promotion | After acceptance and explicit release approval, serve unified app at root; `/next/` forwards preserving renderer choice | Root asset paths, both mode URLs, cached/missing chunks, live release and rollback |
+| 6 — Promotion | After acceptance and explicit release approval, serve unified app at root; remove the old `/next` entry | Root asset paths, both mode URLs, cached/missing chunks, live release and rollback |
 | 7 — Cleanup | After promoted release acceptance, remove legacy duplication/temporary preview plumbing | One maintained app/build; source tests/provenance/importers/benchmarks accounted for |
 
 Merge sequentially only on explicit instruction. Each later PR starts in a fresh
@@ -251,14 +251,14 @@ any explicitly approved archival.
 ## Build and development
 
 The root-promotion candidate now serves the unified application at `/` and
-`/?renderer=three`. `/next/` and `/next/index.html` forward to the deployment
-root, retaining the complete query and fragment and replacing the history entry.
+`/?renderer=three`. `/next`, `/next/` and `/next/index.html` return 404;
+there is no preview page or redirect to the app.
 See [release and rollback](promotion.md) for acceptance and temporary compatibility.
 
 
 `webpack.config.js` retains the legacy compiler for test oracles and cached-page
 assets. `webpack.next.config.js` retains the lazy application compiler primitives;
-`webpack.app.config.cjs` configures the root app, forwarding page and development.
+`webpack.app.config.cjs` configures the root app and development.
 `webpack.build.config.js` first cleans/builds the legacy assets, then replaces its
 HTML with the unified root without deleting compatibility files. The build command
 owns cleaning once; Pages' `--output-clean` remains supported. Output-path overrides
@@ -273,7 +273,8 @@ npm run build:next            # compatibility alias: same complete site
 npm run serve:next            # compatibility alias: same root development server
 ```
 
-Both root and forwarded URLs work in development without a previous build.
+Root URLs work in development without a previous build; retired preview entries
+return 404 even when old HTML remains in the static output.
 Normal and configured production commands keep the old root assets and duplicate
 unified compiler assets at their PR73 `/next/` paths. Configured catalogue builds
 also retain their staged current/explicitly retained pins under `/next/data/`.
@@ -303,7 +304,7 @@ same probes directly to preserve the assembled production artifact under test.
 only for existing probes, including their explicit stopped-ticker calls;
 production has no facade or ticker bridge. Separate raw-App tests verify async
 failures/disposal, actual clock ownership and exact scene/HUD parity at fixed
-catalogue/date/viewport/DPR, including recovery. Public root and forwarded `/next/` are tested with real HTML and lazy chunks
+catalogue/date/viewport/DPR, including recovery. Public root and removed `/next/` entries are tested with real HTML and lazy chunks
 at root and Pages prefixes, including cached PR73 documents. `benchmark:next`
 identifies unified execution independently of the benchmark runner source.
 After the build regression
@@ -343,7 +344,7 @@ handoff. Review shared state/loader/switching changes independently.
 | Interaction | Desktop/narrow/short viewports, overflow/wrapping/control placement, keyboard/focus/labels/Escape/outside dismissal, mouse/touch and error/loading copy; no console errors |
 | Compatibility | Chromium/Firefox/WebKit; Pixi's WebGL compatibility; optional Three's WebGL2 requirement must not block Pixi |
 | Performance | Historical 100k and real indexed trial data; first complete draw, cold/warm switches, CPU/GPU/frame timing, transfer and retained/peak memory; fixed baselines and agreed budgets |
-| Release | Assembled static entries throughout preview, both promoted mode URLs, forwarding selection, cached/missing chunks, legacy notice/destination and prior-version rollback |
+| Release | Assembled static entries throughout preview, both promoted mode URLs, removed preview entries, cached/missing chunks, legacy notice/destination and prior-version rollback |
 
 PR1 exercises the scaffold and legacy rows. Renderer ports, shared state, loader
 adoption, switching, indexed scale and release/device acceptance remain assigned
@@ -361,7 +362,7 @@ those features.
 
 ## Renderer switching
 
-The `/next/` options panel offers Pixi.js (2D) and Three.js (3D). Switching keeps
+The root options panel offers Pixi.js (2D) and Three.js (3D). Switching keeps
 one App, clock, HUD, retained CPU catalogue, date, requested speed and DPR choice.
 Each mode remembers its own view for this page. There is no camera conversion or
 browser-storage persistence. The preview uses the same complete discovery source

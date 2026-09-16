@@ -76,20 +76,24 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       assert.equal(await page.evaluate(() => previewProbe.app.catalogLoader.source.sourceId), selection.pin.sha256);
     }
     await page.screenshot({ path: path.join(directory, "after-updates.png") });
-    // The historical combined-build test covers the return destination. The
-    // configured standalone preview does not require a root build to exist.
-    if (!selection) {
+    // Old on-disk preview HTML must not leak through dev's static fallback.
+    const stale = path.resolve('dist/next/index.html');
+    const previous = fs.existsSync(stale) ? fs.readFileSync(stale) : null;
+    fs.mkdirSync(path.dirname(stale), { recursive: true });
+    fs.writeFileSync(stale, '<title>Stale preview</title>');
+    try {
       for (const suffix of ["next/", "next", "next/index.html"]) {
-        await page.goto(base + suffix + "?renderer=" + renderer + "&extra=a%20b#view");
-        await page.waitForURL(base + "?renderer=" + renderer + "&extra=a%20b#view");
-        await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent.replaceAll("\u202f", "")) > 0);
+        const response = await page.request.get(base + suffix + "?renderer=" + renderer + "&extra=a%20b");
+        assert.equal(response.status(), 404);
+        assert(new URL(response.url()).pathname.startsWith('/next'));
       }
-      await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent.replaceAll("\u202f", "")) > 0);
-      assert.equal((await page.request.get(`${base}favicon.ico`)).status(), 204,
-        "Returning to the static root has no missing automatic favicon request");
+    } finally {
+      if (previous) fs.writeFileSync(stale, previous);
+      else fs.unlinkSync(stale);
     }
+    assert.equal((await page.request.get(`${base}favicon.ico`)).status(), 204);
     assert.deepEqual(errors, []);
-    console.log("Actual serve:next command serves /next/, applies hot chunks and reloads unaccepted edits.");
+    console.log("Actual development command serves root, rejects old preview entries, applies hot chunks and reloads unaccepted edits.");
   } finally {
     if (child.exitCode === null) process.kill(-child.pid, "SIGTERM");
     await exited;

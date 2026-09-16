@@ -275,6 +275,8 @@ async function buildTrial(configPath, output = path.join(root, ".context/catalog
         // Cached PR73 HTML names the default main bundle. A configured main
         // has a different hash, so copying only its assets cannot retain it.
         { ...base, mode: "production", name: "compatibility", dependencies: ["legacy"],
+          // Keep cached-document assets without restoring the retired entry.
+          plugins: base.plugins.filter(plugin => !(plugin instanceof require("html-webpack-plugin"))),
           output: { ...base.output, path: path.join(temporary, "next"), clean: true } },
         { ...preview, name: "preview", dependencies: ["compatibility"] },
       ] : preview);

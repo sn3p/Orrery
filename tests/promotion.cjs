@@ -23,13 +23,19 @@ async function run({ browser, name, output }) {
   const results = [];
   try {
     for (const base of [server.url + '/', pages.url + '/Orrery/']) {
-      for (const [entry, query, mode] of [
-        ['', '', 'pixi'], ['', '?renderer=three', 'three'],
-        ['next/', '?renderer=three&extra=a%20b#view', 'three'],
-        ['next/index.html', '?renderer=pixi&extra=%2F%3F#section', 'pixi'],
-        ['next', '?renderer=three#view', 'three'],
-        ['next/', '?renderer=unknown', 'pixi'],
-        ['next/', '?renderer=three&renderer=pixi', 'three'],
+      for (const suffix of ['next', 'next/', 'next/index.html']) {
+        const response = await browser.newContext();
+        try {
+          const result = await response.request.get(base + suffix + '?renderer=three&extra=a%20b');
+          assert.equal(result.status(), 404);
+          assert(new URL(result.url()).pathname.startsWith(new URL(base).pathname + 'next'));
+        } finally { await response.close(); }
+      }
+      for (const [query, mode] of [
+        ['', 'pixi'], ['?renderer=three', 'three'],
+        ['?renderer=three&extra=a%20b#view', 'three'],
+        ['?renderer=pixi&extra=%2F%3F#section', 'pixi'],
+        ['?renderer=unknown', 'pixi'], ['?renderer=three&renderer=pixi', 'three'],
       ]) {
         const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
         const errors = [], requests = [];
@@ -38,28 +44,14 @@ async function run({ browser, name, output }) {
         page.on('request', r => requests.push(r.url()));
         await routeDefaultCatalog(page);
         try {
-          const previous = base + 'history-start';
-          let historyLength;
-          if (entry) {
-            await page.route(previous, route => route.fulfill({ contentType: 'text/html', body: '<title>Previous page</title>' }));
-            await page.goto(previous);
-            historyLength = await page.evaluate(() => history.length);
-          }
-          await page.goto(base + entry + query);
-          await page.waitForURL(base + query);
+          await page.goto(base + query);
           await ready(page);
           assert.equal(await page.title(), 'Orrery');
           assert.equal(await (await options(page)).inputValue(), mode);
           assert(!requests.some(url => /data\/catalog.json/.test(url)));
           assert(requests.filter(url => !url.startsWith('data:')).every(url => url.startsWith(base) || url.startsWith(producerBase)));
-          if (entry) {
-            assert.equal(await page.evaluate(() => history.length), historyLength + 1);
-            await page.goBack();
-            await page.waitForURL(previous);
-            assert.equal(page.url(), previous, 'Forwarding replaces its history entry');
-          }
           assert.deepEqual(errors, []);
-          results.push({ base, entry, query, mode });
+          results.push({ base, query, mode });
         } finally { await page.close(); }
       }
       // Cached PR73 HTML bootstraps against the new deployment. Then demand a
@@ -88,11 +80,12 @@ async function run({ browser, name, output }) {
             assert(requests.some(url => /\/data\/catalog.json/.test(url)));
           }
           await page.unroute(url);
-          await page.reload();
+          if (oldEntry) await page.goto(base);
+          else await page.reload();
           await page.waitForURL(base);
           await ready(page);
           assert.deepEqual(errors, []);
-          results.push({ base, cachedPR73: oldEntry || 'root', reload: true });
+          results.push({ base, cachedPR73: oldEntry || 'root', rootNavigation: true });
         } finally { await page.close(); }
       }
       for (const mode of ['pixi', 'three']) {
@@ -134,7 +127,13 @@ async function configured({ browser, name, output }) {
     const container = path.join(output, mode + '-pages'); fs.mkdirSync(container, { recursive: true });
     fs.symlinkSync(path.resolve(site), path.join(container, 'Orrery'), 'dir');
     const server = await serve(container);
-    try { for (const renderer of ['pixi', 'three']) for (const cached of [false, true]) {
+    try {
+      for (const suffix of ['next', 'next/', 'next/index.html']) {
+        const context = await browser.newContext();
+        try { assert.equal((await context.request.get(server.url + '/Orrery/' + suffix + '?renderer=three')).status(), 404); }
+        finally { await context.close(); }
+      }
+      for (const renderer of ['pixi', 'three']) for (const cached of [false, true]) {
       const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
       const requests = [], errors = [];
       page.on('request', r => requests.push(r.url()));
@@ -145,7 +144,7 @@ async function configured({ browser, name, output }) {
         contentType: 'text/html', body: fs.readFileSync(path.join(site, 'index.html'), 'utf8'),
       }));
       try {
-        await page.goto(base + 'next/?renderer=' + renderer);
+        await page.goto(base + (cached ? 'next/' : '') + '?renderer=' + renderer);
         await page.waitForFunction(() => document.querySelector('#orrery-count')?.textContent === '4');
         assert.equal(page.url(), base + (cached ? 'next/' : '') + '?renderer=' + renderer);
         const selector = await options(page);
@@ -195,14 +194,14 @@ async function configured({ browser, name, output }) {
           assert.equal(await selector.inputValue(), destination);
           assert(requests.some(url => url.startsWith(base + `next/assets/${destination}.`)));
           await page.unroute(url);
-          await page.reload();
-          await page.waitForURL(base + '?renderer=' + renderer);
+          // Retired preview URLs no longer reload into the app; navigate root.
+          await page.goto(base + '?renderer=' + renderer);
           await page.waitForFunction(() => document.querySelector('#orrery-count')?.textContent === '4');
           assert.equal(await (await options(page)).inputValue(), renderer);
           assert.equal(await page.getByRole('textbox', { name: 'Playback speed' }).inputValue(), '0');
           assert(requests.some(url => url.startsWith(base + 'data/delivery-v1-') && url.endsWith('/index.json')));
           assert.deepEqual(errors, []);
-          results.push({ mode, renderer, cachedPR73: true, reloadIntoConfiguredRoot: true });
+          results.push({ mode, renderer, cachedPR73: true, navigateIntoConfiguredRoot: true });
         } finally { await page.close(); }
       }
     } finally { await server.close(); }

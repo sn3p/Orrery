@@ -28,8 +28,8 @@ module.exports = async (_env, argv = {}) => {
   return { ...base, plugins, output: { ...base.output, path: output },
     devServer: { ...base.devServer, open: ["/"], devMiddleware: { publicPath: "/" },
       setupMiddlewares(middlewares, server) {
-        // Match static hosts' directory normalization, preserving query strings.
-        server.app.get(/^\/next$/, (req, res) => res.redirect(302, "/next/" + new URL(req.url, "http://localhost").search));
+        // Do not let a previous build's HTML leak through the static fallback.
+        server.app.get(/^\/next(?:\/(?:index\.html)?)?$/, (_req, res) => res.sendStatus(404));
         server.app.get("/favicon.ico", (_req, res) => res.status(204).end());
         return middlewares;
       },

@@ -19,7 +19,7 @@ test('legacy development hot updates and full reload', async ({ check }) => {
 });
 for (const command of ['serve', 'serve:next']) {
   for (const renderer of ['pixi', 'three']) {
-    test(`${command} promoted development ${renderer}, hot updates and forwarding`, async ({ check }) => {
+    test(`${command} promoted development ${renderer}, hot updates and retired preview route`, async ({ check }) => {
       await check('next-dev', { command, renderer });
     });
   }

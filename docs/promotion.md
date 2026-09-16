@@ -8,16 +8,17 @@ Pages release. A draft PR or local verification is not release approval.
 
 - `/` starts Pixi; `/?renderer=three` starts Three. Existing unknown-renderer
   fallback, source errors, retry, date/count and switching behavior remain.
-- `/next/` and `/next/index.html` replace the browser history entry with the
-  parent app URL, preserving the entire query and fragment. Static hosts normalize
-  the directory URL `/next` to `/next/`; development does so explicitly.
+- `/next`, `/next/` and `/next/index.html` have no public page or forwarding to the app;
+  they return 404 (a static host may first normalize `/next` to `/next/`). Open `/` or `/?renderer=three` directly.
 - Assets use the HTML/script deployment base, including `/Orrery/` on Pages.
 - Keep PR73's root `bundle.js`, `main.css`, fonts and historical catalogue bytes,
   and its `/next/` JS/CSS/font paths, until promoted-release acceptance. Cached
   documents and open sessions can finish loading their old code and data.
   Configured builds stage current and explicitly retained data pins at both root
   and old preview paths. They also compile the default PR73 asset set: cached
-  PR73 HTML keeps its original latest source until reload selects the new profile.
+  PR73 HTML keeps its original latest source; opening the root selects the new profile.
+  Reloading an old preview URL or using its old recovery link returns 404, so
+  cached preview users must navigate to `/` or `/?renderer=three` explicitly.
   The 900 MB site budget includes all compatibility assets and data copies.
 - New visits receive the unified root; its source never falls back to historical
   data. Runtime modules, including the temporary “Open Pixi preview” recovery
@@ -38,7 +39,7 @@ Do not run multiple builds/dev writers against the same output simultaneously.
 ## Before release approval
 
 1. Run build/Node/browser/history tests, including production root/Pages URLs,
-   both engines, old links and query behavior, PR73 cached HTML, missing chunks,
+   both engines, removed preview entries and root query behavior, cached PR73 assets, missing chunks,
    source failures/retry, development/HMR and polish layouts.
 2. Retain the complete PR73 site and its SHA-256 inventory outside the workspace
    and independently of expiring CI artifacts. Keep the source commit and lockfile.
@@ -52,7 +53,7 @@ Do not run multiple builds/dev writers against the same output simultaneously.
 ## Release and recovery
 
 After explicit release/merge approval, merge the reviewed PR and verify the deployed
-root, both mode URLs, `/next/` forwarding and a stale session against the live site.
+root, both mode URLs, retired `/next` entries and a stale session against the live site.
 Do not infer live acceptance from local tests, merged source or a Pages job alone.
 
 If rollback is needed, use a **fresh branch and workspace** to revert the promotion

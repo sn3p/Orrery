@@ -102,7 +102,7 @@ const config = require("../webpack.config");
     await waitForWatch('promotionWatchSecond');
     assert.match(fs.readFileSync("dist/index.html", "utf8"), /<title>Orrery<\/title>/);
     assert(!fs.readFileSync("dist/index.html", "utf8").includes("bundle.js"));
-    assert.match(fs.readFileSync("dist/next/index.html", "utf8"), /location.replace/);
+    assert(!fs.existsSync("dist/next/index.html"), "Watch does not restore the retired preview entry");
   } finally {
     process.kill(-promotedWatch.pid, "SIGTERM"); await watchExit;
     fs.writeFileSync(path.join(directory, "promoted-watch.log"), promotedLog);

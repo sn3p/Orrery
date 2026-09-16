@@ -115,11 +115,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
           assert(!requests.some(url => /\/data\/catalog.json$|\/full\/catalog/.test(url)), "Preview never requests historical or whole-file data");
           assert(requests.some(url => /\/pixi\.[\da-f]+\.js$/.test(url)), "Preview loads the real lazy Pixi adapter");
           assert(!requests.some(url => /\/three\.[\da-f]+\.js$/.test(url)), "Pixi startup does not eagerly load Three");
-          // The old preview link forwards to the promoted root.
-          await page.goto(base + "next/");
-          await page.waitForURL(base);
-          await page.waitForFunction(() => Number(document.querySelector("#orrery-count")?.textContent.replaceAll("\u202f", "")) > 0);
-          assert.equal(await page.locator("#orrery canvas").count(), 1);
+          assert.equal((await page.request.get(base + "next/")).status(), 404);
           assert.deepEqual(errors, []);
           results.push({ browser: name, path: label, viewport, reload: true, keyboardLink: true, isolated: true });
         } finally { await page.close(); }

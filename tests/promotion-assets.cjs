@@ -5,6 +5,7 @@ const { createHash } = require('node:crypto');
 const retained = require('./fixtures/promotion/pr73-hashes.json');
 
 module.exports = function assertPR73Assets(site) {
+  assert(!fs.existsSync(path.join(site, 'next/index.html')), 'No public preview entry');
   for (const [name, hash] of Object.entries(retained)) {
     if (name.endsWith('index.html')) continue;
     const bytes = fs.readFileSync(path.join(site, name));

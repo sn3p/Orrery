@@ -47,7 +47,7 @@ async function run({ browser, name, output = '.context/ui-polish/status' }) {
         });
         const capture = state => page.screenshot({ path: path.join(output, `${name}-${renderer}-${viewport.width}x${viewport.height}-${state}.png`) });
         try {
-          await page.goto(`${server.url}/next/?renderer=${renderer}`, { waitUntil: 'domcontentloaded' });
+          await page.goto(`${server.url}/?renderer=${renderer}`, { waitUntil: 'domcontentloaded' });
           await page.getByRole('status').filter({ hasText: 'Loading asteroids' }).waitFor();
           await checkStatus(page, false);
           await capture('initial');

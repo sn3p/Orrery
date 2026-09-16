@@ -39,7 +39,7 @@ npm run test:catalog
 `CATALOG_CONFIG` optionally overrides the unified app source for deterministic tests
 or a verified private profile. Omitting it selects the latest profile. Development
 selection is fixed for the process; restart to select another source. Both development
-commands serve root and forward `/next/`. Production output is `dist/`; overlapping
+commands serve root; old `/next` page URLs return 404. Production output is `dist/`; overlapping
 output/static overrides fail. Configured production builds compile and stage privately,
 then atomically replace the complete output, including old root assets, preview asset
 paths and configured `/next/data/` pins. Both build command aliases use a shared output

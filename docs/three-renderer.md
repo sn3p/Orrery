@@ -1,7 +1,6 @@
 # Three adapter
 
-Open `/?renderer=three` for 3D; `/` defaults to Pixi. Old `/next/` URLs
-forward while retaining renderer choice. Both modes use the complete published
+Open `/?renderer=three` for 3D; `/` defaults to Pixi. The old `/next/` entry is removed. Both modes use the complete published
 discovery catalogue. An unknown renderer falls back to Pixi with feedback.
 A Three startup failure reports the failure and offers an accessible Pixi preview
 link, preserving the deployment prefix. Terminal Three shader/upload/draw failures

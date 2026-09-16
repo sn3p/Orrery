@@ -37,7 +37,7 @@ for (const application of ['legacy', 'unified']) {
   });
 }
 
-test('promoted root, preview forwarding, cached PR73 sessions and missing chunks @standalone', async ({ check }) => {
+test('promoted root, retired preview route, cached PR73 sessions and missing chunks @standalone', async ({ check }) => {
   await check('promotion');
 });
 
