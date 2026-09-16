@@ -1,5 +1,5 @@
 const { defineConfig } = require('@playwright/test');
-const { grep } = require('./tests/ci-policy.cjs');
+const { grep, grepInvert } = require('./tests/ci-policy.cjs');
 const { launchOptions } = require('./tests/browsers.cjs');
 
 const browsers = (process.env.BROWSERS || 'chromium,firefox,webkit').split(',');
@@ -20,12 +20,14 @@ module.exports = defineConfig({
   timeout: 180_000,
   forbidOnly: !!process.env.CI,
   retries: 0,
+  grepInvert: grepInvert(),
   globalSetup: require.resolve('./tests/playwright/setup.cjs'),
   outputDir: '.context/playwright-results',
   reporter: [
     ['list'],
     ['blob', { outputDir: '.context/playwright-blob' }],
-    ['html', { outputFolder: '.context/playwright-report', open: 'never' }],
+    // CI merges blobs once; avoid generating a discarded HTML report per shard.
+    ...(!process.env.CI ? [['html', { outputFolder: '.context/playwright-report', open: 'never' }]] : []),
   ],
   use: {
     actionTimeout: 30_000,

@@ -15,14 +15,14 @@ function fromEvent(eventName, event, git) {
   if (eventName === 'schedule' || eventName === 'workflow_dispatch') return plan([], { full: true });
   if (!['pull_request', 'push'].includes(eventName)) return plan([], { full: true });
   try { return plan(changedFiles(eventName, event, git)); }
-  catch (error) { console.error(`Using full CI: ${error.message}`); return plan([], { full: true }); }
+  catch (error) { console.error(`Selecting all PR groups: ${error.message}`); return plan(['<unknown-change-range>']); }
 }
 if (require.main === module) {
   const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
   const result = fromEvent(process.env.GITHUB_EVENT_NAME, event);
-  const values = { code: result.code, 'build-tests': result.buildTests, groups: result.groups, matrix: JSON.stringify(result.matrix) };
+  const values = { code: result.code, 'build-tests': result.buildTests, mode: result.mode, groups: result.groups, matrix: JSON.stringify(result.matrix) };
   fs.appendFileSync(process.env.GITHUB_OUTPUT, Object.entries(values).map(([key, value]) => `${key}=${value}\n`).join(''));
-  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Test plan\n\nGroups: **${result.groups}**. Code checks: **${result.code}**. Build integrations: **${result.buildTests}**.\n\nThe full suite runs nightly and with workflow_dispatch. See docs/browser-tests.md.\n`);
+  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Test plan\n\nMode: **${result.mode}**. Groups: **${result.groups}**. Code checks: **${result.code}**. Build integrations: **${result.buildTests}**.\n\nThe full suite runs nightly and with workflow_dispatch. See docs/browser-tests.md.\n`);
   console.log(JSON.stringify(result));
 }
 module.exports = { changedFiles, fromEvent };

@@ -8,7 +8,7 @@ test.describe('unified', () => {
   test('typography, mobile input, fonts and loading states', { tag: ['@ui'] }, async ({ check }) => {
     await check('ui', { application });
   });
-  test('benchmark CLI provenance and failure reports', { tag: ['@graphics', '@build'] }, async ({ check }) => {
+  test('benchmark CLI provenance and failure reports', { tag: ['@graphics', '@build', '@extended'] }, async ({ check }) => {
     await check('benchmark', { application, method: 'runCLI' });
   });
 });
@@ -19,7 +19,7 @@ for (const command of ['serve', 'serve:next']) {
     });
   }
 }
-test('ordinary clean clone, HMR and default benchmark provenance', { tag: ['@dev', '@build'] }, async ({ check }) => {
+test('ordinary clean clone, HMR and default benchmark provenance', { tag: ['@dev', '@build', '@extended'] }, async ({ check }) => {
   await check('benchmark-clone');
 });
 test('runner context cleanup, failure exit and diagnostics', { tag: ['@dev'] }, async ({ check }) => {

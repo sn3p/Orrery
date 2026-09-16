@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { execFileSync } = require('node:child_process');
-const { plan, selection, fixtureKeys } = require('./ci-policy.cjs');
+const { plan, selection, fixtureKeys, mode } = require('./ci-policy.cjs');
 const { fromEvent } = require('../scripts/ci-plan.cjs');
 const { verify } = require('../scripts/ci-gate.cjs');
 
@@ -34,6 +34,7 @@ test('path policy preserves risky changes, unions groups and defaults unknown fi
     assert(plan([file]).buildTests, file);
   }
   for (const value of ['oops', 'ui', 'core,typo', 'full,core', '']) assert.throws(() => selection(value));
+  for (const value of ['oops', '', 'core']) assert.throws(() => mode(value));
   assert.equal(fixtureKeys(['full']), null);
   assert(!fixtureKeys(['core']).has('unified/gpu'));
   const known = new Set([...require('./fixture-builds.cjs').definitions.map(item => item.key), 'lazy-preview', 'catalog', 'three']);
@@ -41,6 +42,17 @@ test('path policy preserves risky changes, unions groups and defaults unknown fi
     for (const key of fixtureKeys(groups)) assert(known.has(key), `Unknown selected fixture: ${key}`);
   }
   assert(fixtureKeys(['core', 'ui']).has('unified/production'));
+  const routineFixtures = fixtureKeys(['full'], 'pr');
+  assert(routineFixtures.has('unified/initialization'));
+  assert(!routineFixtures.has('unified/gpu'));
+  assert(!routineFixtures.has('unified/benchmark'));
+  for (const files of [['src/css/main.css'], ['src/unified/App.js'], ['tests/runtime-diagnostics.cjs'], ['package-lock.json']]) {
+    const result = plan(files);
+    assert.equal(result.mode, 'pr');
+    assert.equal(result.matrix.include.length, 5, files.join(','));
+  }
+  assert.equal(plan([], { full: true }).mode, 'full');
+  assert.equal(plan([], { full: true }).matrix.include.length, 9);
 });
 
 test('reduced prepared manifest reaches the real public-assets browser boundary', async t => {
@@ -98,11 +110,16 @@ test('planner CLI handles real PR divergence, rename/delete, push, missing histo
   }
   const pr = run('pull_request', { pull_request: { base: { sha: movedBase }, head: { sha: head } } });
   assert.equal(pr.groups, 'core,ui', 'Rename retains removed code; unrelated base commits do not inflate selection');
-  assert.equal(pr.code, 'true'); assert.equal(JSON.parse(pr.matrix).include.length, 9);
+  assert.equal(pr.code, 'true'); assert.equal(pr.mode, 'pr');
+  assert.equal(JSON.parse(pr.matrix).include.length, 5);
   assert.equal(run('push', { before: base, after: head }).groups, 'core,ui');
   assert.equal(run('push', { before: '0'.repeat(40), after: head }).groups, 'full');
   assert.equal(run('push', { before: 'a'.repeat(40), after: head }).groups, 'full');
-  for (const name of ['schedule', 'workflow_dispatch', 'unknown']) assert.equal(run(name, {}).groups, 'full');
+  for (const name of ['schedule', 'workflow_dispatch', 'unknown']) {
+    const result = run(name, {});
+    assert.equal(result.groups, 'full'); assert.equal(result.mode, 'full');
+  }
+  assert.equal(run('push', { before: '0'.repeat(40), after: head }).mode, 'pr');
   assert.equal(fromEvent('push', { before: base, after: head }, () => '').code, false);
 
   // Exercise the workflow's real Git diff and output boundary, not only the
@@ -127,10 +144,10 @@ test('planner CLI handles real PR divergence, rename/delete, push, missing histo
 
 test('native selection retains core in Chromium, smoke in other engines and two independent standalone cases', () => {
   const cli = require.resolve('@playwright/test/cli');
-  const discover = (groups, ...args) => {
+  const discover = (groups, runMode = 'full', ...args) => {
     const report = JSON.parse(execFileSync(process.execPath, [cli, 'test', '--list', '--reporter=json', ...args], {
       encoding: 'utf8', maxBuffer: 10 * 1024 * 1024,
-      env: { ...process.env, BROWSERS: 'chromium,firefox,webkit', ORRERY_TEST_GROUPS: groups },
+      env: { ...process.env, BROWSERS: 'chromium,firefox,webkit', ORRERY_TEST_GROUPS: groups, ORRERY_TEST_MODE: runMode },
     }));
     const rows = [];
     function visit(suite) {
@@ -156,8 +173,30 @@ test('native selection retains core in Chromium, smoke in other engines and two 
   const full = discover('full'); assert.equal(full.length, 106);
   assert(full.some(row => row.title.includes('configured promotion')));
   assert(full.some(row => row.title.includes('benchmark CLI provenance')));
+  // Follow actual workflow outputs through native discovery and its shards.
+  // A change to the test suite itself selects all groups, not the nightly mode.
+  const routine = plan(['tests/runtime-diagnostics.cjs']);
+  const expected = discover(routine.groups, routine.mode);
+  assert(expected.length < full.length / 2);
+  assert(expected.some(row => row.title.includes('speed-eight buffering')));
+  assert(!expected.some(row => row.tags.includes('extended')));
+  assert(!expected.some(row => /benchmark|raw App lifecycle|GPU numerics, uploads|Three scenes/.test(row.title)));
+  for (const browser of ['firefox', 'webkit']) {
+    const cases = expected.filter(row => row.project === browser);
+    assert.equal(cases.length, 2); assert(cases.every(row => row.tags.includes('smoke')));
+  }
+  const identity = row => `${row.project}: ${row.title}`;
+  const sharded = routine.matrix.include.flatMap(job => discover(routine.groups, routine.mode,
+    `--project=${job.project}`, `--shard=${job.shard}`));
+  assert.deepEqual(sharded.map(identity).sort(), expected.map(identity).sort());
+  assert.equal(new Set(sharded.map(identity)).size, expected.length);
+  const data = discover(plan(['src/unified/catalog/CatalogLoader.js']).groups, 'pr');
+  assert(data.some(row => row.title.includes('catalogue frame commits')));
+  assert(!data.some(row => /benchmark|development|HMR/.test(row.title) && !row.title.includes('speed-eight')));
+  const css = discover(plan(['src/css/main.css']).groups, 'pr');
+  assert(css.some(row => row.project === 'chromium' && row.title === 'options controls, keyboard and responsive layout'));
   for (const groups of ['core', 'full']) {
-    const standalone = discover(groups, '--config=playwright.standalone.config.cjs');
+    const standalone = discover(groups, 'pr', '--config=playwright.standalone.config.cjs');
     assert.equal(standalone.length, 2); assert(standalone.every(row => row.project === 'standalone'));
   }
 });

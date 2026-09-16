@@ -26,6 +26,7 @@ jobs:
       code: ${{ steps.plan.outputs.code }}
       build-tests: ${{ steps.plan.outputs.build-tests }}
       groups: ${{ steps.plan.outputs.groups }}
+      mode: ${{ steps.plan.outputs.mode }}
       matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -82,6 +83,7 @@ jobs:
     if: needs.plan.outputs.code == 'true'
     env:
       ORRERY_TEST_GROUPS: ${{ needs.plan.outputs.groups }}
+      ORRERY_TEST_MODE: ${{ needs.plan.outputs.mode }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -123,6 +125,7 @@ jobs:
     if: needs.plan.outputs.code == 'true'
     env:
       ORRERY_TEST_GROUPS: ${{ needs.plan.outputs.groups }}
+      ORRERY_TEST_MODE: ${{ needs.plan.outputs.mode }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:

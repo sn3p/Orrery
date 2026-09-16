@@ -26,7 +26,7 @@
     "test:fixtures": "node tests/fixture-builds.cjs",
     "test:node:fast": "node --test tests/orbits.test.mjs tests/preparation.test.mjs tests/cpu-orbits.test.mjs tests/orbit-tracks.test.mjs tests/orbit-cache.test.mjs tests/catalog-source.cjs tests/catalog-latest.cjs tests/catalog-manifest.cjs tests/catalogue-model.test.mjs tests/harness.test.cjs tests/ci-policy.test.cjs tests/historical-catalog.test.cjs tests/three-reference.test.cjs tests/fixture-boundaries.test.cjs tests/dev-server-process.test.cjs",
     "test:integration": "npm run test:build && node --test tests/catalog-delivery.cjs tests/catalog-benchmark-inputs.cjs",
-    "test:pr": "npm run build && npm run test:node:fast && ORRERY_TEST_GROUPS=core playwright test"
+    "test:pr": "npm run build && npm run test:node:fast && ORRERY_TEST_MODE=pr ORRERY_TEST_GROUPS=core playwright test"
   },
   "dependencies": {
     "dat.gui": "^0.7.9",

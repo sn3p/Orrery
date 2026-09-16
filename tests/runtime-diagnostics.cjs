@@ -44,17 +44,37 @@ async function run({ browser, name, output = path.resolve('.context/promotion/ru
         await page.waitForFunction(() => window.probe?.app.catalogLoader?.sceneComplete());
         const frozen = await page.evaluate(() => {
           const app = probe.app;
-          app.jed = 2444271.5; app.renderFrame();
+          // Own frame timestamps while the second chunk is held. Playback may
+          // legitimately advance before reaching its missing discovery rows.
+          app.autoRender = false; app.cancelRender();
+          app.jed = 2444271.5; app.renderFrame(1000);
           app.stats.fps = 60; app.updateGui();
           app.jedDelta = 8;
-          return { jed: app.jed, count: app.asteroidsDiscovered };
+          app.renderFrame(1000); // Establish the playback clock after resuming.
+          app.renderFrame(1001); // A complete frame, still before 2444272.5.
+          return { jed: app.jed, count: app.asteroidsDiscovered,
+            date: document.querySelector('#orrery-date').textContent,
+            countText: document.querySelector('#orrery-count').textContent };
         });
-        await page.waitForFunction(() => probe.app.catalogLoader.buffering);
+        assert.equal(frozen.jed, 2444271.5 + 0.48, 'Playback advances before buffering');
+        assert.equal(frozen.count, 1);
+        await page.evaluate(() => probe.app.renderFrame(1004)); // Cross the missing-data boundary.
+        assert.equal(await page.evaluate(() => probe.app.catalogLoader.buffering), true);
         assert.equal(await page.locator('#orrery-status').textContent(), 'Buffering asteroids…');
         assert.equal(await page.locator('#orrery-fps').textContent(), '0 FPS');
-        assert.deepEqual(await page.evaluate(() => ({ jed: probe.app.jed, count: probe.app.asteroidsDiscovered })), frozen);
+        for (const timestamp of [1020, 1100, 2000]) {
+          assert.deepEqual(await page.evaluate(timestamp => {
+            const app = probe.app; app.renderFrame(timestamp);
+            return { jed: app.jed, count: app.asteroidsDiscovered,
+              date: document.querySelector('#orrery-date').textContent,
+              countText: document.querySelector('#orrery-count').textContent };
+          }, timestamp), frozen, 'Buffering retains the last complete frame and readouts');
+        }
         await page.screenshot({ path: path.join(output, renderer + '-buffering.png') });
         release();
+        await page.evaluate(() => {
+          const app = probe.app; app.autoRender = true; app.resetClock(); app.requestRender();
+        });
         await page.waitForFunction(() => probe.app.jed > 2444272.5 && !probe.app.catalogWaiting);
         await page.waitForFunction(() => probe.app.stats.fps > 0);
         assert.equal(await page.locator('#orrery-status').textContent(), '');

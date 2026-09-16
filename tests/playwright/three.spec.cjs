@@ -7,5 +7,5 @@ for (const [part, title] of [
   ['frames', 'Three GPU failure receipts, rollback and recovery'],
   ['lifecycle', 'Three camera, playback, retained recovery and disposal'],
 ]) {
-  test(`${title}`, { tag: part === 'graphics' ? ['@graphics'] : ['@core', '@graphics', '@data'] }, async ({ check }) => { await check('three', { part }); });
+  test(`${title}`, { tag: part === 'graphics' ? ['@graphics', '@extended'] : ['@core', '@graphics', '@data'] }, async ({ check }) => { await check('three', { part }); });
 }
