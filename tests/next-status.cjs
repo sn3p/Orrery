@@ -26,7 +26,9 @@ async function run({ browser, name, output = '.context/ui-polish/status' }) {
   const server = await serve(process.env.ORRERY_DEFAULT_DIST || 'dist');
   const files = fixtureFiles();
   const index = JSON.parse(files.get([...files.keys()].find(key => key.startsWith('index-'))));
-  const lastChunk = producerBase + index.chunks.at(-1).url;
+  const last = index.chunks.at(-1);
+  const lastChunk = producerBase + last.url;
+  const prefixChunk = producerBase + index.chunks.at(-2).url;
   const results = [];
   try {
     for (const renderer of ['pixi', 'three']) {
@@ -35,11 +37,13 @@ async function run({ browser, name, output = '.context/ui-polish/status' }) {
         const page = await browser.newPage({ viewport });
         const errors = [];
         page.on('pageerror', error => errors.push(error.message));
-        let releaseLatest, releaseChunk, failChunk = true;
+        let releaseLatest, releasePrefix, releaseChunk, failChunk = true;
         const latestGate = new Promise(resolve => { releaseLatest = resolve; });
+        const prefixGate = new Promise(resolve => { releasePrefix = resolve; });
         const chunkGate = new Promise(resolve => { releaseChunk = resolve; });
         await routeDefaultCatalog(page);
         await page.route(latestURL, async route => { await latestGate; await route.fallback(); });
+        await page.route(prefixChunk, async route => { await prefixGate; await route.fallback(); });
         await page.route(lastChunk, async route => {
           await chunkGate;
           if (failChunk) await route.fulfill({ status: 503, body: 'Controlled failure' });
@@ -53,6 +57,12 @@ async function run({ browser, name, output = '.context/ui-polish/status' }) {
           await capture('initial');
           releaseLatest();
           await page.getByRole('status').filter({ hasText: 'Buffering asteroids' }).waitFor();
+          assert(Number(await page.locator('#orrery-count').textContent()) < last.start);
+          releasePrefix();
+          // The earlier prefix can briefly buffer too. Wait for its committed
+          // readout and the held final chunk before inspecting stable feedback.
+          await page.waitForFunction(count => document.querySelector('#orrery-count').textContent === String(count)
+            && document.querySelector('#orrery-status').textContent === 'Buffering asteroids…', last.start);
           await checkStatus(page, true);
           const before = await page.locator('.orrery-readouts').textContent();
           await capture('buffering');
@@ -85,7 +95,7 @@ async function run({ browser, name, output = '.context/ui-polish/status' }) {
             readouts: await page.locator('.orrery-readouts').textContent(), errors });
           await capture('unexpected-failure');
           throw error;
-        } finally { releaseLatest(); releaseChunk(); await page.close(); }
+        } finally { releaseLatest(); releasePrefix(); releaseChunk(); await page.close(); }
       }
     }
     fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify(results, null, 2));
