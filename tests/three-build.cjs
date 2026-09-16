@@ -1,33 +1,20 @@
 const path = require('node:path');
 const webpack = require('webpack');
-const HtmlWebpackPlugin = require('html-webpack-plugin');
-const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 
 async function build(output) {
-  const source = require('../migration/orrery3d/webpack.config.js');
   const target = require('../webpack.next.config.js');
   const root = path.resolve(__dirname, '..');
-  const configs = [
-    { ...source, entry: './tests/three-reference.js',
-      output: { ...source.output, path: path.join(output, 'reference') },
-      plugins: [new webpack.DefinePlugin({ __CATALOG_TRIAL__: 'null' }),
-        new MiniCssExtractPlugin({ filename: 'main.css' }),
-        new HtmlWebpackPlugin({ inject: false, template: 'migration/orrery3d/src/index.html' })] },
-    { ...target, entry: './tests/three-browser.js',
-      output: { ...target.output, path: path.join(output, 'next') },
-      // Keep the explicit whole-file pixel oracle separate from public startup.
-      // Execute the unchanged source numerical tests with the adapted production
-      // cloud and neutral model; their independent 3D orbit oracle stays intact.
-      resolve: { alias: Object.fromEntries([
-        [path.join(root, 'src/unified/index.js'), 'tests/bundled-entry.js'],
-        ['Asteroids', 'src/unified/three/Asteroids.js'],
-        ['prepareCatalogue', 'src/unified/catalog/prepareCatalogue.js'],
-      ].map(([name, file]) => [path.isAbsolute(name) ? name : path.join(root, `migration/orrery3d/src/js/${name}`), path.join(root, file)])) } },
-  ];
-  for (const config of configs) await new Promise((resolve, reject) => {
-    const compiler = webpack({ ...config, module: { rules: [...config.module.rules, require("./historical-catalog.cjs").rule] }, context: root, mode: 'production', performance: { hints: false } });
-    compiler.run((error, stats) => compiler.close(() => {
-      if (error || stats.hasErrors()) reject(error || new Error(stats.toString('errors-only')));
+  // Numerical expectations live in test-owned reference helpers. Only the
+  // startup entry is substituted to select the explicit historical catalogue.
+  const config = { ...target, entry: './tests/three-browser.js',
+    output: { ...target.output, path: path.join(output, 'next') },
+    resolve: { alias: { [path.join(root, 'src/unified/index.js')]: path.join(root, 'tests/bundled-entry.js') } },
+    module: { rules: [...target.module.rules, require('./historical-catalog.cjs').rule] },
+    context: root, mode: 'production', performance: { hints: false } };
+  await new Promise((resolve, reject) => {
+    const compiler = webpack(config);
+    compiler.run((error, stats) => compiler.close(closeError => {
+      if (error || closeError || stats.hasErrors()) reject(error || closeError || new Error(stats.toString('errors-only')));
       else resolve();
     }));
   });

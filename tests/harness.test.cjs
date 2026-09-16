@@ -67,6 +67,7 @@ test('fixture identity includes compiler, catalogue provisioning and profile cha
     for (const name of ['first', 'second']) {
       const checkout = path.join(root, name);
       for (const directory of ['src', 'tests', 'scripts', 'catalog-profiles']) fs.mkdirSync(path.join(checkout, directory), { recursive: true });
+      fs.cpSync(path.join(__dirname, 'fixtures/three-reference'), path.join(checkout, 'tests/fixtures/three-reference'), { recursive: true });
       fs.writeFileSync(path.join(checkout, 'postcss.config.js'), 'module.exports = { plugins: [] };');
       fs.writeFileSync(path.join(checkout, 'scripts/catalog.cjs'), 'module.exports = {};');
       fs.writeFileSync(path.join(checkout, 'catalog-profiles/ties-indexed.json'), '{"mode":"indexed"}');
@@ -74,6 +75,14 @@ test('fixture identity includes compiler, catalogue provisioning and profile cha
     const first = path.join(root, 'first'), second = path.join(root, 'second');
     const original = await fingerprint(first);
     assert.equal(await fingerprint(second), original, 'Checkout location does not change fixture identity');
+    for (const file of ['Orbit.js', 'constants.js', 'shader.js', 'manifest.json']) {
+      const filename = path.join(first, 'tests/fixtures/three-reference', file);
+      const bytes = fs.readFileSync(filename);
+      fs.appendFileSync(filename, '\n');
+      assert.notEqual(await fingerprint(first), original, `Three reference ${file} invalidates prepared fixtures`);
+      fs.writeFileSync(filename, bytes);
+      assert.equal(await fingerprint(first), original);
+    }
     fs.writeFileSync(path.join(first, 'postcss.config.js'), 'module.exports = { plugins: ["changed"] };');
     assert.notEqual(await fingerprint(first), original, 'CSS compiler configuration invalidates prepared fixtures');
     const withCompilerChange = await fingerprint(first);
@@ -89,6 +98,7 @@ async function discover(...args) {
   const env = { ...process.env };
   delete env.BROWSERS;
   delete env.ORRERY_TEST_GROUPS;
+  delete env.ORRERY_TEST_MODE;
   const { stdout } = await execute(process.execPath, [cli, 'test', '--list', '--reporter=json', ...args], { env, maxBuffer: 4 * 1024 * 1024 });
   const rows = [];
   function visit(suite, parents = []) {

@@ -9,7 +9,7 @@ test('preview entry, responsive layouts, lazy assets and recovery', { tag: ['@co
 test('preview footer loading, buffering, failure and empty states', { tag: ['@ui', '@data'] }, async ({ check }) => {
   await check('next-status');
 });
-test('raw App lifecycle, scene states and exact recovery', { tag: ['@graphics'] }, async ({ check }) => {
+test('raw App lifecycle, scene states and exact recovery', { tag: ['@graphics', '@extended'] }, async ({ check }) => {
   await check('unified', { application: 'unified' });
 });
 test('representative production scene and recovery checks', { tag: ['@core'] }, async ({ check }) => {
@@ -18,7 +18,7 @@ test('representative production scene and recovery checks', { tag: ['@core'] }, 
 
 test.describe('unified', () => {
   const application = 'unified';
-  test('GPU numerics, uploads, pixels and recovery', { tag: ['@graphics'] }, async ({ check }) => {
+  test('GPU numerics, uploads, pixels and recovery', { tag: ['@graphics', '@extended'] }, async ({ check }) => {
     await check('gpu', { application });
   });
   test('rendering, readouts, lifecycle and production UI', { tag: ['@graphics', '@ui'] }, async ({ check }) => {
@@ -33,7 +33,7 @@ test.describe('unified', () => {
       await check('options-browser', { application, part });
     });
   }
-  test('benchmark frames, resolution, interruption and recovery', { tag: ['@graphics'] }, async ({ check }) => {
+  test('benchmark frames, resolution, interruption and recovery', { tag: ['@graphics', '@extended'] }, async ({ check }) => {
     await check('benchmark', { application });
   });
 });

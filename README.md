@@ -64,8 +64,10 @@ steps. Results, screenshots and failure traces are saved in
 `npx playwright show-report .context/playwright-report`.
 The default browser suite checks current production pixels, numerics,
 lifecycle and options. `npm run test:unified` builds the public app and
-runs two clean-checkout smoke cases, one per renderer. CI automatically expands
-coverage for relevant changes and runs the full matrix nightly.
+runs two clean-checkout smoke cases, one per renderer. CI runs Chromium core and
+affected checks plus Firefox/WebKit smoke on ordinary
+changes; exhaustive graphics/benchmark checks and the full matrix run nightly
+or manually. See [browser testing](docs/browser-tests.md) for scope and limits.
 The default suite runs Chromium, Firefox and Playwright WebKit. For a local
 Chrome-only pass, use `BROWSERS=chromium npm test`. See
 [the browser test workflow](docs/browser-tests.md) for projects, shards and fixture builds.

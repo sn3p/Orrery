@@ -24,9 +24,11 @@ and benchmark provenance. Current tests import production classes explicitly.
 The completed one-off Pixi source-port comparison is retired; raw App lifecycle,
 scene states, independent numerical/GPU checks and exact recovery remain.
 
-Unit 7c still owns the imported Three snapshot: retain its independent numerical
-and shader oracles, licenses, provenance and all original Git ancestry before
-removing it. See [release/rollback](promotion.md), [catalogue loading](catalog-loading.md)
+Unit 7c removes the imported Three snapshot after extracting attributed
+[independent numerical/shader references](../tests/fixtures/three-reference/README.md).
+Production scene, GPU/pixel, upload, interaction and recovery checks remain;
+the completed source-port canvas comparison is retired. Original Git ancestry
+and immutable provenance remain preserved. See [release/rollback](promotion.md), [catalogue loading](catalog-loading.md)
 and the [Three adapter](three-renderer.md).
 
 `src/unified/App.js` owns Julian day, requested speed, active presentation time,
@@ -53,10 +55,11 @@ requested speed. Pixi keeps 3× discovery markers shrinking over 2/3 active seco
 wheel zoom and stage translation through resize. Three keeps the source's
 date-based discovery fade and OrbitControls camera gestures.
 
-### Temporary source mapping
+### Source adoption mapping
 
 The Pixi mappings originate at PR64's merged tree; Three uses the preserved
-Orrery3D snapshot. Keep live source stable until the promotion/cleanup units:
+Orrery3D revision recorded in [history](history/orrery3d.md). The original
+snapshot is retained in Git history after unit 7c:
 
 | Preview | Legacy source / change |
 | --- | --- |
@@ -277,8 +280,8 @@ Normal and configured production commands emit only current root assets. Configu
 catalogue builds stage current and explicitly retained pins under root `data/`.
 Development selects the configured source at process startup. The old
 `webpack.next.app.config.cjs` and test-only nested compilation remain until the
-remaining fixture consumers are migrated. The imported Three snapshot and compressed
-historical catalogue remain test references, not deployed payloads.
+remaining fixture consumers are migrated. Extracted independent Three references
+and the compressed historical catalogue are test-owned, not deployed payloads.
 Original Git history and rollback artifacts remain preserved.
 
 ## Verification contract
@@ -408,6 +411,17 @@ sections are omitted and outgoing controls are removed. A fixture setting tests
 this boundary; no new public camera or effect controls are included.
 
 `tests/playwright/switching.spec.cjs` registers real-entry state, failure,
-retained-data, lifecycle and fixture-options tests in all browser projects and
-standalone preview coverage. Production asset/lazy isolation, source visual and
-numerical parity, loader and finite benchmark checks remain separate gates.
+retained-data, lifecycle and fixture-options tests in all browser projects.
+`tests/playwright/smoke.spec.cjs` separately covers both public renderer entries. Production asset/lazy isolation, independent numerical
+and pixel checks, scene/recovery, loader and finite benchmark checks remain separate gates.
+
+## Unit 7c: imported snapshot removal
+
+The current-tree `migration/orrery3d` snapshot is removed after the functional
+ports. [Independent Three references](../tests/fixtures/three-reference/README.md)
+retain pinned numerical calculations, the original shader assertions and MIT
+attribution. Production scene/readout/reverse-return, GPU/pixel, interaction,
+upload and recovery coverage replaces the completed source-port canvas gate.
+The [original import tree and ancestry](history/orrery3d.md) remain unchanged;
+its historical record and workflow continue to verify all 147 original commits.
+No runtime, data default, styling or public UX change is part of this cleanup.

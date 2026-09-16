@@ -7,7 +7,7 @@ window.threeTest = { app, ready, prepareCatalogue,
   constructors: async () => ({ App: (await import("../src/unified/App.js")).default,
     ThreeRenderer: (await import("../src/unified/three/ThreeRenderer.js")).default }),
   validate: async () => {
-    const { validateShader } = await import("../migration/orrery3d/tests/shader.js");
+    const { validateShader } = await import("./fixtures/three-reference/shader.js");
     const data = await (await fetch(new URL("data/catalog.json", document.baseURI))).json();
     app.jedDelta = 0; app.jed = 2458600.5; app.renderFrame();
     return validateShader({ ...app.renderer, jed: app.jed }, data);

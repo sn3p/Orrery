@@ -18,7 +18,7 @@ or fetching retained data.
 Separate Pixi and Three views and options last for the page; reload uses the
 entry URL and existing defaults. See [switching](unification.md#renderer-switching).
 
-The source is the preserved MIT-licensed Orrery3D `93a3e1f` snapshot. The port
+The source is the preserved MIT-licensed Orrery3D `93a3e1f` revision. The port
 keeps its 60-degree perspective camera at `(500,500,400)`, Z-up, clipping range
 `.001–2,000,000`, OrbitControls gestures, sphere bodies, dashed tracks and full
 XYZ orbital bases. Points retain size 1 and fade from green to `0x999999` across
@@ -26,8 +26,10 @@ XYZ orbital bases. Points retain size 1 and fade from green to `0x999999` across
 
 `Orbit`, `Planet`, `Sun` and `createSphere` retain source mechanics with local
 imports. `Asteroids` retains the source shader/material and adapts CPU ownership,
-bounded packing, frame rollback and GPU receipts. The imported snapshot remains
-unchanged; [history verification](history/orrery3d.md) guards its original ancestry.
+bounded packing, frame rollback and GPU receipts. The current-tree imported snapshot is removed;
+[history verification](history/orrery3d.md) guards its original tree and ancestry.
+[Test-owned references](../tests/fixtures/three-reference/README.md) retain
+independent orbital calculations and the original GPU/pixel assertions.
 
 ## Retained data and graphics commitment
 
@@ -83,10 +85,10 @@ RENDERER=three HEADLESS=1 DURATION_SECONDS=120 PROFILES=native \
 ```
 
 Native projects include the real direct entry at root and Pages subpaths,
-WebGL1-only Pixi fallback, missing Three chunk/WebGL2 recovery, source canvas
-comparisons, independent XYZ GLSL/colour checks, upload budgets, catalogue modes,
-camera/time/visibility, failed frames and retained graphics restoration. All
-Three cases are selected by standalone verification too. Benchmark reports
+WebGL1-only Pixi fallback, missing Three chunk/WebGL2 recovery, production scene/reverse-return
+checks, independent XYZ GLSL/colour and rendered CPU-reference comparisons, upload budgets, catalogue modes,
+camera/time/visibility, failed frames and retained graphics restoration. The complete native suite selects all
+Three cases; standalone verification covers the two public renderer smoke cases. Benchmark reports
 separate first submission from GPU fence completion and retain backend, array
 ownership, CPU/GPU byte counts and memory-sampling limits.
 
@@ -96,5 +98,5 @@ includes receipt and readout commitment after drawing. Legacy timing boundaries
 remain unchanged, so keep these differences explicit when comparing old runs.
 
 Physical Safari/iOS hardware and native monitor transitions need separate device
-evidence; browser automation does not certify them. Renderer switching, promotion
-and cleanup remain later planned review units.
+evidence; browser automation does not certify them. Renderer switching and promotion are implemented; the source snapshot cleanup
+preserves their regression coverage.

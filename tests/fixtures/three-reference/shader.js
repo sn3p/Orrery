@@ -1,7 +1,7 @@
 import * as THREE from "three";
-import Asteroids, { orbitGLSL, REFERENCE_JED, REBASE_DAYS } from "../src/js/Asteroids";
-import { prepareCatalogue } from "../src/js/prepareCatalogue";
-import Orbit from "../src/js/Orbit";
+import Asteroids, { orbitGLSL, REFERENCE_JED, REBASE_DAYS } from "../../../src/unified/three/Asteroids.js";
+import { prepareCatalogue } from "../../../src/unified/catalog/prepareCatalogue.js";
+import Orbit from "./Orbit";
 
 const oldColor = new THREE.Color(0x999999), freshColor = new THREE.Color(0x00ff00);
 const options = { jed: REFERENCE_JED, color: oldColor, discoveryColor: freshColor, discoveryDuration: 200 };
