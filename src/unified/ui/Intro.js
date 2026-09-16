@@ -1,4 +1,4 @@
-// First-visit introduction and the footer About entry. Playback holds while the
+// First-visit introduction and the footer "Orrery" entry that reopens it. Playback holds while the
 // card is open so the start of the discovery timeline is not hidden behind it.
 const STORAGE_KEY = "orrery.intro";
 

@@ -1,7 +1,6 @@
 import { fromJED } from "../../js/utils.js";
 import { UNIX_EPOCH_JULIAN_DATE } from "../../js/constants.js";
 import Options from "./Options.js";
-import Intro from "./Intro.js";
 
 const countFormat = new Intl.NumberFormat("en-US");
 
@@ -14,7 +13,6 @@ export default class Hud {
     if (this.readouts) this.readouts.hidden = true;
     this.lastDay = this.lastFps = this.lastCount = null;
     this.controls = new Options(app);
-    this.intro = new Intro(app);
   }
 
   update(jed, fps, count, ready) {
@@ -37,5 +35,5 @@ export default class Hud {
     }
   }
 
-  destroy() { this.intro.destroy(); this.controls.destroy(); }
+  destroy() { this.controls.destroy(); }
 }

@@ -55,18 +55,20 @@ async function run({ browser, name, output = '.context/intro' }) {
         await loaded(page);
         assert(!await page.locator('#orrery-intro').evaluate(el => el.open), 'A remembered visitor is not interrupted again');
         await require('./next-layout.cjs').check(page);
-        const about = page.getByRole('button', { name: 'About', exact: true });
-        assert((await about.boundingBox()).height >= 24, 'About keeps a comfortable target');
+        const about = page.getByRole('button', { name: 'About Orrery', exact: true });
+        assert((await about.boundingBox()).height >= 24, 'The footer trigger keeps a comfortable target');
+        assert.equal(await dialog.getByRole('link', { name: 'GitHub' }).count(), 0, 'Links are hidden with the card');
 
         await about.click();
         const reopened = await holds(page, dialog, 'About');
+        assert.equal(await dialog.getByRole('link', { name: 'GitHub' }).getAttribute('href'), 'https://github.com/sn3p/Orrery', 'The card links the repository');
         await capture('about');
         await page.mouse.click(2, 2);
         await resumes(page, dialog, reopened, 'backdrop click');
         // Safari's convention leaves buttons unfocused after a pointer click, so
         // the dialog has nothing to restore there; focus must still leave the card.
         if (name === 'webkit') assert(!await page.locator('#orrery-intro').evaluate(el => el.contains(document.activeElement)), 'Focus leaves the closed card');
-        else assert(await about.evaluate(el => el === document.activeElement), 'Focus returns to About');
+        else assert(await about.evaluate(el => el === document.activeElement), 'Focus returns to the footer trigger');
 
         await about.click();
         const again = await holds(page, dialog, 'About again');

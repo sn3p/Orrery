@@ -10,8 +10,8 @@ resolution. Click outside or press Escape to close it. Speed 0 pauses; negative
 values reverse. Speed 1 advances 60 days per second (default 1.5).
 
 The app uses 12px UI text, with date and space-grouped discovery count at the
-bottom-left (`2005-05-03 / 353 381`), Orrery/GitHub/About at the bottom-right and FPS
-at the top-right. About opens the introduction card, which also appears once on a
+bottom-left (`2005-05-03 / 353 381`), Orrery at the bottom-right and FPS at the
+top-right. The footer Orrery button opens the introduction card, which also appears once on a
 first visit; playback holds while it is open and the chosen speed is kept. Dismissal
 is remembered in `localStorage` under `orrery.intro`. Initial loading occupies the date/count position; later buffering
 or recovery feedback appears above the last committed readout.
