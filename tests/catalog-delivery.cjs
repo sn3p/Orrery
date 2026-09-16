@@ -447,8 +447,8 @@ test("explicit retention survives update and rollback with each original pin", a
   try {
     const rollback = await command(npmArgs(["run", "build", "--", "--output-clean"]), { CATALOG_CONFIG: config });
     assert.equal(rollback.code, 0, rollback.output);
-    require('./promotion-assets.cjs')(dist);
-    for (const profile of profiles) for (const prefix of ["data", "next/data"]) {
+    require('./site-assets.cjs')(dist);
+    for (const profile of profiles) for (const prefix of ["data"]) {
       await verifyBundle(path.join(root, "dist", prefix, "delivery-v1-" + profile.pin.sha256), profile.pin);
     }
   } finally {
@@ -473,15 +473,15 @@ test("normal configured builds preserve the entire prior site on late failure", 
   const preload = path.join(directory, "late-failure.cjs");
   await fs.writeFile(preload, `require(${JSON.stringify(path.join(root, "webpack.next.config.js"))}).plugins.push({
     apply(compiler) { compiler.hooks.afterEmit.tap("SimulatedLateFailure", () => {
-      if (compiler.options.name === "preview") throw new Error("Simulated late compilation failure");
+      if (compiler.options.name === "app") throw new Error("Simulated late compilation failure");
     }); }
   });`);
   try { for (const script of ["build", "build:next"]) {
     await fs.writeFile(config, JSON.stringify({ mode: "indexed", latest: "http://127.0.0.1:9/latest.json" }));
     const initial = await command(npmArgs(["run", script]), { CATALOG_CONFIG: config });
     assert.equal(initial.code, 0, initial.output);
-    require('./promotion-assets.cjs')(dist);
-    await fs.writeFile(path.join(dist, "next/previous-site.txt"), "Preserve the complete working site.");
+    require('./site-assets.cjs')(dist);
+    await fs.writeFile(path.join(dist, "previous-site.txt"), "Preserve the complete working site.");
     const before = await inventory();
     const bypass = await command([require.resolve('webpack-cli/bin/cli.js'), '--config', 'webpack.build.config.js',
       '--mode', 'production', '--output-clean'], { CATALOG_CONFIG: config });
@@ -495,9 +495,9 @@ test("normal configured builds preserve the entire prior site on late failure", 
     assert.deepEqual(await inventory(), before, "Even emitted assets stay private until all compilation/staging succeeds");
     const restored = await command(npmArgs(["run", script]), { CATALOG_CONFIG: config });
     assert.equal(restored.code, 0, restored.output);
-    require('./promotion-assets.cjs')(dist);
+    require('./site-assets.cjs')(dist);
     await verifyBundle(path.join(dist, "data/delivery-v1-" + pin.sha256), pin);
-    await assert.rejects(fs.stat(path.join(dist, "next/previous-site.txt")), { code: "ENOENT" });
+    await assert.rejects(fs.stat(path.join(dist, "previous-site.txt")), { code: "ENOENT" });
     await assert.rejects(fs.stat(dist + ".build-lock"), { code: "ENOENT" });
   } } finally {
     await fs.rm(dist, { recursive: true, force: true });

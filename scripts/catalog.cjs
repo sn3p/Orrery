@@ -266,27 +266,15 @@ async function buildTrial(configPath, output = path.join(root, ".context/catalog
     const webpack = require("webpack"), base = require("../webpack.next.config.js");
     const previewOutput = temporary;
     await new Promise((resolve, reject) => {
-      const preview = { ...base, mode: "production", plugins: [...catalogPlugins(base, prepared.runtime),
-          ...(assembled ? [new (require("./promotion.cjs").PromotionAssetsPlugin)()] : [])], entry,
-        output: { ...base.output, path: previewOutput, clean: !assembled } };
-      const legacy = require("../webpack.config.js");
-      const compiler = webpack(assembled ? [
-        { ...legacy, mode: "production", name: "legacy", output: { ...legacy.output, path: temporary, clean: true } },
-        // Cached PR73 HTML names the default main bundle. A configured main
-        // has a different hash, so copying only its assets cannot retain it.
-        { ...base, mode: "production", name: "compatibility", dependencies: ["legacy"],
-          // Keep cached-document assets without restoring the retired entry.
-          plugins: base.plugins.filter(plugin => !(plugin instanceof require("html-webpack-plugin"))),
-          output: { ...base.output, path: path.join(temporary, "next"), clean: true } },
-        { ...preview, name: "preview", dependencies: ["compatibility"] },
-      ] : preview);
+      const compiler = webpack({ ...base, mode: "production", name: "app",
+        plugins: catalogPlugins(base, prepared.runtime), entry,
+        output: { ...base.output, path: previewOutput, clean: true } });
       compiler.run((error, stats) => compiler.close(() => {
         if (error || stats.hasErrors()) reject(error || new Error(stats.toString("errors-only")));
         else resolve();
       }));
     });
     await stageCatalog(prepared, previewOutput);
-    if (assembled) await stageCatalog(prepared, path.join(temporary, "next"));
     let siteBytes = 0;
     for (const name of await fs.readdir(temporary, { recursive: true, withFileTypes: true })) {
       if (name.isFile()) siteBytes += (await fs.stat(path.join(name.parentPath, name.name))).size;

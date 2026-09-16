@@ -18,8 +18,8 @@ const { spawn } = require("node:child_process");
   if (!process.env.CATALOG_CONFIG) {
     const child = spawn(process.execPath, [require.resolve("webpack-cli/bin/cli.js"),
       "--config", "webpack.build.config.js",
-      // Root cleaning is owned by the first compiler. Applying this CLI flag
-      // to both compilers would erase the cached-document compatibility assets.
+      // Root cleaning is owned by the app configuration. Normalizing this flag
+      // consistently also covers the deprecated build alias.
       "--mode", "production", ...args.filter(arg => arg !== "--output-clean")], { stdio: "inherit" });
     child.on("error", error => { console.error(error); process.exitCode = 1; });
     child.on("exit", code => { process.exitCode = code ?? 1; });

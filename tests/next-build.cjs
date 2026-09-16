@@ -23,12 +23,13 @@ async function compile(config) {
 (async () => {
   const directory = path.resolve(".context/next-preview/build");
   fs.mkdirSync(directory, { recursive: true });
-  const legacy = require("../webpack.config");
-  const baseline = path.join(directory, "legacy");
-  const stats = await compile({ ...legacy, mode: "production",
-    output: { ...legacy.output, path: baseline, clean: true }, performance: { hints: false } });
-  assert(![...stats.compilation.modules].some(module => module.resource?.includes(`${path.sep}unified${path.sep}`)),
-    "Legacy import graph excludes the preview");
+  // Preserve the active app output while retiring the second public build.
+  const config = await require("../webpack.app.config.cjs")();
+  const baseline = path.join(directory, "current-app");
+  const stats = await compile({ ...config, mode: "production",
+    output: { ...config.output, path: baseline, clean: true }, performance: { hints: false } });
+  assert(![...stats.compilation.modules].some(module => /src[\\/]js[\\/](?:Orrery|Gui|index)\.js$/.test(module.resource || "")),
+    "Public import graph excludes the legacy application");
   const original = fingerprint(baseline);
   // Exercise the exact Pages command twice, including stale sibling output.
   for (let round = 0; round < 2; round++) {
@@ -38,23 +39,15 @@ async function compile(config) {
     fs.writeFileSync("dist/next/index.html", "old redirect");
     const log = execFileSync("npm", ["run", "build", "--", round === 0 ? "--output-clean" : "--output-clean=true"], { encoding: "utf8" });
     fs.writeFileSync(path.join(directory, `build-${round}.log`), log);
-    for (const [name, hash] of Object.entries(original)) {
-      if (name !== "index.html") assert.equal(fingerprint("dist")[name], hash, "Cached legacy asset retained: " + name);
-    }
-    assert.match(fs.readFileSync("dist/index.html", "utf8"), /<title>Orrery<\/title>/);
+    require('./site-assets.cjs')('dist');
+    assert.deepEqual(fingerprint("dist"), original, "Production command emits exactly one current app");
     assert(!fs.existsSync("dist/stale-root.txt"));
-    assert(!fs.existsSync("dist/next/index.html"), "Build removes the retired preview entry");
-    assert(!fs.existsSync("dist/next/data/catalog.json"), "Compatibility preview excludes the legacy catalogue asset");
-    const javascript = files("dist/next").filter(name => name.endsWith(".js"))
-      .map(name => fs.readFileSync(path.join("dist/next", name), "utf8")).join("\n");
-    assert(javascript.includes(require("../catalog-profiles/latest.json").latest), "Default preview selects the producer descriptor");
-    assert(!fs.existsSync("dist/next/stale-preview.txt"));
+    const javascript = files("dist/assets").filter(name => name.endsWith(".js"))
+      .map(name => fs.readFileSync(path.join("dist/assets", name), "utf8")).join("\n");
+    assert(javascript.includes(require("../catalog-profiles/latest.json").latest), "Default app selects the producer descriptor");
   }
+
   const promoted = fingerprint("dist");
-  const retained = require("./fixtures/promotion/pr73-hashes.json");
-  for (const [name, hash] of Object.entries(retained)) {
-    if (!name.endsWith("index.html")) assert.equal(promoted[name], hash, "PR73 cached page dependency retained: " + name);
-  }
   execFileSync("npm", ["run", "build:next", "--", "--output-clean"], { stdio: "pipe" });
   assert.deepEqual(fingerprint("dist"), promoted, "Deprecated build:next alias emits the same complete promoted site");
   const overridden = path.join(directory, "output-override");
@@ -68,6 +61,6 @@ async function compile(config) {
     assert.deepEqual(fingerprint(overridden), savedOutput, "Rejected override cannot clean the existing output");
     assert.deepEqual(fingerprint("dist"), savedDist, "Rejected override cannot alter either default entry");
   }
-  fs.writeFileSync(path.join(directory, "legacy-hashes.json"), JSON.stringify(original, null, 2) + "\n");
-  console.log("Repeated Pages builds and compatibility alias preserve cached legacy assets; overlapping CLI overrides fail before cleaning.");
+  fs.writeFileSync(path.join(directory, "current-app-hashes.json"), JSON.stringify(original, null, 2) + "\n");
+  console.log("Repeated Pages builds emit only the current app; overlapping CLI overrides fail before cleaning.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

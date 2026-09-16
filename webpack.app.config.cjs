@@ -1,6 +1,5 @@
 const path = require("node:path");
 const base = require("./webpack.next.config.js");
-const { PromotionAssetsPlugin } = require("./scripts/promotion.cjs");
 const { prepareCatalog, catalogPlugins, stageCatalog, checkOutput } = require("./scripts/catalog.cjs");
 
 module.exports = async (_env, argv = {}) => {
@@ -11,7 +10,7 @@ module.exports = async (_env, argv = {}) => {
     throw new Error("The promoted app does not accept --output-path or static overrides; build dist, then copy the complete site.");
   }
   const output = path.resolve(__dirname, "dist");
-  let plugins = [...base.plugins, new PromotionAssetsPlugin()];
+  let plugins = [...base.plugins];
   if (process.env.CATALOG_CONFIG) {
     const config = path.resolve(process.env.CATALOG_CONFIG);
     await checkOutput(config, output, true);
@@ -22,22 +21,22 @@ module.exports = async (_env, argv = {}) => {
       compiler.hooks.afterEmit.tapPromise("VerifiedCatalogueFiles", async () => {
         if (!staged || compiler.options.output.clean) {
           await stageCatalog(prepared, compiler.outputPath);
-          await stageCatalog(prepared, path.join(compiler.outputPath, "next"));
           staged = true;
         }
       });
     } });
   }
-  // Watch overlays the assembled site: cached production chunks and retained
-  // catalogue pins must survive. Still enter next/ to remove its retired page.
+  // Watch preserves current root chunks and retained catalogue pins, while
+  // removing payloads from the retired legacy/preview deployment.
   const clean = argv.watch
-    ? { keep: name => name !== "next" && name !== "next/index.html" }
+    ? { keep: name => !["next", "data", "bundle.js", "main.css", "data/catalog.json"].includes(name)
+      && !name.startsWith("next/") }
     : base.output.clean;
   return { ...base, plugins, output: { ...base.output, path: output, clean },
     devServer: { ...base.devServer, open: ["/"], devMiddleware: { publicPath: "/" },
       setupMiddlewares(middlewares, server) {
         // Do not let a previous build's HTML leak through the static fallback.
-        server.app.get(/^\/next(?:\/(?:index\.html)?)?$/, (_req, res) => res.sendStatus(404));
+        server.app.get(/^\/next(?:\/|$)|^\/(?:bundle\.js|main\.css|data\/catalog\.json)$/, (_req, res) => res.sendStatus(404));
         server.app.get("/favicon.ico", (_req, res) => res.status(204).end());
         return middlewares;
       },

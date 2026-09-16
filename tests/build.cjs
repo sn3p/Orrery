@@ -77,9 +77,9 @@ const config = require("../webpack.config");
     process.kill(-child.pid, "SIGTERM"); await closed;
     fs.writeFileSync(path.join(directory, "watch.log"), log);
   }
-  // Exercise the actual promoted watch command as well as the legacy compiler oracle.
+  // Exercise the actual app watch command as well as the retained test compiler oracle.
   execFileSync(process.execPath, ["scripts/build.cjs"], { stdio: "pipe" });
-  const assertRetained = () => require("./promotion-assets.cjs")("dist");
+  const assertRetained = () => require("./site-assets.cjs")("dist");
   assertRetained();
   for (const clean of ["--output-clean", "--no-output-clean"]) {
     assert.throws(() => execFileSync(process.execPath, [require.resolve("webpack-cli/bin/cli.js"),
@@ -88,10 +88,19 @@ const config = require("../webpack.config");
     assertRetained();
   }
   // Watch may start after an older preview build or a configured deployment.
+  fs.mkdirSync("dist/next", { recursive: true });
   fs.writeFileSync("dist/next/index.html", "<title>Retired preview</title>");
-  const retainedPin = "dist/next/data/retained-watch-pin.json";
+  const retainedPin = "dist/data/retained-watch-pin.json";
   fs.mkdirSync(path.dirname(retainedPin), { recursive: true });
   fs.writeFileSync(retainedPin, "retained configured data");
+  fs.writeFileSync("dist/next/stale-chunk.js", "retired chunk");
+  fs.writeFileSync("dist/bundle.js", "retired root");
+  fs.writeFileSync("dist/main.css", "retired styles");
+  fs.writeFileSync("dist/data/catalog.json", "retired catalogue");
+  const rootAssets = Object.fromEntries(fs.readdirSync("dist/assets").map(name =>
+    [name, fs.readFileSync(path.join("dist/assets", name))]));
+  const assertRootAssets = () => { for (const [name, bytes] of Object.entries(rootAssets))
+    assert.deepEqual(fs.readFileSync(path.join("dist/assets", name)), bytes, "Current cached chunk retained: " + name); };
   const watchEntry = path.join(directory, "promoted-watch.js");
   fs.writeFileSync(watchEntry, 'import ' + JSON.stringify(path.resolve("src/unified/index.js")) + '; window.promotionWatchFirst = true;');
   const promotedWatch = spawn("npm", ["run", "watch", "--", "--entry", watchEntry], {
@@ -113,10 +122,12 @@ const config = require("../webpack.config");
   try {
     await waitForWatch('promotionWatchFirst');
     assertRetained();
+    assertRootAssets();
     assert.equal(fs.readFileSync(retainedPin, "utf8"), "retained configured data");
     fs.appendFileSync(watchEntry, '\nwindow.promotionWatchSecond = true;');
     await waitForWatch('promotionWatchSecond');
     assertRetained();
+    assertRootAssets();
     assert.equal(fs.readFileSync(retainedPin, "utf8"), "retained configured data");
     assert.match(fs.readFileSync("dist/index.html", "utf8"), /<title>Orrery<\/title>/);
     assert(!fs.readFileSync("dist/index.html", "utf8").includes("bundle.js"));
