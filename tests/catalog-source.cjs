@@ -255,8 +255,8 @@ test("404, truncated, changed, oversized payloads and corrupt records never comp
   }
 });
 
-test("read ordering, two global processing slots, abort isolation, opening lifetime and close", async t => {
-  const { default: Source } = await import("../src/unified/catalog/CatalogSource.js");
+test("read ordering, bounded global processing slots, abort isolation, opening lifetime and close", async t => {
+  const { default: Source, FILE_SLOTS } = await import("../src/unified/catalog/CatalogSource.js");
   const host = await server(t);
   const opening = new AbortController();
   const source = await Source.open(host.pin(), { signal: opening.signal });
@@ -268,12 +268,15 @@ test("read ordering, two global processing slots, abort isolation, opening lifet
   const rejectedA = assert.rejects(readA, { name: "AbortError" });
   const readB = collect(source.read({ start: 2, end: 6 }, { signal: b.signal }));
   await delay(50);
-  assert.equal(source.slots.active, 2);
-  assert.equal(host.requests.filter(url => url.includes("/chunks/")).length, 2, "Ready later file holds its slot");
-  a.abort();
-  await rejectedA;
+  // Read A holds the blocked first file and its ready second file. The third
+  // slot lets read B complete while A is blocked instead of queueing behind it.
+  assert(FILE_SLOTS > 2, "a blocked read must not hold every slot");
   const events = await readB;
   assert.deepEqual(events.filter(event => event.type === "batch").map(event => [event.start, event.end]), [[2, 4], [4, 6]]);
+  assert.equal(source.slots.active, 2, "Ready later file holds its slot");
+  assert.equal(host.requests.filter(url => url.includes("/chunks/")).length, 4);
+  a.abort();
+  await rejectedA;
   release();
   await delay(10);
   assert.equal(source.slots.active, 0);

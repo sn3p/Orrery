@@ -3,8 +3,9 @@ import { requireValue } from "./contract.js";
 // Speculative reads while playing cover this much playback at the current
 // speed. Chunks are cut by row count in discovery order, so a fixed chunk count
 // spans years in the 1980s but under half a second of speed-8 playback in the
-// 2000s; a time-based target keeps one fetch round trip from stalling a frame.
-export const LOOKAHEAD_SECONDS = 3;
+// 2000s. Ten seconds lets the dense 2000s download during the sparse decades
+// before them; the model is preallocated, so this costs no retained memory.
+export const LOOKAHEAD_SECONDS = 10;
 export const MIN_LOOKAHEAD_CHUNKS = 3;
 
 // Playback needs a retained prefix, not arbitrary interval merging. Source reads
