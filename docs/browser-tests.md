@@ -12,7 +12,7 @@ npm ci
 npx playwright install chrome firefox webkit
 npm run test:pr       # build, fast Node tests, Chromium core + all-engine smoke
 npm run test:unified  # fresh public build + just two clean-checkout smoke cases
-npm test             # complete build/Node/browser suite, including historical and Three source oracles
+npm test             # complete build/Node/browser suite, including historical data and independent Three oracles
 ```
 
 `npm run test:browser` retains the complete native suite by default. After a
@@ -38,7 +38,7 @@ The old 33-case standalone repeat is replaced by two independent smoke cases.
 | `core` | Chromium public assets/layout/lazy loading, two representative production scenes and lifecycle recovery, indexed data loading/recovery/frame commits, renderer switching, Three entry/data/recovery/lifecycle, unified scheduling |
 | Smoke (always selected) | Both public renderers in every selected engine: startup, real keyboard control, small verified indexed catalogue, DPR, graphics-context recovery, reverse playback and reload |
 | `ui` | Public responsive/keyboard/loading states, unified rendering/readouts/options/DPR/texture tests, renderer switching, Chromium typography |
-| `graphics` | Production GPU/rendering/DPR/benchmark-frame suites, full 74-scene/recovery checks, Three source/numerical parity, graphics recovery, scheduling and benchmark CLI checks |
+| `graphics` | Production GPU/rendering/DPR/benchmark-frame suites, full 74-scene/recovery checks, Three scenes and independent numerical/pixel checks, graphics recovery, scheduling and benchmark CLI checks |
 | `data` | Catalogue transport/commit/recovery, both renderer data paths, catalogue CLI benchmarks/development and relevant loading/switching behavior |
 | `build` | Public root/retired payloads/configured promotion, real CLI and ordinary-clone provenance checks |
 | `dev` | Real watch/HMR/development entry points and runner failure diagnostics |
@@ -70,7 +70,7 @@ are still retained. Use `npx playwright test --project=webkit --grep 'texture re
 
 | Project | Checks |
 | --- | --- |
-| `chromium`, `firefox`, `webkit` | Actual promoted root/nested deployment, removed preview entry, absence of retired payloads, missing chunks/lazy assets, default indexed Pixi/direct Three startup and retained switching, raw App lifecycle and scene/recovery checks, current production GPU/rendering/options/DPR/benchmark-frame checks, catalogue loading/lifecycle/frame-commit recovery, Three source parity/numerics/entry/camera/recovery, and in-page renderer switching with retained data, faults, views, options and resource checks |
+| `chromium`, `firefox`, `webkit` | Actual promoted root/nested deployment, removed preview entry, absence of retired payloads, missing chunks/lazy assets, default indexed Pixi/direct Three startup and retained switching, raw App lifecycle and scene/recovery checks, current production GPU/rendering/options/DPR/benchmark-frame checks, catalogue loading/lifecycle/frame-commit recovery, Three scenes/numerics/entry/camera/recovery, and in-page renderer switching with retained data, faults, views, options and resource checks |
 | `chromium-only` | Current production scheduling, typography and benchmark CLI checks; promoted and configured catalogue development commands; catalogue benchmark completion for Pixi and Three; Three configured development/HMR; ordinary-clone benchmark provenance; runner failure/cleanup diagnostics |
 | Standalone configuration | Two public-renderer smoke checks against a fresh promoted build, without prepared browser fixtures |
 
@@ -114,7 +114,7 @@ prepare all variants. Each variant is built once and copied privately by tests.
 
 `ORRERY_PREBUILT_FIXTURES` selects the prepared fixture directory. Its manifest
 checks source identity (including provisioning scripts, catalogue profiles and
-the imported source files used by Three verification)
+the test-owned independent Three reference files)
 and asset hashes; missing, stale, corrupt or wrong-variant
 fixtures fail without falling back to a local compilation. Writable copies are
 made in each test's output directory. Fixture production entries intentionally

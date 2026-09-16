@@ -1,5 +1,4 @@
-import { PIXELS_PER_AU, J2000, DEG_TO_RAD } from "./constants";
-import * as THREE from "three";
+import { PIXELS_PER_AU, DEG_TO_RAD } from "./constants";
 
 const TAU = 2 * Math.PI;
 const ELEMENT_KEYS = ["a", "e", "i", "W", "wbar", "w", "M", "n", "P", "epoch"];
@@ -123,71 +122,4 @@ export default class Orbit {
     return new Orbit(eph).getPosAtTime(jed);
   }
 
-  static createOrbit(eph, jed = J2000) {
-    const geometry = Orbit.getOrbitGeometry(eph, jed);
-
-    // const material = new THREE.LineBasicMaterial({
-    //   color: 0x555555,
-    //   linewidth: 1
-    // });
-
-    const material = new THREE.LineDashedMaterial({
-      color: 0x333333,
-      linewidth: 1,
-      dashSize: 5,
-      gapSize: 3,
-    });
-
-    const line = new THREE.Line(geometry, material);
-
-    // Required for dotted lines
-    line.computeLineDistances();
-
-    return line;
-  }
-
-  static getOrbitGeometry(eph, jed = J2000, baseResolution = 90) {
-    // Validate before allocating a track, including nonfinite elements that
-    // would otherwise turn the segment count into NaN and skip every sample.
-    const orbit = new Orbit(eph);
-    const position = orbit.getPosAtTime(jed, new THREE.Vector3());
-    const parts = Orbit.getOrbitResolution(eph, baseResolution);
-    const period = Orbit.getPeriodInDays(eph);
-    const delta = period / parts;
-    const positions = new Float32Array((parts + 1) * 3);
-    position.toArray(positions);
-
-    for (let i = 1; i < parts; ++i) {
-      const j = jed + delta * i;
-      orbit.getPosAtTime(j, position).toArray(positions, i * 3);
-    }
-
-    // Repeat the first vertex exactly so the dashed line includes its closing segment.
-    positions.set(positions.subarray(0, 3), parts * 3);
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-
-    return geometry;
-  }
-
-  static getOrbitResolution(eph, base = 90) {
-    // Scale resolution by eccentricity (for curvature) and size (for length)
-    const eccentricityFactor = Math.max(eph.e * 2, 1); // 1× to ~2×
-    const sizeFactor = Math.sqrt(eph.a); // √a scales with orbit size
-
-    // Final resolution
-    const parts = base * eccentricityFactor * sizeFactor;
-
-    // Clamp to reasonable bounds
-    return Math.max(32, Math.min(Math.floor(parts), 1024));
-  }
-
-  static getPeriodInDays(eph) {
-    // Match getPosAtTime: mean motion takes precedence over the supplied period.
-    meanMotion(eph);
-    const period = eph.n ? 360 / eph.n : eph.P;
-    if (!Number.isFinite(period) || period <= 0) throw new RangeError("Invalid orbital period.");
-    return period;
-  }
 }

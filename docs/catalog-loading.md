@@ -176,10 +176,11 @@ remain unverified.
 
 Source: [Orrery3D master 93a3e1f](https://github.com/sn3p/Orrery3D/tree/93a3e1f4a36d8fdceb513bdfdca20beddb3348d6),
 including final PR30 and PR31. The original ancestry and exact import snapshot
-remain preserved by [the history-import record](history/orrery3d.md). The remaining
-`migration/orrery3d` package/workflow is inactive and is not another application.
+remain preserved by [the history-import record](history/orrery3d.md). Unit 7c
+removes the current-tree snapshot and its inactive package/workflow; retained
+[independent Three references](../tests/fixtures/three-reference/README.md) are test-owned.
 
-| Source under `migration/orrery3d` | Active adaptation |
+| Original source path at the pinned revision | Active adaptation |
 | --- | --- |
 | `src/js/catalog/{CatalogSource,CatalogLoader,contract}.js` | `src/unified/catalog/`; loader CPU ownership and explicit graphics receipt |
 | `src/js/prepareCatalogue.js` | `src/unified/catalog/prepareCatalogue.js`; neutral buffers, row diagnostics and Pixi precision bounds |
@@ -188,6 +189,6 @@ remain preserved by [the history-import record](history/orrery3d.md). The remain
 | `tests/fixtures/{consumer-v1,browser-v1}` | Root `tests/fixtures/`; unchanged producer fixtures/provenance |
 | Source contract/delivery/loading tests and benchmark | Root catalogue tests and `benchmarks/catalog-loading.cjs`; actual Pixi/preview boundaries |
 
-All source is MIT-licensed; the imported license, original authorship/history and
+All source is MIT-licensed; the [retained license](../tests/fixtures/three-reference/LICENSE), original authorship/history and
 fixture provenance remain available. The public default is now independently
 approved for Orrery. Historical fixture builds exercise current production classes; Orrery3D and OrreryData remain separately owned.

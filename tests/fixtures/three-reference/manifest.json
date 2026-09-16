@@ -1,0 +1,26 @@
+{
+  "sourceRepository": "https://github.com/sn3p/Orrery3D",
+  "sourceCommit": "93a3e1f4a36d8fdceb513bdfdca20beddb3348d6",
+  "files": {
+    "Orbit.js": {
+      "sourcePath": "src/js/Orbit.js",
+      "sourceSha256": "4e449b83a20647f6ba790b8008da8ee81d36c740ebbc94cfcd6ad95f94228fb2",
+      "sha256": "c55881a0f92bde8c6000f712453c897855c1b5e2ae2422433c00daa9d63070bf"
+    },
+    "constants.js": {
+      "sourcePath": "src/js/constants.js",
+      "sourceSha256": "e9604328199ee38ea30a9d90fc21e1a8f63a96a71966b2509d954ff52338d4f2",
+      "sha256": "e9604328199ee38ea30a9d90fc21e1a8f63a96a71966b2509d954ff52338d4f2"
+    },
+    "shader.js": {
+      "sourcePath": "tests/shader.js",
+      "sourceSha256": "f29a6bcac2c90b816b3caf101b5829a0209991adb945fae2a024dc28ffa875b2",
+      "sha256": "d3b4d01e692ae1123d20fed8d519bb4a319024d80d8426af3fc641adaadc9c5a"
+    },
+    "LICENSE": {
+      "sourcePath": "LICENSE",
+      "sourceSha256": "de0c7028dde1a5ea845cd1dc67371991acf9e259581c503a08b1a64cc75b00bf",
+      "sha256": "de0c7028dde1a5ea845cd1dc67371991acf9e259581c503a08b1a64cc75b00bf"
+    }
+  }
+}

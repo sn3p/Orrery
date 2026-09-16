@@ -10,40 +10,34 @@ destination base, the import commit and the observed remote branch/tag inventory
 
 The original commits retain their IDs, authors, committer metadata, dates,
 messages, parents and historical paths. The new import commit places the exact
-127-file source tree under [`migration/orrery3d/`](../../migration/orrery3d/).
-Its [MIT license](../../migration/orrery3d/LICENSE), font license and fixture
-provenance remain intact. Original GitHub PRs, issues, discussions and releases
+127-file source tree under `migration/orrery3d/` at
+[the immutable import commit](https://github.com/sn3p/Orrery/tree/b12a407e26e96b49e4a2a8343ce5ac387dcb67ba/migration/orrery3d).
+Its [MIT license](https://github.com/sn3p/Orrery/blob/b12a407e26e96b49e4a2a8343ce5ac387dcb67ba/migration/orrery3d/LICENSE), font license and fixture
+provenance remain intact in that historical tree. Original GitHub PRs, issues, discussions and releases
 remain in Orrery3D; this import does not transfer those records or archive it.
 
 H merged through [PR67](https://github.com/sn3p/Orrery/pull/67) as
 `e1e80ec00a23ba7d2d99e3df625d512ec3486a41`. A fresh ordinary full master clone
 verified all 147 original commits, the exact snapshot and original ancestry.
 PR3 adopts selected files through the [active catalogue mapping](../catalog-loading.md#adopted-source-and-provenance);
-the imported snapshot itself remains unchanged.
+unit 7c removes the current-tree snapshot after extracting the
+[independent Three test references](../../tests/fixtures/three-reference/README.md).
+The original import tree and all 147 original commits remain reachable.
 
-## Inactive source boundary
+## Current source boundary
 
-The imported folder is historical migration source. Run application commands
-from the Orrery root; do not install, build or maintain the snapshot as another
-application. There is **one active root package and lockfile**. The snapshot's
-manifests, workflow, configuration and tests remain exact historical files.
+There is one maintained application, root package and lockfile. Unit 7c removes
+all 127 imported snapshot files, including its inactive package, workflow,
+compiler, app and duplicate assets. No production code imports that directory.
+The source-port exact-canvas comparison is deliberately retired after the port;
+independent numerical/GPU/pixel references and current production scene,
+interaction, upload, lifecycle and recovery checks remain test-owned.
 
-| Consumer | Boundary |
-| --- | --- |
-| npm install and commands | Root manifest; no npm workspaces or recursive test discovery |
-| Production bundles | Current `src/unified/index.js` import graph; retired Orrery entry remains in Git history |
-| Assets and CSS transforms | Imported root resources; fonts restricted to root `src/fonts` |
-| Development servers/watch | Root `dist`, root `src/**/*` and `src/unified/**/*.html` |
-| Pages | Root workflow builds and publishes only `dist`; nested snapshot workflow is inactive |
-| Python tests | Explicit `unittest discover -s tests` |
-| Git provenance and clone tests | Include the snapshot as repository history/source, without executing it |
-
-No loader, Three dependency or renderer is connected in H. Root runtime,
-catalogue, maintained package/lockfile, build configuration and Pages workflow
-are unchanged. The separate root history workflow only verifies ancestry;
-it neither installs snapshot dependencies nor changes the deployment workflow.
-Whole-repository searches, Git archives and external inventory tools can still
-see the snapshot; inactive does not mean hidden from every tool.
+The extracted reference license is retained alongside its source/hash manifest.
+Current root fonts retain their OFL notice; the historical100k and producer
+fixtures retain their data attribution. Historical notices and the import JSON
+are unchanged. `tests/history-import.cjs` and the history workflow continue to
+check the original import commit, independently of HEAD's file layout.
 
 ## Other refs
 

@@ -51,16 +51,18 @@ branch or silently overwrite later master changes. The normal Pages workflow can
 rebuild a pinned source checkout with `npm ci && npm run build -- --output-clean`;
 a retained artifact can also be served separately for local verification.
 
-## Remaining cleanup
+## Cleanup and separate follow-ups
 
 Unit 7a removed public compatibility payloads. Unit 7b moves the exact historical
 100k catalogue to a compressed, attributed test fixture and retires the importer
 and duplicate legacy application. Current tests import production classes;
 benchmark hashes still cover the exact decompressed catalogue bytes.
 
-Unit 7c still owns `migration/orrery3d`: extract and attribute its independent
-shader/numerical oracles before removing the snapshot. Preserve relevant licenses,
-provenance and all original imported Git commits. Historical rollback checkouts
+Unit 7c removes `migration/orrery3d` after extracting attributed
+[independent Three shader/numerical references](../tests/fixtures/three-reference/README.md).
+GPU/pixel, production scene, interaction, upload and recovery checks remain.
+The completed source-port exact-canvas comparison is deliberately retired.
+Relevant licenses, provenance and all original imported Git commits remain. Historical rollback checkouts
 and artifacts remain independent of current fixture builds.
 
 Copy/help and buffering follow-ups remain separate. Orrery3D's move notice and

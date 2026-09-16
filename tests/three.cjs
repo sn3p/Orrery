@@ -131,34 +131,47 @@ async function entries(browser, base, output, name) {
   return results;
 }
 
-async function parity(browser, base, output, name) {
+async function graphics(browser, base, output, name) {
   const results = [];
   for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
     const context = await browser.newContext({ viewport, deviceScaleFactor: 2 });
-    const reference = await context.newPage(), target = await context.newPage();
-    const diagnostics = [errors(reference), errors(target)];
+    const target = await context.newPage();
+    const diagnostics = errors(target);
     try {
-      await reference.goto(base + '/reference/'); await reference.evaluate(() => threeReference.ready);
       await boot(target, base + '/next/?renderer=three');
-      for (const dpr of ['1', '2']) for (const [label, date] of [['sparse', 2378861.5], ['start', 2444270.5],
-        ['dense', 2458600.5], ['reverse', 2444270.5]]) {
-        const expected = await reference.evaluate(({ date, dpr }) => {
-          const app = threeReference.orrery; app.pixelRatio = dpr; app.renderFrame(date, { trackFps: false });
-          return { pixels: app.renderer.domElement.toDataURL(), count: app.asteroidsDiscovered };
-        }, { date, dpr });
-        const actual = await target.evaluate(({ date, dpr }) => {
-          app.pixelRatio = dpr; app.jed = date; app.renderFrame();
-          return { pixels: app.renderer.canvas.toDataURL(), count: app.asteroidsDiscovered };
-        }, { date, dpr });
-        if (!raster(expected.pixels).equals(raster(actual.pixels))) {
-          await fs.writeFile(path.join(output, `${name}-${viewport.width}-${dpr}-${label}-reference.png`), Buffer.from(expected.pixels.split(',')[1], 'base64'));
-          await fs.writeFile(path.join(output, `${name}-${viewport.width}-${dpr}-${label}-target.png`), Buffer.from(actual.pixels.split(',')[1], 'base64'));
+      // The completed source-port comparison is retired. Independently count
+      // discoveries and require exact return-to-date pixels on production.
+      const catalogue = JSON.parse(require('./historical-catalog.cjs').readCatalog());
+      for (const dpr of ['1', '2']) {
+        let startPixels;
+        for (const [label, date] of [['sparse', 2378861.5], ['start', 2444270.5],
+          ['dense', 2458600.5], ['reverse', 2444270.5]]) {
+          const expectedCount = catalogue.filter(row => row.disc <= date).length;
+          const actual = await target.evaluate(({ date, dpr }) => {
+            app.pixelRatio = dpr; app.jed = date; app.renderFrame();
+            const canvas = app.renderer.canvas;
+            const gl = app.renderer.renderer.getContext();
+            const pixels = new Uint8Array(canvas.width * canvas.height * 4);
+            gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+            let lit = 0;
+            for (let i = 0; i < pixels.length; i += 4) if (pixels[i] || pixels[i + 1] || pixels[i + 2]) lit++;
+            return { pixels: canvas.toDataURL(), count: app.asteroidsDiscovered,
+              width: canvas.width, height: canvas.height, lit, error: gl.getError(),
+              complete: !app.renderFailure && !app.requestedJed && app.jed === date };
+          }, { date, dpr });
+          assert(actual.complete, 'Scene/date commits successfully');
+          assert.equal(actual.error, 0, 'Scene readback has no WebGL error');
+          assert(actual.lit > 100, 'Scene contains visible rendered content');
+          assert.equal(actual.width, viewport.width * Number(dpr));
+          assert.equal(actual.height, viewport.height * Number(dpr));
+          assert.equal(actual.count, expectedCount);
+          assert.equal(await target.locator('#orrery-count').textContent(), expectedCount.toLocaleString('en-US').replaceAll(',', '\u202f'),
+            'The committed Three discovery count is grouped for display');
+          if (label === 'start') startPixels = raster(actual.pixels);
+          if (label === 'reverse') assert(raster(actual.pixels).equals(startPixels), 'Reverse restores exact start-date scene pixels');
+          await target.screenshot({ path: path.join(output, `${name}-${viewport.width}-${dpr}-${label}.png`) });
+          results.push({ viewport, dpr, label, count: actual.count, litPixels: actual.lit, reverseExact: label === 'reverse' });
         }
-        assert(raster(expected.pixels).equals(raster(actual.pixels)), `${name} ${viewport.width} DPR${dpr} ${label}: exact Three source/target canvas`);
-        assert.equal(actual.count, expected.count);
-        assert.equal(await target.locator('#orrery-count').textContent(), expected.count.toLocaleString('en-US').replaceAll(',', '\u202f'),
-          'The committed Three discovery count is grouped for display');
-        results.push({ viewport, dpr, label, exact: true, count: actual.count });
       }
       await require('./next-layout.cjs').check(target);
       await target.getByRole('button', { name: 'Options', exact: true }).click();
@@ -318,7 +331,7 @@ async function lifecycle(browser, base, output, name) {
   } finally { await page.close(); }
 }
 
-const parts = { entries, parity, lifecycle, ...require('./three-catalog.cjs') };
+const parts = { entries, graphics, lifecycle, ...require('./three-catalog.cjs') };
 async function run({ browser, name, output = path.resolve('.context/pr4/browser', name), part = 'entries' }) {
   assert(Object.hasOwn(parts, part));
   await fs.mkdir(output, { recursive: true });

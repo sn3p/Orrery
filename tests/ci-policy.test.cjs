@@ -147,6 +147,7 @@ test('native selection retains core in Chromium, smoke in other engines and two 
   }
   assert(core.some(row => row.title.startsWith('representative production')));
   assert(!core.some(row => /benchmark|raw App lifecycle|GPU numerics, uploads/.test(row.title)));
+  assert(!core.some(row => row.title.startsWith('Three scenes')), 'Full Three graphics remains outside the core budget');
   const ui = discover('core,ui');
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     assert(ui.some(row => row.project === browser && row.title === 'pixel ratio and display transitions'));
