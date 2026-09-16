@@ -89,6 +89,7 @@ test('fixture identity includes compiler, catalogue provisioning and profile cha
 async function discover(...args) {
   const env = { ...process.env };
   delete env.BROWSERS;
+  delete env.ORRERY_TEST_GROUPS;
   const { stdout } = await execute(process.execPath, [cli, 'test', '--list', '--reporter=json', ...args], { env, maxBuffer: 4 * 1024 * 1024 });
   const rows = [];
   function visit(suite, parents = []) {
@@ -110,7 +111,7 @@ test('native discovery preserves coverage and each browser shard partitions it e
   const catalogueChromium = ['catalogue benchmark completion', 'catalogue configured preview development'];
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     const cases = all.filter(row => row.project === browser);
-    assert.equal(cases.length, 34);
+    assert.equal(cases.length, 37);
     assert.equal(cases.filter(row => row.title.includes('Three ')).length, 5);
     assert.equal(cases.filter(row => row.title.includes('Renderer switching ')).length, 6);
     for (const title of [...required, ...catalogue]) assert.equal(cases.filter(row => row.title.includes(title)).length, 1, `${browser}: ${title}`);
@@ -124,16 +125,6 @@ test('native discovery preserves coverage and each browser shard partitions it e
   assert.equal(chromiumOnly.length, 17);
   for (const title of catalogueChromium) assert.equal(chromiumOnly.filter(row => row.title.includes(title)).length, 1, title);
   const standalone = await discover('--config=playwright.standalone.config.cjs');
-  for (const browser of ['chromium', 'firefox', 'webkit']) {
-    const cases = standalone.filter(row => row.project === browser);
-    assert.equal(cases.length, 26);
-    assert.equal(cases.filter(row => row.title.includes('Three ')).length, 5);
-    assert.equal(cases.filter(row => row.title.includes('Renderer switching ')).length, 6);
-    assert(cases.some(row => row.title.includes('raw App lifecycle')));
-    assert(cases.every(row => !row.title.includes('legacy /')));
-    for (const title of catalogue) assert.equal(cases.filter(row => row.title.includes(title)).length, 1, `${browser}: ${title}`);
-  }
-  const standaloneChromium = standalone.filter(row => row.project === 'chromium-only');
-  assert.equal(standaloneChromium.length, 7);
-  for (const title of catalogueChromium) assert.equal(standaloneChromium.filter(row => row.title.includes(title)).length, 1, title);
+  assert.equal(standalone.length, 2, 'Standalone never inherits the full project matrix');
+  assert(standalone.every(row => row.project === 'standalone' && row.title.includes('public startup')));
 });

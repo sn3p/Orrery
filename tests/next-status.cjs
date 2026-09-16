@@ -26,7 +26,7 @@ async function run({ browser, name, output = '.context/ui-polish/status' }) {
   const server = await serve(process.env.ORRERY_DEFAULT_DIST || 'dist');
   const files = fixtureFiles();
   const index = JSON.parse(files.get([...files.keys()].find(key => key.startsWith('index-'))));
-  const lastChunk = producerBase + index.chunks.at(-1).url;
+  const remainingChunks = index.chunks.slice(1).map(chunk => producerBase + chunk.url);
   const results = [];
   try {
     for (const renderer of ['pixi', 'three']) {
@@ -40,7 +40,9 @@ async function run({ browser, name, output = '.context/ui-polish/status' }) {
         const chunkGate = new Promise(resolve => { releaseChunk = resolve; });
         await routeDefaultCatalog(page);
         await page.route(latestURL, async route => { await latestGate; await route.fallback(); });
-        await page.route(lastChunk, async route => {
+        // Keep every later chunk blocked so arrivals cannot clear buffering.
+        // Slow frames can skip HUD counts; an exact count is not a barrier.
+        for (const chunk of remainingChunks) await page.route(chunk, async route => {
           await chunkGate;
           if (failChunk) await route.fulfill({ status: 503, body: 'Controlled failure' });
           else await route.fallback();
