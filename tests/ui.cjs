@@ -110,7 +110,8 @@ async function run({ browser, name, application = "legacy", output: artifactDire
   const report = [];
   try {
     for (const width of [1280, 390, 360]) {
-      const context = await browser.newContext({ viewport: { width, height: width === 1280 ? 800 : 844 }, isMobile: width < 500, hasTouch: width < 500 });
+      const context = await browser.newContext({ viewport: { width, height: width === 1280 ? 800 : 844 },
+        deviceScaleFactor: unified ? 2 : 1, isMobile: width < 500, hasTouch: width < 500 });
       const page = await context.newPage();
       if (unified) await routeDefaultCatalog(page);
       const errors = [];

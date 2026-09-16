@@ -21,8 +21,10 @@ Pages release. A draft PR or local verification is not release approval.
   cached preview users must navigate to `/` or `/?renderer=three` explicitly.
   The 900 MB site budget includes all compatibility assets and data copies.
 - New visits receive the unified root; its source never falls back to historical
-  data. Runtime modules, including the temporary “Open Pixi preview” recovery
-  label, remain unchanged in this unit so the prior hashed chunks remain usable.
+  data. Runtime JavaScript, including the temporary “Open Pixi preview” recovery
+  label, remains unchanged so prior hashed chunks stay usable. Current CSS has
+  separate HUD, label, value and help colors; the original compiled PR73 stylesheet
+  is frozen in `src/unified/compat/` for cached HTML and removed during cleanup.
   Missing lazy chunks show existing recovery guidance; reload obtains current
   HTML, and Three failures also provide a Pixi recovery link.
 
