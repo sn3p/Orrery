@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
+import { readCatalog } from "./historical-catalog.cjs";
 import { prepareOrbits, discoveryCount, REFERENCE_JED, REBASE_DAYS, MAX_PHASE_ADVANCE, validDate } from "../src/js/asteroidOrbits.js";
 import PlaybackClock from "../src/js/PlaybackClock.js";
 
@@ -24,7 +24,7 @@ test("catalogue validation preserves zero longitudes and rejects malformed or un
 });
 
 test("real catalogue packs without mutation; discoveries are inclusive in both directions", () => {
-  const catalog = JSON.parse(fs.readFileSync(new URL("../data/catalog.json", import.meta.url)));
+  const catalog = JSON.parse(readCatalog());
   assert.equal(catalog.length, 100000);
   const original = JSON.stringify(catalog);
   const packed = prepareOrbits(catalog, REFERENCE_JED);

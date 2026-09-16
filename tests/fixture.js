@@ -1,7 +1,7 @@
 // Separate entry point: exercise the production classes without shipping test globals.
-import Orrery from "../src/js/Orrery";
+import Orrery from "./unified-app";
 import planets from "../src/js/planets";
-import catalogURL from "../data/catalog.json";
+import catalogURL from "./fixtures/historical100k/catalog.json.gz";
 import "../src/css/main.css";
 
 window.ready = (async () => {
@@ -20,6 +20,6 @@ window.ready = (async () => {
   const catalog = JSON.parse(text);
   const parseEnd = performance.now();
   catalog.sort((a, b) => a.disc - b.disc);
-  window.fixture = { app, application: app.constructor.application ?? "legacy", catalog, planets, initialSpeed, timings: { initMs: fetchStart - initStart,
+  window.fixture = { app, application: app.constructor.application ?? "unified", catalog, planets, initialSpeed, timings: { initMs: fetchStart - initStart,
     fetchMs: parseStart - fetchStart, parseMs: parseEnd - parseStart } };
 })();

@@ -31,7 +31,7 @@ async function build(output, base = latestOrigin) {
   }
   const webpack = require("webpack"), historical = require("../webpack.next.config.js");
   await new Promise((resolve, reject) => {
-    const compiler = webpack({ ...historical, mode: "production", entry: "./tests/catalog-browser.js",
+    const compiler = webpack({ ...historical, module: { rules: [...historical.module.rules, require('./historical-catalog.cjs').rule] }, mode: "production", entry: "./tests/catalog-browser.js",
       resolve: { alias: { [path.resolve("src/unified/index.js")]: path.resolve("tests/bundled-entry.js") } },
       output: { ...historical.output, path: path.join(output, "catalog-historical") } });
     compiler.run((error, stats) => compiler.close(() => {

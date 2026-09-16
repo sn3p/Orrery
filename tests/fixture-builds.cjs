@@ -10,11 +10,11 @@ const entries = {
   rendering: './tests/rendering-fixture.js',
   initialization: './tests/init-fixture.js',
   benchmark: './tests/fixture.js',
-  production: './src/js/index.js',
+  production: './tests/bundled-entry.js',
 };
-const definitions = ['legacy', 'unified'].flatMap(application =>
+const definitions = ['unified'].flatMap(application =>
   Object.entries(entries).map(([name, entry]) => ({ key: `${application}/${name}`, application, entry })));
-definitions.push({ key: 'legacy/contracts', application: 'legacy', entry: './tests/unified-fixture.js' });
+definitions.push({ key: 'unified/contracts', application: 'unified', entry: './tests/unified-fixture.js' });
 
 function files(root) {
   return fs.readdirSync(root, { withFileTypes: true }).flatMap(entry =>
@@ -29,7 +29,7 @@ function inventory(root) {
 function sourceFingerprint() {
   // Portable between checkouts of this exact source. Include uncommitted edits
   // too, so a local prepared run cannot silently test yesterday's fixture.
-  const inputs = [...files('src'), ...files('tests'), ...files('scripts'), ...files('catalog-profiles'), 'data/catalog.json',
+  const inputs = [...files('src'), ...files('tests'), ...files('scripts'), ...files('catalog-profiles'),
     ...fs.readdirSync('.').filter(file => /^(webpack.*\.[cm]?js|.*\.config\.[cm]?js|\.babelrc|\.browserslistrc|package(-lock)?\.json)$/.test(file))].sort();
   // Pinned source is a rendered/numerical Three oracle, not a runtime import.
   if (fs.existsSync('migration/orrery3d')) inputs.push(...files('migration/orrery3d/src'),

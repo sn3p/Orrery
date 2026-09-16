@@ -13,9 +13,8 @@ module.exports = {
     uniqueName: "orrery-next",
     clean: true,
   },
-  // Reuse asset transforms only. The legacy entry, plugins and single-bundle
-  // policy stay in webpack.config.js; this build supports lazy engine chunks.
-  module: require("./webpack.config").module,
+  // Shared production asset transforms; test-only fixtures have separate builders.
+  module: require("./webpack.assets.cjs"),
   plugins: [
     new (require("webpack").DefinePlugin)({
       __CATALOG_SELECTION__: JSON.stringify(require("./catalog-profiles/latest.json")),

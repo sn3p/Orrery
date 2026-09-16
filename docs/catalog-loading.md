@@ -12,9 +12,9 @@ startup, speed and discovery animation are unchanged. The population is not all
 visible at startup. No catalogue environment variable or historical setting is
 needed, and source failures never silently fall back to the old bundle.
 
-The historical `data/catalog.json` remains only for existing test and benchmark
-oracles. Production does not emit or request it. The old importer and its remaining
-consumers require a separate migration before source deletion.
+The compressed [historical100k fixture](../tests/fixtures/historical100k/README.md) remains only for test and benchmark
+oracles. Production does not emit or request it. Unit 7b retired the old importer
+and migrated its test/benchmark consumers onto the documented fixture.
 
 ## Explicit development and test profiles
 
@@ -140,7 +140,7 @@ observed descriptor/index pin and source coverage.
 `npm run test:node` includes real producer contract, transport, cancellation,
 provisioning, archive and neutral-model tests. `npm test` includes the actual
 configured production entry through fetch, CPU commitment, adapter upload/draw and
-HUD, plus the existing legacy/preview numerical, rendered, input, options,
+HUD, plus the current production numerical, rendered, input, options,
 DPR, lifecycle, development and benchmark suites. `npm run test:catalog` selects
 the native Playwright catalogue cases; loading, lifecycle and frame commitment
 run in all three browser projects, with benchmark and configured development
@@ -190,4 +190,4 @@ remain preserved by [the history-import record](history/orrery3d.md). The remain
 
 All source is MIT-licensed; the imported license, original authorship/history and
 fixture provenance remain available. The public default is now independently
-approved for Orrery. The legacy bundle is now test-only; Orrery3D and OrreryData remain separately owned.
+approved for Orrery. Historical fixture builds exercise current production classes; Orrery3D and OrreryData remain separately owned.

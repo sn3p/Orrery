@@ -14,7 +14,7 @@ test('path policy preserves risky changes, unions groups and defaults unknown fi
   assert.equal(plan(['src/js/Gui.js']).groups, 'core,ui,graphics,data');
   assert.equal(plan(['src/unified/ui/Options.js']).groups, 'core,ui');
   assert.equal(plan(['src/unified/compat/pr73-assets/main.js.gz']).groups, 'core,ui,build,dev');
-  for (const file of ['src/js/index.js', 'src/unified/index.js', 'src/unified/index.html', 'src/unified/renderers.js']) {
+  for (const file of ['src/unified/index.js', 'src/unified/index.html', 'src/unified/renderers.js']) {
     assert.equal(plan([file]).groups, 'core,ui,build,dev', file);
     for (const suffix of ['.map', '.old', '.gz', '/nested.js', '.copy.js']) {
       const unknown = file + suffix;
@@ -28,14 +28,18 @@ test('path policy preserves risky changes, unions groups and defaults unknown fi
   assert.equal(data.groups, 'core,data,build'); assert(data.buildTests);
   assert.equal(plan(['src/css/main.css', 'catalog-profiles/latest.json']).groups, 'core,ui,data,build');
   for (const file of ['package-lock.json', '.github/workflows/pages.yml', 'tests/gpu.cjs',
-    'tests/new.spec.cjs', 'scripts/build.cjs', 'webpack.config.js', 'src/new-runtime.js', 'migration/orrery3d/src/App.js',
+    'src/js/index.js', 'tests/new.spec.cjs', 'scripts/build.cjs', 'webpack.config.js', 'src/new-runtime.js', 'migration/orrery3d/src/App.js',
     'src/unified/index.mjs', 'src/unified/index.css', 'src/unified/renderers.json', 'src/js/index']) {
     assert.equal(plan([file]).groups, 'full', file);
     assert(plan([file]).buildTests, file);
   }
   for (const value of ['oops', 'ui', 'core,typo', 'full,core', '']) assert.throws(() => selection(value));
   assert.equal(fixtureKeys(['full']), null);
-  assert(!fixtureKeys(['core']).has('legacy/gpu'));
+  assert(!fixtureKeys(['core']).has('unified/gpu'));
+  const known = new Set([...require('./fixture-builds.cjs').definitions.map(item => item.key), 'lazy-preview', 'catalog', 'three']);
+  for (const groups of [['core'], ['core', 'ui']]) {
+    for (const key of fixtureKeys(groups)) assert(known.has(key), `Unknown selected fixture: ${key}`);
+  }
   assert(fixtureKeys(['core', 'ui']).has('unified/production'));
 });
 
@@ -52,10 +56,11 @@ test('reduced prepared manifest reaches the real public-assets browser boundary'
   const manifest = { version: 1, source: sourceFingerprint(), fixtures: {} };
   // The consumer checks exact catalogue/fonts and actual prepared-build routing
   // before opening a browser. Missing policy keys must fail at this boundary.
+  const catalog = require('./historical-catalog.cjs').readCatalog();
   for (const key of fixtureKeys(['core'])) {
     const directory = path.join(root, key);
     fs.mkdirSync(path.join(directory, 'data'), { recursive: true });
-    fs.copyFileSync('data/catalog.json', path.join(directory, 'data/catalog.json'));
+    fs.writeFileSync(path.join(directory, 'data/catalog.json'), catalog);
     fs.cpSync('src/fonts', path.join(directory, 'fonts'), { recursive: true });
     fs.writeFileSync(path.join(directory, 'bundle.js'), '// prepared test fixture');
     manifest.fixtures[key] = inventory(directory);
@@ -140,14 +145,14 @@ test('native selection retains core in Chromium, smoke in other engines and two 
     const cases = core.filter(row => row.project === browser);
     assert.equal(cases.length, 2); assert(cases.every(row => row.tags.includes('smoke')));
   }
-  assert(core.some(row => row.title.startsWith('representative exact')));
+  assert(core.some(row => row.title.startsWith('representative production')));
   assert(!core.some(row => /benchmark|raw App lifecycle|GPU numerics, uploads/.test(row.title)));
   const ui = discover('core,ui');
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     assert(ui.some(row => row.project === browser && row.title === 'pixel ratio and display transitions'));
     assert(ui.some(row => row.project === browser && row.title.startsWith('preview footer')));
   }
-  const full = discover('full'); assert.equal(full.length, 128);
+  const full = discover('full'); assert.equal(full.length, 106);
   assert(full.some(row => row.title.includes('configured promotion')));
   assert(full.some(row => row.title.includes('benchmark CLI provenance')));
   for (const groups of ['core', 'full']) {

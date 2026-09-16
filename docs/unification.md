@@ -5,7 +5,7 @@ blueprint and start guide, with historical status reconciled and local planning
 paths removed. No further architecture approval is required. Each implementation
 unit still needs its own tests, review and explicit merge instruction.
 
-## Current unit: production compatibility cleanup
+## Current unit: historical fixture and test cleanup
 
 The unified app shipped through PR64–PR74: shared shell/Pixi, original-history
 import, reviewed loader, Three, switching, full catalogue, UI polish and root
@@ -17,12 +17,17 @@ frozen PR73 preview compatibility assets. Current app source, rendered behavior
 and root asset bytes stay unchanged. Configured builds stage pins once at root;
 watch keeps current root chunks/pins while removing retired payloads.
 
-The remaining unit 7 work is split into subsequent review units: migrate the
-historical 100k/importer/test/benchmark consumers, then remove obsolete renderer
-source and the imported snapshot while retaining independent numerical checks,
-licenses, provenance and original Git ancestry. Existing legacy builds are
-verification references only. See [release/rollback](promotion.md),
-[catalogue loading](catalog-loading.md) and the [Three adapter](three-renderer.md).
+Unit 7b retires the obsolete Orrery importer and duplicate legacy runtime/test
+branches. The exact historical 100k bytes remain as an attributed compressed
+[test fixture](../tests/fixtures/historical100k/README.md), preserving numerical
+and benchmark provenance. Current tests import production classes explicitly.
+The completed one-off Pixi source-port comparison is retired; raw App lifecycle,
+scene states, independent numerical/GPU checks and exact recovery remain.
+
+Unit 7c still owns the imported Three snapshot: retain its independent numerical
+and shader oracles, licenses, provenance and all original Git ancestry before
+removing it. See [release/rollback](promotion.md), [catalogue loading](catalog-loading.md)
+and the [Three adapter](three-renderer.md).
 
 `src/unified/App.js` owns Julian day, requested speed, active presentation time,
 one scheduler, shared DPR choice, initialization/disposal, catalogue sources
@@ -55,8 +60,8 @@ Orrery3D snapshot. Keep live source stable until the promotion/cleanup units:
 
 | Preview | Legacy source / change |
 | --- | --- |
-| `App.js`, `ui/Hud.js`, `pixi/PixiRenderer.js` | Responsibilities extracted from `src/js/Orrery.js` |
-| `ui/Options.js` | `src/js/Gui.js`, identical behavior with renamed class |
+| `App.js`, `ui/Hud.js`, `pixi/PixiRenderer.js` | Responsibilities extracted from the original `src/js/Orrery.js` (retired in unit 7b) |
+| `ui/Options.js` | the original `src/js/Gui.js` (retired in unit 7b) |
 | `pixi/Planet.js`, `Orbit.js`, `Controls.js` | Temporary copies; only helper import paths differ |
 | `pixi/Asteroids.js` | Original GPU shader/effects plus neutral catalogue packing, append ranges and draw acknowledgement |
 | `three/ThreeRenderer.js` | Graphics/camera responsibilities from preserved Orrery3D `Orrery3D.js`; shared App keeps clock/loader/UI |
@@ -68,7 +73,7 @@ Orrery3D snapshot. Keep live source stable until the promotion/cleanup units:
 The preview retains full 3D bases and Float64 phase/date data independently from
 Pixi's mutable buffers. Its source is Orrery3D PR31 merge
 `93a3e1f4a36d8fdceb513bdfdca20beddb3348d6`. The unified app's full-catalogue default
-is separately approved for Orrery; it does not change the preserved legacy source or the
+is separately approved for Orrery; the preserved historical source remains in Git, separate from the
 source application's ownership.
 
 The promoted app uses the main public URL `https://sn3p.github.io/Orrery/`.
@@ -250,7 +255,8 @@ there is no preview page or redirect to the app.
 See [release and rollback](promotion.md) for acceptance and recovery.
 
 
-`webpack.config.js` retains the legacy compiler for test oracles only. `webpack.next.config.js` retains the lazy application compiler primitives;
+`tests/webpack-fixture.cjs` compiles current classes with inspection fixtures.
+`webpack.assets.cjs` owns the shared production asset transforms. `webpack.next.config.js` retains the lazy application compiler primitives;
 `webpack.app.config.cjs` configures the root app and development.
 `webpack.build.config.js` compiles only the current application. The build command
 owns cleaning once; Pages' `--output-clean` remains supported. Output-path overrides
@@ -271,8 +277,8 @@ Normal and configured production commands emit only current root assets. Configu
 catalogue builds stage current and explicitly retained pins under root `data/`.
 Development selects the configured source at process startup. The old
 `webpack.next.app.config.cjs` and test-only nested compilation remain until the
-remaining fixture consumers are migrated. Legacy source, imported snapshot,
-data/importer and benchmark oracles remain test references, not deployed payloads.
+remaining fixture consumers are migrated. The imported Three snapshot and compressed
+historical catalogue remain test references, not deployed payloads.
 Original Git history and rollback artifacts remain preserved.
 
 ## Verification contract
@@ -287,7 +293,7 @@ npm test
 `test:build` exercises mode/watch behavior, repeated actual Pages clean builds,
 absence of retired public payloads and repeated promoted-build/alias safety.
 `test:browser` covers both renderers at the promoted root, assets and lazy chunks,
-real legacy behavior plus development HMR/reload. The complete native suite retains
+current production behavior plus development HMR/reload. The complete native suite retains
 strict GPU, scheduling, rendering/lifecycle, UI/DPR and finite benchmark probes.
 `test:unified` builds the promoted site from a clean checkout and runs two public
 renderer smoke cases; it no longer repeats the full functional subset.
@@ -296,8 +302,8 @@ the actual changed files; nightly/manual runs retain the complete matrix.
 `tests/unified-app.js` is an inspection facade
 only for existing probes, including their explicit stopped-ticker calls;
 production has no facade or ticker bridge. Separate raw-App tests verify async
-failures/disposal, actual clock ownership and exact scene/HUD parity at fixed
-catalogue/date/viewport/DPR, including recovery. Public root and removed `/next/` entries are tested with real HTML and lazy chunks
+failures/disposal, actual clock ownership, scene/HUD states and exact recovery at fixed
+catalogue/date/viewport/DPR. Public root and removed `/next/` entries are tested with real HTML and lazy chunks
 at root and Pages prefixes, including missing-chunk recovery. `benchmark:next`
 identifies unified execution independently of the benchmark runner source.
 CI builds the assembled Pages artifact and selected reusable fixtures alongside

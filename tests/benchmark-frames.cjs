@@ -28,7 +28,7 @@ module.exports = async (browser, url) => {
             beforeRender: () => { events.push('beforeDraw'); hooks.beforeRender(); },
             afterRender: () => { events.push('afterDraw'); hooks.afterRender(); },
           });
-          frames.push({ events, timestamp, jed: app.jed, fps: app.stats.fps, deferredReadouts: app.constructor.application === 'unified',
+          frames.push({ events, timestamp, jed: app.jed, fps: app.stats.fps, deferredReadouts: true,
             readout: document.getElementById('orrery-fps').textContent });
           return result;
         } finally { restores.reverse().forEach(restore => restore()); }

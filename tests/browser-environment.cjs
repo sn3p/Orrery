@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 
-async function run({ browser, name, application = "legacy", output: artifactDirectory }) {
+async function run({ browser, name, application = "unified", output: artifactDirectory }) {
   const directory = artifactDirectory || ".context/browser-environment";
   fs.mkdirSync(directory, { recursive: true });
   const page = await browser.newPage();

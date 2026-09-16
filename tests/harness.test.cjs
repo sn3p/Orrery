@@ -12,7 +12,7 @@ fs.mkdirSync('.context', { recursive: true });
 
 test('every runner entry imports without starting a standalone process', () => {
   for (const suite of ['assets', 'next', 'unified', 'gpu', 'rendering', 'options-browser',
-    'benchmark', 'scheduling', 'ui', 'hmr', 'next-dev', 'benchmark-clone', 'browser-environment', 'catalog-suite', 'three', 'three-benchmark', 'switching', 'default-catalog']) {
+    'benchmark', 'scheduling', 'ui', 'next-dev', 'benchmark-clone', 'browser-environment', 'catalog-suite', 'three', 'three-benchmark', 'switching', 'default-catalog']) {
     assert.equal(typeof require(`./${suite}.cjs`).run, 'function', suite);
   }
 });
@@ -24,18 +24,18 @@ test('prepared build boundary rejects absent, corrupt, stale and wrong-variant a
   try {
     const output = path.join(root, 'consumer');
     await assert.rejects(build('./tests/browser.js', output), /ENOENT/);
-    const fixture = path.join(root, 'legacy/gpu');
+    const fixture = path.join(root, 'unified/gpu');
     fs.mkdirSync(fixture, { recursive: true });
     fs.writeFileSync(path.join(fixture, 'bundle.js'), 'verified fixture');
-    const manifest = { version: 1, source: sourceFingerprint(), fixtures: { 'legacy/gpu': inventory(fixture) } };
+    const manifest = { version: 1, source: sourceFingerprint(), fixtures: { 'unified/gpu': inventory(fixture) } };
     const save = () => fs.writeFileSync(path.join(root, 'manifest.json'), JSON.stringify(manifest));
     save();
-    await build('./tests/browser.js', output, { application: 'legacy' });
+    await build('./tests/browser.js', output, { application: 'unified' });
     assert.equal(fs.readFileSync(path.join(output, 'bundle.js'), 'utf8'), 'verified fixture');
     fs.writeFileSync(path.join(output, 'bundle.js'), 'consumer mutation');
-    await build('./tests/browser.js', output, { application: 'legacy' });
+    await build('./tests/browser.js', output, { application: 'unified' });
     assert.equal(fs.readFileSync(path.join(output, 'bundle.js'), 'utf8'), 'verified fixture');
-    await assert.rejects(build('./tests/browser.js', output, { application: 'unified' }), /Missing prepared fixture/);
+    await assert.rejects(build('./tests/browser.js', output, { application: 'legacy' }), /No prepared fixture/);
     await assert.rejects(build('./unknown.js', output), /No prepared fixture/);
     assert.throws(() => copyPrepared('catalog', output), /Missing prepared fixture/);
     const catalog = path.join(root, 'catalog/catalog-indexed');
@@ -66,8 +66,7 @@ test('fixture identity includes compiler, catalogue provisioning and profile cha
   try {
     for (const name of ['first', 'second']) {
       const checkout = path.join(root, name);
-      for (const directory of ['src', 'tests', 'data', 'scripts', 'catalog-profiles']) fs.mkdirSync(path.join(checkout, directory), { recursive: true });
-      fs.writeFileSync(path.join(checkout, 'data/catalog.json'), '[]');
+      for (const directory of ['src', 'tests', 'scripts', 'catalog-profiles']) fs.mkdirSync(path.join(checkout, directory), { recursive: true });
       fs.writeFileSync(path.join(checkout, 'postcss.config.js'), 'module.exports = { plugins: [] };');
       fs.writeFileSync(path.join(checkout, 'scripts/catalog.cjs'), 'module.exports = {};');
       fs.writeFileSync(path.join(checkout, 'catalog-profiles/ties-indexed.json'), '{"mode":"indexed"}');
@@ -104,14 +103,14 @@ async function discover(...args) {
 
 test('native discovery preserves coverage and each browser shard partitions it exactly once', async () => {
   const all = await discover();
-  const required = ['production assets', 'preview entry', 'preview footer loading', 'promoted root', 'configured promotion', 'default indexed catalogue', 'development texture lifecycle', 'raw App lifecycle',
-    ...['legacy', 'unified'].flatMap(app => ['GPU numerics', 'rendering, readouts', 'options controls',
+  const required = ['historical fixture assets', 'preview entry', 'preview footer loading', 'promoted root', 'configured promotion', 'default indexed catalogue', 'development texture lifecycle', 'raw App lifecycle',
+    ...['unified'].flatMap(app => ['GPU numerics', 'rendering, readouts', 'options controls',
       'pixel ratio and display transitions', 'texture recovery', 'benchmark frames'].map(title => `${app} / ${title}`))];
   const catalogue = ['catalogue loading, demand, transport', 'catalogue replacement, recovery', 'catalogue frame commits'];
   const catalogueChromium = ['catalogue benchmark completion', 'catalogue configured preview development'];
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     const cases = all.filter(row => row.project === browser);
-    assert.equal(cases.length, 37);
+    assert.equal(cases.length, 31);
     assert.equal(cases.filter(row => row.title.includes('Three ')).length, 5);
     assert.equal(cases.filter(row => row.title.includes('Renderer switching ')).length, 6);
     for (const title of [...required, ...catalogue]) assert.equal(cases.filter(row => row.title.includes(title)).length, 1, `${browser}: ${title}`);
@@ -122,7 +121,7 @@ test('native discovery preserves coverage and each browser shard partitions it e
     assert.equal(new Set(shards.flat().map(row => row.id)).size, cases.length);
   }
   const chromiumOnly = all.filter(row => row.project === 'chromium-only');
-  assert.equal(chromiumOnly.length, 17);
+  assert.equal(chromiumOnly.length, 13);
   for (const title of catalogueChromium) assert.equal(chromiumOnly.filter(row => row.title.includes(title)).length, 1, title);
   const standalone = await discover('--config=playwright.standalone.config.cjs');
   assert.equal(standalone.length, 2, 'Standalone never inherits the full project matrix');

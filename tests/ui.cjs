@@ -36,7 +36,7 @@ async function checkTypography(page, { fontLoaded = true, waitForFont = true } =
   });
   assert.equal(ui.fonts.some(font => font.family === fontName && font.status === "loaded"), fontLoaded, "Self-hosted font loading state");
   assert(ui.styles.every(style => style.family.startsWith(`"${fontName}"`)), "Every UI text surface uses the shared font stack");
-  assert.deepEqual(ui.styles.map(style => style.size), ui.unified ? Array(5).fill("12px") : ["14px", "14px", "14px", "14px", "12px"]);
+  assert.deepEqual(ui.styles.map(style => style.size), Array(5).fill("12px"));
   assert.equal(ui.input.height, 19, "Speed input is 19px high");
   assert.equal(ui.input.y, ui.slider.y, "Input and slider top edges align");
   assert.equal(ui.input.height, ui.slider.height, "Input and slider heights match");
@@ -86,13 +86,11 @@ async function checkStatusContrast(page, expected) {
   return status;
 }
 
-async function run({ browser, name, application = "legacy", output: artifactDirectory }) {
-  const unified = application === "unified";
+async function run({ browser, name, application = "unified", output: artifactDirectory }) {
   const { routeDefaultCatalog, latestURL } = require("./default-catalog-route.cjs");
-  const catalogRequest = unified ? latestURL : "**/data/catalog.json";
-  const dist = unified ? path.join(root, "dist") : path.join(artifactDirectory || ".context/font-qa", "legacy-site");
-  if (!unified) await require("./support.cjs").build("./src/js/index.js", dist, { application: "legacy" });
-  const output = artifactDirectory || (path.join(root, application === "unified" ? ".context/pr2/unified-ui" : ".context/font-qa"));
+  const catalogRequest = latestURL;
+  const dist = path.join(root, "dist");
+  const output = artifactDirectory || path.join(root, ".context/pr2/unified-ui");
   fs.mkdirSync(output, { recursive: true });
   // Serve the actual production files at the GitHub Pages subpath.
   const server = http.createServer((req, res) => {
@@ -111,9 +109,9 @@ async function run({ browser, name, application = "legacy", output: artifactDire
   try {
     for (const width of [1280, 390, 360]) {
       const context = await browser.newContext({ viewport: { width, height: width === 1280 ? 800 : 844 },
-        deviceScaleFactor: unified ? 2 : 1, isMobile: width < 500, hasTouch: width < 500 });
+        deviceScaleFactor: 2, isMobile: width < 500, hasTouch: width < 500 });
       const page = await context.newPage();
-      if (unified) await routeDefaultCatalog(page);
+      await routeDefaultCatalog(page);
       const errors = [];
       page.on("pageerror", error => errors.push(error.message));
       page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
@@ -143,7 +141,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     }
 
     const page = await browser.newPage({ viewport: { width: 360, height: 844 }, isMobile: true, hasTouch: true });
-    if (unified) await routeDefaultCatalog(page);
+    await routeDefaultCatalog(page);
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
     let releaseCatalog;
@@ -180,8 +178,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     await page.unroute("**/*.woff2");
     await page.route(catalogRequest, route => route.fulfill({ status: 503, body: "Unavailable" }));
     await page.reload();
-    const errorMessage = unified ? "Could not load the asteroid catalogue. Reload to try again."
-      : "Unable to load asteroids. Reload to try again.";
+    const errorMessage = "Could not load the asteroid catalogue. Reload to try again.";
     await page.waitForFunction(message => document.querySelector("#orrery-status").textContent === message, errorMessage);
     report.push({ width: 360, state: "catalog-error", ui: await checkTypography(page),
       status: await checkStatusContrast(page, errorMessage) });

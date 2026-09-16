@@ -12,7 +12,7 @@ npm ci
 npx playwright install chrome firefox webkit
 npm run test:pr       # build, fast Node tests, Chromium core + all-engine smoke
 npm run test:unified  # fresh public build + just two clean-checkout smoke cases
-npm test             # complete build/Node/browser suite, including legacy oracles
+npm test             # complete build/Node/browser suite, including historical and Three source oracles
 ```
 
 `npm run test:browser` retains the complete native suite by default. After a
@@ -29,20 +29,20 @@ npx playwright show-report .context/playwright-report
 The core selection has **24 executions**: 19 Chromium production/functional
 checks, one Chromium scheduling check, and two public-renderer smoke cases each
 in Firefox and WebKit. CI's separate clean-checkout job adds two more, for **26**.
-The complete browser selection has **128 executions**, preserving all 119
-original cases and adding six smoke and three representative parity executions.
+The complete browser selection has **106 executions**, retaining the 97 U7b
+cases and adding six smoke and three representative scene executions.
 The old 33-case standalone repeat is replaced by two independent smoke cases.
 
 | Group | Coverage |
 | --- | --- |
-| `core` | Chromium public assets/layout/lazy loading, two exact legacy/production pixel comparisons, indexed data loading/recovery/frame commits, renderer switching, Three entry/data/recovery/lifecycle, unified scheduling |
+| `core` | Chromium public assets/layout/lazy loading, two representative production scenes and lifecycle recovery, indexed data loading/recovery/frame commits, renderer switching, Three entry/data/recovery/lifecycle, unified scheduling |
 | Smoke (always selected) | Both public renderers in every selected engine: startup, real keyboard control, small verified indexed catalogue, DPR, graphics-context recovery, reverse playback and reload |
 | `ui` | Public responsive/keyboard/loading states, unified rendering/readouts/options/DPR/texture tests, renderer switching, Chromium typography |
-| `graphics` | Both legacy and unified GPU/rendering/DPR/benchmark-frame suites, full 74-comparison parity, Three source/numerical parity, graphics recovery, scheduling and benchmark CLI checks |
+| `graphics` | Production GPU/rendering/DPR/benchmark-frame suites, full 74-scene/recovery checks, Three source/numerical parity, graphics recovery, scheduling and benchmark CLI checks |
 | `data` | Catalogue transport/commit/recovery, both renderer data paths, catalogue CLI benchmarks/development and relevant loading/switching behavior |
 | `build` | Public root/retired payloads/configured promotion, real CLI and ordinary-clone provenance checks |
 | `dev` | Real watch/HMR/development entry points and runner failure diagnostics |
-| `full` | Every original native case plus the new smoke/compact parity checks in all applicable engines |
+| `full` | Every retained native case plus the smoke/compact scene checks in all applicable engines |
 
 Use `BROWSERS=chromium` for an explicit local engine subset. Standalone always
 uses Chrome independently of this variable. No group changes assertion tolerances
@@ -70,8 +70,8 @@ are still retained. Use `npx playwright test --project=webkit --grep 'texture re
 
 | Project | Checks |
 | --- | --- |
-| `chromium`, `firefox`, `webkit` | Actual promoted root/nested deployment, removed preview entry, absence of retired payloads, missing chunks/lazy assets, default indexed Pixi/direct Three startup and retained switching, raw legacy/preview parity, both apps' GPU/rendering/options/DPR/benchmark-frame checks, catalogue loading/lifecycle/frame-commit recovery, Three source parity/numerics/entry/camera/recovery, and in-page renderer switching with retained data, faults, views, options and resource checks |
-| `chromium-only` | Both apps' scheduling, typography and benchmark CLI checks; legacy/preview and configured catalogue development commands; catalogue benchmark completion for Pixi and Three; Three configured development/HMR; ordinary-clone benchmark provenance; runner failure/cleanup diagnostics |
+| `chromium`, `firefox`, `webkit` | Actual promoted root/nested deployment, removed preview entry, absence of retired payloads, missing chunks/lazy assets, default indexed Pixi/direct Three startup and retained switching, raw App lifecycle and scene/recovery checks, current production GPU/rendering/options/DPR/benchmark-frame checks, catalogue loading/lifecycle/frame-commit recovery, Three source parity/numerics/entry/camera/recovery, and in-page renderer switching with retained data, faults, views, options and resource checks |
+| `chromium-only` | Current production scheduling, typography and benchmark CLI checks; promoted and configured catalogue development commands; catalogue benchmark completion for Pixi and Three; Three configured development/HMR; ordinary-clone benchmark provenance; runner failure/cleanup diagnostics |
 | Standalone configuration | Two public-renderer smoke checks against a fresh promoted build, without prepared browser fixtures |
 
 The browser projects retain strict orbital/pixel assertions, WebGL2 preflight,
@@ -93,7 +93,7 @@ The planner reads the real PR merge-base diff or push range, including both
 sides of renames and deleted paths. It never relies on a remembered label:
 
 - CSS/fonts/public HTML and unified HUD/options changes add `ui`.
-- Legacy GUI or dat-gui CSS changes also select their legacy graphics/UI checks.
+- Dat-gui CSS changes also select graphics/UI checks.
 - Public entry/routing changes and removed compatibility assets add UI/build/development and build integrations.
 - Catalogue implementation/profiles/data changes add `data,build` and build integrations.
 - Other existing JS/renderer changes add `graphics,ui,data`.
@@ -108,8 +108,8 @@ Fast Node validation, artifact production, conditional build/CLI integrations,
 and clean-checkout smoke run in separate checkouts. Build tests may mutate their
 own `dist` without delaying or altering the browser artifact. The artifact job
 builds only fixture variants needed by the selected groups; the core reuses raw
-parity, legacy asset-boundary, lazy probe, catalogue, Three and unified scheduling fixtures, omitting
-legacy/unified GPU/benchmark fixtures. Broad graphics/build/development selections
+App scene/recovery, historical asset-boundary, lazy probe, catalogue, Three and
+unified scheduling fixtures, omitting GPU/benchmark fixtures. Broad graphics/build/development selections
 prepare all variants. Each variant is built once and copied privately by tests.
 
 `ORRERY_PREBUILT_FIXTURES` selects the prepared fixture directory. Its manifest

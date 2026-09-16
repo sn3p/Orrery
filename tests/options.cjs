@@ -7,9 +7,9 @@ exports.openOptions = async page => {
   if (await trigger.getAttribute("aria-expanded") === "false") await trigger.click();
 };
 
-exports.testOptions = async (browser, url, output, name, application = "legacy") => {
+exports.testOptions = async (browser, url, output, name, application = "unified") => {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 });
-  if (application === 'unified') await require('./default-catalog-route.cjs').routeDefaultCatalog(page);
+  await require('./default-catalog-route.cjs').routeDefaultCatalog(page);
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
@@ -36,7 +36,7 @@ exports.testOptions = async (browser, url, output, name, application = "legacy")
       };
     });
     assert(spacing.gap >= 8, "Speed label keeps at least 8px of visible space before the slider");
-    assert.equal(spacing.lines, spacing.unified ? 3 : 2, "DPR help wraps within the panel at its UI font size");
+    assert.equal(spacing.lines, 3, "DPR help wraps within the panel at its UI font size");
     assert(Math.abs(spacing.lastWordTop - spacing.lastLineTop) < 1, "Help text remains within the expected last line");
   };
   try {
@@ -71,8 +71,7 @@ exports.testOptions = async (browser, url, output, name, application = "legacy")
       };
     });
     assert.equal(toggleStyle.textSize, toggleStyle.labelSize, "Options keeps the original label size");
-    if (toggleStyle.unified) assert.equal(toggleStyle.indicatorSize, 12, "Preview marker shares the 12px UI size");
-    else assert(toggleStyle.indicatorSize < toggleStyle.textSize, "Legacy marker stays smaller");
+    assert.equal(toggleStyle.indicatorSize, 12, "Preview marker shares the 12px UI size");
     assert(toggleStyle.gap > 0 && toggleStyle.gap < toggleStyle.textSize * 0.4,
       "Marker and word have a compact positive gap");
     assert(await panel.evaluate(el => el.querySelector("select[aria-label='Renderer']") === document.activeElement

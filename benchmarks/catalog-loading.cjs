@@ -14,7 +14,7 @@ const root = path.resolve(__dirname, "..");
 async function buildHistorical(output) {
   const webpack = require("webpack"), base = require("../webpack.next.config.js");
   await new Promise((resolve, reject) => {
-    const compiler = webpack({ ...base, mode: "production", entry: "./tests/catalog-browser.js",
+    const compiler = webpack({ ...base, module: { rules: [...base.module.rules, require('../tests/historical-catalog.cjs').rule] }, mode: "production", entry: "./tests/catalog-browser.js",
       resolve: { alias: { [path.join(root, "src/unified/index.js")]: path.join(root, "tests/bundled-entry.js") } },
       output: { ...base.output, path: output } });
     compiler.run((error, stats) => compiler.close(() => {

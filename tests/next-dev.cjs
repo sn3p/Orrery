@@ -1,9 +1,9 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
+const { startServer } = require("./dev-server-process.cjs");
 
-async function run({ browser, name, application = "legacy", output: artifactDirectory,
+async function run({ browser, name, application = "unified", output: artifactDirectory,
   catalogConfig = process.env.CATALOG_CONFIG, renderer = "pixi", command = "serve:next" }) {
   const selection = catalogConfig && JSON.parse(fs.readFileSync(catalogConfig, "utf8"));
   const directory = artifactDirectory || path.resolve(selection ? ".context/pr3/browser/dev" : ".context/next-preview/dev");
@@ -18,22 +18,20 @@ async function run({ browser, name, application = "legacy", output: artifactDire
   `);
   // Run the documented command on a dynamically assigned port. Add only a
   // test probe; actual preview HTML/styles, output paths and dev options apply.
-  const child = spawn("npm", ["run", command, "--", "--host", "127.0.0.1", "--port", "0",
-    "--no-open", "--entry", entry], { stdio: ["ignore", "pipe", "pipe"], detached: true,
+  const server = startServer("npm", ["run", command, "--", "--host", "127.0.0.1", "--port", "0",
+    "--no-open", "--entry", entry], { logFile: path.join(directory, "server.log"),
     env: { ...process.env, CATALOG_CONFIG: catalogConfig || "" } });
-  let log = "";
-  child.stdout.on("data", data => log += data); child.stderr.on("data", data => log += data);
-  const exited = new Promise(resolve => child.on("exit", resolve));
+  const { child } = server;
   async function until(test) {
     const deadline = Date.now() + 30000;
     while (!test()) {
-      if (child.exitCode !== null || Date.now() >= deadline) throw new Error(`Preview dev server failed: ${log}`);
+      if (child.exitCode !== null || Date.now() >= deadline) throw new Error(`Preview dev server failed: ${server.log}`);
       await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
   try {
-    await until(() => /http:\/\/127\.0\.0\.1:\d+\//.test(log));
-    const base = log.match(/http:\/\/127\.0\.0\.1:\d+\//)[0];
+    await until(() => /http:\/\/127\.0\.0\.1:\d+\//.test(server.log));
+    const base = server.log.match(/http:\/\/127\.0\.0\.1:\d+\//)[0];
     const page = await browser.newPage();
     const requests = [];
     page.on("request", request => requests.push(request.url()));
@@ -100,9 +98,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     assert.deepEqual(errors, []);
     console.log("Actual development command serves root, rejects old preview entries, applies hot chunks and reloads unaccepted edits.");
   } finally {
-    if (child.exitCode === null) process.kill(-child.pid, "SIGTERM");
-    await exited;
-    fs.writeFileSync(path.join(directory, "server.log"), log);
+    await server.stop();
   }
 }
 

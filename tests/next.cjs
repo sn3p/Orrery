@@ -25,15 +25,14 @@ async function compileLazyProbe(fixture) {
   assert([...stats.compilation.chunks].some(chunk => !chunk.canBeInitial()), "Preview supports real lazy chunks");
 }
 
-async function run({ browser, name, application = "legacy", output: artifactDirectory }) {
+async function run({ browser, name, application = "unified", output: artifactDirectory }) {
   const directory = artifactDirectory || path.resolve(".context/next-preview/browser");
   fs.mkdirSync(directory, { recursive: true });
   const pages = path.join(directory, "pages");
   fs.mkdirSync(pages, { recursive: true });
   const publicRoot = path.resolve(process.env.ORRERY_DEFAULT_DIST || "dist");
   const pagesRoot = path.join(pages, "Orrery");
-  if (fs.existsSync(pagesRoot) && fs.lstatSync(pagesRoot).isSymbolicLink() && fs.readlinkSync(pagesRoot) !== publicRoot) fs.unlinkSync(pagesRoot);
-  if (!fs.existsSync(pagesRoot)) fs.symlinkSync(publicRoot, pagesRoot, "dir");
+  require('./deployment.cjs').replaceDeploymentLink(publicRoot, pagesRoot);
 
   // Retain async CSS/data coverage alongside the real public Pixi lazy entry.
   const fixture = path.join(directory, "fixture");
@@ -41,7 +40,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     require('./fixture-builds.cjs').copyPrepared('lazy-preview', path.join(fixture, 'site'));
   } else await compileLazyProbe(fixture);
   fs.mkdirSync(path.join(fixture, "pages"), { recursive: true });
-  if (!fs.existsSync(path.join(fixture, "pages/Orrery"))) fs.symlinkSync(path.join(fixture, "site"), path.join(fixture, "pages/Orrery"), "dir");
+  require("./deployment.cjs").replaceDeploymentLink(path.join(fixture, "site"), path.join(fixture, "pages/Orrery"));
   const root = await serve(process.env.ORRERY_DEFAULT_DIST || "dist"), nested = await serve(pages);
   const lazyRoot = await serve(path.join(fixture, "site")), lazyNested = await serve(path.join(fixture, "pages"));
   const results = [];

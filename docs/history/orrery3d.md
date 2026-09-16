@@ -31,7 +31,7 @@ manifests, workflow, configuration and tests remain exact historical files.
 | Consumer | Boundary |
 | --- | --- |
 | npm install and commands | Root manifest; no npm workspaces or recursive test discovery |
-| Production bundles | Explicit root `src/js/index.js` and `src/unified/index.js` import graphs |
+| Production bundles | Current `src/unified/index.js` import graph; retired Orrery entry remains in Git history |
 | Assets and CSS transforms | Imported root resources; fonts restricted to root `src/fonts` |
 | Development servers/watch | Root `dist`, root `src/**/*` and `src/unified/**/*.html` |
 | Pages | Root workflow builds and publishes only `dist`; nested snapshot workflow is inactive |

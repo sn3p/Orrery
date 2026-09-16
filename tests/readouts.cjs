@@ -15,7 +15,7 @@ exports.boundaries = async page => page.evaluate(async () => {
     const date = new Date(86400000 * (-2440587.5 + app.jed));
     const count = records.filter(record => record.disc <= app.jed).length;
     const expected = [toISO.call(date).slice(0, 10), `${app.stats.fps} FPS`,
-      app.constructor.application === 'unified' ? count.toLocaleString('en-US').replaceAll(',', '\u202f') : String(count)];
+      count.toLocaleString('en-US').replaceAll(',', '\u202f')];
     const mutations = observer.takeRecords();
     elements.forEach((element, index) => {
       check(element.textContent === expected[index], `${label}: incorrect ${element.id}`);

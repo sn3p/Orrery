@@ -49,7 +49,7 @@ test("historical benchmark CLI keeps an explicit whole-file oracle when preview 
     env: { ...process.env, DURATION_SECONDS: "0", PROFILES: "native", OUTPUT: path.join(directory, "report.json") },
   }), error => error.code === 1 && !error.killed && error.stderr.includes("verified build before launch"));
   const site = path.join(root, ".context/catalog-trial/site-historical");
-  assert.deepEqual(await fs.readFile(path.join(site, "data/catalog.json")), await fs.readFile(path.join(root, "data/catalog.json")));
+  assert.deepEqual(await fs.readFile(path.join(site, "data/catalog.json")), require("./historical-catalog.cjs").readCatalog());
   const scripts = (await fs.readdir(path.join(site, "assets"))).filter(name => name.endsWith(".js"));
   const code = (await Promise.all(scripts.map(name => fs.readFile(path.join(site, "assets", name), "utf8")))).join("\n");
   assert(!code.includes(require("../catalog-profiles/latest.json").latest), "Historical CLI comparison cannot select the live producer");

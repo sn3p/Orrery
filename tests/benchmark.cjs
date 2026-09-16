@@ -11,8 +11,8 @@ const { checkoutSource, recordSource, bundleSource } = require("../benchmarks/pr
 const execute = promisify(execFile);
 const hash = value => crypto.createHash("sha256").update(value).digest("hex");
 
-async function run({ browser, name, application = "legacy", output: artifactDirectory }) {
-  const artifacts = artifactDirectory || (application === "unified" ? ".context/pr2/unified-benchmark-test" : ".context/gpu-orbits/benchmark-test");
+async function run({ browser, name, application = "unified", output: artifactDirectory }) {
+  const artifacts = artifactDirectory || ".context/pr2/unified-benchmark-test";
   const directory = path.join(artifacts, "app");
   fs.rmSync(artifacts, { recursive: true, force: true });
   await build("./tests/fixture.js", directory, { application });
@@ -53,7 +53,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
           }
           return render(options);
         };
-      }, { event, setupDraws: application === 'unified' ? 1 : 0 });
+      }, { event, setupDraws: 1 });
       const run = page.evaluate(sample, { count: 100000, warmupMs: 50, sampleMs: 100 });
       if (event) {
         await assert.rejects(run, /interrupted/, `${event} during a measured frame invalidates the sample`);
@@ -92,7 +92,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
         };
         owner[method] = function(...args) {
           calls++;
-          if (app.constructor.application === 'unified' && calls === 1) return original.apply(this, args);
+          if (calls === 1) return original.apply(this, args);
           faultInSample = listeners > 0 && gl.bufferSubData !== upload;
           throw new Error(`forced ${method} failure`);
         };
@@ -110,7 +110,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
         ]), new RegExp(`forced ${method} failure`));
         await page.waitForTimeout(100);
         // A throwing unified draw makes one bounded repaint before stopping.
-        const calls = application === "unified" ? (method === "render" ? 3 : 2) : 1;
+        const calls = (method === "render" ? 3 : 2);
         assert.deepEqual(await page.evaluate(() => failureCheck()), { listeners: 0, calls, faultInSample: true, uploadRestored: true });
         await page.evaluate(() => restoreFailure());
         assert((await page.evaluate(sample, { count: 1000, warmupMs: 0, sampleMs: 50 })).frames > 0, "Same page can run after failure");
@@ -120,8 +120,8 @@ async function run({ browser, name, application = "legacy", output: artifactDire
   fs.writeFileSync(path.join(artifacts, "frame-results.json"), JSON.stringify(frameReports, null, 2) + "\n");
 }
 
-async function runCLI({ application = "legacy", output: artifactDirectory }) {
-  const artifacts = artifactDirectory || (application === "unified" ? ".context/pr2/unified-benchmark-cli" : ".context/gpu-orbits/benchmark-cli");
+async function runCLI({ application = "unified", output: artifactDirectory }) {
+  const artifacts = artifactDirectory || ".context/pr2/unified-benchmark-cli";
   const directory = path.join(artifacts, "app");
   fs.rmSync(artifacts, { recursive: true, force: true });
   const invalidOutput = path.join(artifacts, "invalid-input");
@@ -194,7 +194,7 @@ async function runCLI({ application = "legacy", output: artifactDirectory }) {
   fs.appendFileSync(bundleFile, "\n// Changed external bundle\n");
   assert.equal(bundleSource(external).revision, null, "Changed JavaScript invalidates stale source stamp");
   fs.writeFileSync(bundleFile, originalBundle);
-  const catalog = JSON.stringify(JSON.parse(fs.readFileSync("data/catalog.json")).slice(0, 1000));
+  const catalog = JSON.stringify(JSON.parse(require("./historical-catalog.cjs").readCatalog()).slice(0, 1000));
   fs.writeFileSync(path.join(external, "data/catalog.json"), catalog);
   assert.equal(bundleSource(external).revision, null, "Changed data invalidates stale source stamp");
   fs.rmSync(path.join(external, "benchmark-source.json"));
@@ -202,7 +202,7 @@ async function runCLI({ application = "legacy", output: artifactDirectory }) {
   await execute(process.execPath, ["benchmarks/run.cjs"], { env, timeout: 30000 });
   const report = JSON.parse(fs.readFileSync(path.join(output, "results.json")));
   assert.equal(report.complete, true);
-  assert.equal(report.application, application === "unified" ? "unified" : "legacy",
+  assert.equal(report.application, "unified",
     "External bundle reports the actually executed app, independently of the runner environment");
   assert.deepEqual(report.counts, [1000]);
   assert.equal(report.repeats, 1);
@@ -212,7 +212,7 @@ async function runCLI({ application = "legacy", output: artifactDirectory }) {
   assert.equal(report.runnerRevision, source.revision);
   assert.equal(report.catalogSHA256, hash(catalog), "Report fingerprints the actually served catalogue");
   assert.equal(report.bundleSHA256, hash(fs.readFileSync(path.join(external, "bundle.js"))));
-  assert.notEqual(report.catalogSHA256, hash(fs.readFileSync("data/catalog.json")));
+  assert.notEqual(report.catalogSHA256, hash(require("./historical-catalog.cjs").readCatalog()));
 
   fs.rmSync(path.join(output, "results.json"));
   const mutating = execute(process.execPath, ["benchmarks/run.cjs"], { env, timeout: 30000 });

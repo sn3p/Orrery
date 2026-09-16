@@ -30,6 +30,7 @@ async function compile(config) {
     output: { ...config.output, path: baseline, clean: true }, performance: { hints: false } });
   assert(![...stats.compilation.modules].some(module => /src[\\/]js[\\/](?:Orrery|Gui|index)\.js$/.test(module.resource || "")),
     "Public import graph excludes the legacy application");
+  require("./build-boundaries.cjs").assertNoTestImports(stats);
   const original = fingerprint(baseline);
   // Exercise the exact Pages command twice, including stale sibling output.
   for (let round = 0; round < 2; round++) {

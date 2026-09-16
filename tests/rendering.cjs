@@ -209,10 +209,10 @@ async function markers(browser, url) {
   } finally { await page.close(); }
 }
 
-async function run({ browser, name, application = "legacy", output: artifactDirectory, step = (_name, action) => action() }) {
-  const output = artifactDirectory || (application === 'unified' ? '.context/pr2/unified-rendering' : '.context/paused-rendering/checks');
+async function run({ browser, name, application = "unified", output: artifactDirectory, step = (_name, action) => action() }) {
+  const output = artifactDirectory || '.context/pr2/unified-rendering';
   await build('./tests/rendering-fixture.js', path.join(output, 'fixture'), { application });
-  await build('./src/js/index.js', path.join(output, 'production'), { application });
+  await build('./tests/bundled-entry.js', path.join(output, 'production'), { application });
   await build('./tests/init-fixture.js', path.join(output, 'init'), { application });
   const server = await serve(output), report = [];
   const fixtureURL = server.url + '/fixture';

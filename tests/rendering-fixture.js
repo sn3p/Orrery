@@ -1,8 +1,8 @@
 // The real async bootstrap sequence, with instrumentation only in this bundle.
-import Orrery from "../src/js/Orrery";
-import Asteroids from "../src/js/Asteroids";
+import Orrery from "./unified-app";
+import Asteroids from "../src/unified/pixi/Asteroids";
 import planets from "../src/js/planets";
-import catalogURL from "../data/catalog.json";
+import catalogURL from "./fixtures/historical100k/catalog.json.gz";
 import "../src/css/main.css";
 
 const options = new URLSearchParams(location.search);

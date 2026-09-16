@@ -3,7 +3,6 @@ const assert = require('node:assert/strict');
 exports.frames = async page => {
   const result = await page.evaluate(() => {
     const { app } = fixture;
-    const deferredReadouts = app.constructor.application === 'unified';
     const saved = { autoRender: app.autoRender, speed: app.jedDelta, jed: app.jed, elapsed: app.elapsed };
     const restores = [], events = [];
     const check = (condition, message) => { if (!condition) throw new Error(message); };
@@ -36,10 +35,10 @@ exports.frames = async page => {
         beforeRender: () => events.push('beforeDraw'), afterRender: () => events.push('afterDraw'),
       });
       const manual = state();
-      const tail = deferredReadouts ? ['beforeDraw', 'draw', 'gui', 'afterDraw'] : ['beforeDraw', 'draw', 'afterDraw'];
+      const tail = ['beforeDraw', 'draw', 'gui', 'afterDraw'];
       check(tail.every((event, index) => events.at(index - tail.length) === event), 'Hooks enclose submission and completed readout commitment');
       check(events.indexOf('fps') < events.indexOf('beforeDraw'), 'FPS sampling stays inside tick timing');
-      check(deferredReadouts ? events.indexOf('gui') > events.indexOf('draw') : events.indexOf('gui') < events.indexOf('beforeDraw'), 'Preview readouts wait for a draw receipt; legacy ordering is unchanged');
+      check(events.indexOf('gui') > events.indexOf('draw'), 'Readouts wait for a completed draw receipt');
       check(app.animationFrame === null && !app.app.ticker.started, 'Manual frame starts no scheduler');
       app.autoRender = true;
       app.app.renderer.resolution = 1.25;
@@ -66,7 +65,7 @@ exports.frames = async page => {
       }
       const early = new app.constructor({ autoRender: false });
       early.renderFrame(); early.destroy(); early.renderFrame();
-      return { production, manual, deferredReadouts };
+      return { production, manual };
     } finally {
       delete document.hidden; app.contextLost = false;
       restores.reverse().forEach(restore => restore());
@@ -76,7 +75,7 @@ exports.frames = async page => {
   });
   assert.deepEqual(result.manual.events.filter(e => !['beforeDraw', 'afterDraw'].includes(e)), result.production.events);
   for (const key of ['image', 'jed', 'elapsed', 'planets', 'readouts']) assert.deepEqual(result.manual[key], result.production[key], `Production/manual ${key} match`);
-  assert.deepEqual(result.production.events, ['frame', 'tick', 'clock', 'asteroids', ...result.production.planets.map(() => 'planet'), 'fps', ...(result.deferredReadouts ? ['draw', 'gui'] : ['gui', 'draw'])]);
+  assert.deepEqual(result.production.events, ['frame', 'tick', 'clock', 'asteroids', ...result.production.planets.map(() => 'planet'), 'fps', 'draw', 'gui']);
   return { matchingPixelsAndState: true, timingBoundaries: 'passed', schedulerAndTicker: 'passed', guards: 'passed' };
 };
 

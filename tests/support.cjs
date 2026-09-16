@@ -3,22 +3,15 @@ const path = require("node:path");
 const http = require("node:http");
 const webpack = require("webpack");
 
-async function compile(entry, output, { application = process.env.ORRERY_TEST_APP || 'legacy' } = {}) {
-  const config = require("../webpack.config");
-  const unified = application === "unified";
-  if (unified && entry === "./src/js/index.js") entry = "./tests/bundled-entry.js";
-  const aliases = unified ? Object.fromEntries([
-    ["Orrery", "tests/unified-app.js"],
-    ...["Asteroids", "Orbit", "Planet", "Controls"].map(name => [name, `src/unified/pixi/${name}.js`]),
-  ].map(([name, target]) => [path.resolve(`src/js/${name}.js`), path.resolve(target)])) : {};
-  // Absolute resolved aliases apply only to fixture builds. Public /next/
-  // still uses its real lazy entry/config and is tested separately.
-  const plugins = unified && entry === "./tests/bundled-entry.js"
+async function compile(entry, output, { application = process.env.ORRERY_TEST_APP || 'unified' } = {}) {
+  if (application !== "unified") throw new Error(`Unsupported fixture application: ${application}`);
+  const config = require("./webpack-fixture.cjs");
+  const plugins = entry === "./tests/bundled-entry.js"
     ? config.plugins.map(plugin => plugin.constructor.name === "HtmlWebpackPlugin"
       ? new (require("html-webpack-plugin"))({ template: "./src/unified/index.html" }) : plugin)
     : config.plugins;
   await new Promise((resolve, reject) => {
-    const compiler = webpack({ ...config, mode: "production", entry, plugins, resolve: { alias: aliases },
+    const compiler = webpack({ ...config, mode: "production", entry, plugins,
       output: { ...config.output, path: path.resolve(output) }, performance: { hints: false } });
     compiler.run((error, stats) => compiler.close(() => {
       if (error || stats.hasErrors()) reject(error || new Error(stats.toString("errors-only")));
@@ -30,7 +23,7 @@ async function compile(entry, output, { application = process.env.ORRERY_TEST_AP
 async function build(entry, output, options = {}) {
   if (process.env.ORRERY_PREBUILT_FIXTURES) {
     const { copyFixture } = require('./fixture-builds.cjs');
-    copyFixture(entry, output, options.application || process.env.ORRERY_TEST_APP || 'legacy');
+    copyFixture(entry, output, options.application || process.env.ORRERY_TEST_APP || 'unified');
   } else {
     await compile(entry, output, options);
   }

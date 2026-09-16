@@ -8,7 +8,7 @@ exports.run = async (check, { chromiumOnly = false } = {}) => {
     for (const name of names) {
       const browser = await launchBrowser(name);
       try {
-        await check({ browser, name, application: process.env.ORRERY_TEST_APP || 'legacy' });
+        await check({ browser, name, application: process.env.ORRERY_TEST_APP || 'unified' });
       } finally { await browser.close(); }
     }
   } catch (error) { console.error(error); process.exitCode = 1; }

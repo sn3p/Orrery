@@ -6,7 +6,7 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const execute = promisify(execFile);
 
-async function run({ browser, name, application = "legacy", output: artifactDirectory }) {
+async function run({ browser, name, application = "unified", output: artifactDirectory }) {
   const root = path.resolve(__dirname, '..');
   const output = artifactDirectory || path.join(root, '.context/gpu-orbits/benchmark-clone');
   const clone = path.join(output, 'checkout');
@@ -37,7 +37,7 @@ async function run({ browser, name, application = "legacy", output: artifactDire
     assert.equal((await git('status', '--porcelain')).stdout, '');
     // The full suite also runs the real dev-server regression. Its generated
     // entry/probe files must not taint a subsequent benchmark's source stamp.
-    await execute(process.execPath, ['tests/hmr.cjs'], { cwd: clone, env, timeout: 60000 });
+    await execute(process.execPath, ['tests/next-dev.cjs'], { cwd: clone, env, timeout: 60000 });
     assert.equal((await git('status', '--porcelain')).stdout, '', 'HMR test outputs leave the source clean');
     // Real catalogue builds create shared caches and generated sites. In an
     // ordinary clone they must not taint a later benchmark's source stamp.
@@ -60,7 +60,11 @@ async function run({ browser, name, application = "legacy", output: artifactDire
       'Only generated catalogue directories are ignored, not user configurations');
     fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify(report, null, 2) + '\n');
     console.log('Default benchmark after HMR and catalogue builds in an ordinary clone retains verified source attribution.');
-  } finally { fs.rmSync(clone, { recursive: true, force: true }); }
+  } finally {
+    const serverLog = path.join(clone, '.context/next-preview/dev/server.log');
+    if (fs.existsSync(serverLog)) fs.copyFileSync(serverLog, path.join(output, 'server.log'));
+    fs.rmSync(clone, { recursive: true, force: true });
+  }
 }
 
 module.exports = { run };
