@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
+const { spawn, execFileSync } = require("node:child_process");
 const webpack = require("webpack");
 const config = require("../webpack.config");
 
@@ -78,6 +78,20 @@ const config = require("../webpack.config");
     fs.writeFileSync(path.join(directory, "watch.log"), log);
   }
   // Exercise the actual promoted watch command as well as the legacy compiler oracle.
+  execFileSync(process.execPath, ["scripts/build.cjs"], { stdio: "pipe" });
+  const assertRetained = () => require("./promotion-assets.cjs")("dist");
+  assertRetained();
+  for (const clean of ["--output-clean", "--no-output-clean"]) {
+    assert.throws(() => execFileSync(process.execPath, [require.resolve("webpack-cli/bin/cli.js"),
+      "--config", "webpack.app.config.cjs", "--mode", "development", "--watch", clean],
+    { stdio: "pipe", timeout: 15000 }), /Watch does not accept --output-clean overrides/);
+    assertRetained();
+  }
+  // Watch may start after an older preview build or a configured deployment.
+  fs.writeFileSync("dist/next/index.html", "<title>Retired preview</title>");
+  const retainedPin = "dist/next/data/retained-watch-pin.json";
+  fs.mkdirSync(path.dirname(retainedPin), { recursive: true });
+  fs.writeFileSync(retainedPin, "retained configured data");
   const watchEntry = path.join(directory, "promoted-watch.js");
   fs.writeFileSync(watchEntry, 'import ' + JSON.stringify(path.resolve("src/unified/index.js")) + '; window.promotionWatchFirst = true;');
   const promotedWatch = spawn("npm", ["run", "watch", "--", "--entry", watchEntry], {
@@ -98,13 +112,18 @@ const config = require("../webpack.config");
   }
   try {
     await waitForWatch('promotionWatchFirst');
+    assertRetained();
+    assert.equal(fs.readFileSync(retainedPin, "utf8"), "retained configured data");
     fs.appendFileSync(watchEntry, '\nwindow.promotionWatchSecond = true;');
     await waitForWatch('promotionWatchSecond');
+    assertRetained();
+    assert.equal(fs.readFileSync(retainedPin, "utf8"), "retained configured data");
     assert.match(fs.readFileSync("dist/index.html", "utf8"), /<title>Orrery<\/title>/);
     assert(!fs.readFileSync("dist/index.html", "utf8").includes("bundle.js"));
     assert(!fs.existsSync("dist/next/index.html"), "Watch does not restore the retired preview entry");
   } finally {
     process.kill(-promotedWatch.pid, "SIGTERM"); await watchExit;
+    fs.rmSync(retainedPin, { force: true });
     fs.writeFileSync(path.join(directory, "promoted-watch.log"), promotedLog);
   }
   console.log("Build modes follow webpack rather than stale NODE_ENV; npm watch rebuilds readable JS, CSS and native JSON assets.");

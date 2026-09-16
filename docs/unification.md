@@ -125,9 +125,10 @@ late-start costs and physical mobile hardware remain explicit measurement limits
 [Orrery3D PR31](https://github.com/sn3p/Orrery3D/pull/31) merged as `93a3e1f`.
 Its latest-descriptor and provisioning fixes are the PR3 reference. The producer's
 automatic Pages publication also landed in PR6 (`22a9e6d`); MPC acquisition and
-regeneration remain manual. Orrery's default preview profile consumes that browser
-contract. This data-default unit follows PR5 and precedes PR6; it leaves the legacy
-root and data producer unchanged. Public promotion remains a separate approval.
+regeneration remain manual. Orrery's default profile consumes that browser
+contract. PR72 introduced that default after PR5 and before root promotion,
+leaving the legacy root and data producer unchanged at that stage. This candidate
+promotes the app to root; release still requires explicit approval.
 
 ## Approved product and architecture decisions
 
@@ -298,7 +299,7 @@ npm test
 
 `test:build` exercises mode/watch behavior, repeated actual Pages clean builds,
 byte equality for retained PR73 assets and repeated promoted-build/alias safety.
-`test:browser` covers both assembled production pages, assets and lazy chunks,
+`test:browser` covers both renderers at the promoted root, assets and lazy chunks,
 real legacy behavior plus development HMR/reload. `test:unified` also runs the
 strict GPU, scheduling, rendering/lifecycle, UI/DPR and finite benchmark probes
 against the extracted classes, building the promoted site first so the standalone
@@ -315,10 +316,10 @@ After the build regression
 checks, CI uploads the final assembled Pages artifact and distinct compiled test
 fixtures. Chromium and Firefox use two shards each, and WebKit uses four, with one worker per runner;
 Chromium-only checks run once per applicable app in their own job.
-A separate Chromium job runs the standalone preview command from a
-clean checkout with no preview build. Deployment depends on all jobs.
+A separate Chromium job runs the standalone unified test command from a
+clean checkout with no prebuilt site. Deployment depends on all jobs.
 Diagnostics are retained per case and merged into a Playwright HTML report;
-no root promotion is implicit.
+passing tests does not authorize merging or deploying the root promotion.
 See [browser test workflow](browser-tests.md) for the coverage mapping and commands.
 
 Hosted Linux browser jobs use Xvfb and Mesa software rendering, with a preflight
@@ -369,7 +370,7 @@ those features.
 The root options panel offers Pixi.js (2D) and Three.js (3D). Switching keeps
 one App, clock, HUD, retained CPU catalogue, date, requested speed and DPR choice.
 Each mode remembers its own view for this page. There is no camera conversion or
-browser-storage persistence. The preview uses the same complete discovery source
+browser-storage persistence. The app uses the same complete discovery source
 in both modes; cached legacy documents can still access their historical 100k bundle.
 
 The controller loads destination code while the outgoing camera remains usable,

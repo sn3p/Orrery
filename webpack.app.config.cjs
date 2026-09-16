@@ -4,6 +4,9 @@ const { PromotionAssetsPlugin } = require("./scripts/promotion.cjs");
 const { prepareCatalog, catalogPlugins, stageCatalog, checkOutput } = require("./scripts/catalog.cjs");
 
 module.exports = async (_env, argv = {}) => {
+  if (argv.watch && Object.keys(argv).some(key => key.startsWith("outputClean"))) {
+    throw new Error("Watch does not accept --output-clean overrides; use npm run build for a clean assembled site.");
+  }
   if (argv.outputPath !== undefined || Object.keys(argv).some(key => key.startsWith("static"))) {
     throw new Error("The promoted app does not accept --output-path or static overrides; build dist, then copy the complete site.");
   }
@@ -25,7 +28,12 @@ module.exports = async (_env, argv = {}) => {
       });
     } });
   }
-  return { ...base, plugins, output: { ...base.output, path: output },
+  // Watch overlays the assembled site: cached production chunks and retained
+  // catalogue pins must survive. Still enter next/ to remove its retired page.
+  const clean = argv.watch
+    ? { keep: name => name !== "next" && name !== "next/index.html" }
+    : base.output.clean;
+  return { ...base, plugins, output: { ...base.output, path: output, clean },
     devServer: { ...base.devServer, open: ["/"], devMiddleware: { publicPath: "/" },
       setupMiddlewares(middlewares, server) {
         // Do not let a previous build's HTML leak through the static fallback.
