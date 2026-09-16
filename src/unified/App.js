@@ -328,7 +328,8 @@ export default class App {
   }
   demandCatalog(date = this.requestedJed ?? this.jed) {
     const hidden = document.hidden || !this.renderer || this.contextLost || !!this.catalogOpening || !!this.switching;
-    return this.catalogLoader?.demand(date, { playing: this.isPlaying && !!this.renderer && !this.catalogOpening && !this.switching, hidden }) ?? !this.catalogOpening;
+    return this.catalogLoader?.demand(date, { playing: this.isPlaying && !!this.renderer && !this.catalogOpening && !this.switching, hidden,
+      daysPerSecond: this.jedDelta * 60 }) ?? !this.catalogOpening;
   }
   onCatalogChange() {
     if (this.catalogWaiting) this.resetClock();

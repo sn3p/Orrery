@@ -1,5 +1,12 @@
 import { requireValue } from "./contract.js";
 
+// Speculative reads while playing cover this much playback at the current
+// speed. Chunks are cut by row count in discovery order, so a fixed chunk count
+// spans years in the 1980s but under half a second of speed-8 playback in the
+// 2000s; a time-based target keeps one fetch round trip from stalling a frame.
+export const LOOKAHEAD_SECONDS = 3;
+export const MIN_LOOKAHEAD_CHUNKS = 3;
+
 // Playback needs a retained prefix, not arbitrary interval merging. Source reads
 // own ordered verification; this layer owns ordered CPU commitment and demand.
 // The application separately supplies a receipt from the active renderer.
@@ -40,6 +47,7 @@ export default class CatalogLoader {
     this.date = date;
     this.playing = false;
     this.hidden = false;
+    this.daysPerSecond = 0;
     this.activateCloud(source.info.counts.discovery_export);
     this.changed();
     this.pump();
@@ -52,13 +60,15 @@ export default class CatalogLoader {
     return this.graphicsValid && this.readyToDraw(date) && this.source.countThrough(date) <= this.graphicsCount;
   }
 
-  demand(date, { playing = this.playing, hidden = this.hidden } = {}) {
+  demand(date, { playing = this.playing, hidden = this.hidden, daysPerSecond = this.daysPerSecond } = {}) {
     if (this.disposed || !this.source) return false;
+    requireValue(Number.isFinite(daysPerSecond), "playback speed");
     const required = this.source.countThrough(date);
     const resume = (!this.playing && playing) || (this.hidden && !hidden);
     this.date = date;
     this.playing = playing;
     this.hidden = hidden;
+    this.daysPerSecond = daysPerSecond;
     this.cancelUnneededRead();
     // A speculative failure gets a fresh bounded attempt once those records
     // become necessary. Recovery signals may also retry a required read, but
@@ -76,15 +86,29 @@ export default class CatalogLoader {
     const count = this.requiredCount, total = this.source.info.counts.discovery_export;
     if (this.source.mode === "whole") return count ? total : 0;
     const chunks = this.source.info.chunks;
+    const requiredChunks = count ? this.chunkIndex(chunk => chunk.end < count) + 1 : 0;
+    if (!(this.initialRendered && this.playing && !this.hidden)) return chunks[requiredChunks - 1]?.end ?? 0;
+    // Playback always reads at least MIN_LOOKAHEAD_CHUNKS beyond the required
+    // rows. Forward playback also covers LOOKAHEAD_SECONDS of simulated time;
+    // reverse playback has no forward horizon, so it keeps the minimum only.
+    // Equal discovery dates may continue into later chunks, so include every
+    // chunk that starts at or before the horizon, not just the first reaching it.
+    const horizon = this.date + Math.max(0, this.daysPerSecond) * LOOKAHEAD_SECONDS;
+    const horizonChunks = this.chunkIndex(chunk => chunk.first_disc <= horizon);
+    const target = Math.min(chunks.length, Math.max(requiredChunks + MIN_LOOKAHEAD_CHUNKS, horizonChunks));
+    return chunks[target - 1]?.end ?? 0;
+  }
+
+  // First chunk index for which `before` is false; chunks are ordered by rows and dates.
+  chunkIndex(before) {
+    const chunks = this.source.info.chunks;
     let lo = 0, hi = chunks.length;
     while (lo < hi) {
       const mid = Math.floor((lo + hi) / 2);
-      if (chunks[mid].end < count) lo = mid + 1;
+      if (before(chunks[mid])) lo = mid + 1;
       else hi = mid;
     }
-    const requiredChunks = count ? lo + 1 : 0;
-    const lookahead = this.initialRendered && this.playing && !this.hidden ? 3 : 0;
-    return chunks[Math.min(chunks.length, requiredChunks + lookahead) - 1]?.end ?? 0;
+    return lo;
   }
 
   accept(event, generation) {
