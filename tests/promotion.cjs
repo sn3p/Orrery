@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { serve } = require('./support.cjs');
-const { routeDefaultCatalog, producerBase } = require('./default-catalog-route.cjs');
+const { routeDefaultCatalog, producerBase, latestURL } = require('./default-catalog-route.cjs');
 
 async function ready(page) {
   await page.waitForFunction(() => document.querySelector('#orrery-count')?.textContent === '6');
@@ -130,6 +130,7 @@ async function configured({ browser, name, output }) {
     const site = path.join(output, mode);
     await require('../scripts/catalog.cjs').buildTrial(path.resolve(`catalog-profiles/ties-${mode}.json`), site,
       { assembled: true, publicDefaults: true });
+    require('./promotion-assets.cjs')(site);
     const container = path.join(output, mode + '-pages'); fs.mkdirSync(container, { recursive: true });
     fs.symlinkSync(path.resolve(site), path.join(container, 'Orrery'), 'dir');
     const server = await serve(container);
@@ -165,7 +166,46 @@ async function configured({ browser, name, output }) {
         assert.deepEqual(errors, []);
         results.push({ mode, renderer, cached, initialCount: 4, finalCount: 5 });
       } finally { await page.close(); }
-    } } finally { await server.close(); }
+    }
+      // The original PR73 document still selects its original latest source.
+      // A freshly configured document above cannot stand in for this cache.
+      for (const renderer of ['pixi', 'three']) {
+        const page = await browser.newPage();
+        const base = server.url + '/Orrery/', url = base + 'next/?renderer=' + renderer;
+        const requests = [], errors = [];
+        page.on('request', r => requests.push(r.url()));
+        page.on('pageerror', e => errors.push(e.message));
+        page.on('response', r => { if (r.status() >= 400) errors.push(`${r.status()} ${r.url()}`); });
+        await routeDefaultCatalog(page);
+        await page.route(url, route => route.fulfill({ contentType: 'text/html',
+          body: fs.readFileSync(path.join(__dirname, 'fixtures/promotion/pr73-next.html'), 'utf8'),
+        }));
+        try {
+          await page.goto(url);
+          await ready(page);
+          assert.equal(page.url(), url);
+          const selector = await options(page);
+          assert.equal(await selector.inputValue(), renderer);
+          assert(requests.includes(base + 'next/assets/main.fade45b0.js'));
+          assert(requests.includes(latestURL), 'Cached PR73 keeps its original source until reload');
+          const destination = renderer === 'pixi' ? 'three' : 'pixi';
+          assert(!requests.some(url => url.includes(`/assets/${destination}.`)));
+          await selector.selectOption(destination);
+          await page.waitForFunction(() => !document.querySelector('select[aria-label="Renderer"]').disabled);
+          assert.equal(await selector.inputValue(), destination);
+          assert(requests.some(url => url.startsWith(base + `next/assets/${destination}.`)));
+          await page.unroute(url);
+          await page.reload();
+          await page.waitForURL(base + '?renderer=' + renderer);
+          await page.waitForFunction(() => document.querySelector('#orrery-count')?.textContent === '4');
+          assert.equal(await (await options(page)).inputValue(), renderer);
+          assert.equal(await page.getByRole('textbox', { name: 'Playback speed' }).inputValue(), '0');
+          assert(requests.some(url => url.startsWith(base + 'data/delivery-v1-') && url.endsWith('/index.json')));
+          assert.deepEqual(errors, []);
+          results.push({ mode, renderer, cachedPR73: true, reloadIntoConfiguredRoot: true });
+        } finally { await page.close(); }
+      }
+    } finally { await server.close(); }
   }
   fs.writeFileSync(path.join(output, 'configured-promotion.json'), JSON.stringify(results, null, 2) + '\n');
 }

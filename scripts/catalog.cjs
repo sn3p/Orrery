@@ -272,7 +272,11 @@ async function buildTrial(configPath, output = path.join(root, ".context/catalog
       const legacy = require("../webpack.config.js");
       const compiler = webpack(assembled ? [
         { ...legacy, mode: "production", name: "legacy", output: { ...legacy.output, path: temporary, clean: true } },
-        { ...preview, name: "preview", dependencies: ["legacy"] },
+        // Cached PR73 HTML names the default main bundle. A configured main
+        // has a different hash, so copying only its assets cannot retain it.
+        { ...base, mode: "production", name: "compatibility", dependencies: ["legacy"],
+          output: { ...base.output, path: path.join(temporary, "next"), clean: true } },
+        { ...preview, name: "preview", dependencies: ["compatibility"] },
       ] : preview);
       compiler.run((error, stats) => compiler.close(() => {
         if (error || stats.hasErrors()) reject(error || new Error(stats.toString("errors-only")));

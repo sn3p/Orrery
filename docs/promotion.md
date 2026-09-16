@@ -16,7 +16,9 @@ Pages release. A draft PR or local verification is not release approval.
   and its `/next/` JS/CSS/font paths, until promoted-release acceptance. Cached
   documents and open sessions can finish loading their old code and data.
   Configured builds stage current and explicitly retained data pins at both root
-  and old preview paths. The 900 MB site budget includes both copies.
+  and old preview paths. They also compile the default PR73 asset set: cached
+  PR73 HTML keeps its original latest source until reload selects the new profile.
+  The 900 MB site budget includes all compatibility assets and data copies.
 - New visits receive the unified root; its source never falls back to historical
   data. Runtime modules, including the temporary “Open Pixi preview” recovery
   label, remain unchanged in this unit so the prior hashed chunks remain usable.
@@ -29,6 +31,8 @@ Generated root HTML and hashed chunks are ignored, rather than committing HTML
 that references absent generated files. The older tracked legacy assets remain
 until cleanup; a fresh checkout needs a build or the development server.
 Configured builds retain their atomic publication and input-protection checks.
+Use `npm run build` or `build:next` for configured production output; direct
+configured invocation of `webpack.build.config.js` is rejected before cleaning.
 Do not run multiple builds/dev writers against the same output simultaneously.
 
 ## Before release approval

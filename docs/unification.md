@@ -365,7 +365,7 @@ The `/next/` options panel offers Pixi.js (2D) and Three.js (3D). Switching keep
 one App, clock, HUD, retained CPU catalogue, date, requested speed and DPR choice.
 Each mode remembers its own view for this page. There is no camera conversion or
 browser-storage persistence. The preview uses the same complete discovery source
-in both modes; cached legacy documents can still access their historical100k bundle.
+in both modes; cached legacy documents can still access their historical 100k bundle.
 
 The controller loads destination code while the outgoing camera remains usable,
 suspends playback and speculative catalogue lookahead, then disposes the outgoing
