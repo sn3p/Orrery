@@ -62,7 +62,7 @@ async function run({ browser, name, output = '.context/timeline' }) {
         const paused = await date.textContent();
         await expectDateStable(page, paused, 'Visible playback control pauses the timeline');
         assert.equal(await play.getAttribute('aria-label'), 'Resume playback');
-        assert.equal((await play.textContent()).trim(), '[▶]');
+        assert.equal((await play.textContent()).trim(), '[⏵︎]');
 
         await require('./options.cjs').openOptions(page);
         const speed = page.getByRole('textbox', { name: 'Playback speed' });
