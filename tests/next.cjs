@@ -68,7 +68,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
           assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), "rgb(0, 0, 0)");
           assert(await page.evaluate(() => [...document.fonts].some(font => font.family === "JetBrains Mono Variable" && font.status === "loaded")));
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), viewport.width);
-          for (const selector of [".orrery-identity", ".orrery-date", ".orrery-count", ".orrery-options-trigger"]) {
+          for (const selector of [".orrery-identity", ".orrery-playback", ".orrery-date", ".orrery-count", ".orrery-options-trigger"]) {
             for (const element of await page.locator(selector).all()) {
               const box = await element.boundingBox();
               assert(box && box.x >= 0 && box.x + box.width <= viewport.width && box.y >= 0
@@ -77,7 +77,14 @@ async function run({ browser, name, application = "unified", output: artifactDir
           }
           // macOS WebKit follows Safari's default: Option-Tab includes
           // native links. Other supported browsers/platforms use Tab.
-          await page.keyboard.press(name === "webkit" && process.platform === "darwin" ? "Alt+Tab" : "Tab");
+          const forward = name === "webkit" && process.platform === "darwin" ? "Alt+Tab" : "Tab";
+          await page.keyboard.press(forward);
+          const playback = page.getByRole("button", { name: "Pause playback", exact: true });
+          assert(await playback.evaluate(element => element === document.activeElement));
+          assert.equal(await playback.evaluate(element => getComputedStyle(element).outlineStyle), "solid");
+          await page.keyboard.press(forward);
+          assert(await page.locator("#orrery-date").evaluate(element => element === document.activeElement));
+          await page.keyboard.press(forward);
           const about = page.getByRole("button", { name: "About Orrery", exact: true });
           assert(await about.evaluate(element => element === document.activeElement));
           assert.equal(await about.evaluate(element => getComputedStyle(element).outlineStyle), "solid");

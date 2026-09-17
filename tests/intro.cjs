@@ -5,12 +5,25 @@ const { serve } = require('./support.cjs');
 const { routeDefaultCatalog } = require('./default-catalog-route.cjs');
 const { firstVisitContext } = require('./browsers.cjs');
 
+// A valid beginning can predate the first discovery and therefore show zero.
 const loaded = page => page.waitForFunction(() => !document.querySelector('.orrery-readouts').hidden
-  && Number(document.querySelector('#orrery-count').textContent.replaceAll(' ', '')) > 0);
+  && document.querySelector('#orrery-count').textContent !== ''
+  && document.querySelector('#orrery-status').textContent === '');
 
 async function holds(page, dialog, label) {
   assert(await dialog.evaluate(el => el.open), `${label}: introduction is open`);
   assert(await dialog.evaluate(el => el.contains(document.activeElement)), `${label}: focus moves into the card`);
+  const theme = await dialog.evaluate(el => {
+    const close = el.querySelector('.orrery-intro-close');
+    return {
+      border: getComputedStyle(el).borderColor,
+      closeBorder: getComputedStyle(close).borderColor,
+      closeColor: getComputedStyle(close).color,
+    };
+  });
+  assert.equal(theme.border, 'rgb(54, 92, 65)', `${label}: dialog uses the green chrome border`);
+  assert.equal(theme.closeBorder, 'rgb(71, 123, 84)', `${label}: primary action uses the green border`);
+  assert.equal(theme.closeColor, 'rgb(181, 232, 193)', `${label}: primary action uses the green label`);
   const date = await page.locator('#orrery-date').textContent();
   await page.waitForTimeout(300);
   assert.equal(await page.locator('#orrery-date').textContent(), date, `${label}: playback holds while the introduction is open`);

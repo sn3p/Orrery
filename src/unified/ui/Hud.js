@@ -1,12 +1,14 @@
 import { fromJED } from "../../js/utils.js";
 import { UNIX_EPOCH_JULIAN_DATE } from "../../js/constants.js";
 import Options from "./Options.js";
+import Timeline from "./Timeline.js";
 
 const countFormat = new Intl.NumberFormat("en-US");
 
 export default class Hud {
   constructor(app) {
-    this.date = document.getElementById("orrery-date");
+    this.timeline = new Timeline(app);
+    this.date = this.timeline.date;
     this.fps = document.getElementById("orrery-fps");
     this.count = document.getElementById("orrery-count");
     this.readouts = this.date.closest(".orrery-readouts");
@@ -35,5 +37,7 @@ export default class Hud {
     }
   }
 
-  destroy() { this.controls.destroy(); }
+  updatePlayback(speed) { this.timeline.updatePlayback(speed); }
+
+  destroy() { this.timeline.destroy(); this.controls.destroy(); }
 }

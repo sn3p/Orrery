@@ -13,8 +13,11 @@
     <footer class="orrery-footer">
       <div class="orrery-summary">
         <div class="orrery-status" id="orrery-status" role="status"></div>
-        <div class="orrery-readouts" role="group" aria-label="Simulation date and discovery count" hidden>
-          <span class="orrery-date" id="orrery-date"></span>
+        <div class="orrery-readouts" role="group" aria-label="Playback controls, simulation date and discovery count" hidden>
+          <button type="button" class="orrery-playback" id="orrery-playback" aria-label="Pause playback" aria-keyshortcuts="Space">
+            <span class="orrery-control-indicator" id="orrery-playback-indicator" aria-hidden="true">⏸︎</span>
+          </button>
+          <button type="button" class="orrery-date" id="orrery-date" aria-haspopup="dialog" aria-controls="orrery-date-dialog" title="Jump to date (UTC)"></button>
           <span class="orrery-separator" aria-hidden="true">/</span>
           <span class="orrery-count" id="orrery-count"></span>
         </div>
@@ -23,11 +26,26 @@
         <button type="button" class="orrery-about" id="orrery-about" aria-label="About Orrery">Orrery</button>
       </nav>
     </footer>
+    <dialog class="orrery-date-dialog" id="orrery-date-dialog" aria-labelledby="orrery-date-title">
+      <form class="orrery-date-card" id="orrery-date-form">
+        <h1 id="orrery-date-title">Jump to date</h1>
+        <label for="orrery-date-input">UTC date</label>
+        <input type="date" id="orrery-date-input" min="0001-01-01" max="9999-12-31" aria-describedby="orrery-date-help orrery-date-error" required />
+        <p class="orrery-date-help" id="orrery-date-help">Playback stays paused after jumping.</p>
+        <p class="orrery-date-error" id="orrery-date-error" role="alert"></p>
+        <div class="orrery-date-actions">
+          <button type="button" id="orrery-date-today" title="Jump to today">today</button>
+          <button type="button" id="orrery-date-beginning" title="Jump to the beginning">1980-01-01</button>
+          <button type="submit" title="Jump to the selected date">jump</button>
+          <button type="button" id="orrery-date-cancel">cancel</button>
+        </div>
+      </form>
+    </dialog>
     <dialog class="orrery-intro" id="orrery-intro" aria-labelledby="orrery-intro-title">
       <form method="dialog" class="orrery-intro-card">
         <h1 id="orrery-intro-title">Orrery</h1>
         <p>The Solar System's minor planets, shown in the order they were discovered. Each dot is an asteroid on its orbit. New discoveries appear green and fade to grey; the date and running count are at the bottom left.</p>
-        <p>Open <code>[+] options</code> (top left) to change the speed, switch between the 2D and 3D renderers or raise the resolution. Speed 0 pauses and negative speed rewinds. Scroll to zoom; in 3D, drag to orbit the camera.</p>
+        <p>Use the <code>⏸︎ / ⏵︎</code> control or the date at the bottom left to control the timeline. Open <code>[+] options</code> (top left) to change the speed, switch between the 2D and 3D renderers or raise the resolution. Negative speed rewinds. Scroll to zoom; in 3D, drag to orbit the camera.</p>
         <p>Orbits are fixed ellipses from Minor Planet Center orbital elements, so positions are approximate. Only numbered minor planets with a known discovery date are included.</p>
         <p class="orrery-intro-links">Data: <a href="https://minorplanetcenter.net/" target="_blank" rel="noopener noreferrer">Minor Planet Center</a> via <a href="https://github.com/sn3p/orrery-data" target="_blank" rel="noopener noreferrer">orrery-data</a>. Code: <a href="https://github.com/sn3p/Orrery" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
         <button type="submit" class="orrery-intro-close" autofocus>Close</button>
