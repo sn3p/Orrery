@@ -48,6 +48,21 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert.equal(await trigger.getAttribute("aria-expanded"), "false");
     assert.equal(await trigger.getAttribute("aria-controls"), await panel.getAttribute("id"));
     assert.equal(await speed.count(), 0, "Closed controls are absent from the accessibility tree");
+    const triggerStyle = await trigger.evaluate(element => {
+      const style = getComputedStyle(element);
+      return {
+        color: style.color,
+        decorationLine: style.textDecorationLine,
+        markerColor: getComputedStyle(element.querySelector('.orrery-options-indicator')).color,
+      };
+    });
+    assert.equal(triggerStyle.color, 'rgb(136, 136, 136)', 'Options uses the muted HUD color at rest');
+    assert.equal(triggerStyle.decorationLine, 'none', 'Options is plain text without a link underline');
+    assert.equal(triggerStyle.markerColor, triggerStyle.color, 'Options marker does not stay green at rest');
+    await trigger.hover();
+    assert.equal(await trigger.evaluate(element => getComputedStyle(element).color), 'rgb(0, 232, 90)',
+      'Options turns green on hover');
+    await page.mouse.move(640, 400);
     await page.evaluate(() => document.fonts.ready);
     const closedTrigger = await trigger.boundingBox();
     await page.screenshot({ path: path.join(output, `${name}-options-closed-desktop.png`) });

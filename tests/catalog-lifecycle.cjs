@@ -293,6 +293,21 @@ async function run(browser, base, output, name) {
     await latest.goto(base + '/catalog-latest/');
     await latest.waitForFunction(() => catalogTest.app.catalogLoader?.sceneComplete());
     assert.equal(await latest.locator('#orrery-count').textContent(), '4');
+    const beginning = latest.getByRole('button', { name: '2000-01-01', exact: true });
+    assert.equal(await beginning.count(), 1, 'Configured production start labels the beginning action');
+    await latest.evaluate(() => {
+      const app = catalogTest.app;
+      app.autoRender = false; app.cancelRender();
+      app.jed = app.startJed - 1; app.renderFrame();
+    });
+    await latest.waitForFunction(() => catalogTest.app.jed === catalogTest.app.startJed - 1);
+    await latest.locator('#orrery-date').click();
+    await beginning.click();
+    // This deterministic lifecycle case disabled the application's scheduler above.
+    await latest.evaluate(() => catalogTest.app.renderFrame());
+    await latest.waitForFunction(() => catalogTest.app.jed === catalogTest.app.startJed);
+    assert.equal(await latest.evaluate(() => catalogTest.app.jedDelta), 0,
+      'Returning to the configured beginning stays paused');
     assert(!requests.some(url => /full\/catalog|data\/catalog.json/.test(url)), 'Explicit latest never falls back to historical/whole');
     await latest.reload();
     await latest.waitForFunction(() => catalogTest.app.catalogLoader?.sceneComplete());

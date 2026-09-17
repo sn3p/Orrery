@@ -15,9 +15,9 @@ function fixtureFiles(empty = false) {
   const info = JSON.parse(fs.readFileSync(path.join(root, latest.index.url)));
   const files = new Map();
   if (!empty) {
-    // Compact the synthetic fixture around normal February 1980 startup.
+    // Compact the synthetic fixture around normal January 1980 startup.
     // Equal-date chunk boundaries remain intact; no production dates change.
-    const dates = new Map(info.date_counts.map(([date], i) => [date, 2444269.5 + i * 3]));
+    const dates = new Map(info.date_counts.map(([date], i) => [date, 2444238.5 + i * 3]));
     info.date_counts = info.date_counts.map(([date, count]) => [dates.get(date), count]);
     for (const chunk of info.chunks) {
       const rows = JSON.parse(fs.readFileSync(path.join(root, chunk.url)));

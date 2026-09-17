@@ -12,6 +12,9 @@ test('preview footer loading, buffering, failure and empty states', { tag: ['@ui
 test('first-visit introduction, playback hold and About', { tag: ['@core', '@ui'] }, async ({ check }) => {
   await check('intro');
 });
+test('main playback and date controls', { tag: ['@core', '@ui'] }, async ({ check }) => {
+  await check('timeline');
+});
 test('raw App lifecycle, scene states and exact recovery', { tag: ['@graphics', '@extended'] }, async ({ check }) => {
   await check('unified', { application: 'unified' });
 });

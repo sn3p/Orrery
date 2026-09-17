@@ -9,7 +9,7 @@ exports.check = async page => {
       const { x, y, right, bottom, width, height } = document.querySelector(selector).getBoundingClientRect();
       return { x, y, right, bottom, width, height };
     };
-    return { date: box('.orrery-date'), count: box('.orrery-count'), readouts: box('.orrery-readouts'),
+    return { playback: box('.orrery-playback'), date: box('.orrery-date'), count: box('.orrery-count'), readouts: box('.orrery-readouts'),
       identity: box('.orrery-identity'), options: box('.orrery-options-trigger'), fps: box('.orrery-fps'),
       width: innerWidth, height: innerHeight, scrollWidth: document.documentElement.scrollWidth };
   });
@@ -18,7 +18,11 @@ exports.check = async page => {
       && box.y >= 8 - epsilon && box.bottom <= layout.height - 8 + epsilon,
       'HUD fits within the shared edge inset');
   }
-  aligned(layout.date.y, layout.count.y, 'Date and count share a line');
+  aligned(layout.playback.y + layout.playback.height / 2, layout.date.y + layout.date.height / 2,
+    'Playback and date controls share a line');
+  aligned(layout.date.y + layout.date.height / 2, layout.count.y + layout.count.height / 2,
+    'Date and count share a visual baseline');
+  assert(layout.playback.right < layout.date.x, 'Playback and date have a visible control gap');
   assert(layout.date.right < layout.count.x, 'Date and count have a visible separator gap');
   aligned(layout.options.x, 8, 'Options stays top-left');
   aligned(layout.fps.right, layout.width - 8, 'FPS stays top-right');
@@ -31,7 +35,10 @@ exports.check = async page => {
   assert.equal(await page.getByRole('link', { name: 'Open Orrery' }).count(), 0);
   assert((await page.getByRole('button', { name: 'About Orrery', exact: true }).boundingBox()).height >= 24,
     'The small footer text retains a comfortable target');
-  const styles = await page.locator('.orrery-date, .orrery-count, .orrery-fps, .orrery-identity, .orrery-options-trigger, .orrery-options-indicator, .orrery-options-hint, .dg .property-name, .dg input, .dg select')
+  for (const control of [page.locator('.orrery-playback'), page.locator('.orrery-date')]) {
+    assert((await control.boundingBox()).height >= 24, 'Timeline controls retain a comfortable target');
+  }
+  const styles = await page.locator('.orrery-playback, .orrery-date, .orrery-count, .orrery-fps, .orrery-identity, .orrery-options-trigger, .orrery-options-indicator, .orrery-options-hint, .dg .property-name, .dg input, .dg select')
     .evaluateAll(elements => elements.map(element => getComputedStyle(element).fontSize));
   assert(styles.every(size => size === '12px'), 'All preview text uses 12px');
   return layout;

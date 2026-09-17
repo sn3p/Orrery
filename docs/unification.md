@@ -49,7 +49,7 @@ cleans partial resources. Data generations reject stale/aborted results and
 failed replacements keep usable data. Graphics-recovery errors retain their
 feedback even if an outstanding data request subsequently succeeds.
 
-Startup remains local `new Date(1980, 1)` with speed 1.5 (90 days/second), the existing
+Startup begins at 1980-01-01 UTC with speed 1.5 (90 days/second), the existing
 250 ms stall cap and fresh 1× DPR on every load. Suspension does not overwrite
 requested speed. Pixi keeps 3× discovery markers shrinking over 2/3 active seconds,
 wheel zoom and stage translation through resize. Three keeps the source's

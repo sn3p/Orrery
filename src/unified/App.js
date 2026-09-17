@@ -15,10 +15,11 @@ const STATUS_OWNER = Symbol.for("orrery.statusOwner");
 export default class App {
   constructor(options = {}) {
     this.container = options.container || document.body;
-    this.startDate = options.startDate ?? new Date(1980, 1);
+    this.startDate = options.startDate ?? new Date(Date.UTC(1980, 0, 1));
     this._jed = options.startJed ?? toJED(this.startDate);
     this._jedDelta = options.jedDelta ?? 1.5;
     if (!validDate(this.jed) || !Number.isFinite(this.jedDelta)) throw new Error("Invalid initial playback time.");
+    this.startJed = this._jed;
     this.autoRender = options.autoRender ?? true;
     this.fixedResolution = options.resolution;
     if (this.fixedResolution !== undefined && (this.autoRender || !Number.isFinite(this.fixedResolution) || this.fixedResolution <= 0)) {
@@ -107,6 +108,7 @@ export default class App {
     if (!Number.isFinite(value)) throw new Error("Invalid playback speed.");
     const wasPlaying = this.isPlaying;
     this._jedDelta = value;
+    this.gui?.updatePlayback(value);
     this.gui?.controls.speed?.updateDisplay();
     this.demandCatalog();
     if (!wasPlaying || !this.isPlaying) this.resetClock();

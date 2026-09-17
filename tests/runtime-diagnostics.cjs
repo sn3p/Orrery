@@ -47,16 +47,16 @@ async function run({ browser, name, output = path.resolve('.context/promotion/ru
           // Own frame timestamps while the second chunk is held. Playback may
           // legitimately advance before reaching its missing discovery rows.
           app.autoRender = false; app.cancelRender();
-          app.jed = 2444271.5; app.renderFrame(1000);
+          app.jed = 2444240.5; app.renderFrame(1000);
           app.stats.fps = 60; app.updateGui();
           app.jedDelta = 8;
           app.renderFrame(1000); // Establish the playback clock after resuming.
-          app.renderFrame(1001); // A complete frame, still before 2444272.5.
+          app.renderFrame(1001); // A complete frame, still before 2444241.5.
           return { jed: app.jed, count: app.asteroidsDiscovered,
             date: document.querySelector('#orrery-date').textContent,
             countText: document.querySelector('#orrery-count').textContent };
         });
-        assert.equal(frozen.jed, 2444271.5 + 0.48, 'Playback advances before buffering');
+        assert.equal(frozen.jed, 2444240.5 + 0.48, 'Playback advances before buffering');
         assert.equal(frozen.count, 1);
         await page.evaluate(() => probe.app.renderFrame(1004)); // Cross the missing-data boundary.
         assert.equal(await page.evaluate(() => probe.app.catalogLoader.buffering), true);
@@ -75,7 +75,7 @@ async function run({ browser, name, output = path.resolve('.context/promotion/ru
         await page.evaluate(() => {
           const app = probe.app; app.autoRender = true; app.resetClock(); app.requestRender();
         });
-        await page.waitForFunction(() => probe.app.jed > 2444272.5 && !probe.app.catalogWaiting);
+        await page.waitForFunction(() => probe.app.jed > 2444241.5 && !probe.app.catalogWaiting);
         await page.waitForFunction(() => probe.app.stats.fps > 0);
         assert.equal(await page.locator('#orrery-status').textContent(), '');
         await page.evaluate(async () => {

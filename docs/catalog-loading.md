@@ -7,8 +7,8 @@ renderers does not fetch that population again or impose a population limit.
 
 “Complete” means all eligible records in the published discovery dataset, with
 real source coverage and known discovery dates. It does not mean all MPC objects.
-The date still determines which discoveries are visible: normal February 1980
-startup, speed and discovery animation are unchanged. The population is not all
+The date still determines which discoveries are visible: normal January 1, 1980 UTC
+startup, speed and discovery animation remain unchanged. The population is not all
 visible at startup. No catalogue environment variable or historical setting is
 needed, and source failures never silently fall back to the old bundle.
 
@@ -72,7 +72,7 @@ Optional `retained` entries preserve explicitly chosen complete pins in a profil
 output. No public retention window or data release is promised by this mechanism.
 
 `startJed` and `speed` are optional. Normal configured app commands preserve
-the browser-local February 1980 start and speed 1.5 unless overridden. Private
+the January 1, 1980 UTC start and speed 1.5 unless overridden. Private
 `catalog:build` trials use deterministic JD 2444270.5/speed 1.5 defaults.
 
 ## Ownership and completeness
