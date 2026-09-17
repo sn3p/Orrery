@@ -52,14 +52,12 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       const style = getComputedStyle(element);
       return {
         color: style.color,
-        decorationColor: style.textDecorationColor,
-        decorationStyle: style.textDecorationStyle,
+        decorationLine: style.textDecorationLine,
         markerColor: getComputedStyle(element.querySelector('.orrery-options-indicator')).color,
       };
     });
     assert.equal(triggerStyle.color, 'rgb(221, 221, 221)', 'Options uses the normal resting link color');
-    assert.equal(triggerStyle.decorationStyle, 'dotted', 'Options uses the normal dotted link underline');
-    assert.equal(triggerStyle.decorationColor, triggerStyle.color, 'Options underline uses its resting text color');
+    assert.equal(triggerStyle.decorationLine, 'none', 'Options is plain text without a link underline');
     assert.equal(triggerStyle.markerColor, triggerStyle.color, 'Options marker does not stay green at rest');
     await trigger.hover();
     assert.equal(await trigger.evaluate(element => getComputedStyle(element).color), 'rgb(0, 232, 90)',

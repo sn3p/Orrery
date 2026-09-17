@@ -40,8 +40,15 @@ async function run({ browser, name, output = '.context/timeline' }) {
           return { color: style.color, decorationColor: style.textDecorationColor,
             decorationStyle: style.textDecorationStyle };
         });
-        assert.equal(linkStyle.decorationStyle, 'dotted');
-        assert.equal(linkStyle.decorationColor, linkStyle.color, 'Date underline inherits its resting text color');
+        assert.equal(linkStyle.decorationStyle, 'solid');
+        assert.notEqual(linkStyle.decorationColor, linkStyle.color, 'Date underline is quieter than its resting text');
+        const playStyle = await play.evaluate(element => {
+          const style = getComputedStyle(element);
+          return { background: style.backgroundColor, border: style.borderColor, height: element.getBoundingClientRect().height };
+        });
+        assert.equal(playStyle.background, 'rgba(0, 0, 0, 0)', 'Playback button stays transparent');
+        assert.equal(playStyle.border, 'rgb(71, 123, 84)', 'Playback button uses the muted green chrome border');
+        assert(playStyle.height >= 24, 'Playback button keeps a 24px target');
         await page.screenshot({ path: path.join(output, `${name}-${renderer}-timeline-desktop.png`) });
 
         await play.click();

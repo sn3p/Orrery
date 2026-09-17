@@ -26,19 +26,21 @@ module.exports = async function checkTheme(page) {
       help: colors('.orrery-options-hint'),
       values: colors('.orrery-options-panel input, .orrery-options-panel select'),
       panelBorder: getComputedStyle(document.querySelector('.orrery-options-panel')).borderColor,
-      underlines: [...document.querySelectorAll('#orrery-date, .orrery-about, .orrery-options-trigger')].map(element => {
+      underlines: [...document.querySelectorAll('#orrery-date, .orrery-about')].map(element => {
         const style = getComputedStyle(element);
         return { color: style.color, decorationColor: style.textDecorationColor, style: style.textDecorationStyle };
       }),
+      optionsDecoration: getComputedStyle(document.querySelector('.orrery-options-trigger')).textDecorationLine,
     };
   });
   const normal = await snapshot();
   const grey = color => Number(color.match(/\d+/)[0]);
   assert(normal.hud.every(color => grey(color) < 153 && grey(color) >= 119), 'HUD is slightly muted and readable');
   assert(normal.links.every(color => color === 'rgb(221, 221, 221)'), 'Links are white at rest');
-  assert(normal.underlines.every(underline => underline.style === 'dotted'), 'Link controls use a dotted underline');
-  assert(normal.underlines.every(underline => underline.decorationColor === underline.color),
-    'Dotted underlines use the resting text color');
+  assert(normal.underlines.every(underline => underline.style === 'solid'), 'Link controls use a solid underline');
+  assert(normal.underlines.every(underline => grey(underline.decorationColor) < grey(underline.color)),
+    'Link underlines are quieter than their resting text');
+  assert.equal(normal.optionsDecoration, 'none', 'Options is not underlined');
   assert.deepEqual(normal.optionMarker, [normal.links[2]], 'The Options marker inherits the normal link color');
   assert(Number(normal.panelBorder.match(/\d+/g)[1]) > Number(normal.panelBorder.match(/\d+/g)[0]),
     'Options panel uses the same green border treatment as the date dialog');

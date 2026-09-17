@@ -24,6 +24,12 @@ async function holds(page, dialog, label) {
   assert.equal(theme.border, 'rgb(54, 92, 65)', `${label}: dialog uses the green chrome border`);
   assert.equal(theme.closeBorder, 'rgb(71, 123, 84)', `${label}: primary action uses the green border`);
   assert.equal(theme.closeColor, 'rgb(181, 232, 193)', `${label}: primary action uses the green label`);
+  const linkThemes = await dialog.locator('a').evaluateAll(links => links.map(link => {
+    const style = getComputedStyle(link);
+    return { color: style.color, decorationColor: style.textDecorationColor, decorationStyle: style.textDecorationStyle };
+  }));
+  assert(linkThemes.every(link => link.decorationStyle === 'solid'), `${label}: links use solid underlines`);
+  assert(linkThemes.every(link => link.decorationColor !== link.color), `${label}: link underlines stay subdued`);
   const date = await page.locator('#orrery-date').textContent();
   await page.waitForTimeout(300);
   assert.equal(await page.locator('#orrery-date').textContent(), date, `${label}: playback holds while the introduction is open`);
