@@ -33,7 +33,7 @@ async function run({ browser, name, output = '.context/timeline' }) {
 
         assert.equal(await play.getAttribute('aria-label'), 'Pause playback');
         assert.equal(await play.getAttribute('aria-keyshortcuts'), 'Space');
-        assert.equal((await play.textContent()).trim(), '⏸︎');
+        assert.equal((await play.textContent()).trim(), '[⏸︎]');
         assert.equal(await date.getAttribute('aria-haspopup'), 'dialog');
         const linkStyle = await date.evaluate(element => {
           const style = getComputedStyle(element);
@@ -47,13 +47,13 @@ async function run({ browser, name, output = '.context/timeline' }) {
           const indicator = element.querySelector('.orrery-control-indicator');
           const indicatorStyle = getComputedStyle(indicator);
           return { background: style.backgroundColor, borderStyle: style.borderStyle,
-            height: element.getBoundingClientRect().height, indicatorBorder: indicatorStyle.borderColor,
-            indicatorWidth: indicator.getBoundingClientRect().width };
+            height: element.getBoundingClientRect().height, indicatorBorderStyle: indicatorStyle.borderStyle,
+            indicatorPadding: indicatorStyle.padding };
         });
         assert.equal(playStyle.background, 'rgba(0, 0, 0, 0)', 'Playback button stays transparent');
         assert.equal(playStyle.borderStyle, 'none', 'Playback button has no outer outline at rest');
-        assert.equal(playStyle.indicatorBorder, 'rgb(85, 85, 85)', 'Playback icon box uses a neutral border at rest');
-        assert(playStyle.indicatorWidth < 24, 'Playback icon box uses less visual padding than its target');
+        assert.equal(playStyle.indicatorBorderStyle, 'none', 'Playback brackets replace the drawn icon box');
+        assert.equal(playStyle.indicatorPadding, '0px', 'Playback brackets need no extra visual padding');
         assert(playStyle.height >= 24, 'Playback button keeps a 24px target');
         await page.screenshot({ path: path.join(output, `${name}-${renderer}-timeline-desktop.png`) });
 
@@ -62,7 +62,7 @@ async function run({ browser, name, output = '.context/timeline' }) {
         const paused = await date.textContent();
         await expectDateStable(page, paused, 'Visible playback control pauses the timeline');
         assert.equal(await play.getAttribute('aria-label'), 'Resume playback');
-        assert.equal((await play.textContent()).trim(), '⏵︎');
+        assert.equal((await play.textContent()).trim(), '[▶]');
 
         await require('./options.cjs').openOptions(page);
         const speed = page.getByRole('textbox', { name: 'Playback speed' });

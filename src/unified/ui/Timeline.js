@@ -37,7 +37,7 @@ export default class Timeline {
     if (!this.enabled) return;
     if (speed !== 0) this.resumeSpeed = speed;
     const paused = speed === 0;
-    this.playIndicator.textContent = paused ? "⏵︎" : "⏸︎";
+    this.playIndicator.textContent = paused ? "[▶]" : "[⏸︎]";
     this.playButton.setAttribute("aria-label", paused
       ? (this.resumeSpeed < 0 ? "Resume reverse playback" : "Resume playback")
       : "Pause playback");
