@@ -1,6 +1,6 @@
 import { fromJED, toJED } from "../../js/utils.js";
 
-const isoDay = jed => fromJED(jed).toISOString().slice(0, 10);
+const isoDay = jed => fromJED(jed).toISOString().split("T", 1)[0];
 const interactive = target => target?.closest?.("button, a, input, select, textarea, dialog, [contenteditable='true']");
 
 export default class Timeline {
@@ -21,6 +21,7 @@ export default class Timeline {
       && this.dialog && typeof this.dialog.showModal === "function" && this.form && this.input
       && this.error && this.today && this.beginning && this.cancel);
     if (!this.enabled) return;
+    this.beginning.textContent = isoDay(app.startJed);
     this.playButton.addEventListener("click", this.onTogglePlayback);
     this.date.addEventListener("click", this.onOpenDate);
     this.form.addEventListener("submit", this.onSubmitDate);
@@ -80,9 +81,13 @@ export default class Timeline {
       this.input.focus();
       return;
     }
+    this.applyJed(toJED(date));
+  }
+
+  applyJed(jed) {
     this.resumeSpeed = this.app.jedDelta || this.resumeSpeed;
     this.app.jedDelta = 0;
-    this.app.jed = toJED(date);
+    this.app.jed = jed;
     this.dialog.close("apply");
   }
 
@@ -92,7 +97,7 @@ export default class Timeline {
   };
 
   onToday = () => { this.commitDate(new Date().toISOString().slice(0, 10)); };
-  onBeginning = () => { this.commitDate(isoDay(this.app.startJed)); };
+  onBeginning = () => { this.applyJed(this.app.startJed); };
   onCancel = () => { this.dialog.close("cancel"); };
   onBackdrop = event => { if (event.target === this.dialog) this.dialog.close("cancel"); };
 

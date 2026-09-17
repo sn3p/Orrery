@@ -1,4 +1,4 @@
-import { UNIX_EPOCH_JULIAN_DATE } from "./constants";
+import { UNIX_EPOCH_JULIAN_DATE } from "./constants.js";
 
 // Gregorian to Julian date
 export function toJED(d) {
