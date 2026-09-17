@@ -14,7 +14,12 @@ export default class Hud {
     this.readouts = this.date.closest(".orrery-readouts");
     if (this.readouts) this.readouts.hidden = true;
     this.lastDay = this.lastFps = this.lastCount = null;
-    this.controls = new Options(app);
+    try { this.controls = new Options(app); }
+    catch (error) {
+      try { this.timeline.destroy(); }
+      catch { /* Preserve the control-construction error. */ }
+      throw error;
+    }
   }
 
   update(jed, fps, count, ready) {

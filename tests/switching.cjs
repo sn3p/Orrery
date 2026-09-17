@@ -501,10 +501,27 @@ async function options(browser, base, output, name) {
       const registry = { ...app.rendererRegistry, fixture: { ...app.rendererRegistry.fixture,
         buildOptions: ({ gui, values }) => { gui.add(values, 'strength'); throw new Error('controlled builder failure'); } } };
       const failed = new app.constructor({ renderer: 'fixture', renderers: registry });
-      try { await failed.init(); } catch { /* Initial control construction fails. */ }
+      let failure;
+      try { await failed.init(); } catch (error) { failure = error; }
       const clean = failed.destroyed && !document.querySelector('canvas, .orrery-options');
-      failed.destroy(); return clean;
-    }), 'Initial builder failure cleans partial UI and graphics');
+      failed.destroy();
+
+      const replacementRegistry = { ...registry,
+        fixture: { ...registry.fixture, buildOptions: undefined } };
+      const replacement = new app.constructor({ renderer: 'fixture', renderers: replacementRegistry,
+        startDate: new Date(Date.UTC(2000, 0, 1)) });
+      try {
+        await replacement.init(); replacement.jedDelta = 2; replacement.cancelRender();
+        document.getElementById('orrery-playback').click();
+        const button = replacement.jedDelta === 0;
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+        const shortcut = replacement.jedDelta === 2;
+        document.getElementById('orrery-date').click();
+        const date = replacement.held
+          && document.getElementById('orrery-date-input').value === '2000-01-01';
+        return clean && failure?.message === 'controlled builder failure' && button && shortcut && date;
+      } finally { replacement.destroy(); }
+    }), 'Initial builder failure preserves its error, cleans partial resources, and leaves no stale HUD handlers');
     assert.deepEqual(errors, []);
     return { defaults: true, validation: true, isolation: true, teardown: true, hiddenMutation: true };
   } finally { await page.close(); }
