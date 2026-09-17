@@ -44,10 +44,16 @@ async function run({ browser, name, output = '.context/timeline' }) {
         assert.notEqual(linkStyle.decorationColor, linkStyle.color, 'Date underline is quieter than its resting text');
         const playStyle = await play.evaluate(element => {
           const style = getComputedStyle(element);
-          return { background: style.backgroundColor, border: style.borderColor, height: element.getBoundingClientRect().height };
+          const indicator = element.querySelector('.orrery-control-indicator');
+          const indicatorStyle = getComputedStyle(indicator);
+          return { background: style.backgroundColor, borderStyle: style.borderStyle,
+            height: element.getBoundingClientRect().height, indicatorBorder: indicatorStyle.borderColor,
+            indicatorWidth: indicator.getBoundingClientRect().width };
         });
         assert.equal(playStyle.background, 'rgba(0, 0, 0, 0)', 'Playback button stays transparent');
-        assert.equal(playStyle.border, 'rgb(71, 123, 84)', 'Playback button uses the muted green chrome border');
+        assert.equal(playStyle.borderStyle, 'none', 'Playback button has no outer outline at rest');
+        assert.equal(playStyle.indicatorBorder, 'rgb(85, 85, 85)', 'Playback icon box uses a neutral border at rest');
+        assert(playStyle.indicatorWidth < 24, 'Playback icon box uses less visual padding than its target');
         assert(playStyle.height >= 24, 'Playback button keeps a 24px target');
         await page.screenshot({ path: path.join(output, `${name}-${renderer}-timeline-desktop.png`) });
 

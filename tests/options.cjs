@@ -56,7 +56,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
         markerColor: getComputedStyle(element.querySelector('.orrery-options-indicator')).color,
       };
     });
-    assert.equal(triggerStyle.color, 'rgb(221, 221, 221)', 'Options uses the normal resting link color');
+    assert.equal(triggerStyle.color, 'rgb(136, 136, 136)', 'Options uses the muted HUD color at rest');
     assert.equal(triggerStyle.decorationLine, 'none', 'Options is plain text without a link underline');
     assert.equal(triggerStyle.markerColor, triggerStyle.color, 'Options marker does not stay green at rest');
     await trigger.hover();

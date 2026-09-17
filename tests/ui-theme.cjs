@@ -36,7 +36,7 @@ module.exports = async function checkTheme(page) {
   const normal = await snapshot();
   const grey = color => Number(color.match(/\d+/)[0]);
   assert(normal.hud.every(color => grey(color) < 153 && grey(color) >= 119), 'HUD is slightly muted and readable');
-  assert(normal.links.every(color => color === 'rgb(221, 221, 221)'), 'Links are white at rest');
+  assert(normal.links.every(color => color === 'rgb(136, 136, 136)'), 'HUD links are muted at rest');
   assert(normal.underlines.every(underline => underline.style === 'solid'), 'Link controls use a solid underline');
   assert(normal.underlines.every(underline => grey(underline.decorationColor) < grey(underline.color)),
     'Link underlines are quieter than their resting text');

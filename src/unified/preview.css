@@ -9,6 +9,7 @@
   --color-accent-muted: #6fbf83;
   --color-link: #ddd;
   --color-link-underline: #777;
+  --color-hud-underline: #555;
   --color-panel: #111;
   --color-border: #555;
 }
@@ -78,30 +79,36 @@
   align-items: center;
   justify-content: center;
   min-width: 24px;
-  border: 1px solid #477b54;
+  border: 0;
   background: transparent;
-  color: #b5e8c1;
+  color: var(--color-hud);
 }
 
 .orrery-control-indicator {
-  display: inline-block;
-  min-width: 1em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  min-height: 20px;
+  box-sizing: border-box;
+  padding: 1px 2px;
+  border: 1px solid var(--color-border);
   line-height: 1;
   text-align: center;
 }
 .orrery-options-indicator { color: inherit; }
 
 .orrery-date {
-  color: var(--color-link);
+  color: var(--color-hud);
   text-decoration-line: underline;
   text-decoration-style: solid;
-  text-decoration-color: var(--color-link-underline);
+  text-decoration-color: var(--color-hud-underline);
   text-underline-offset: 3px;
 }
 
 .orrery-playback:hover,
 .orrery-date:hover { color: var(--color-accent); }
-.orrery-playback:hover { border-color: var(--color-accent-muted); }
+.orrery-playback:hover .orrery-control-indicator { border-color: var(--color-accent-muted); }
 .orrery-date:hover { text-decoration-color: var(--color-accent-muted); }
 
 .orrery-playback:focus-visible,
@@ -135,7 +142,7 @@
 
 .orrery-options-trigger {
   margin-left: 0;
-  color: var(--color-link);
+  color: var(--color-hud);
   text-decoration: none;
 }
 
@@ -162,11 +169,11 @@
 }
 
 .orrery-identity a {
-  color: var(--color-link);
+  color: var(--color-hud);
   padding: 3px 0;
   margin: -3px 0;
   text-decoration-style: solid;
-  text-decoration-color: var(--color-link-underline);
+  text-decoration-color: var(--color-hud-underline);
   text-underline-offset: 3px;
   pointer-events: auto;
 }
@@ -185,9 +192,9 @@
 }
 .orrery-status a {
   pointer-events: auto;
-  color: var(--color-link);
+  color: var(--color-hud);
   text-decoration-style: solid;
-  text-decoration-color: var(--color-link-underline);
+  text-decoration-color: var(--color-hud-underline);
   text-underline-offset: 3px;
 }
 .orrery-status a:hover { color: var(--color-accent); text-decoration-color: var(--color-accent-muted); }
@@ -225,14 +232,14 @@
 
 .orrery-about {
   font: inherit;
-  color: var(--color-link);
+  color: var(--color-hud);
   background: none;
   border: 0;
   padding: 3px 0;
   margin: -3px 0;
   text-decoration-line: underline;
   text-decoration-style: solid;
-  text-decoration-color: var(--color-link-underline);
+  text-decoration-color: var(--color-hud-underline);
   text-underline-offset: 3px;
   cursor: pointer;
   pointer-events: auto;
