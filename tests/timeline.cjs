@@ -48,7 +48,7 @@ async function run({ browser, name, output = '.context/timeline' }) {
           const indicatorStyle = getComputedStyle(indicator);
           return { background: style.backgroundColor, borderStyle: style.borderStyle,
             height: element.getBoundingClientRect().height, indicatorBorderStyle: indicatorStyle.borderStyle,
-            indicatorPadding: indicatorStyle.padding };
+            indicatorPadding: indicatorStyle.padding, indicatorWidth: indicator.getBoundingClientRect().width };
         });
         assert.equal(playStyle.background, 'rgba(0, 0, 0, 0)', 'Playback button stays transparent');
         assert.equal(playStyle.borderStyle, 'none', 'Playback button has no outer outline at rest');
@@ -63,6 +63,8 @@ async function run({ browser, name, output = '.context/timeline' }) {
         await expectDateStable(page, paused, 'Visible playback control pauses the timeline');
         assert.equal(await play.getAttribute('aria-label'), 'Resume playback');
         assert.equal((await play.textContent()).trim(), '[⏵︎]');
+        assert.equal(await play.locator('.orrery-control-indicator').evaluate(element => element.getBoundingClientRect().width),
+          playStyle.indicatorWidth, 'Pause and play symbols keep the same fixed width');
 
         await require('./options.cjs').openOptions(page);
         const speed = page.getByRole('textbox', { name: 'Playback speed' });

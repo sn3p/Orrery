@@ -86,6 +86,7 @@
 
 .orrery-control-indicator {
   display: inline-block;
+  width: 3ch;
   padding: 0;
   border: 0;
   line-height: 1;
