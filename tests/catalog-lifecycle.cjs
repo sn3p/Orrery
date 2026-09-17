@@ -303,6 +303,8 @@ async function run(browser, base, output, name) {
     await latest.waitForFunction(() => catalogTest.app.jed === catalogTest.app.startJed - 1);
     await latest.locator('#orrery-date').click();
     await beginning.click();
+    // This deterministic lifecycle case disabled the application's scheduler above.
+    await latest.evaluate(() => catalogTest.app.renderFrame());
     await latest.waitForFunction(() => catalogTest.app.jed === catalogTest.app.startJed);
     assert.equal(await latest.evaluate(() => catalogTest.app.jedDelta), 0,
       'Returning to the configured beginning stays paused');
