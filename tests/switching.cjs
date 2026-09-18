@@ -79,12 +79,16 @@ async function state(browser, base, output, name) {
       check(app.pixelRatio === '2' && app.renderer.viewport.pixelRatio === 2, 'DPR preserved');
       return { coldSwitchMs: cold, modelCount: model.count, views: true, speeds: true, coalescing: true };
     });
-    await page.getByRole('button', { name: 'Options', exact: true }).click();
+    const options = page.getByRole('button', { name: 'Options', exact: true });
+    await options.click();
     const selector = page.getByRole('combobox', { name: 'Renderer', exact: true });
+    assert(await options.evaluate(el => el === document.activeElement));
+    await options.press('Tab');
     assert(await selector.evaluate(el => el === document.activeElement));
     await selector.selectOption('pixi');
     await page.waitForFunction(() => !app.switching && app.rendererId === 'pixi');
-    assert(await selector.evaluate(el => el === document.activeElement));
+    assert(await options.evaluate(el => el === document.activeElement),
+      'Completed switching does not reopen the native renderer picker');
     for (const viewport of [{ width: 1280, height: 800 }, { width: 320, height: 568 }, { width: 568, height: 200 }]) {
       await page.setViewportSize(viewport);
       assert(await selector.evaluate(el => { const label = el.closest('li').querySelector('.property-name'); return label.scrollWidth <= label.clientWidth; }), 'Renderer label is not clipped');
@@ -189,6 +193,9 @@ async function reviewRegressions(browser, base, output, name) {
       await visibleStatus('loading');
       // Reopening remains possible while waiting; new failure must reveal itself.
       await trigger.click();
+      assert(await trigger.evaluate(el => el === document.activeElement),
+        'Pending switch keeps focus on the disclosure');
+      await trigger.press('Tab');
       assert(await page.getByRole('textbox', { name: 'Playback speed' }).evaluate(el => el === document.activeElement), 'Pending switch opens at an enabled control');
       await page.evaluate(() => rejectSwitch());
       await page.waitForFunction(() => !app.switching && !!app.switchError);

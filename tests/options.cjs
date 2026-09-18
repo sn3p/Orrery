@@ -89,8 +89,12 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert.equal(toggleStyle.indicatorSize, 12, "Preview marker shares the 12px UI size");
     assert(toggleStyle.gap > 0 && toggleStyle.gap < toggleStyle.textSize * 0.4,
       "Marker and word have a compact positive gap");
+    assert(await trigger.evaluate(el => el === document.activeElement),
+      "Opening keeps focus on the disclosure without invoking a native picker");
+    await trigger.press("Tab");
     assert(await panel.evaluate(el => el.querySelector("select[aria-label='Renderer']") === document.activeElement
-      || (!el.querySelector("select[aria-label='Renderer']") && el.querySelector("input") === document.activeElement)), "Opening moves focus to the first control");
+      || (!el.querySelector("select[aria-label='Renderer']") && el.querySelector("input") === document.activeElement)),
+    "Tab reaches the first revealed control");
     await expect(speed).toHaveAccessibleDescription("0 pauses; negative reverses. 1 = 60 days per second.");
     const dprHelp = await page.locator("#" + await dpr.getAttribute("aria-describedby")).textContent();
     assert.equal(dprHelp, "Rendering resolution. 2× is sharper but requires more graphics processing.");

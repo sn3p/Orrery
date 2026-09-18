@@ -36,7 +36,7 @@ function fixture(startJed, speed = -1.5) {
     }
   }
   const ids = ["orrery-playback", "orrery-playback-indicator", "orrery-date", "orrery-date-dialog",
-    "orrery-date-form", "orrery-date-input", "orrery-date-error", "orrery-date-today",
+    "orrery-date-title", "orrery-date-form", "orrery-date-input", "orrery-date-error", "orrery-date-today",
     "orrery-date-beginning", "orrery-date-cancel"];
   const elements = Object.fromEntries(ids.map(id => [id, new Element({
     button: ["orrery-playback", "orrery-date", "orrery-date-today", "orrery-date-beginning", "orrery-date-cancel"].includes(id),
@@ -73,6 +73,27 @@ test("configured beginning labels and applies the validated JED directly", () =>
       assert.equal(elements["orrery-date-error"].textContent, "");
       timeline.destroy();
     }
+  } finally {
+    if (originalDocument === undefined) delete globalThis.document;
+    else globalThis.document = originalDocument;
+  }
+});
+
+test("opening the date dialog leaves its native input closed", () => {
+  const originalDocument = globalThis.document;
+  try {
+    const { app, document, elements } = fixture(UNIX_EPOCH_JULIAN_DATE);
+    globalThis.document = document;
+    const timeline = new Timeline(app);
+
+    timeline.onOpenDate();
+
+    assert.equal(elements["orrery-date-dialog"].open, true);
+    assert.equal(elements["orrery-date-dialog"].scrollTop, 0);
+    assert.equal(document.activeElement, elements["orrery-date-title"]);
+    assert.notEqual(document.activeElement, elements["orrery-date-input"]);
+    assert.deepEqual(app.holds, [true]);
+    timeline.destroy();
   } finally {
     if (originalDocument === undefined) delete globalThis.document;
     else globalThis.document = originalDocument;

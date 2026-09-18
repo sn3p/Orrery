@@ -11,7 +11,9 @@ module.exports = async function checkTheme(page) {
   await page.locator('#orrery-date').click();
   const dateDialog = page.getByRole('dialog', { name: 'Jump to date' });
   assert(await dateDialog.isVisible(), 'The accented date remains an interactive control');
-  assert.equal(await page.getByLabel('UTC date').evaluate(el => el === document.activeElement), true);
+  assert.equal(await page.getByRole('heading', { name: 'Jump to date' })
+    .evaluate(el => el === document.activeElement), true,
+  'The dialog does not invoke its native date input automatically');
   await page.getByRole('button', { name: 'cancel', exact: true }).click();
   await require('./options.cjs').openOptions(page);
   const viewport = page.viewportSize();

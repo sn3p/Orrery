@@ -71,11 +71,7 @@ export default class Options {
     this.rendererSelect.disabled = !!this.orrery.switching;
     this.panel.setAttribute("aria-busy", String(!!this.orrery.switching));
     if (focused && this.rendererSelect.disabled) {
-      this.restoreRendererFocus = true;
       this.trigger.focus();
-    } else if (this.restoreRendererFocus && !this.rendererSelect.disabled) {
-      if (!this.panel.hidden && document.activeElement === this.trigger) this.rendererSelect.focus();
-      this.restoreRendererFocus = false;
     }
   }
 
@@ -125,8 +121,10 @@ export default class Options {
     this.panel.hidden = !open;
     this.indicator.textContent = open ? "[-]" : "[+]";
     this.trigger.setAttribute("aria-expanded", String(open));
-    if (open) (this.rendererSelect.disabled ? this.speed.domElement.querySelector("input") : this.rendererSelect).focus();
-    else if (restoreFocus && hadFocus) this.trigger.focus();
+    // Leave focus on the disclosure when opening. Programmatically focusing a
+    // select invokes the full-screen native picker on iOS; keyboard users can
+    // reach the first newly revealed control with Tab.
+    if (!open && restoreFocus && hadFocus) this.trigger.focus();
   }
 
   onToggle = () => { this.setOpen(this.panel.hidden); };

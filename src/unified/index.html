@@ -28,7 +28,7 @@
     </footer>
     <dialog class="orrery-date-dialog" id="orrery-date-dialog" aria-labelledby="orrery-date-title">
       <form class="orrery-date-card" id="orrery-date-form">
-        <h1 id="orrery-date-title">Jump to date</h1>
+        <h1 id="orrery-date-title" tabindex="-1" autofocus>Jump to date</h1>
         <label for="orrery-date-input">UTC date</label>
         <input type="date" id="orrery-date-input" min="0001-01-01" max="9999-12-31" aria-describedby="orrery-date-help orrery-date-error" required />
         <p class="orrery-date-help" id="orrery-date-help">Playback stays paused after jumping.</p>
@@ -45,7 +45,7 @@
       <form method="dialog" class="orrery-intro-card">
         <h1 id="orrery-intro-title">Orrery</h1>
         <p>The Solar System's minor planets, shown in the order they were discovered. Each dot is an asteroid on its orbit. New discoveries appear green and fade to grey; the date and running count are at the bottom left.</p>
-        <p>Use the <code>[⏸︎] / [⏵︎]</code> control or the date at the bottom left to control the timeline. Open <code>[+] options</code> (top left) to change the speed, switch between the 2D and 3D renderers or raise the resolution. Negative speed rewinds. Scroll to zoom; in 3D, drag to orbit the camera.</p>
+        <p>Use the <code>[⏸︎] / [⏵︎]</code> control or the date at the bottom left to control the timeline. Open <code>[+] options</code> (top left) to change the speed, switch between the 2D and 3D renderers or raise the resolution. Negative speed rewinds. Scroll to zoom. On a touch screen, drag down or up in 2D to zoom in or out; in 3D, drag to orbit the camera.</p>
         <p>Orbits are fixed ellipses from Minor Planet Center orbital elements, so positions are approximate. Only numbered minor planets with a known discovery date are included.</p>
         <p class="orrery-intro-links">Data: <a href="https://minorplanetcenter.net/" target="_blank" rel="noopener noreferrer">Minor Planet Center</a> via <a href="https://github.com/sn3p/orrery-data" target="_blank" rel="noopener noreferrer">orrery-data</a>. Code: <a href="https://github.com/sn3p/Orrery" target="_blank" rel="noopener noreferrer">GitHub</a>.</p>
         <button type="submit" class="orrery-intro-close" autofocus>Close</button>
