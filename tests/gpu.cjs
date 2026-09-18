@@ -135,7 +135,10 @@ async function instancePixels(page) {
     app.jedDelta = 0; app.jed = REFERENCE_JED - 1;
     app.stage.scale.set(12); app.stage.position.set(app.viewWidth / 2, app.viewHeight / 2);
     app.setAsteroids(data); app.elapsed += 1; app.tick(); app.app.render();
-    app.jed = REFERENCE_JED; app.tick(); app.app.render();
+    // Cross the discovery date through ordinary playback. Direct `jed`
+    // assignments are intentional seeks and mature every discovery at target.
+    app.jedDelta = 1; app.resetClock(); app.tick(0); app.tick(1000 / 60); app.jedDelta = 0; app.app.render();
+    if (app.jed !== REFERENCE_JED || app.pendingSeek) throw new Error("Playback crossing was misclassified as a seek");
     const read = () => data.map(d => {
       const [x, y] = reference(d, app.jed), rgba = new Uint8Array(4);
       const gl = app.app.renderer.gl, r = app.app.renderer.resolution;
