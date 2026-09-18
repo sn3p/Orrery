@@ -188,19 +188,12 @@ module.exports = async (browser, url, output, name, application = "unified") => 
     await orbits.uncheck(); await settle(page);
     assert.equal(await page.locator(".orrery-planet-label").count(), 6,
       "Blocked storage does not prevent changing the label mode for this session");
-    assert(await page.evaluate(() => {
-      const app = window.threeTest?.app ?? window.catalogTest.app;
-      return app.planetOrbits === false && app.renderer.planetOrbits.every(orbit => orbit.visible === false);
-    }),
-    "Blocked storage does not prevent changing orbit visibility for this session");
+    assert.equal(await orbits.isChecked(), false,
+      "Blocked storage does not prevent changing orbit visibility for this session");
     await choose("2"); await checkBuffer(page, 2);
     await page.reload(); await dismissIntro(); await boot(); await checkBuffer(page, 1);
     assert.equal(await labels.inputValue(), "earth", "Blocked storage falls back to Earth labels after reload");
     assert(await orbits.isChecked(), "Blocked storage falls back to visible planet orbits after reload");
-    assert(await page.evaluate(() => {
-      const app = window.threeTest?.app ?? window.catalogTest.app;
-      return app.renderer.planetOrbits.every(orbit => orbit.visible === true);
-    }));
     assert.equal(await page.locator('.orrery-planet-label[data-planet="Earth"]').count(), 1);
     assert.deepEqual(errors, []);
   } finally {

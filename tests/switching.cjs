@@ -343,7 +343,8 @@ async function lifecycle(browser, base) {
           && document.querySelectorAll('.orrery-planet-label').length === 6 && app.planetLabels === 'all', 'One scene/UI and six labels');
         check(app.planetOrbits === false && app.renderer.planetOrbits.length === 6
           && app.renderer.planetOrbits.every(orbit => orbit.visible === false)
-          && app.renderer.planets.every(planet => planet.body.visible === true),
+          && app.renderer.planets.every(planet => planet.body.visible !== false
+            && (planet.body.alpha ?? planet.body.material?.opacity ?? 1) > 0),
         'Hidden planet tracks survive switching without hiding planets');
         check(app.catalogue === model && !app.renderer.needsCatalogPacking(model), 'Retained population uploaded');
       }

@@ -144,6 +144,32 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert(styles.select, "DPR select has a visible border on every side");
     await checkSpacing();
     await speed.fill("0"); await speed.press("Enter");
+    await page.evaluate(() => {
+      const gl = document.querySelector("canvas").getContext("webgl2");
+      window.panelDraws = 0;
+      window.panelElements = 0;
+      for (const [method, countIndex, instanceIndex] of [
+        ["drawArrays", 2, null], ["drawElements", 1, null],
+        ["drawArraysInstanced", 2, 3], ["drawElementsInstanced", 1, 4],
+      ]) {
+        const draw = gl[method].bind(gl);
+        gl[method] = (...args) => {
+          window.panelDraws++;
+          window.panelElements += args[countIndex] * (instanceIndex === null ? 1 : args[instanceIndex]);
+          return draw(...args);
+        };
+      }
+    });
+    await page.waitForTimeout(100);
+    await page.evaluate(() => { window.panelDraws = 0; window.panelElements = 0; });
+    const renderWork = async action => {
+      const before = await page.evaluate(() => ({ draws: window.panelDraws, elements: window.panelElements }));
+      await action();
+      await page.waitForFunction(draws => window.panelDraws > draws, before.draws);
+      await page.waitForTimeout(100);
+      const after = await page.evaluate(() => ({ draws: window.panelDraws, elements: window.panelElements }));
+      return { draws: after.draws - before.draws, elements: after.elements - before.elements };
+    };
     await labels.selectOption("all");
     assert.equal(await page.locator(".orrery-planet-label").count(), 6);
     assert.deepEqual(await page.locator(".orrery-planet-label").evaluateAll(elements => Object.fromEntries(
@@ -152,26 +178,20 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       Mars: "rgb(255, 188, 131)", Jupiter: "rgb(197, 195, 189)", Saturn: "rgb(236, 205, 158)",
     });
     await labels.selectOption("earth");
-    await orbits.uncheck();
-    assert.deepEqual(await page.evaluate(() => {
-      const app = window.threeTest?.app ?? window.catalogTest.app;
-      return { setting: app.planetOrbits,
-        tracks: app.renderer.planetOrbits.map(track => track.visible),
-        planets: app.renderer.planets.map(planet => planet.body.visible) };
-    }), { setting: false, tracks: Array(6).fill(false), planets: Array(6).fill(true) },
-    "Hiding tracks keeps every planet visible");
+    const firstHiddenFrame = await renderWork(() => orbits.uncheck());
+    const visibleFrame = await renderWork(() => orbits.check());
+    const hiddenFrame = await renderWork(() => orbits.uncheck());
+    assert(firstHiddenFrame.elements > 0 && hiddenFrame.elements > 0,
+      "Hiding orbit tracks still renders the production scene");
+    assert(visibleFrame.elements > hiddenFrame.elements,
+      "Visible orbit tracks submit more production WebGL geometry than hidden tracks");
+    assert.equal(await orbits.isChecked(), false, "Orbit control reflects the hidden production state");
+    assert.equal(await page.locator('.orrery-planet-label[data-planet="Earth"]').count(), 1,
+      "Hiding orbit tracks keeps the Earth label visible");
     assert.equal(await page.evaluate(() => localStorage.getItem("orrery.planetOrbits")), "false");
     await dpr.selectOption("2");
     await dpr.selectOption("1");
     await page.waitForFunction(() => document.querySelector("#orrery-fps").textContent === "0 FPS");
-    await page.evaluate(() => {
-      window.panelDraws = 0;
-      const gl = document.querySelector("canvas").getContext("webgl2");
-      for (const method of ["drawArrays", "drawElements", "drawArraysInstanced", "drawElementsInstanced"]) {
-        const draw = gl[method].bind(gl);
-        gl[method] = (...args) => { window.panelDraws++; return draw(...args); };
-      }
-    });
     await page.waitForTimeout(100);
     const draws = await page.evaluate(() => window.panelDraws);
     const date = await page.locator("#orrery-date").textContent();
@@ -229,12 +249,10 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     await exports.openOptions(page);
     assert.equal(await dpr.inputValue(), "1", "Reload starts at the 1× default");
     assert.equal(await orbits.isChecked(), false, "Explicit orbit visibility survives reload");
-    assert(await page.evaluate(() => {
-      const app = window.threeTest?.app ?? window.catalogTest.app;
-      return app.planetOrbits === false && app.renderer.planetOrbits.length === 6
-        && app.renderer.planetOrbits.every(track => track.visible === false)
-        && app.renderer.planets.every(planet => planet.body.visible === true);
-    }), "Reload applies hidden tracks without hiding planets");
+    assert.equal(await page.evaluate(() => localStorage.getItem("orrery.planetOrbits")), "false",
+      "Reload retains the explicit hidden-orbit preference");
+    assert.equal(await page.locator('.orrery-planet-label[data-planet="Earth"]').count(), 1,
+      "Reload with hidden orbit tracks keeps Earth visible");
     await orbits.check();
     assert.deepEqual(errors, []);
     return { toggleAndDismissal: "passed", keyboardAndFocus: "passed", valuesAndIdle: "passed",

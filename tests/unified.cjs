@@ -89,7 +89,8 @@ async function run({ browser, name, application = "unified", output: artifactDir
           'The startup-time label mode applies when planets arrive');
         check(app.renderer.planetOrbits.length === fixture.planets.length
           && app.renderer.planetOrbits.every(orbit => orbit.visible === false)
-          && app.renderer.planets.every(planet => planet.body.visible === true),
+          && app.renderer.planets.every(planet => planet.body.visible !== false
+            && (planet.body.alpha ?? planet.body.material?.opacity ?? 1) > 0),
           'The startup-time orbit visibility applies without hiding planets');
         app.destroy(); localStorage.removeItem('orrery.planetLabels'); localStorage.removeItem('orrery.planetOrbits');
         Application.prototype.init = init;

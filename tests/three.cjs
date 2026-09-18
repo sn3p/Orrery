@@ -99,7 +99,8 @@ async function entries(browser, base, output, name) {
           assert(await page.evaluate(() => {
             const app = window.threeTest?.app ?? window.catalogTest.app;
             return app.renderer.planetOrbits.every(orbit => orbit.visible === false)
-              && app.renderer.planets.every(planet => planet.body.visible === true);
+              && app.renderer.planets.every(planet => planet.body.visible !== false
+                && (planet.body.alpha ?? planet.body.material?.opacity ?? 1) > 0);
           }));
           await page.getByRole('button', { name: 'Options', exact: true }).click();
           await page.getByRole('combobox', { name: 'Planet labels' }).selectOption('earth');

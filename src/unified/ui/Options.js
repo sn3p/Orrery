@@ -43,7 +43,7 @@ export default class Options {
     this.addHint(this.renderer, "Change renderer; time and options persist.", this.rendererSelect);
     this.renderer.onChange(id => { if (id) void this.orrery.switchRenderer(id); });
     const speed = this.speed = this.gui.add(this.orrery, "jedDelta", -8, 8).name("speed");
-    const input = speed.domElement.querySelector("input");
+    const input = this.speedInput = speed.domElement.querySelector("input");
     input.setAttribute("aria-label", "Playback speed");
     input.title = "Time scale: 1 = 60 days/s; 0 pauses; negative reverses.";
     this.addHint(speed, input.title, input);
@@ -158,7 +158,7 @@ export default class Options {
     this.pixelRatioSelect.value = this.orrery.pixelRatio;
     this.pixelRatio.domElement.closest("li").style.display = available ? "" : "none";
     if (!available && document.activeElement === this.pixelRatioSelect) {
-      this.gui.domElement.querySelector("input").focus();
+      this.speedInput.focus();
     }
   }
 
