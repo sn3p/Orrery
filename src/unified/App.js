@@ -666,9 +666,13 @@ export default class App {
     this.requestedJed = null;
     this._jed = next;
     this.elapsed += wasWaiting ? 0 : this.clock.seconds;
-    const baseline = !!this.pendingSeek && Object.is(next, this.pendingSeek.target);
+    const seek = this.pendingSeek;
+    const baseline = !!seek && Object.is(next, seek.target);
     this.renderer.captureFrame(this.frameState, { baseline });
     const count = this.renderer.update(this.frameState, { baseline });
+    // Direct tick callers own their synchronous update boundary and do not
+    // return through renderFrame's receipt handling.
+    if (!this.deferReadouts && baseline && this.pendingSeek?.generation === seek.generation) this.pendingSeek = null;
     if (!this.deferReadouts) this.asteroidsDiscovered = count;
     if (this.isPlaying) this.stats.update();
     else this.stats.reset();

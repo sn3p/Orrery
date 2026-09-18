@@ -178,6 +178,7 @@ async function directTickBuffering(browser, base, output, name) {
       const cloud = app.renderer.asteroids;
       window.completed = { cloud, model: app.catalogue, frame: app.renderer.frameState,
         pixels: app.renderer.canvas.toDataURL(), date: app.gui.date.textContent, count: app.gui.count.textContent,
+        pending: app.pendingSeek,
         epoch: cloud.epoch, markerEpoch: cloud.markerEpoch,
         means: cloud.geometry.getBuffer('aMeanAnomaly').data.slice(),
         markers: cloud.geometry.getBuffer('aDiscovery').data.slice() };
@@ -185,9 +186,10 @@ async function directTickBuffering(browser, base, output, name) {
     }, { ...cases.bundles.ties.pin, url: base + '/catalog-fixtures/ties/index.json' });
     assert.deepEqual(await page.evaluate(() => ({
       pending: !!app.pendingSession && !app.catalogLoader.initialRendered,
+      settledSeek: completed.pending === null,
       previousActive: app.renderer.asteroids === completed.cloud && app.catalogue === completed.model,
       hud: app.gui.date.textContent === completed.date && app.gui.count.textContent === completed.count,
-    })), { pending: true, previousActive: true, hud: true },
+    })), { pending: true, settledSeek: true, previousActive: true, hud: true },
     'An unrendered replacement retains the committed scene while reporting its loading state');
     assert.equal(await page.locator('.orrery-status-label').textContent(), 'Loading asteroids…');
     assert.equal(await page.locator('#orrery-status').ariaSnapshot(), '- status: Loading asteroids…');
