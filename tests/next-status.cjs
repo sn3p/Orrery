@@ -60,6 +60,8 @@ async function run({ browser, name, output = '.context/ui-polish/status' }) {
         try {
           await page.goto(`${server.url}/?renderer=${renderer}`, { waitUntil: 'domcontentloaded' });
           await page.getByRole('status').filter({ hasText: 'Loading asteroids' }).waitFor();
+          assert.equal(await page.locator('#orrery-status').ariaSnapshot(), '- status: Loading asteroids…',
+            'Initial loading is exposed as live-region text');
           await checkStatus(page, false);
           await capture('initial');
           releaseLatest();

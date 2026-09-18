@@ -463,14 +463,18 @@ export default class App {
           }
           if (busy) visual.setAttribute("aria-hidden", "true");
           status.append(visual);
+          if (busy) {
+            const liveAnnouncement = document.createElement("span");
+            liveAnnouncement.className = "orrery-status-announcement";
+            liveAnnouncement.textContent = announcement;
+            status.append(liveAnnouncement);
+          }
         }
         status.dataset.signature = signature;
       } else if (detail) {
         status.querySelector(".orrery-status-detail").textContent = detail;
       }
-      if (busy && message) {
-        if (status.getAttribute("aria-label") !== announcement) status.setAttribute("aria-label", announcement);
-      } else status.removeAttribute("aria-label");
+      status.removeAttribute("aria-label");
       if (changed && this.switchError && !this.renderer && !this.destroyed) {
         const retry = document.createElement("button");
         retry.type = "button";

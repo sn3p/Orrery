@@ -21,6 +21,26 @@ function cloudState() {
     time: cloud.uniforms.discoveryTime.value };
 }
 
+async function checkBusyAnnouncement(page, expected) {
+  const status = page.locator('#orrery-status');
+  assert.deepEqual(await status.evaluate(element => {
+    const visual = element.querySelector('.orrery-status-visual');
+    const announcement = element.querySelector('.orrery-status-announcement');
+    return { role: element.getAttribute('role'), label: element.getAttribute('aria-label'),
+      visualHidden: visual?.getAttribute('aria-hidden'), announcement: announcement?.textContent,
+      announcementHidden: announcement?.getAttribute('aria-hidden') };
+  }), { role: 'status', label: null, visualHidden: 'true', announcement: expected,
+    announcementHidden: null }, 'Busy status exposes stable live-region text outside its hidden visual subtree');
+  assert.deepEqual(await page.locator('.orrery-status-announcement').evaluate(element => {
+    const style = getComputedStyle(element);
+    return { position: style.position, width: style.width, height: style.height,
+      overflow: style.overflow, clipPath: style.clipPath, whiteSpace: style.whiteSpace };
+  }), { position: 'absolute', width: '1px', height: '1px', overflow: 'hidden',
+    clipPath: 'inset(50%)', whiteSpace: 'nowrap' }, 'Live-region announcement stays visually clipped');
+  assert.equal(await status.ariaSnapshot(), `- status: ${expected}`,
+    'The accessibility tree contains the stable busy announcement without visual progress');
+}
+
 async function checkDesktopStatus(page) {
   const layout = await page.evaluate(() => {
     const box = selector => {
@@ -112,7 +132,7 @@ async function runRenderer(context, base, renderer) {
     await page.getByRole('button', { name: 'jump', exact: true }).click();
     await page.locator('.orrery-status-label').filter({ hasText: 'Buffering asteroids…' }).waitFor();
     assert.equal(await page.locator('.orrery-status-detail').textContent(), '2019-12-30 · 4 / 6');
-    assert.equal(await page.locator('#orrery-status').getAttribute('aria-label'), 'Buffering asteroids for 2019-12-30.');
+    await checkBusyAnnouncement(page, 'Buffering asteroids for 2019-12-30.');
     assert.equal(await page.locator('.orrery-status-spinner').getAttribute('aria-hidden'), 'true');
     assert.deepEqual(await page.evaluate(() => {
       const app = window.catalogTest.app;
@@ -126,10 +146,13 @@ async function runRenderer(context, base, renderer) {
     await page.evaluate(target => { window.catalogTest.app.jed = target; }, INTERMEDIATE);
     await page.waitForFunction(() => document.querySelector('.orrery-status-detail')?.textContent.includes('2001-12-18'));
     assert.equal(await page.locator('.orrery-status-detail').textContent(), '2001-12-18 · 4 / 5');
-    assert.equal(await page.locator('#orrery-status').getAttribute('aria-label'), 'Buffering asteroids for 2001-12-18.');
+    await checkBusyAnnouncement(page, 'Buffering asteroids for 2001-12-18.');
     await page.locator('.orrery-status-detail').evaluate(element => {
       element.textContent = '2026-09-17 · 381\u202f420 / 895\u202f910';
     });
+    assert.equal(await page.locator('#orrery-status').ariaSnapshot(),
+      '- status: Buffering asteroids for 2001-12-18.',
+      'Visual progress changes do not replace the stable live-region announcement');
     await page.setViewportSize({ width: 861, height: 568 });
     await checkDesktopStatus(page);
     await checkNarrowStatus(page);
@@ -156,6 +179,7 @@ async function runRenderer(context, base, renderer) {
       contextLost: false, recovering: true, pending: INTERMEDIATE, requested: INTERMEDIATE,
     }, 'Graphics recovery preserves the pending seek and committed readouts');
     assert.equal(await page.locator('.orrery-status-label').textContent(), 'Restoring the visualization…');
+    await checkBusyAnnouncement(page, 'Restoring the visualization…');
 
     releaseTail();
     await page.evaluate(() => {
@@ -238,6 +262,11 @@ async function runRenderer(context, base, renderer) {
     assert.equal(switched.count, 6);
     if (renderer === 'pixi') assert(switched.cloud.baseline.every(value => value === -1), 'Pixi switch restoration is mature');
     else assert.equal(switched.cloud.baseline, switched.jed - REFERENCE, 'Three switch restoration is mature');
+    await page.evaluate(() => window.catalogTest.app.setStatus('Preparing asteroids…', false, {
+      busy: true, detail: '2026-09-17 · 381\u202f420 / 895\u202f910',
+      announcement: 'Preparing asteroids for 2026-09-17.',
+    }));
+    await checkBusyAnnouncement(page, 'Preparing asteroids for 2026-09-17.');
     await page.evaluate(() => window.catalogTest.app.destroy());
     assert.deepEqual(await page.locator('#orrery-status').evaluate(element => ({
       text: element.textContent, label: element.getAttribute('aria-label'), role: element.getAttribute('role'),
