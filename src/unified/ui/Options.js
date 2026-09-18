@@ -140,6 +140,13 @@ export default class Options {
     if (!open && restoreFocus && hadFocus) this.trigger.focus();
   }
 
+  open() {
+    if (this.destroyed) return false;
+    this.setOpen(true);
+    this.trigger.focus();
+    return true;
+  }
+
   onToggle = () => { this.setOpen(this.panel.hidden); };
 
   onOutsidePointer = event => {

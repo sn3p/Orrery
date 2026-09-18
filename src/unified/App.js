@@ -57,6 +57,7 @@ export default class App {
     this.contextLost = false;
     this.graphicsRecoveryPending = false;
     this.rendererRecovery = false;
+    this.rendererStateObservers = new Set();
     this.animationFrame = null;
     this.tick = this.tick.bind(this);
     this.render = this.render.bind(this);
@@ -216,6 +217,15 @@ export default class App {
         if (this.switching === "preparing") return;
         this.onGraphicsState(lost, error);
       } };
+  }
+
+  observeRendererState(observer) {
+    this.rendererStateObservers.add(observer);
+    return () => this.rendererStateObservers.delete(observer);
+  }
+
+  notifyRendererState() {
+    for (const observer of this.rendererStateObservers) observer();
   }
 
   switchRenderer(id) { return switchRenderer(this, id); }
@@ -740,6 +750,8 @@ export default class App {
     this.statusNode = null;
     if (this.destroyed) return;
     this.destroyed = true;
+    this.notifyRendererState();
+    this.rendererStateObservers.clear();
     this.switchController?.abort();
     this.rendererToken = null;
     this.switchCandidate?.destroy();

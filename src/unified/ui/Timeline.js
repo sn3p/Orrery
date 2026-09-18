@@ -64,8 +64,8 @@ export default class Timeline {
     this.togglePlayback();
   };
 
-  onOpenDate = () => {
-    if (this.dialog.open) return;
+  open() {
+    if (!this.enabled || this.destroyed || this.dialog.open) return false;
     this.error.textContent = "";
     this.input.value = formatIsoDay(this.app.jed);
     this.app.hold(true);
@@ -75,7 +75,10 @@ export default class Timeline {
     // field. In particular, focusing a date input opens a full-screen picker
     // on iOS and hides the rest of this dialog.
     this.title.focus({ preventScroll: true });
-  };
+    return true;
+  }
+
+  onOpenDate = () => { this.open(); };
 
   commitDate(value) {
     const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00.000Z`) : null;

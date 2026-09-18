@@ -365,14 +365,39 @@ dialog .orrery-dialog-title:focus { outline: none; }
 .orrery-intro p { margin: 0 0 12px; }
 .orrery-intro code { font: inherit; color: #eee; }
 .orrery-intro-links { color: var(--color-hud); }
-.orrery-intro a {
-  color: var(--color-link);
+.orrery-intro a,
+.orrery-intro-action {
+  color: var(--color-accent-muted);
   text-decoration-style: solid;
-  text-decoration-color: var(--color-link-underline);
+  text-decoration-color: #477b54;
   text-underline-offset: 3px;
 }
-.orrery-intro a:hover { color: var(--color-accent); text-decoration-color: var(--color-accent-muted); }
+.orrery-intro-action {
+  appearance: none;
+  min-height: 24px;
+  margin: -3px 0;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  line-height: 18px;
+  text-decoration-line: underline;
+  cursor: pointer;
+}
+.orrery-intro a:hover,
+.orrery-intro-action:not(:disabled):hover,
 .orrery-intro a:focus-visible,
+.orrery-intro-action:focus-visible {
+  color: var(--color-accent);
+  text-decoration-color: var(--color-accent-muted);
+}
+.orrery-intro-action:disabled { opacity: 1; cursor: default; }
+.orrery-intro-action:disabled:not([aria-pressed="true"]) {
+  color: var(--color-hud);
+  text-decoration: none;
+}
+.orrery-intro a:focus-visible,
+.orrery-intro-action:focus-visible,
 .orrery-intro-close:focus-visible {
   outline: 1px solid var(--color-accent);
   outline-offset: 2px;
