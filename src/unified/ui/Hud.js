@@ -1,4 +1,4 @@
-import { fromJED } from "../../js/utils.js";
+import { formatIsoDay } from "../../js/utils.js";
 import { UNIX_EPOCH_JULIAN_DATE } from "../../js/constants.js";
 import Options from "./Options.js";
 import Timeline from "./Timeline.js";
@@ -28,7 +28,7 @@ export default class Hud {
     const milliseconds = Math.trunc((jed - UNIX_EPOCH_JULIAN_DATE) * 86400000);
     const day = Math.floor(milliseconds / 86400000);
     if (day !== this.lastDay) {
-      this.date.textContent = fromJED(jed).toISOString().slice(0, 10);
+      this.date.textContent = formatIsoDay(jed);
       this.lastDay = day;
     }
     if (fps !== this.lastFps) {

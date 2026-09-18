@@ -8,6 +8,7 @@ const latestOrigin = loading.latestOrigin;
 const START = 2451544.5;
 const INTERMEDIATE = 2452261.5;
 const LATEST = 2458847.5;
+const EXTENDED = 9999999;
 const REFERENCE = 2458600.5;
 
 function cloudState() {
@@ -146,6 +147,13 @@ async function runRenderer(context, base, renderer) {
         countText: app.gui.count.textContent, frame: app.renderer.frameState };
     }), { ...committed, date: '2000-01-01', countText: '4' }, 'Pending seek retains the committed scene and readouts');
     await checkDesktopStatus(page);
+
+    // Programmatic/configured dates support the full Date range, including
+    // signed six-digit ISO years. Keep both visible and spoken copy complete.
+    await page.evaluate(target => { window.catalogTest.app.jed = target; }, EXTENDED);
+    await page.waitForFunction(() => document.querySelector('.orrery-status-detail')?.textContent.includes('+022666-12-19'));
+    assert.equal(await page.locator('.orrery-status-detail').textContent(), '+022666-12-19 · 4 / 6');
+    await checkBusyAnnouncement(page, 'Buffering asteroids for +022666-12-19.');
 
     // A newer target supersedes the held request. It is in the same unavailable
     // chunk, allowing the status and eventual commit winner to be observed.

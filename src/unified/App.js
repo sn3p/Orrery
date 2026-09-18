@@ -1,4 +1,4 @@
-import { fromJED, toJED } from "../js/utils.js";
+import { formatIsoDay, toJED } from "../js/utils.js";
 import { validDate } from "../js/asteroidOrbits.js";
 import PlaybackClock from "../js/PlaybackClock.js";
 import Stats from "../js/Stats.js";
@@ -13,7 +13,6 @@ import switchRenderer from "./switchRenderer.js";
 const STATUS_OWNER = Symbol.for("orrery.statusOwner");
 const countFormat = new Intl.NumberFormat("en-US");
 const formatCount = value => countFormat.format(value).replaceAll(",", "\u202f");
-const formatDay = jed => fromJED(jed).toISOString().slice(0, 10);
 
 export default class App {
   constructor(options = {}) {
@@ -104,7 +103,8 @@ export default class App {
       this.onCatalogChange();
       return;
     }
-    this.requestedJed = null;
+    this.requestedJed = value;
+    this.resetClock();
     this._jed = value;
     this.requestRender();
   }
@@ -348,7 +348,7 @@ export default class App {
   updateCatalogStatus() {
     const loader = this.catalogLoader;
     const target = this.requestedJed ?? this.pendingSeek?.target;
-    const targetDay = Number.isFinite(target) ? formatDay(target) : "";
+    const targetDay = Number.isFinite(target) ? formatIsoDay(target) : "";
     const hasTargetContext = this.hasCommittedReadouts && targetDay;
     const failure = (this.catalogFailure && "Could not load the asteroid catalogue. Reload to try again.")
       || (loader?.errorKind === "commit" && "This asteroid catalogue cannot be prepared for this renderer.")
@@ -367,7 +367,7 @@ export default class App {
       });
       return;
     }
-    if (this.catalogOpening || (loader?.source && !loader.initialRendered && !this.hasCommittedReadouts)) {
+    if (this.catalogOpening || (loader?.source && !loader.initialRendered && !hasTargetContext)) {
       this.setStatus("Loading asteroids…", false, { busy: true });
       return;
     }
