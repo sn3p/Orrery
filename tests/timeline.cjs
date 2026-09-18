@@ -93,9 +93,11 @@ async function run({ browser, name, output = '.context/timeline' }) {
         const editorDate = await input.inputValue();
         assert(editorDate <= beforeEditor, 'Reverse playback editor opens on the current UTC day');
         assert.equal(await input.getAttribute('aria-describedby'), 'orrery-date-help orrery-date-error');
-        assert.equal(await page.getByRole('heading', { name: 'Jump to date' })
-          .evaluate(element => element === document.activeElement), true,
+        const title = page.getByRole('heading', { name: 'Jump to date' });
+        assert.equal(await title.evaluate(element => element === document.activeElement), true,
         'Date editor opens on its heading without invoking the native input');
+        assert.equal(await title.evaluate(element => getComputedStyle(element).outlineStyle), 'none',
+          'The non-interactive initial focus target has no native focus ring');
         assert.equal(await input.evaluate(element => element === document.activeElement), false,
           'Date input waits for explicit interaction');
         await page.waitForFunction(expected => document.querySelector('#orrery-date').textContent === expected, editorDate);

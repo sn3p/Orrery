@@ -19,11 +19,17 @@ async function holds(page, dialog, label) {
       border: getComputedStyle(el).borderColor,
       closeBorder: getComputedStyle(close).borderColor,
       closeColor: getComputedStyle(close).color,
+      closeFocused: close === document.activeElement,
+      closeOutline: getComputedStyle(close).outlineStyle,
+      closeOutlineColor: getComputedStyle(close).outlineColor,
     };
   });
   assert.equal(theme.border, 'rgb(54, 92, 65)', `${label}: dialog uses the green chrome border`);
   assert.equal(theme.closeBorder, 'rgb(71, 123, 84)', `${label}: primary action uses the green border`);
   assert.equal(theme.closeColor, 'rgb(181, 232, 193)', `${label}: primary action uses the green label`);
+  assert(theme.closeFocused, `${label}: focus moves to the Close action rather than the title`);
+  assert.equal(theme.closeOutline, 'solid', `${label}: the focused Close action keeps a visible outline`);
+  assert.equal(theme.closeOutlineColor, 'rgb(0, 232, 90)', `${label}: focused dialog actions use the green accent`);
   const linkThemes = await dialog.locator('a').evaluateAll(links => links.map(link => {
     const style = getComputedStyle(link);
     return { color: style.color, decorationColor: style.textDecorationColor, decorationStyle: style.textDecorationStyle };
