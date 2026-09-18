@@ -40,19 +40,19 @@ export default class Options {
     placeholder.textContent = "Choose renderer";
     placeholder.disabled = true;
     this.rendererSelect.prepend(placeholder);
-    this.addHint(this.renderer, "Switch views while keeping the current date and speed.", this.rendererSelect);
+    this.addHint(this.renderer, "Change renderer; time and options persist.", this.rendererSelect);
     this.renderer.onChange(id => { if (id) void this.orrery.switchRenderer(id); });
     const speed = this.speed = this.gui.add(this.orrery, "jedDelta", -8, 8).name("speed");
     const input = speed.domElement.querySelector("input");
     input.setAttribute("aria-label", "Playback speed");
-    input.title = "0 pauses; negative reverses. 1 = 60 days per second.";
+    input.title = "Time scale: 1 = 60 days/s; 0 pauses; negative reverses.";
     this.addHint(speed, input.title, input);
 
     this.planetLabels = this.gui.add(this.orrery, "planetLabels",
       { Off: "off", "Earth only": "earth", "All planets": "all" }).name("labels");
     this.planetLabelsSelect = this.planetLabels.domElement.querySelector("select");
     this.planetLabelsSelect.setAttribute("aria-label", "Planet labels");
-    this.planetLabelsSelect.title = "Show Earth as an orientation cue, label every planet, or hide planet labels.";
+    this.planetLabelsSelect.title = "Show labels for Earth, all planets, or none.";
     this.addHint(this.planetLabels, this.planetLabelsSelect.title, this.planetLabelsSelect);
 
     this.planetOrbits = this.gui.add(this.orrery, "planetOrbits").name("orbits");
@@ -64,7 +64,7 @@ export default class Options {
     this.pixelRatio = this.gui.add(this.orrery, "pixelRatio", { "1×": "1", "2×": "2" }).name("DPR");
     this.pixelRatioSelect = this.pixelRatio.domElement.querySelector("select");
     this.pixelRatioSelect.setAttribute("aria-label", "Rendering pixel ratio");
-    this.pixelRatioSelect.title = "Rendering resolution. 2× is sharper but requires more graphics processing.";
+    this.pixelRatioSelect.title = "Pixel density: 2× is sharper but uses more GPU.";
     this.addHint(this.pixelRatio, this.pixelRatioSelect.title, this.pixelRatioSelect);
     this.updatePixelRatio();
     try { this.mountRenderer(); }

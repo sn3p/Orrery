@@ -15,6 +15,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
   page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
   const trigger = page.getByRole("button", { name: "Options", exact: true });
   const panel = page.locator(".orrery-options-panel");
+  const renderer = page.getByRole("combobox", { name: "Renderer", exact: true });
   const speed = page.getByRole("textbox", { name: "Playback speed" });
   const labels = page.getByRole("combobox", { name: "Planet labels" });
   const orbits = page.getByRole("checkbox", { name: "Planet orbits" });
@@ -28,7 +29,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       const range = document.createRange();
       range.selectNodeContents(text);
       const lines = [...range.getClientRects()];
-      range.setStart(text, text.textContent.lastIndexOf("processing"));
+      range.setStart(text, text.textContent.lastIndexOf("GPU"));
       return {
         unified: !!document.querySelector(".orrery-footer"),
         gap: el.querySelector(".slider").getBoundingClientRect().left - label.getBoundingClientRect().right,
@@ -38,7 +39,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       };
     });
     assert(spacing.gap >= 8, "Speed label keeps at least 8px of visible space before the slider");
-    assert.equal(spacing.lines, 3, "DPR help wraps within the panel at its UI font size");
+    assert.equal(spacing.lines, 2, "DPR help wraps compactly within the panel at its UI font size");
     assert(Math.abs(spacing.lastWordTop - spacing.lastLineTop) < 1, "Help text remains within the expected last line");
   };
   try {
@@ -49,6 +50,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert(await panel.isHidden(), "Options start closed");
     assert.equal(await trigger.getAttribute("aria-expanded"), "false");
     assert.equal(await trigger.getAttribute("aria-controls"), await panel.getAttribute("id"));
+    assert.equal(await renderer.count(), 0, "Closed renderer choice is absent from the accessibility tree");
     assert.equal(await speed.count(), 0, "Closed controls are absent from the accessibility tree");
     assert.equal(await labels.count(), 0, "Closed label modes are absent from the accessibility tree");
     assert.equal(await orbits.count(), 0, "Closed orbit visibility is absent from the accessibility tree");
@@ -99,8 +101,9 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert(await panel.evaluate(el => el.querySelector("select[aria-label='Renderer']") === document.activeElement
       || (!el.querySelector("select[aria-label='Renderer']") && el.querySelector("input") === document.activeElement)),
     "Tab reaches the first revealed control");
-    await expect(speed).toHaveAccessibleDescription("0 pauses; negative reverses. 1 = 60 days per second.");
-    await expect(labels).toHaveAccessibleDescription("Show Earth as an orientation cue, label every planet, or hide planet labels.");
+    await expect(renderer).toHaveAccessibleDescription("Change renderer; time and options persist.");
+    await expect(speed).toHaveAccessibleDescription("Time scale: 1 = 60 days/s; 0 pauses; negative reverses.");
+    await expect(labels).toHaveAccessibleDescription("Show labels for Earth, all planets, or none.");
     await expect(orbits).toHaveAccessibleDescription("Show or hide planetary orbit lines.");
     assert.deepEqual(await labels.locator("option").allTextContents(), ["Off", "Earth only", "All planets"]);
     assert.equal(await labels.inputValue(), "earth");
@@ -112,7 +115,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert.equal(await page.evaluate(() => localStorage.getItem("orrery.planetOrbits")), null,
       "The visible default does not invent a saved orbit preference");
     const dprHelp = await page.locator("#" + await dpr.getAttribute("aria-describedby")).textContent();
-    assert.equal(dprHelp, "Rendering resolution. 2× is sharper but requires more graphics processing.");
+    assert.equal(dprHelp, "Pixel density: 2× is sharper but uses more GPU.");
     assert.equal(await dpr.getAttribute("title"), dprHelp);
     const styles = await panel.evaluate(el => ({
       background: getComputedStyle(el).backgroundColor,
