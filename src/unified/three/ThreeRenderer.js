@@ -5,6 +5,7 @@ import Planet from "./Planet.js";
 import Orbit from "./Orbit.js";
 import Asteroids from "./Asteroids.js";
 import { DEFAULT_PLANET_LABEL_MODE, isPlanetLabelMode, PlanetLabels } from "../PlanetLabel.js";
+import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "../PlanetOrbitPreference.js";
 
 function disposePlanets(batch) {
   for (const { planet, orbit } of batch) {
@@ -37,7 +38,9 @@ export default class ThreeRenderer {
     this.contextLost = false;
     this.asteroids = this.stagedAsteroids = this.catalogueTransition = null;
     this.planets = [];
+    this.planetOrbits = [];
     this.planetLabelMode = DEFAULT_PLANET_LABEL_MODE;
+    this.planetOrbitsVisible = DEFAULT_PLANET_ORBITS_VISIBLE;
     this.planetLabels = new PlanetLabels(container);
     this.planetLabelPosition = new THREE.Vector3();
     this.onContextLost = event => {
@@ -139,18 +142,32 @@ export default class ThreeRenderer {
 
   setOptions({ shared } = {}) {
     const mode = shared?.planetLabels;
-    if (mode === undefined || mode === this.planetLabelMode) return;
-    if (!isPlanetLabelMode(mode)) throw new RangeError("Invalid planet label mode.");
-    this.planetLabelMode = mode;
-    this.planetLabels.setMode(this.planets, mode);
-    this.requestRender();
+    const orbits = shared?.planetOrbits;
+    if (mode !== undefined && !isPlanetLabelMode(mode)) throw new RangeError("Invalid planet label mode.");
+    if (orbits !== undefined && !isPlanetOrbitVisibility(orbits)) {
+      throw new RangeError("Invalid planet orbit visibility.");
+    }
+    let changed = false;
+    if (mode !== undefined && mode !== this.planetLabelMode) {
+      this.planetLabelMode = mode;
+      this.planetLabels.setMode(this.planets, mode);
+      changed = true;
+    }
+    if (orbits !== undefined && orbits !== this.planetOrbitsVisible) {
+      this.planetOrbitsVisible = orbits;
+      for (const orbit of this.planetOrbits) orbit.visible = orbits;
+      changed = true;
+    }
+    if (changed) this.requestRender();
   }
 
   addPlanets(data, { jed }) {
     if (this.destroyed) return;
     const batch = preparePlanets(data, jed);
     for (const { planet, orbit } of batch) {
+      orbit.visible = this.planetOrbitsVisible;
       this.planets.push(planet);
+      this.planetOrbits.push(orbit);
       this.scene.add(orbit, planet.body);
     }
     this.planetLabels.setMode(this.planets, this.planetLabelMode);
@@ -326,6 +343,7 @@ export default class ThreeRenderer {
     this.canvas?.remove();
     this.scene?.clear();
     this.planets = [];
+    this.planetOrbits = [];
     this.asteroids = this.stagedAsteroids = this.catalogueTransition = null;
     this.initialized = false;
   }

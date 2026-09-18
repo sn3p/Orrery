@@ -3,6 +3,7 @@ import Controls from "./Controls.js";
 import Planet from "./Planet.js";
 import Asteroids from "./Asteroids.js";
 import { DEFAULT_PLANET_LABEL_MODE, isPlanetLabelMode, PlanetLabels } from "../PlanetLabel.js";
+import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "../PlanetOrbitPreference.js";
 
 function disposePlanets(batch) {
   for (const { orbit } of batch) orbit?.destroy();
@@ -31,7 +32,9 @@ export default class PixiRenderer {
     this.requestRender = invalidate;
     this.reportGraphicsState = reportGraphicsState;
     this.planets = [];
+    this.planetOrbits = [];
     this.planetLabelMode = DEFAULT_PLANET_LABEL_MODE;
+    this.planetOrbitsVisible = DEFAULT_PLANET_ORBITS_VISIBLE;
     this.planetLabels = new PlanetLabels(container);
     this.destroyed = false;
     this.initialized = false;
@@ -127,6 +130,7 @@ export default class PixiRenderer {
 
   createSystem() {
     this.planets = [];
+    this.planetOrbits = [];
     this.asteroids = null;
 
     // Create texture
@@ -183,18 +187,32 @@ export default class PixiRenderer {
 
   setOptions({ shared } = {}) {
     const mode = shared?.planetLabels;
-    if (mode === undefined || mode === this.planetLabelMode) return;
-    if (!isPlanetLabelMode(mode)) throw new RangeError("Invalid planet label mode.");
-    this.planetLabelMode = mode;
-    this.planetLabels.setMode(this.planets, mode);
-    this.requestRender();
+    const orbits = shared?.planetOrbits;
+    if (mode !== undefined && !isPlanetLabelMode(mode)) throw new RangeError("Invalid planet label mode.");
+    if (orbits !== undefined && !isPlanetOrbitVisibility(orbits)) {
+      throw new RangeError("Invalid planet orbit visibility.");
+    }
+    let changed = false;
+    if (mode !== undefined && mode !== this.planetLabelMode) {
+      this.planetLabelMode = mode;
+      this.planetLabels.setMode(this.planets, mode);
+      changed = true;
+    }
+    if (orbits !== undefined && orbits !== this.planetOrbitsVisible) {
+      this.planetOrbitsVisible = orbits;
+      for (const orbit of this.planetOrbits) orbit.visible = orbits;
+      changed = true;
+    }
+    if (changed) this.requestRender();
   }
 
   addPlanets(data, { jed }) {
     if (this.destroyed) return;
     const batch = preparePlanets(data, jed, this.circleTexture);
     for (const { planet, orbit } of batch) {
+      orbit.visible = this.planetOrbitsVisible;
       this.stage.addChild(orbit);
+      this.planetOrbits.push(orbit);
       this.planets.push(planet);
       this.planetContainer.addParticle(planet.body);
     }

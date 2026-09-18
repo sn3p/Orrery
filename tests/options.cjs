@@ -17,6 +17,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
   const panel = page.locator(".orrery-options-panel");
   const speed = page.getByRole("textbox", { name: "Playback speed" });
   const labels = page.getByRole("combobox", { name: "Planet labels" });
+  const orbits = page.getByRole("checkbox", { name: "Planet orbits" });
   const dpr = page.getByRole("combobox", { name: "Rendering pixel ratio" });
   const checkSpacing = async () => {
     const spacing = await panel.evaluate(el => {
@@ -50,6 +51,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert.equal(await trigger.getAttribute("aria-controls"), await panel.getAttribute("id"));
     assert.equal(await speed.count(), 0, "Closed controls are absent from the accessibility tree");
     assert.equal(await labels.count(), 0, "Closed label modes are absent from the accessibility tree");
+    assert.equal(await orbits.count(), 0, "Closed orbit visibility is absent from the accessibility tree");
     const triggerStyle = await trigger.evaluate(element => {
       const style = getComputedStyle(element);
       return {
@@ -99,8 +101,16 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     "Tab reaches the first revealed control");
     await expect(speed).toHaveAccessibleDescription("0 pauses; negative reverses. 1 = 60 days per second.");
     await expect(labels).toHaveAccessibleDescription("Show Earth as an orientation cue, label every planet, or hide planet labels.");
+    await expect(orbits).toHaveAccessibleDescription("Show or hide planetary orbit lines without changing planet motion.");
     assert.deepEqual(await labels.locator("option").allTextContents(), ["Off", "Earth only", "All planets"]);
     assert.equal(await labels.inputValue(), "earth");
+    assert(await orbits.isChecked(), "Planet orbits start visible");
+    assert.deepEqual(await orbits.evaluate(element => {
+      const bounds = element.getBoundingClientRect();
+      return { width: bounds.width, height: bounds.height };
+    }), { width: 16, height: 16 }, "Orbit checkbox keeps a compact native control");
+    assert.equal(await page.evaluate(() => localStorage.getItem("orrery.planetOrbits")), null,
+      "The visible default does not invent a saved orbit preference");
     const dprHelp = await page.locator("#" + await dpr.getAttribute("aria-describedby")).textContent();
     assert.equal(dprHelp, "Rendering resolution. 2× is sharper but requires more graphics processing.");
     assert.equal(await dpr.getAttribute("title"), dprHelp);
@@ -139,6 +149,15 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       Mars: "rgb(255, 188, 131)", Jupiter: "rgb(197, 195, 189)", Saturn: "rgb(236, 205, 158)",
     });
     await labels.selectOption("earth");
+    await orbits.uncheck();
+    assert.deepEqual(await page.evaluate(() => {
+      const app = window.threeTest?.app ?? window.catalogTest.app;
+      return { setting: app.planetOrbits,
+        tracks: app.renderer.planetOrbits.map(track => track.visible),
+        planets: app.renderer.planets.map(planet => planet.body.visible) };
+    }), { setting: false, tracks: Array(6).fill(false), planets: Array(6).fill(true) },
+    "Hiding tracks keeps every planet visible");
+    assert.equal(await page.evaluate(() => localStorage.getItem("orrery.planetOrbits")), "false");
     await dpr.selectOption("2");
     await dpr.selectOption("1");
     await page.waitForFunction(() => document.querySelector("#orrery-fps").textContent === "0 FPS");
@@ -185,7 +204,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       assert(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= viewport.width
         && bounds.y + bounds.height <= viewport.height, "Options fit narrow and short viewports");
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), viewport.width);
-      for (const control of [speed, labels, dpr]) {
+      for (const control of [speed, labels, orbits, dpr]) {
         await control.scrollIntoViewIfNeeded();
         const box = await control.boundingBox();
         assert(box.x >= bounds.x && box.x + box.width <= bounds.x + bounds.width);
@@ -206,6 +225,14 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert.equal(await trigger.textContent(), "[+] options");
     await exports.openOptions(page);
     assert.equal(await dpr.inputValue(), "1", "Reload starts at the 1× default");
+    assert.equal(await orbits.isChecked(), false, "Explicit orbit visibility survives reload");
+    assert(await page.evaluate(() => {
+      const app = window.threeTest?.app ?? window.catalogTest.app;
+      return app.planetOrbits === false && app.renderer.planetOrbits.length === 6
+        && app.renderer.planetOrbits.every(track => track.visible === false)
+        && app.renderer.planets.every(planet => planet.body.visible === true);
+    }), "Reload applies hidden tracks without hiding planets");
+    await orbits.check();
     assert.deepEqual(errors, []);
     return { toggleAndDismissal: "passed", keyboardAndFocus: "passed", valuesAndIdle: "passed",
       desktopNarrowAndShort: "passed", reload: "passed" };

@@ -5,9 +5,15 @@ and the benchmark. The README keeps the short version; this document is the blue
 
 ## Options
 
-Open `[+] options` in the top-left corner for playback speed and rendering
-resolution. Click outside or press Escape to close it. Speed 0 pauses; negative
-values reverse. Speed 1 advances 60 days per second (default 1.5).
+Open `[+] options` in the top-left corner for playback speed, renderer, planet
+labels, planetary orbit lines and rendering resolution. Click outside or press
+Escape to close it. Speed 0 pauses; negative values reverse. Speed 1 advances
+60 days per second (default 1.5).
+
+Planetary orbit lines are shown by default. Hiding them leaves the planets and
+their motion unchanged. Explicit orbit-line and planet-label choices are remembered
+in local storage and apply to both renderers; unavailable or invalid storage falls
+back to visible orbit lines and the Earth-only label default.
 
 The app uses 12px UI text, with date and space-grouped discovery count at the
 bottom-left (`2005-05-03 / 353 381`), Orrery at the bottom-right and FPS at the
@@ -131,4 +137,3 @@ The full catalogue's shader error stayed below 0.14 pixels at 20× zoom across
 seven tested dates, including ±50,000 days. Extreme zoom/dates, other GPUs,
 actual Safari/iOS and larger unique catalogues remain unverified. The bundled
 catalogue is unchanged; these measurements do not establish a new data limit.
-

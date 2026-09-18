@@ -51,6 +51,14 @@
 .orrery-options-panel .dg .c input:focus,
 .orrery-options-panel .dg .c select { color: var(--color-options-value) !important; }
 
+.orrery-options-panel .dg .c input[type="checkbox"] {
+  width: 16px !important;
+  height: 16px !important;
+  margin: 5px 0 4px;
+  padding: 0 !important;
+  accent-color: var(--color-accent-muted);
+}
+
 .orrery-footer {
   position: fixed;
   bottom: 8px;
