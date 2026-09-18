@@ -8,6 +8,7 @@ import CatalogLoader from "./catalog/CatalogLoader.js";
 import { allocateCatalogue, appendCatalogue, prepareCatalogue } from "./catalog/prepareCatalogue.js";
 import { selectRenderer, renderers } from "./renderers.js";
 import switchRenderer from "./switchRenderer.js";
+import { isPlanetLabelMode, loadPlanetLabelMode, savePlanetLabelMode } from "./PlanetLabel.js";
 
 // Shared across module replacements so stale disposal cannot erase a new App's feedback.
 const STATUS_OWNER = Symbol.for("orrery.statusOwner");
@@ -36,6 +37,8 @@ export default class App {
     this.rendererNotice = selection.notice;
     this.createRenderer = options.createRenderer ?? selection.create;
     this._pixelRatio = "1";
+    this._planetLabels = options.planetLabels ?? loadPlanetLabelMode();
+    if (!isPlanetLabelMode(this._planetLabels)) throw new Error("Invalid planet label mode.");
     this.held = false;
     this.clock = new PlaybackClock();
     this.elapsed = 0;
@@ -141,8 +144,19 @@ export default class App {
     const native = window.devicePixelRatio || 1;
     return this.fixedResolution ?? (native >= 2 ? Number(this.pixelRatio) : Math.min(native, 1));
   }
+  get planetLabels() { return this._planetLabels; }
+  set planetLabels(value) {
+    if (this.destroyed || !isPlanetLabelMode(value) || value === this._planetLabels) return;
+    this._planetLabels = value;
+    savePlanetLabelMode(value);
+    this.renderer?.setOptions?.(this.rendererSettings());
+    this.requestRender();
+  }
   get frameState() { return { jed: this.jed, elapsed: this.elapsed }; }
   get viewport() { return { width: innerWidth, height: innerHeight, pixelRatio: this.effectivePixelRatio }; }
+  rendererSettings(id = this.rendererId, renderer = this.rendererOptions[id]) {
+    return { shared: { pixelRatio: this.pixelRatio, planetLabels: this.planetLabels }, renderer };
+  }
 
   init() {
     if (this.destroyed) return Promise.resolve();
@@ -157,7 +171,7 @@ export default class App {
       if (this.destroyed) { this.renderer.destroy(); return; }
       await this.renderer.init();
       if (this.destroyed) return;
-      this.renderer.setOptions?.({ shared: { pixelRatio: this.pixelRatio }, renderer: this.rendererOptions[this.rendererId] });
+      this.renderer.setOptions?.(this.rendererSettings());
       this.validatePlanets = this.renderer.validatePlanets;
       this.setupGui();
       this.initialized = true;
@@ -198,7 +212,7 @@ export default class App {
     if (!entry || !entry.validateOptions || !changes || typeof changes !== "object") throw new Error("Unsupported renderer options.");
     const next = { ...this.rendererOptions[id], ...changes };
     if (!entry.validateOptions(next)) throw new Error("Invalid renderer options.");
-    if (id === this.rendererId && this.switching !== "preparing") this.renderer?.setOptions?.({ shared: { pixelRatio: this.pixelRatio }, renderer: next });
+    if (id === this.rendererId && this.switching !== "preparing") this.renderer?.setOptions?.(this.rendererSettings(id, next));
     this.rendererOptions[id] = next;
     this.requestRender();
   }

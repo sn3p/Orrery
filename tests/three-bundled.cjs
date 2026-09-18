@@ -148,7 +148,7 @@ module.exports = async function bundled(browser, base) {
         await page.evaluate(() => { app.destroy(); app.destroy(); });
         assert.equal(await page.locator('#orrery-status').textContent(), '', 'Teardown clears terminal recovery feedback');
         assert.equal(await page.locator('#orrery-status').getAttribute('role'), 'status');
-        assert.equal(await page.locator('canvas, .orrery-options').count(), 0);
+        assert.equal(await page.locator('canvas, .orrery-options, .orrery-planet-label').count(), 0);
       }
       results.push({ renderer, replacement, kind, auto, loadResult, direct });
     } finally { release?.(); await page.close(); }

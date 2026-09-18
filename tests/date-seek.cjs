@@ -285,7 +285,7 @@ async function runRenderer(context, base, renderer) {
     assert.deepEqual(await page.locator('#orrery-status').evaluate(element => ({
       text: element.textContent, label: element.getAttribute('aria-label'), role: element.getAttribute('role'),
     })), { text: '', label: null, role: 'status' }, 'Teardown clears busy status semantics');
-    assert.equal(await page.locator('canvas, .orrery-options').count(), 0);
+    assert.equal(await page.locator('canvas, .orrery-options, .orrery-planet-label').count(), 0);
     assert.deepEqual(errors, []);
     return { renderer, newerSeekWins: true, pendingSwitch: activeRenderer,
       rollback: true, replay: true, switched: renderer };

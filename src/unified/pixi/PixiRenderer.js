@@ -2,6 +2,7 @@ import { Application, ParticleContainer, ParticleShader, Graphics, Texture } fro
 import Controls from "./Controls.js";
 import Planet from "./Planet.js";
 import Asteroids from "./Asteroids.js";
+import { DEFAULT_PLANET_LABEL_MODE, isPlanetLabelMode, PlanetLabels } from "../PlanetLabel.js";
 
 function disposePlanets(batch) {
   for (const { orbit } of batch) orbit?.destroy();
@@ -29,12 +30,15 @@ export default class PixiRenderer {
     this.getViewport = getViewport;
     this.requestRender = invalidate;
     this.reportGraphicsState = reportGraphicsState;
+    this.planetLabelMode = DEFAULT_PLANET_LABEL_MODE;
+    this.planetLabels = new PlanetLabels(container);
     this.destroyed = false;
     this.initialized = false;
     this.contextLost = false;
     this.onContextLost = event => {
       event.preventDefault();
       this.contextLost = true;
+      this.planetLabels.hide();
       this.reportGraphicsState(true);
     };
     this.onContextRestored = () => {
@@ -176,6 +180,15 @@ export default class PixiRenderer {
     disposePlanets(preparePlanets(data, jed, Texture.WHITE));
   }
 
+  setOptions({ shared } = {}) {
+    const mode = shared?.planetLabels;
+    if (mode === undefined || mode === this.planetLabelMode) return;
+    if (!isPlanetLabelMode(mode)) throw new RangeError("Invalid planet label mode.");
+    this.planetLabelMode = mode;
+    this.planetLabels.setMode(this.planets, mode);
+    this.requestRender();
+  }
+
   addPlanets(data, { jed }) {
     if (this.destroyed) return;
     const batch = preparePlanets(data, jed, this.circleTexture);
@@ -184,6 +197,7 @@ export default class PixiRenderer {
       this.planets.push(planet);
       this.planetContainer.addParticle(planet.body);
     }
+    this.planetLabels.setMode(this.planets, this.planetLabelMode);
     this.requestRender();
   }
 
@@ -300,7 +314,16 @@ export default class PixiRenderer {
     this.app.render();
     if (this.destroyed || this.contextLost || this.app.renderer.gl.isContextLost()) return null;
     if (this.asteroids?.geometry.instanceCount && this.drawnAsteroids !== this.asteroids) return null;
+    this.placePlanetLabels();
     return this.asteroids?.acknowledgeDraw(this.app.renderer) ?? (this.asteroids ? null : 0);
+  }
+
+  placePlanetLabels() {
+    const { a, b, c, d, tx, ty } = this.stage.worldTransform;
+    this.planetLabels.forEach((planet, label) => {
+      const { x, y } = planet.body;
+      label.place(a * x + c * y + tx, b * x + d * y + ty, this.viewport);
+    });
   }
 
   resize(viewport) {
@@ -351,6 +374,7 @@ export default class PixiRenderer {
     this.canvas?.removeEventListener("webglcontextlost", this.onContextLost);
     this.canvas?.removeEventListener("webglcontextrestored", this.onContextRestored);
     this.controls?.destroy();
+    this.planetLabels.destroy();
     this.asteroids?.destroy();
     this.stagedAsteroids?.destroy();
     this.catalogueTransition?.previous?.destroy();

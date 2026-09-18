@@ -48,6 +48,13 @@ export default class Options {
     input.title = "0 pauses; negative reverses. 1 = 60 days per second.";
     this.addHint(speed, input.title, input);
 
+    this.planetLabels = this.gui.add(this.orrery, "planetLabels",
+      { Off: "off", "Earth only": "earth", "All planets": "all" }).name("labels");
+    this.planetLabelsSelect = this.planetLabels.domElement.querySelector("select");
+    this.planetLabelsSelect.setAttribute("aria-label", "Planet labels");
+    this.planetLabelsSelect.title = "Show Earth as an orientation cue, label every planet, or hide planet labels.";
+    this.addHint(this.planetLabels, this.planetLabelsSelect.title, this.planetLabelsSelect);
+
     this.pixelRatio = this.gui.add(this.orrery, "pixelRatio", { "1×": "1", "2×": "2" }).name("DPR");
     this.pixelRatioSelect = this.pixelRatio.domElement.querySelector("select");
     this.pixelRatioSelect.setAttribute("aria-label", "Rendering pixel ratio");

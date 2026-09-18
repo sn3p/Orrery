@@ -303,7 +303,7 @@ async function failures(browser, base, output, name) {
       const destroyedSwitch = app.switchRenderer('three');
       while (!release) await new Promise(resolve => setTimeout(resolve, 0));
       app.destroy(); release(); await destroyedSwitch;
-      check(!document.querySelector('canvas, .orrery-options') && app.animationFrame === null, 'Destroy during initialization disposes everything');
+      check(!document.querySelector('canvas, .orrery-options, .orrery-planet-label') && app.animationFrame === null, 'Destroy during initialization disposes everything');
       return { faults: ['load', 'init', 'pack', 'upload', 'draw', 'receipt', 'fallback'], staleCallbacks: true, pendingSeek: true, disposal: true };
       };
     });
@@ -321,6 +321,13 @@ async function failures(browser, base, output, name) {
 async function lifecycle(browser, base) {
   const { page, errors } = await boot(browser, base, 'pixi', undefined, true);
   try {
+    await page.getByRole('button', { name: 'Options', exact: true }).click();
+    const labels = page.getByRole('combobox', { name: 'Planet labels' });
+    await labels.selectOption('all');
+    assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetLabels')), 'all');
+    assert.deepEqual((await page.locator('.orrery-planet-label').allTextContents()).sort(),
+      ['Earth', 'Jupiter', 'Mars', 'Mercury', 'Saturn', 'Venus']);
+    await page.getByRole('button', { name: 'Options', exact: true }).click();
     const result = await page.evaluate(async () => {
       const check = (ok, message) => { if (!ok) throw new Error(message); };
       const model = app.catalogue, timings = [], listenerCounts = [];
@@ -329,7 +336,8 @@ async function lifecycle(browser, base) {
         check(await app.switchRenderer(i % 2 ? 'pixi' : 'three'), 'Alternating switch ' + i);
         timings.push(performance.now() - start);
         if (i % 2) listenerCounts.push(activeListeners.length);
-        check(document.querySelectorAll('canvas').length === 1 && document.querySelectorAll('.orrery-options').length === 1, 'One scene/UI');
+        check(document.querySelectorAll('canvas').length === 1 && document.querySelectorAll('.orrery-options').length === 1
+          && document.querySelectorAll('.orrery-planet-label').length === 6 && app.planetLabels === 'all', 'One scene/UI and six labels');
         check(app.catalogue === model && !app.renderer.needsCatalogPacking(model), 'Retained population uploaded');
       }
       check(listenerCounts.every(n => n === listenerCounts[0]), 'Listener count stays bounded: ' + listenerCounts);
@@ -340,6 +348,13 @@ async function lifecycle(browser, base) {
       app.renderer.render = render;
       return { switches: timings.length, timings, listenerCounts, pausedDraws: draws };
     });
+    await page.getByRole('button', { name: 'Options', exact: true }).click();
+    await labels.selectOption('off');
+    assert.equal(await page.locator('.orrery-planet-label').count(), 0);
+    await labels.selectOption('earth');
+    assert.equal(await page.locator('.orrery-planet-label[data-planet="Earth"]').count(), 1);
+    assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetLabels')), 'earth');
+    await page.getByRole('button', { name: 'Options', exact: true }).click();
     for (const id of ['pixi', 'three']) {
       await page.evaluate(id => app.switchRenderer(id), id);
       for (let cycle = 0; cycle < 2; cycle++) {
@@ -510,7 +525,7 @@ async function options(browser, base, output, name) {
       const failed = new app.constructor({ renderer: 'fixture', renderers: registry });
       let failure;
       try { await failed.init(); } catch (error) { failure = error; }
-      const clean = failed.destroyed && !document.querySelector('canvas, .orrery-options');
+      const clean = failed.destroyed && !document.querySelector('canvas, .orrery-options, .orrery-planet-label');
       failed.destroy();
 
       const replacementRegistry = { ...registry,

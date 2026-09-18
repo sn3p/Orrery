@@ -56,7 +56,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
           try { await app.init(); } catch { rejected = true; }
           check(rejected && app.destroyed && !app.initialized, 'Failed init is terminal and disposed');
           check(!failedPixi.renderer && !failedPixi.stage, 'Failed init releases partial GPU/stage resources');
-          check(!document.querySelector('canvas, .orrery-options'), 'Failed init attaches no canvas/UI');
+          check(!document.querySelector('canvas, .orrery-options, .orrery-planet-label'), 'Failed init attaches no canvas/UI');
           check(document.getElementById('orrery-status').textContent.includes('Unable to start'), 'Initial error remains visible');
           app.destroy(); app.destroy(); app.renderStatus();
           check(!document.getElementById('orrery-status').textContent, 'Explicit teardown clears failed Pixi startup feedback');
@@ -76,7 +76,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
         app.renderFrame(100000);
         check(Math.abs(app.jed - start - 112.5) < 1e-6, 'Long stalls preserve the existing250ms cap');
         app.destroy(); app.destroy();
-        check(!document.querySelector('canvas, .orrery-options') && pendingFrames.size === 0, 'Raw lifecycle leaves no UI/canvas/RAF');
+        check(!document.querySelector('canvas, .orrery-options, .orrery-planet-label') && pendingFrames.size === 0, 'Raw lifecycle leaves no UI/canvas/RAF');
         return { sharedInit: true, lazyDispose: true, failedInit: ['before-allocation', 'after-allocation'], earlyLoad: 100000, clock: true, pendingFrames: pendingFrames.size };
       } finally {
         release?.(); Application.prototype.init = init; app?.destroy();

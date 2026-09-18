@@ -98,6 +98,9 @@ async function run({ browser, name, application = "unified", output: artifactDir
           assert(await page.getByRole("combobox", { name: "Renderer", exact: true }).evaluate(el => el === document.activeElement));
           await page.keyboard.press("Tab");
           assert(await input.evaluate(el => el === document.activeElement), "Tab reaches speed after Renderer");
+          await page.keyboard.press("Tab");
+          assert(await page.getByRole("combobox", { name: "Planet labels" }).evaluate(el => el === document.activeElement),
+            "Tab reaches planet labels after speed");
           await input.fill("0"); await input.press("Enter");
           await page.waitForFunction(() => document.querySelector("#orrery-fps").textContent === "0 FPS");
           await require("./next-layout.cjs").checkLongReadouts(page);
@@ -155,7 +158,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
       assert.equal(await failure.getByRole("status").textContent(),
         "Unable to start the visualization. Please reload to try again.",
         "A failed renderer download gives recovery guidance without claiming WebGL is missing");
-      assert.equal(await failure.locator("canvas, .orrery-options").count(), 0);
+      assert.equal(await failure.locator("canvas, .orrery-options, .orrery-planet-label").count(), 0);
       assert(await failure.getByRole("button", { name: "About Orrery", exact: true }).isVisible());
       await failure.unroute("**/assets/pixi.*.js");
       await failure.reload();

@@ -16,6 +16,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
   const trigger = page.getByRole("button", { name: "Options", exact: true });
   const panel = page.locator(".orrery-options-panel");
   const speed = page.getByRole("textbox", { name: "Playback speed" });
+  const labels = page.getByRole("combobox", { name: "Planet labels" });
   const dpr = page.getByRole("combobox", { name: "Rendering pixel ratio" });
   const checkSpacing = async () => {
     const spacing = await panel.evaluate(el => {
@@ -48,6 +49,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert.equal(await trigger.getAttribute("aria-expanded"), "false");
     assert.equal(await trigger.getAttribute("aria-controls"), await panel.getAttribute("id"));
     assert.equal(await speed.count(), 0, "Closed controls are absent from the accessibility tree");
+    assert.equal(await labels.count(), 0, "Closed label modes are absent from the accessibility tree");
     const triggerStyle = await trigger.evaluate(element => {
       const style = getComputedStyle(element);
       return {
@@ -96,6 +98,9 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       || (!el.querySelector("select[aria-label='Renderer']") && el.querySelector("input") === document.activeElement)),
     "Tab reaches the first revealed control");
     await expect(speed).toHaveAccessibleDescription("0 pauses; negative reverses. 1 = 60 days per second.");
+    await expect(labels).toHaveAccessibleDescription("Show Earth as an orientation cue, label every planet, or hide planet labels.");
+    assert.deepEqual(await labels.locator("option").allTextContents(), ["Off", "Earth only", "All planets"]);
+    assert.equal(await labels.inputValue(), "earth");
     const dprHelp = await page.locator("#" + await dpr.getAttribute("aria-describedby")).textContent();
     assert.equal(dprHelp, "Rendering resolution. 2× is sharper but requires more graphics processing.");
     assert.equal(await dpr.getAttribute("title"), dprHelp);
@@ -126,6 +131,14 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert(styles.select, "DPR select has a visible border on every side");
     await checkSpacing();
     await speed.fill("0"); await speed.press("Enter");
+    await labels.selectOption("all");
+    assert.equal(await page.locator(".orrery-planet-label").count(), 6);
+    assert.deepEqual(await page.locator(".orrery-planet-label").evaluateAll(elements => Object.fromEntries(
+      elements.map(element => [element.dataset.planet, getComputedStyle(element).color]))), {
+      Mercury: "rgb(236, 205, 158)", Venus: "rgb(236, 205, 158)", Earth: "rgb(152, 192, 255)",
+      Mars: "rgb(255, 188, 131)", Jupiter: "rgb(197, 195, 189)", Saturn: "rgb(236, 205, 158)",
+    });
+    await labels.selectOption("earth");
     await dpr.selectOption("2");
     await dpr.selectOption("1");
     await page.waitForFunction(() => document.querySelector("#orrery-fps").textContent === "0 FPS");
@@ -172,7 +185,8 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       assert(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= viewport.width
         && bounds.y + bounds.height <= viewport.height, "Options fit narrow and short viewports");
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), viewport.width);
-      for (const control of [speed, dpr]) {
+      for (const control of [speed, labels, dpr]) {
+        await control.scrollIntoViewIfNeeded();
         const box = await control.boundingBox();
         assert(box.x >= bounds.x && box.x + box.width <= bounds.x + bounds.width);
       }

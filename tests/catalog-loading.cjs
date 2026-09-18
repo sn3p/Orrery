@@ -185,7 +185,7 @@ async function run(browser, base, output, name) {
       }, { pin: cases.bundles.empty.pin, base });
       assert.deepEqual(replacement, { accepted: false, closed: true, count: 0, complete: true });
       await page.evaluate(() => { const app = window.catalogTest.app; app.destroy(); app.destroy(); });
-      assert.equal(await page.locator("canvas, .orrery-options").count(), 0);
+      assert.equal(await page.locator("canvas, .orrery-options, .orrery-planet-label").count(), 0);
       // Hold the real index response across reload so the exported app exists
       // while its asynchronous catalogue loader is still absent.
       let releaseIndex;
@@ -345,7 +345,7 @@ async function run(browser, base, output, name) {
         await opening.evaluate(() => window.catalogTest.app.destroy());
         releaseIndex();
         await opening.evaluate(() => window.catalogReady);
-        assert.equal(await opening.locator("canvas, .orrery-options").count(), 0);
+        assert.equal(await opening.locator("canvas, .orrery-options, .orrery-planet-label").count(), 0);
       }
     } finally { releaseIndex?.(); await opening.close(); }
   }
