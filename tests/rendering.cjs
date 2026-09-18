@@ -132,7 +132,10 @@ async function dpr(page, browserName) {
       // do not call Orrery's resize/invalidation methods from the test.
       await session.send('Emulation.setEmulatedMedia', { media: value === 2 ? 'screen' : '' });
       await page.waitForFunction(r => fixture.app.nativePixelRatio === r, value);
-      if (value === 2) await page.getByRole('combobox', { name: 'Rendering pixel ratio' }).selectOption('2');
+      if (value === 2) {
+        await require('./options.cjs').openOptions(page);
+        await page.getByRole('combobox', { name: 'Rendering pixel ratio' }).selectOption('2');
+      }
       await page.waitForFunction(r => fixture.app.app.renderer.resolution === r, value);
       const after = await idle(page);
       assert(after.draws > before.draws);
