@@ -308,6 +308,10 @@
   outline-offset: 2px;
 }
 
+/* A dialog heading can receive initial focus to announce its context without
+   opening a native form control. It is not an interactive focus target. */
+dialog .orrery-dialog-title:focus { outline: none; }
+
 .orrery-intro {
   width: 440px;
   max-width: calc(100vw - 16px);
