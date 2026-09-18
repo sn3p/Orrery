@@ -83,7 +83,7 @@ async function entries(browser, base, output, name) {
         await page.reload();
         await page.waitForFunction(() => Number(document.querySelector('#orrery-count').textContent.replaceAll("\u202f", "")) > 0);
         if (persistenceBoundary) {
-          assert.equal(await page.evaluate(() => app.planetLabels), 'off');
+          assert.equal(await page.evaluate(() => (window.threeTest?.app ?? window.catalogTest.app).planetLabels), 'off');
           assert.equal(await page.locator('.orrery-planet-label').count(), 0);
           assert.equal(await page.locator('select[aria-label="Planet labels"]').inputValue(), 'off');
           await page.getByRole('button', { name: 'Options', exact: true }).click();
@@ -322,9 +322,11 @@ async function lifecycle(browser, base, output, name) {
       // A completely offscreen camera still commits time with an actual draw.
       app.renderer.controls.target.set(1e8,1e8,1e8); app.renderer.controls.update();
       app.jed += 1; const requested = app.jed; app.renderFrame();
-      return { hidden: hidden === before, resume: first === before, advance, offscreen: app.jed === requested && !app.requestedJed };
+      return { hidden: hidden === before, resume: first === before, advance,
+        offscreen: app.jed === requested && !app.requestedJed,
+        labelHidden: document.querySelector('.orrery-planet-label').hidden };
     });
-    assert.deepEqual(visibility, { hidden: true, resume: true, advance: 9, offscreen: true });
+    assert.deepEqual(visibility, { hidden: true, resume: true, advance: 9, offscreen: true, labelHidden: true });
     for (let cycle = 0; cycle < 2; cycle++) {
       await page.evaluate(() => { window.loss = app.renderer.renderer.getContext().getExtension('WEBGL_lose_context'); loss.loseContext(); });
       await page.waitForFunction(() => app.contextLost);
@@ -332,8 +334,12 @@ async function lifecycle(browser, base, output, name) {
       assert.equal(await page.evaluate(() => app.animationFrame), null);
       assert(await page.locator('.orrery-planet-label').isHidden());
       await page.evaluate(() => loss.restoreContext()); await page.waitForFunction(() => !app.contextLost);
-      assert(await page.evaluate(() => { app.renderFrame(); return !app.renderFailure && app.catalogue === model; }));
-      assert(await page.locator('.orrery-planet-label').isVisible());
+      assert(await page.evaluate(() => {
+        app.renderer.controls.reset();
+        app.renderFrame();
+        return !app.renderFailure && app.catalogue === model;
+      }));
+      assert(await page.locator('.orrery-planet-label[data-planet="Earth"]').isVisible());
     }
     assert.equal(requests.length, 1, 'Two graphics restorations reuse retained CPU catalogue');
     assert(await page.evaluate(() => Object.entries(originalArrays).every(([key, values]) => values.every((v,i) => Object.is(v, model[key][i])))), 'Canonical data remains unmutated');
