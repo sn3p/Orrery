@@ -33,10 +33,10 @@ module.exports = defineConfig({
     actionTimeout: 30_000,
     navigationTimeout: 30_000,
     // Recording every DOM snapshot and screencast is expensive for these WebGL
-    // tests. Keep actions/sources and failure screenshots; --trace on opts into
-    // full visual traces when investigating a specific case.
+    // tests. Keep actions/sources and failure screenshots by default; --trace
+    // opts into full visual traces when investigating a specific case.
     trace: { mode: 'retain-on-failure', snapshots: false, screenshots: false },
-    screenshot: 'only-on-failure',
+    screenshot: process.env.ORRERY_NO_SCREENSHOTS === '1' ? 'off' : 'only-on-failure',
   },
   projects: [
     ...[...new Set(browsers)].map(name => ({

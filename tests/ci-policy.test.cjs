@@ -157,7 +157,7 @@ test('native selection retains core in Chromium, smoke in other engines and two 
     visit(report); return rows;
   };
   const core = discover('core');
-  assert.equal(core.length, 26);
+  assert.equal(core.length, 27);
   for (const browser of ['firefox', 'webkit']) {
     const cases = core.filter(row => row.project === browser);
     assert.equal(cases.length, 2); assert(cases.every(row => row.tags.includes('smoke')));
@@ -170,7 +170,7 @@ test('native selection retains core in Chromium, smoke in other engines and two 
     assert(ui.some(row => row.project === browser && row.title === 'pixel ratio and display transitions'));
     assert(ui.some(row => row.project === browser && row.title.startsWith('preview footer')));
   }
-  const full = discover('full'); assert.equal(full.length, 112);
+  const full = discover('full'); assert.equal(full.length, 115);
   assert(full.some(row => row.title.includes('configured promotion')));
   assert(full.some(row => row.title.includes('benchmark CLI provenance')));
   // Follow actual workflow outputs through native discovery and its shards.

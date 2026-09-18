@@ -169,7 +169,7 @@ export default class ThreeRenderer {
     }
     cloud.append(cloud.committedCount + 8192);
     if (cloud !== this.asteroids && activate && cloud.committedCount >= required) {
-      cloud.update(frame.jed, frame.elapsed);
+      cloud.update(frame.jed, frame.elapsed, { baseline: true });
       this.installAsteroids(cloud, true);
       this.stagedAsteroids = null;
     }
@@ -179,6 +179,11 @@ export default class ThreeRenderer {
   needsCatalogPacking(model) {
     const cloud = this.asteroids?.catalogue === model ? this.asteroids : this.stagedAsteroids;
     return !!model && (cloud?.committedCount ?? 0) < model.count;
+  }
+
+  catalogueProgress(model) {
+    const cloud = this.asteroids?.catalogue === model ? this.asteroids : this.stagedAsteroids;
+    return cloud?.catalogue === model ? cloud.committedCount : 0;
   }
 
   discardStagedCatalogue() {
@@ -202,8 +207,8 @@ export default class ThreeRenderer {
     this.catalogueTransition = null;
   }
 
-  update({ jed, elapsed }) {
-    const count = this.asteroids?.update(jed, elapsed) ?? 0;
+  update({ jed, elapsed }, options) {
+    const count = this.asteroids?.update(jed, elapsed, options) ?? 0;
     for (const planet of this.planets) planet.render(jed);
     return count;
   }

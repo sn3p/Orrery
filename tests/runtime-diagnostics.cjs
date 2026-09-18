@@ -60,7 +60,9 @@ async function run({ browser, name, output = path.resolve('.context/promotion/ru
         assert.equal(frozen.count, 1);
         await page.evaluate(() => probe.app.renderFrame(1004)); // Cross the missing-data boundary.
         assert.equal(await page.evaluate(() => probe.app.catalogLoader.buffering), true);
-        assert.equal(await page.locator('#orrery-status').textContent(), 'Buffering asteroids…');
+        assert.equal(await page.locator('.orrery-status-label').textContent(), 'Buffering asteroids…');
+        assert.match(await page.locator('.orrery-status-detail').textContent(), /^\d{4}-\d{2}-\d{2} · \d+ \/ \d+$/);
+        assert.match(await page.locator('#orrery-status').getAttribute('aria-label'), /^Buffering asteroids for \d{4}-\d{2}-\d{2}\.$/);
         assert.equal(await page.locator('#orrery-fps').textContent(), '0 FPS');
         for (const timestamp of [1020, 1100, 2000]) {
           assert.deepEqual(await page.evaluate(timestamp => {

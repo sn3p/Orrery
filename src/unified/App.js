@@ -1,4 +1,4 @@
-import { toJED } from "../js/utils.js";
+import { fromJED, toJED } from "../js/utils.js";
 import { validDate } from "../js/asteroidOrbits.js";
 import PlaybackClock from "../js/PlaybackClock.js";
 import Stats from "../js/Stats.js";
@@ -11,6 +11,9 @@ import switchRenderer from "./switchRenderer.js";
 
 // Shared across module replacements so stale disposal cannot erase a new App's feedback.
 const STATUS_OWNER = Symbol.for("orrery.statusOwner");
+const countFormat = new Intl.NumberFormat("en-US");
+const formatCount = value => countFormat.format(value).replaceAll(",", "\u202f");
+const formatDay = jed => fromJED(jed).toISOString().slice(0, 10);
 
 export default class App {
   constructor(options = {}) {
@@ -40,6 +43,8 @@ export default class App {
     this.asteroidsDiscovered = 0;
     this.hasCommittedReadouts = false;
     this.loadVersion = 0;
+    this.seekGeneration = 0;
+    this.pendingSeek = null;
     this.rendererGeneration = 0;
     this.destroyed = false;
     this.initialized = false;
@@ -91,6 +96,7 @@ export default class App {
   set jed(value) {
     if (this.destroyed || Object.is(value, this.requestedJed ?? this._jed)) return;
     if (!validDate(value)) throw new Error("Invalid playback date.");
+    this.pendingSeek = { generation: ++this.seekGeneration, target: value };
     if (this.switching || this.catalogOpening || this.catalogLoader?.source) {
       this.requestedJed = value;
       this.resetClock();
@@ -219,6 +225,7 @@ export default class App {
     this.catalogFailure = null;
     if (this.renderFailure && !this.contextLost) this.renderFailure = null;
     this.requestedJed = null;
+    this.pendingSeek = null;
     this.loadVersion++;
     this.loadController?.abort();
     this.setStatus("");
@@ -244,7 +251,7 @@ export default class App {
     this.loadController?.abort();
     const controller = this.loadController = new AbortController();
     const version = ++this.loadVersion;
-    this.setStatus("Loading asteroids…");
+    this.setStatus("Loading asteroids…", false, { busy: true });
     try {
       // Explicit callers may start a load during renderer initialization.
       await this.init();
@@ -340,11 +347,48 @@ export default class App {
   }
   updateCatalogStatus() {
     const loader = this.catalogLoader;
+    const target = this.requestedJed ?? this.pendingSeek?.target;
+    const targetDay = Number.isFinite(target) ? formatDay(target) : "";
     const failure = (this.catalogFailure && "Could not load the asteroid catalogue. Reload to try again.")
       || (loader?.errorKind === "commit" && "This asteroid catalogue cannot be prepared for this renderer.")
-      || (loader?.error && loader.buffering && "Could not load more asteroids. Reload to try again.");
-    this.setStatus(failure || (this.catalogOpening || (loader?.source && !loader.initialRendered)
-      ? "Loading asteroids…" : loader?.buffering ? "Buffering asteroids…" : ""), !!failure);
+      || (loader?.error && loader.buffering && (targetDay
+        ? `Could not load asteroids for ${targetDay}. Reload to try again.`
+        : "Could not load more asteroids. Reload to try again."));
+    if (failure) {
+      this.setStatus(failure, true);
+      return;
+    }
+    if (this.catalogOpening && this.hasCommittedReadouts && targetDay) {
+      this.setStatus("Buffering asteroids…", false, {
+        busy: true,
+        detail: targetDay,
+        announcement: `Buffering asteroids for ${targetDay}.`,
+      });
+      return;
+    }
+    if (this.catalogOpening || (loader?.source && !loader.initialRendered && !this.hasCommittedReadouts)) {
+      this.setStatus("Loading asteroids…", false, { busy: true });
+      return;
+    }
+    if (!loader?.source || !Number.isFinite(target)) {
+      this.setStatus("");
+      return;
+    }
+    const required = loader.source.countThrough(target);
+    const session = this.pendingSession ?? this.activeSession;
+    const packed = this.renderer?.catalogueProgress?.(session?.model) ?? 0;
+    const buffering = loader.committedCount < required;
+    const preparing = !buffering && !loader.sceneComplete(target);
+    if (!buffering && !preparing) {
+      this.setStatus("");
+      return;
+    }
+    const completed = Math.min(required, buffering ? loader.committedCount : packed);
+    this.setStatus(buffering ? "Buffering asteroids…" : "Preparing asteroids…", false, {
+      busy: true,
+      detail: `${targetDay} · ${formatCount(completed)} / ${formatCount(required)}`,
+      announcement: `${buffering ? "Buffering" : "Preparing"} asteroids for ${targetDay}.`,
+    });
   }
 
   syncCatalog(date) {
@@ -372,9 +416,12 @@ export default class App {
     this.gui = new Hud(this);
   }
 
-  setStatus(message, error = false) {
+  setStatus(message, error = false, { busy = false, detail = "", announcement = message } = {}) {
     this.statusMessage = message;
     this.statusError = error;
+    this.statusBusy = busy;
+    this.statusDetail = detail;
+    this.statusAnnouncement = announcement;
     this.renderStatus();
   }
   renderStatus() {
@@ -387,16 +434,51 @@ export default class App {
       status[STATUS_OWNER] = this;
       const message = this.switchMessage || (!this.renderer && this.switchError) || this.graphicsError
         || (this.statusError && this.statusMessage) || this.switchError || this.statusMessage || this.rendererNotice || "";
-      const changed = status.firstChild?.textContent !== message;
-      status.textContent = message;
-      if (this.switchError && !this.renderer && !this.destroyed) {
+      const usingCatalogStatus = message === this.statusMessage;
+      const detail = usingCatalogStatus ? this.statusDetail : "";
+      const busy = usingCatalogStatus ? this.statusBusy : !!this.switchMessage || /^Restoring /.test(message);
+      const announcement = usingCatalogStatus ? this.statusAnnouncement : message;
+      const signature = JSON.stringify([message, busy, announcement, !!detail]);
+      const changed = status.dataset.signature !== signature;
+      if (changed) {
+        status.replaceChildren();
+        if (message) {
+          const visual = document.createElement("span");
+          visual.className = "orrery-status-visual";
+          if (busy) {
+            const spinner = document.createElement("span");
+            spinner.className = "orrery-status-spinner";
+            spinner.setAttribute("aria-hidden", "true");
+            visual.append(spinner);
+          }
+          const label = document.createElement("span");
+          label.className = "orrery-status-label";
+          label.textContent = message;
+          visual.append(label);
+          if (detail) {
+            const progress = document.createElement("span");
+            progress.className = "orrery-status-detail";
+            progress.textContent = detail;
+            visual.append(progress);
+          }
+          if (busy) visual.setAttribute("aria-hidden", "true");
+          status.append(visual);
+        }
+        status.dataset.signature = signature;
+      } else if (detail) {
+        status.querySelector(".orrery-status-detail").textContent = detail;
+      }
+      if (busy && message) {
+        if (status.getAttribute("aria-label") !== announcement) status.setAttribute("aria-label", announcement);
+      } else status.removeAttribute("aria-label");
+      if (changed && this.switchError && !this.renderer && !this.destroyed) {
         const retry = document.createElement("button");
         retry.type = "button";
         retry.textContent = "Retry visualization";
         retry.onclick = () => { void this.switchRenderer(this.failedRendererId); };
         status.append(" ", retry);
       }
-      if (this.rendererRecovery) {
+      if (changed && this.rendererRecovery) {
         const link = document.createElement("a"), url = new URL(location.href);
         url.searchParams.set("renderer", "pixi");
         link.href = url.href;
@@ -452,6 +534,7 @@ export default class App {
     const previous = this.pendingBundled?.previous ?? this.renderer?.frameState
       ?? { jed: this.jed, elapsed: this.elapsed, count: this.asteroidsDiscovered };
     const requested = this.requestedJed ?? (this.jed !== previous.jed ? this.jed : null);
+    const seek = this.pendingSeek;
     const graphicsGeneration = this.rendererGeneration;
     let drawn = null, prepared = false, frameError;
     const fail = error => {
@@ -509,7 +592,7 @@ export default class App {
       }
       this.updateCatalogStatus();
     } else if (!committed) {
-      this.requestedJed ??= session ? this.jed : requested;
+      this.requestedJed ??= seek?.target ?? (session ? this.jed : requested);
       this._jed = previous.jed;
       this.elapsed = previous.elapsed;
       this.asteroidsDiscovered = previous.count;
@@ -526,6 +609,8 @@ export default class App {
         if (!this.renderFailure) this.requestRender();
       }
     }
+    if (committed && seek && this.pendingSeek?.generation === seek.generation
+      && Object.is(this.jed, seek.target)) this.pendingSeek = null;
     this.renderer.commitFrame?.();
     if (!session && this.catalogue && committed && !this.catalogue.firstDraw) {
       this.catalogue.firstDraw = true;
@@ -576,8 +661,9 @@ export default class App {
     this.requestedJed = null;
     this._jed = next;
     this.elapsed += wasWaiting ? 0 : this.clock.seconds;
-    this.renderer.captureFrame(this.frameState);
-    const count = this.renderer.update(this.frameState);
+    const baseline = !!this.pendingSeek && Object.is(next, this.pendingSeek.target);
+    this.renderer.captureFrame(this.frameState, { baseline });
+    const count = this.renderer.update(this.frameState, { baseline });
     if (!this.deferReadouts) this.asteroidsDiscovered = count;
     if (this.isPlaying) this.stats.update();
     else this.stats.reset();
@@ -604,11 +690,15 @@ export default class App {
     // Clear it on later explicit disposal, without touching a newer App's UI.
     this.renderFailure = null;
     this.rendererRecovery = this.graphicsRecoveryPending = false;
-    this.rendererNotice = this.graphicsError = this.statusMessage = this.switchError = this.switchMessage = "";
+    this.rendererNotice = this.graphicsError = this.statusMessage = this.statusDetail = this.statusAnnouncement
+      = this.switchError = this.switchMessage = "";
+    this.statusBusy = false;
     this.statusError = false;
     if (this.statusNode?.[STATUS_OWNER] === this) {
       this.statusNode.textContent = "";
       this.statusNode.setAttribute("role", "status");
+      this.statusNode.removeAttribute("aria-label");
+      delete this.statusNode.dataset.signature;
       delete this.statusNode[STATUS_OWNER];
     }
     this.statusNode = null;
