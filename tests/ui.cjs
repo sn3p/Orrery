@@ -119,7 +119,12 @@ async function run({ browser, name, application = "unified", output: artifactDir
       await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
       report.push({ width, state: "loaded", ui: await checkTypography(page) });
 
-      if (await page.getByRole("combobox", { name: "Renderer", exact: true }).count()) await page.keyboard.press("Tab");
+      const renderer = page.getByRole("combobox", { name: "Renderer", exact: true });
+      await page.keyboard.press("Tab");
+      if (await renderer.count()) {
+        assert(await renderer.evaluate(input => input === document.activeElement), "Renderer input is keyboard reachable");
+        await page.keyboard.press("Tab");
+      }
       assert(await page.getByRole("textbox", { name: "Playback speed" }).evaluate(input => input === document.activeElement), "Speed input is keyboard reachable");
       await setSpeed(page, 0);
       const date = await page.locator("#orrery-date").textContent();
