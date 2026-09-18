@@ -349,9 +349,10 @@ export default class App {
     const loader = this.catalogLoader;
     const target = this.requestedJed ?? this.pendingSeek?.target;
     const targetDay = Number.isFinite(target) ? formatDay(target) : "";
+    const hasTargetContext = this.hasCommittedReadouts && targetDay;
     const failure = (this.catalogFailure && "Could not load the asteroid catalogue. Reload to try again.")
       || (loader?.errorKind === "commit" && "This asteroid catalogue cannot be prepared for this renderer.")
-      || (loader?.error && loader.buffering && (targetDay
+      || (loader?.error && loader.buffering && (hasTargetContext
         ? `Could not load asteroids for ${targetDay}. Reload to try again.`
         : "Could not load more asteroids. Reload to try again."));
     if (failure) {

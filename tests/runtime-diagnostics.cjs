@@ -7,6 +7,8 @@ const { fixtureFiles, producerBase } = require('./default-catalog-route.cjs');
 
 async function run({ browser, name, output = path.resolve('.context/promotion/runtime-diagnostics', name) }) {
   await fs.mkdir(output, { recursive: true });
+  const capture = process.env.ORRERY_NO_SCREENSHOTS === '1' ? async () => {}
+    : (page, options) => page.screenshot(options);
   const entry = path.join(output, 'entry.js'), site = path.join(output, 'site');
   await fs.writeFile(entry, `import { app, ready } from ${JSON.stringify(path.resolve('src/unified/index.js'))};
     app.jedDelta = 0; window.probe = { app, ready };`);
@@ -62,7 +64,7 @@ async function run({ browser, name, output = path.resolve('.context/promotion/ru
         assert.equal(await page.evaluate(() => probe.app.catalogLoader.buffering), true);
         assert.equal(await page.locator('.orrery-status-label').textContent(), 'Buffering asteroids…');
         assert.match(await page.locator('.orrery-status-detail').textContent(), /^\d{4}-\d{2}-\d{2} · \d+ \/ \d+$/);
-        assert.match(await page.locator('#orrery-status').getAttribute('aria-label'), /^Buffering asteroids for \d{4}-\d{2}-\d{2}\.$/);
+        assert.match(await page.locator('#orrery-status').ariaSnapshot(), /^- status: Buffering asteroids for \d{4}-\d{2}-\d{2}\.$/);
         assert.equal(await page.locator('#orrery-fps').textContent(), '0 FPS');
         for (const timestamp of [1020, 1100, 2000]) {
           assert.deepEqual(await page.evaluate(timestamp => {
@@ -72,7 +74,7 @@ async function run({ browser, name, output = path.resolve('.context/promotion/ru
               countText: document.querySelector('#orrery-count').textContent };
           }, timestamp), frozen, 'Buffering retains the last complete frame and readouts');
         }
-        await page.screenshot({ path: path.join(output, renderer + '-buffering.png') });
+        await capture(page, { path: path.join(output, renderer + '-buffering.png') });
         release();
         await page.evaluate(() => {
           const app = probe.app; app.autoRender = true; app.resetClock(); app.requestRender();
@@ -89,7 +91,7 @@ async function run({ browser, name, output = path.resolve('.context/promotion/ru
             await app.switchRenderer('three'); await app.switchRenderer('pixi');
           }
         });
-        await page.screenshot({ path: path.join(output, renderer + '-recovered.png') });
+        await capture(page, { path: path.join(output, renderer + '-recovered.png') });
         await page.evaluate(() => probe.app.destroy());
         const result = { renderer, bufferingFreezesReadouts: true, resumesWithFPS: true, errors, warnings };
         results.push(result);

@@ -67,7 +67,8 @@ async function setSpeed(page, value) {
 async function checkStatusContrast(page, expected) {
   const status = await page.locator("#orrery-status").evaluate(element => {
     const { x, y, width, height } = element.getBoundingClientRect();
-    return { text: element.textContent, color: getComputedStyle(element).color,
+    return { text: element.querySelector(".orrery-status-label")?.textContent ?? element.textContent,
+      color: getComputedStyle(element).color,
       background: getComputedStyle(element).backgroundColor,
       fits: width > 0 && height > 0 && x >= 0 && y >= 0 && x + width <= innerWidth && y + height <= innerHeight };
   });
@@ -92,6 +93,8 @@ async function run({ browser, name, application = "unified", output: artifactDir
   const dist = path.join(root, "dist");
   const output = artifactDirectory || path.join(root, ".context/pr2/unified-ui");
   fs.mkdirSync(output, { recursive: true });
+  const capture = process.env.ORRERY_NO_SCREENSHOTS === "1" ? async () => {}
+    : (page, options) => page.screenshot(options);
   // Serve the actual production files at the GitHub Pages subpath.
   const server = http.createServer((req, res) => {
     const pathname = new URL(req.url, "http://localhost").pathname;
@@ -125,7 +128,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
       const date = await page.locator("#orrery-date").textContent();
       await page.waitForTimeout(150);
       assert.equal(await page.locator("#orrery-date").textContent(), date, "Keyboard editing pauses playback");
-      await page.screenshot({ path: path.join(output, `ui-${width}.png`) });
+      await capture(page, { path: path.join(output, `ui-${width}.png`) });
       await setSpeed(page, -1);
       await page.waitForFunction(previous => document.querySelector("#orrery-date").textContent < previous, date);
       const reversed = await page.locator("#orrery-date").textContent();
@@ -156,7 +159,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
     releaseFont();
     report.push({ width: 360, state: "catalog-loading", ui: await checkTypography(page),
       status: await checkStatusContrast(page, "Loading asteroids…") });
-    await page.screenshot({ path: path.join(output, "loading-360.png") });
+    await capture(page, { path: path.join(output, "loading-360.png") });
     releaseCatalog();
     await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
 
@@ -172,7 +175,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
     await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
     report.push({ width: 360, state: "font-fallback", ui: await checkTypography(page, { fontLoaded: false }) });
     await setSpeed(page, 0);
-    await page.screenshot({ path: path.join(output, "fallback-360.png") });
+    await capture(page, { path: path.join(output, "fallback-360.png") });
     assert.deepEqual(errors, [], "No JavaScript errors during loading or font fallback");
 
     await page.unroute("**/*.woff2");
@@ -182,7 +185,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
     await page.waitForFunction(message => document.querySelector("#orrery-status").textContent === message, errorMessage);
     report.push({ width: 360, state: "catalog-error", ui: await checkTypography(page),
       status: await checkStatusContrast(page, errorMessage) });
-    await page.screenshot({ path: path.join(output, "error-360.png") });
+    await capture(page, { path: path.join(output, "error-360.png") });
     assert.deepEqual(errors, [], "No JavaScript errors during catalogue failure");
     fs.writeFileSync(path.join(output, "results.json"), JSON.stringify(report, null, 2) + "\n");
     console.log("UI checks passed: production font/license delivery, desktop/mobile typography, keyboard and slider playback, reload, delayed loading and font fallback.");
