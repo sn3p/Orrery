@@ -22,6 +22,7 @@ export default class Intro {
     this.dateAction?.addEventListener("click", this.onDate);
     this.optionsAction?.addEventListener("click", this.onOptions);
     for (const action of this.rendererActions) action.addEventListener("click", this.onRenderer);
+    this.stopRendererStateObserver = this.app.observeRendererState?.(this.onRendererState);
     if (!remembered()) this.open();
     // index.js starts App immediately after constructing Intro. Reconcile the
     // initially selected label once that shared initialization promise exists.
@@ -50,7 +51,8 @@ export default class Intro {
   }
 
   updateRendererActions() {
-    const busy = !!this.rendererTarget || !!this.app.switching;
+    const busy = !this.app.destroyed
+      && (!!this.rendererTarget || !!this.app.switching || !!this.app.switchPromise);
     this.rendererGroup?.setAttribute("aria-busy", String(busy));
     if (this.dateAction) this.dateAction.disabled = this.app.destroyed;
     if (this.optionsAction) this.optionsAction.disabled = this.app.destroyed;
@@ -75,6 +77,7 @@ export default class Intro {
   }
 
   onOpen = () => { this.open(); };
+  onRendererState = () => { if (this.dialog) this.updateRendererActions(); };
   onDate = () => { this.closeWith(() => this.withControls(gui => gui?.timeline.open())); };
   onOptions = () => { this.closeWith(() => this.withControls(gui => gui?.controls.open())); };
   onRenderer = event => {
@@ -113,6 +116,8 @@ export default class Intro {
     this.dateAction?.removeEventListener("click", this.onDate);
     this.optionsAction?.removeEventListener("click", this.onOptions);
     for (const action of this.rendererActions ?? []) action.removeEventListener("click", this.onRenderer);
+    this.stopRendererStateObserver?.();
+    this.stopRendererStateObserver = null;
     this.pendingAction = null;
     this.rendererWatch = null;
     // Disposal (for example a hot update) is not a dismissal; nothing is remembered.

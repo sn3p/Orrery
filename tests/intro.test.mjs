@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import Intro from "../src/unified/ui/Intro.js";
+import switchRenderer from "../src/unified/switchRenderer.js";
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
@@ -33,7 +34,7 @@ function fixture({ renderer = {}, rendererId = "pixi", remembered = false } = {}
   elements["intro-2d"].dataset.renderer = "pixi";
   elements["intro-3d"].dataset.renderer = "three";
   elements["orrery-intro"].rendererActions = [elements["intro-2d"], elements["intro-3d"]];
-  const order = [], app = {
+  const order = [], rendererStateObservers = new Set(), app = {
     rendererRegistry: { pixi: {}, three: {} },
     rendererId,
     renderer,
@@ -43,6 +44,11 @@ function fixture({ renderer = {}, rendererId = "pixi", remembered = false } = {}
     holds: [],
     hold(value) { this.holds.push(value); order.push(`hold:${value}`); },
     init() { return Promise.resolve(); },
+    observeRendererState(observer) {
+      rendererStateObservers.add(observer);
+      return () => rendererStateObservers.delete(observer);
+    },
+    notifyRendererState() { for (const observer of rendererStateObservers) observer(); },
     gui: {
       timeline: { open() { order.push("date"); app.hold(true); } },
       controls: { open() { order.push("options"); } },
@@ -59,7 +65,7 @@ function fixture({ renderer = {}, rendererId = "pixi", remembered = false } = {}
     getItem: key => storage.get(key) ?? null,
     setItem: (key, value) => storage.set(key, value),
   };
-  return { app, document, elements, localStorage, order, storage };
+  return { app, document, elements, localStorage, order, storage, rendererStateObservers };
 }
 
 async function withFixture(options, run) {
@@ -124,14 +130,18 @@ test("renderer shortcuts stay actionable, recover missing graphics and follow ex
     intro.destroy();
   });
 
-  await withFixture({ remembered: true }, async ({ app, elements }) => {
+  await withFixture({ remembered: true }, async ({ app, elements, rendererStateObservers }) => {
     let resolveSwitch;
     const pending = new Promise(resolve => { resolveSwitch = resolve; });
-    app.switching = "loading";
-    app.switchPromise = pending;
     const intro = new Intro(app);
     intro.open();
     const twoD = elements["intro-2d"], threeD = elements["intro-3d"];
+    assert.equal(elements["orrery-intro-renderers"].getAttribute("aria-busy"), "false");
+
+    // This switch begins elsewhere after the introduction is already open.
+    app.switching = "loading";
+    app.switchPromise = pending;
+    app.notifyRendererState();
     assert.equal(elements["orrery-intro-renderers"].getAttribute("aria-busy"), "true");
     assert(twoD.disabled && threeD.disabled);
 
@@ -140,6 +150,7 @@ test("renderer shortcuts stay actionable, recover missing graphics and follow ex
     app.switching = null;
     app.switchPromise = null;
     resolveSwitch();
+    app.notifyRendererState();
     await settle();
     assert.equal(elements["orrery-intro-renderers"].getAttribute("aria-busy"), "false");
     assert.equal(threeD.getAttribute("aria-pressed"), "true");
@@ -155,5 +166,33 @@ test("renderer shortcuts stay actionable, recover missing graphics and follow ex
     assert.equal(twoD.getAttribute("aria-pressed"), "false");
     assert.equal(threeD.getAttribute("aria-pressed"), "false");
     intro.destroy();
+    assert.equal(rendererStateObservers.size, 0, "Destroying Intro removes its renderer observer");
   });
+});
+
+test("renderer switching publishes its start and settled lifecycle", async () => {
+  const states = [];
+  const app = {
+    rendererRegistry: { pixi: {} },
+    rendererId: "pixi",
+    renderer: {},
+    destroyed: false,
+    requestedRenderer: null,
+    switchPromise: null,
+    init: () => Promise.resolve(),
+    notifyRendererState() { states.push(!!this.switchPromise); },
+  };
+  assert.equal(await switchRenderer(app, "pixi"), true);
+  assert.deepEqual(states, [true, false]);
+
+  const failedStates = [], failure = new Error("startup failed"), failed = {
+    ...app,
+    renderer: null,
+    requestedRenderer: null,
+    switchPromise: null,
+    init: () => Promise.reject(failure),
+    notifyRendererState() { failedStates.push(!!this.switchPromise); },
+  };
+  await assert.rejects(switchRenderer(failed, "pixi"), failure);
+  assert.deepEqual(failedStates, [true, false]);
 });

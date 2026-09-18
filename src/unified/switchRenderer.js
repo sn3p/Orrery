@@ -162,7 +162,12 @@ export default function switchRenderer(app, id) {
         app.requestedRenderer = null;
         if (next !== app.rendererId || !app.renderer) await transition(app, next, controller.signal);
       }
-    })().finally(() => { app.switchPromise = null; app.switchController = null; });
+    })().finally(() => {
+      app.switchPromise = null;
+      app.switchController = null;
+      app.notifyRendererState?.();
+    });
   }
+  app.notifyRendererState?.();
   return app.switchPromise.then(() => !app.destroyed && !!app.renderer && app.rendererId === id);
 }

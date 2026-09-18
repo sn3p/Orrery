@@ -170,6 +170,31 @@ async function run({ browser, name, output = '.context/intro' }) {
         await page.waitForFunction(previous => document.querySelector('#orrery-date').textContent !== previous, beforeDate);
 
         await about.click();
+        await holds(page, dialog, 'External renderer switch');
+        const externalTwoD = dialog.getByRole('button', { name: '2D', exact: true });
+        const externalThreeD = dialog.getByRole('button', { name: '3D', exact: true });
+        await page.locator('select[aria-label="Renderer"]').evaluate(select => {
+          select.value = 'three';
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        await page.waitForFunction(() => document.querySelector('#orrery-intro-renderers')?.getAttribute('aria-busy') === 'true');
+        assert(await externalTwoD.isDisabled() && await externalThreeD.isDisabled(),
+          'A switch started elsewhere immediately disables both intro choices');
+        await page.waitForFunction(() => {
+          const select = document.querySelector('select[aria-label="Renderer"]');
+          return select?.value === 'three' && !select.disabled
+            && document.querySelector('#orrery-intro-renderers')?.getAttribute('aria-busy') === 'false';
+        });
+        assert.equal(await externalThreeD.getAttribute('aria-pressed'), 'true',
+          'The open introduction follows the externally selected renderer');
+        assert(!await externalTwoD.isDisabled() && !await externalThreeD.isDisabled());
+        await activate(dialog, externalTwoD);
+        await page.waitForFunction(() => {
+          const select = document.querySelector('select[aria-label="Renderer"]');
+          return select?.value === 'pixi' && !select.disabled;
+        });
+
+        await about.click();
         await holds(page, dialog, '3D shortcut');
         const twoD = dialog.getByRole('button', { name: '2D', exact: true });
         const threeD = dialog.getByRole('button', { name: '3D', exact: true });
