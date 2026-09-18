@@ -105,7 +105,7 @@ exports.disposal = async (page, url) => {
         [canvas, 'webglcontextlost', app.onContextLost], [canvas, 'webglcontextrestored', app.onContextRestored],
         [canvas, 'wheel', app.controls.onScroll], [query, 'change', app.onResolutionChange],
         [canvas, 'pointerdown', app.controls.onPointerDown], [canvas, 'pointermove', app.controls.onPointerMove],
-        [canvas, 'pointerup', app.controls.onPointerEnd], [canvas, 'pointercancel', app.controls.onPointerEnd],
+        [document, 'pointerup', app.controls.onPointerEnd], [document, 'pointercancel', app.controls.onPointerEnd],
         [canvas, 'lostpointercapture', app.controls.onPointerEnd],
         [app.gui.controls.trigger, 'click', app.gui.controls.onToggle],
         [document, 'pointerdown', app.gui.controls.onOutsidePointer], [document, 'keydown', app.gui.controls.onKeyDown]];

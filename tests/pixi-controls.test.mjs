@@ -2,18 +2,26 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import Controls from "../src/unified/pixi/Controls.js";
 
-function fixture(options) {
-  const listeners = new Map(), removed = new Map();
-  const canvas = {
+function fixture(options, { capture = "record" } = {}) {
+  const eventTarget = () => ({
+    listeners: new Map(), removed: new Map(),
+    addEventListener(type, listener, config) { this.listeners.set(type, { listener, config }); },
+    removeEventListener(type, listener) { this.removed.set(type, listener); },
+  });
+  const ownerDocument = eventTarget();
+  const canvas = Object.assign(eventTarget(), {
+    ownerDocument,
     captures: [],
-    addEventListener(type, listener, config) { listeners.set(type, { listener, config }); },
-    removeEventListener(type, listener) { removed.set(type, listener); },
-    setPointerCapture(pointerId) { this.captures.push(pointerId); },
+  });
+  if (capture !== "missing") canvas.setPointerCapture = pointerId => {
+    if (capture === "throw") throw new Error("capture unavailable");
+    if (capture === "record") canvas.captures.push(pointerId);
   };
   const scale = { x: 1, y: 1, set(value) { this.x = this.y = value; } };
   const orrery = { canvas, stage: { scale }, renders: 0, requestRender() { this.renders++; } };
   const controls = new Controls(orrery, options);
-  return { controls, orrery, canvas, listeners, removed, scale };
+  return { controls, orrery, canvas, ownerDocument, listeners: canvas.listeners,
+    removed: canvas.removed, scale };
 }
 
 function pointer(pointerId, clientY, overrides = {}) {
@@ -22,7 +30,7 @@ function pointer(pointerId, clientY, overrides = {}) {
 }
 
 test("wheel zoom keeps its existing direction and ignores horizontal-only input", () => {
-  const { controls, orrery, listeners, removed, scale } = fixture();
+  const { controls, orrery, canvas, ownerDocument, listeners, removed, scale } = fixture();
   const horizontal = { deltaY: 0, preventDefault() { throw new Error("Horizontal input was cancelled"); } };
   controls.onScroll(horizontal);
   assert.equal(scale.x, 1);
@@ -37,6 +45,9 @@ test("wheel zoom keeps its existing direction and ignores horizontal-only input"
 
   controls.destroy();
   for (const [type, { listener }] of listeners) assert.equal(removed.get(type), listener, `${type} listener removed`);
+  for (const [type, { listener }] of ownerDocument.listeners) {
+    assert.equal(ownerDocument.removed.get(type), listener, `document ${type} listener removed`);
+  }
 });
 
 test("a one-finger vertical drag zooms down toward the scene and up away from it", () => {
@@ -77,4 +88,21 @@ test("mouse drags and multi-touch movement do not trigger Pixi zoom", () => {
   controls.onPointerDown(pointer(5, 100));
   controls.onPointerMove(pointer(5, 108));
   assert.equal(scale.x, 1.04, "A new one-finger gesture starts normally");
+});
+
+test("a release over the HUD clears touch state without pointer capture", () => {
+  for (const capture of ["missing", "throw", "noop"]) {
+    const { controls, orrery, ownerDocument, scale } = fixture(undefined, { capture });
+    controls.onPointerDown(pointer(7, 100));
+    controls.onPointerMove(pointer(7, 108));
+    assert.equal(scale.x, 1.04, `${capture}: first drag zooms`);
+
+    // The canvas never receives this release. Its owning document represents
+    // an end event targeted at an overlaid footer control.
+    ownerDocument.listeners.get("pointerup").listener(pointer(7, 108));
+    controls.onPointerDown(pointer(8, 100));
+    controls.onPointerMove(pointer(8, 108));
+    assert.equal(scale.x, 1.04 ** 2, `${capture}: the next one-finger drag remains active`);
+    assert.equal(orrery.renders, 2);
+  }
 });

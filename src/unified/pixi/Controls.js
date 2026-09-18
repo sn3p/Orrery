@@ -7,13 +7,14 @@ export default class Controls {
     this.touchPointers = new Set();
     this.pointerId = null;
     this.pointerY = null;
+    this.pointerEndTarget = orrery.canvas.ownerDocument || orrery.canvas;
 
     this.onScroll = this.onScroll.bind(this);
     orrery.canvas.addEventListener("wheel", this.onScroll, { passive: false });
     orrery.canvas.addEventListener("pointerdown", this.onPointerDown, { passive: false });
     orrery.canvas.addEventListener("pointermove", this.onPointerMove, { passive: false });
-    orrery.canvas.addEventListener("pointerup", this.onPointerEnd);
-    orrery.canvas.addEventListener("pointercancel", this.onPointerEnd);
+    this.pointerEndTarget.addEventListener("pointerup", this.onPointerEnd);
+    this.pointerEndTarget.addEventListener("pointercancel", this.onPointerEnd);
     orrery.canvas.addEventListener("lostpointercapture", this.onPointerEnd);
   }
 
@@ -22,8 +23,8 @@ export default class Controls {
     canvas.removeEventListener("wheel", this.onScroll);
     canvas.removeEventListener("pointerdown", this.onPointerDown);
     canvas.removeEventListener("pointermove", this.onPointerMove);
-    canvas.removeEventListener("pointerup", this.onPointerEnd);
-    canvas.removeEventListener("pointercancel", this.onPointerEnd);
+    this.pointerEndTarget.removeEventListener("pointerup", this.onPointerEnd);
+    this.pointerEndTarget.removeEventListener("pointercancel", this.onPointerEnd);
     canvas.removeEventListener("lostpointercapture", this.onPointerEnd);
     this.touchPointers.clear();
     this.pointerId = this.pointerY = null;
@@ -55,8 +56,8 @@ export default class Controls {
     }
     this.pointerId = event.pointerId;
     this.pointerY = event.clientY;
-    // Pointer capture keeps a vertical drag active after the finger leaves the
-    // canvas bounds. Synthetic test events are not eligible for capture.
+    // Pointer capture keeps a vertical drag targeted at the canvas. Document
+    // listeners still finish it when capture is unavailable or ineffective.
     try { this.orrery.canvas.setPointerCapture?.(event.pointerId); }
     catch { /* The gesture still works while the pointer remains on-canvas. */ }
   };

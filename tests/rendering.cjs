@@ -93,10 +93,20 @@ async function invalidations(page) {
   assert.equal(await canvas.evaluate(element => getComputedStyle(element).touchAction), 'none',
     'The scene owns touch gestures instead of zooming the viewport');
   const scale = await page.evaluate(() => fixture.app.stage.scale.x);
+  await canvas.evaluate(element => {
+    window.restorePointerCapture = element.setPointerCapture;
+    element.setPointerCapture = () => {};
+  });
   await canvas.dispatchEvent('pointerdown', { pointerId: 7, pointerType: 'touch', clientY: 100 });
   await canvas.dispatchEvent('pointermove', { pointerId: 7, pointerType: 'touch', clientY: 180 });
-  await canvas.dispatchEvent('pointerup', { pointerId: 7, pointerType: 'touch', clientY: 180 });
+  await page.locator('footer').dispatchEvent('pointerup', { pointerId: 7, pointerType: 'touch', clientY: 180 });
   await page.waitForFunction(previous => fixture.app.stage.scale.x > previous, scale);
+  const afterHudRelease = await page.evaluate(() => fixture.app.stage.scale.x);
+  await canvas.dispatchEvent('pointerdown', { pointerId: 8, pointerType: 'touch', clientY: 100 });
+  await canvas.dispatchEvent('pointermove', { pointerId: 8, pointerType: 'touch', clientY: 108 });
+  await page.locator('footer').dispatchEvent('pointerup', { pointerId: 8, pointerType: 'touch', clientY: 108 });
+  await page.waitForFunction(previous => fixture.app.stage.scale.x > previous, afterHudRelease);
+  await canvas.evaluate(element => { element.setPointerCapture = window.restorePointerCapture; delete window.restorePointerCapture; });
   await idle(page);
   await page.evaluate(() => { fixture.app.stage.position.x += 17; fixture.app.stage.position.y -= 23; });
   await page.setViewportSize({ width: 390, height: 844 });
