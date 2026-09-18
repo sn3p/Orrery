@@ -174,8 +174,11 @@ async function graphics(browser, base, output, name) {
         }
       }
       await require('./next-layout.cjs').check(target);
-      await target.getByRole('button', { name: 'Options', exact: true }).click();
+      const options = target.getByRole('button', { name: 'Options', exact: true });
+      await options.click();
       const speed = target.getByRole('textbox', { name: 'Playback speed' });
+      assert(await options.evaluate(el => el === document.activeElement));
+      await target.keyboard.press("Tab");
       assert(await target.getByRole("combobox", { name: "Renderer", exact: true }).evaluate(el => el === document.activeElement));
       await target.keyboard.press("Tab");
       assert(await speed.evaluate(el => el === document.activeElement));

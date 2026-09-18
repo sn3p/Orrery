@@ -10,6 +10,7 @@ export default class Timeline {
     this.playIndicator = document.getElementById("orrery-playback-indicator");
     this.date = document.getElementById("orrery-date");
     this.dialog = document.getElementById("orrery-date-dialog");
+    this.title = document.getElementById("orrery-date-title");
     this.form = document.getElementById("orrery-date-form");
     this.input = document.getElementById("orrery-date-input");
     this.error = document.getElementById("orrery-date-error");
@@ -18,7 +19,7 @@ export default class Timeline {
     this.cancel = document.getElementById("orrery-date-cancel");
     this.resumeSpeed = app.jedDelta || 1.5;
     this.enabled = !!(this.playButton && this.playIndicator && this.date?.matches("button")
-      && this.dialog && typeof this.dialog.showModal === "function" && this.form && this.input
+      && this.dialog && typeof this.dialog.showModal === "function" && this.title && this.form && this.input
       && this.error && this.today && this.beginning && this.cancel);
     if (!this.enabled) return;
     this.beginning.textContent = isoDay(app.startJed);
@@ -71,7 +72,10 @@ export default class Timeline {
     this.app.hold(true);
     this.dialog.showModal();
     this.dialog.scrollTop = 0;
-    this.input.focus();
+    // Keep native date pickers closed until the user explicitly chooses the
+    // field. In particular, focusing a date input opens a full-screen picker
+    // on iOS and hides the rest of this dialog.
+    this.title.focus({ preventScroll: true });
   };
 
   commitDate(value) {

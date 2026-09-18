@@ -90,8 +90,11 @@ async function run({ browser, name, application = "unified", output: artifactDir
           assert.equal(await about.evaluate(element => getComputedStyle(element).outlineStyle), "solid");
           await require("./next-layout.cjs").check(page);
           await page.screenshot({ path: path.join(directory, `${name}-${label}-${viewport.width}.png`) });
-          await page.getByRole("button", { name: "Options", exact: true }).click();
+          const options = page.getByRole("button", { name: "Options", exact: true });
+          await options.click();
           const input = page.getByRole("textbox", { name: "Playback speed" });
+          assert(await options.evaluate(el => el === document.activeElement));
+          await page.keyboard.press("Tab");
           assert(await page.getByRole("combobox", { name: "Renderer", exact: true }).evaluate(el => el === document.activeElement));
           await page.keyboard.press("Tab");
           assert(await input.evaluate(el => el === document.activeElement), "Tab reaches speed after Renderer");
