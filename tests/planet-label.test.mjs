@@ -139,6 +139,22 @@ test("both renderers apply shared label modes without reacting to unrelated shar
   }
 });
 
+test("Pixi accepts label changes before asynchronous scene initialization", () => {
+  const { container } = fixture();
+  let renders = 0;
+  const renderer = new PixiRenderer({ container,
+    invalidate() { renders++; },
+    reportGraphicsState() {},
+    getViewport() { return { width: 640, height: 480, pixelRatio: 1 }; },
+  });
+  assert.deepEqual(renderer.planets, []);
+  renderer.setOptions({ shared: { planetLabels: "all" } });
+  assert.equal(renderer.planetLabelMode, "all");
+  assert.equal(renderer.planetLabels.labels.size, 0);
+  assert.equal(renders, 1);
+  renderer.destroy();
+});
+
 test("Pixi projects every active label through the complete stage transform", () => {
   let placement;
   const planet = { body: { x: 3, y: 5 } }, label = { place(...args) { placement = args; } };

@@ -30,6 +30,7 @@ export default class PixiRenderer {
     this.getViewport = getViewport;
     this.requestRender = invalidate;
     this.reportGraphicsState = reportGraphicsState;
+    this.planets = [];
     this.planetLabelMode = DEFAULT_PLANET_LABEL_MODE;
     this.planetLabels = new PlanetLabels(container);
     this.destroyed = false;
