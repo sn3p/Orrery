@@ -56,7 +56,10 @@ that is never deployed.
   rendering, resolution, benchmarks and measurements.
 - [Catalogue loading](docs/catalog-loading.md): chunked delivery, buffering and
   configured sources.
-- [Three adapter](docs/three-renderer.md) and [unification blueprint](docs/unification.md).
+- [Architecture](docs/architecture.md): application/renderer ownership, state
+  and switching.
+- [Three adapter](docs/three-renderer.md): 3D presentation, graphics commitment
+  and recovery.
 - [Browser tests](docs/browser-tests.md): scopes, groups and CI budget.
 - [Deployment](docs/deployment.md) and [release/rollback](docs/promotion.md):
   GitHub Pages publishes `master` after checks pass.

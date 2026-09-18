@@ -12,8 +12,10 @@ New PR updates cancel obsolete runs for that PR. Production runs retain up to
 New production runs beyond that limit are canceled by GitHub; see the [queue documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#example-queueing-multiple-pending-runs).
 
 No local build, generated-file commit, or push to `gh-pages` is needed to deploy.
-The workflow publishes the checked-in catalogue; it does not download fresh MPC
-data.
+The workflow builds the checked-in application and its
+`catalog-profiles/latest.json` source descriptor; the browser then loads the
+published catalogue from `orrery-data`. Deployment does not download fresh MPC
+source data.
 
 To deploy `master` again, open **Actions → GitHub Pages → Run workflow**, select
 `master`, or use the authenticated [GitHub CLI](https://cli.github.com/):
@@ -31,4 +33,3 @@ Repository setup (once, also required for forks): in **Settings → Pages**, set
 → github-pages**, allow deployments from the `master` branch. The workflow must be
 merged into `master` before automatic or manual deployment is available. It uses
 GitHub's built-in token; no personal access token or deploy key is needed.
-

@@ -19,14 +19,14 @@ remain in Orrery3D; this import does not transfer those records or archive it.
 H merged through [PR67](https://github.com/sn3p/Orrery/pull/67) as
 `e1e80ec00a23ba7d2d99e3df625d512ec3486a41`. A fresh ordinary full master clone
 verified all 147 original commits, the exact snapshot and original ancestry.
-PR3 adopts selected files through the [active catalogue mapping](../catalog-loading.md#adopted-source-and-provenance);
-unit 7c removes the current-tree snapshot after extracting the
+[Later catalogue work](../catalog-loading.md#adopted-source-and-provenance) adopted
+selected files, and cleanup removed the current-tree snapshot after extracting the
 [independent Three test references](../../tests/fixtures/three-reference/README.md).
 The original import tree and all 147 original commits remain reachable.
 
 ## Current source boundary
 
-There is one maintained application, root package and lockfile. Unit 7c removes
+There is one maintained application, root package and lockfile. Cleanup removed
 all 127 imported snapshot files, including its inactive package, workflow,
 compiler, app and duplicate assets. No production code imports that directory.
 The source-port exact-canvas comparison is deliberately retired after the port;
@@ -52,9 +52,9 @@ records. The complete local inventory, bundle SHA-256 and verification evidence
 are in the implementation handoff. This Mac-local backup is separate from this
 repository and does not make those other refs ancestors of Orrery master.
 The original repository remains the public home of its other branches. Preserve
-any later source commits before adopting their changes in PR3/PR4.
+any later source commits before independently adopting their changes.
 
-## Verify and merge
+## Verification contract
 
 From a full checkout, with Node matching `.tool-versions`:
 
@@ -70,16 +70,12 @@ It rejects shallow clones and targets that lost the original import ancestry.
 It checks the snapshot at the recorded import commit, so later deliberate moves
 and cleanup can change current files without erasing their preserved history.
 
-H must land using **Create a merge commit**, only when explicitly authorized.
-Do not squash, rebase, flatten or recreate its import commit. Keep the original
-two-parent subtree commit reachable from the PR head. A passing PR check cannot
-prove the eventual merge method: after merging, clone Orrery afresh, check out
-master and run the verifier there. PR3 starts only after that gate passes.
-
-Before publishing H, compare all root/preview build files against the pre-import
-baseline in the same environment and run the existing build, numerical, browser
-and ordinary-clone benchmark regressions. The history verifier does not replace
-those application checks or certify the future functional ports.
+H landed with **Create a merge commit**, preserving its original two-parent
+subtree commit without squashing, rebasing, flattening or recreating it. The
+post-merge fresh-clone verification above remains the reproducible ancestry gate.
+The import review also compared root/preview build files with its pre-import
+baseline and ran the existing build, numerical, browser and ordinary-clone
+benchmark regressions. The history verifier does not replace application checks.
 
 Historical commits keep their original root-relative paths. Local Git history
 can inspect them directly using their recorded IDs. GitHub's automatic file

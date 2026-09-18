@@ -1,7 +1,8 @@
 # Rendering and options
 
 Detailed behaviour of the playback clock, the options panel, GPU asteroid rendering
-and the benchmark. The README keeps the short version; this document is the blueprint.
+and the benchmark. The README keeps the short version; this document records the
+current rendering and options contract.
 
 ## Options
 
@@ -93,8 +94,8 @@ Run the production-class benchmark with Chrome:
 npm run benchmark
 # Shorter run with only the bundled population:
 COUNTS=100000 REPEATS=3 npm run benchmark
-# Same finite-frame probes through the preview controller and adapter:
-COUNTS=100000 REPEATS=3 OUTPUT=.context/pr2/benchmark npm run benchmark:next
+# Same finite-frame probes through the current controller and adapter:
+COUNTS=100000 REPEATS=3 npm run benchmark:next
 ```
 
 The benchmark uses a fixed date trajectory, 1280×800 at DPR 1, three repetitions,

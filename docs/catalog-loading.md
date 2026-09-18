@@ -13,8 +13,8 @@ visible at startup. No catalogue environment variable or historical setting is
 needed, and source failures never silently fall back to the old bundle.
 
 The compressed [historical100k fixture](../tests/fixtures/historical100k/README.md) remains only for test and benchmark
-oracles. Production does not emit or request it. Unit 7b retired the old importer
-and migrated its test/benchmark consumers onto the documented fixture.
+oracles. Production does not emit or request it. The old importer is retired;
+its test and benchmark consumers use the documented fixture.
 
 ## Explicit development and test profiles
 
@@ -149,9 +149,9 @@ HUD, plus the current production numerical, rendered, input, options,
 DPR, lifecycle, development and benchmark suites. `npm run test:catalog` selects
 the native Playwright catalogue cases; loading, lifecycle and frame commitment
 run in all three browser projects, with benchmark and configured development
-checks in the Chromium-only project. These cases are also part of
-`npm run test:unified`, which builds the current app before running its
-tests. CI retains its Mesa/Xvfb path
+checks in the Chromium-only project. `npm run test:unified` is a separate
+clean-checkout boundary: it builds the current app and runs two public-renderer
+smoke cases. CI retains its Mesa/Xvfb path
 and the existing strict numerical thresholds.
 
 ```sh
@@ -181,8 +181,8 @@ remain unverified.
 
 Source: [Orrery3D master 93a3e1f](https://github.com/sn3p/Orrery3D/tree/93a3e1f4a36d8fdceb513bdfdca20beddb3348d6),
 including final PR30 and PR31. The original ancestry and exact import snapshot
-remain preserved by [the history-import record](history/orrery3d.md). Unit 7c
-removes the current-tree snapshot and its inactive package/workflow; retained
+remain preserved by [the history-import record](history/orrery3d.md). The
+current-tree snapshot and its inactive package/workflow are removed; retained
 [independent Three references](../tests/fixtures/three-reference/README.md) are test-owned.
 
 | Original source path at the pinned revision | Active adaptation |
@@ -190,9 +190,9 @@ removes the current-tree snapshot and its inactive package/workflow; retained
 | `src/js/catalog/{CatalogSource,CatalogLoader,contract}.js` | `src/unified/catalog/`; loader CPU ownership and explicit graphics receipt |
 | `src/js/prepareCatalogue.js` | `src/unified/catalog/prepareCatalogue.js`; neutral buffers, row diagnostics and Pixi precision bounds |
 | `scripts/build.cjs`, `catalog.cjs`, `catalog-archive.cjs` | Root `scripts/`; current app output and atomic publication |
-| `webpack.app.config.cjs` | `webpack.next.app.config.cjs`; configured preview development/staging |
+| `webpack.app.config.cjs` | Root `webpack.app.config.cjs`; configured development/staging |
 | `tests/fixtures/{consumer-v1,browser-v1}` | Root `tests/fixtures/`; unchanged producer fixtures/provenance |
-| Source contract/delivery/loading tests and benchmark | Root catalogue tests and `benchmarks/catalog-loading.cjs`; actual Pixi/preview boundaries |
+| Source contract/delivery/loading tests and benchmark | Root catalogue tests and `benchmarks/catalog-loading.cjs`; current app/renderer boundaries |
 
 All source is MIT-licensed; the [retained license](../tests/fixtures/three-reference/LICENSE), original authorship/history and
 fixture provenance remain available. The public default is now independently

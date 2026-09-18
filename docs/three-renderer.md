@@ -2,8 +2,8 @@
 
 Open `/?renderer=three` for 3D; `/` defaults to Pixi. The old `/next/` entry is removed. Both modes use the complete published
 discovery catalogue. An unknown renderer falls back to Pixi with feedback.
-A Three startup failure reports the failure and offers an accessible Pixi preview
-link, preserving the deployment prefix. Terminal Three shader/upload/draw failures
+A Three startup failure reports the failure and offers the accessible Pixi recovery
+link (`Open Pixi preview`), preserving the deployment prefix. Terminal Three shader/upload/draw failures
 offer the same recovery link; successful graphics recovery clears it.
 Missing code and unavailable WebGL2 use
 neutral reload guidance. Pixi does not load Three or require WebGL2.
@@ -15,10 +15,10 @@ adapter owns scene resources, camera/input and restoration; it never fetches dat
 or schedules its own loop. The shared Renderer/Speed/planet-label/planet-orbit/DPR
 panel operates on the current adapter. Its renderer selector changes modes in
 place without reloading or fetching retained data.
-Separate Pixi and Three views and DPR last for the page; reload uses the entry
-URL and their existing defaults. Explicit planet-label and planet-orbit choices
-persist in local storage and apply to both adapters. See
-[switching](unification.md#renderer-switching).
+Each renderer keeps its own view for the page session, and the shared DPR choice
+also lasts for that session; reload uses the entry URL and their existing defaults.
+Explicit planet-label and planet-orbit choices persist in local storage and apply
+to both adapters. See [renderer switching](architecture.md#renderer-switching).
 
 The source is the preserved MIT-licensed Orrery3D `93a3e1f` revision. The port
 keeps its 60-degree perspective camera at `(500,500,400)`, Z-up, clipping range
@@ -94,11 +94,11 @@ Three cases; standalone verification covers the two public renderer smoke cases.
 separate first submission from GPU fence completion and retain backend, array
 ownership, CPU/GPU byte counts and memory-sampling limits.
 
-The existing preview benchmark's `setupMs` now includes bundled attachment's
+The current app benchmark's `setupMs` includes bundled attachment's
 first submission. Its `tickMs` covers scene/FPS updates; `renderSubmitMs` also
 includes receipt and readout commitment after drawing. Legacy timing boundaries
 remain unchanged, so keep these differences explicit when comparing old runs.
 
 Physical Safari/iOS hardware and native monitor transitions need separate device
-evidence; browser automation does not certify them. Renderer switching and promotion are implemented; the source snapshot cleanup
-preserves their regression coverage.
+evidence; browser automation does not certify them. Renderer switching, promotion
+and source-snapshot cleanup retain regression coverage in the current suites.
