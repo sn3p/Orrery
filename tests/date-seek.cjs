@@ -51,7 +51,10 @@ async function checkDesktopStatus(page) {
     const pseudo = getComputedStyle(spinner, '::before');
     return { status: box('#orrery-status'), readouts: box('.orrery-readouts'), identity: box('.orrery-identity'),
       overflow: document.documentElement.scrollWidth > innerWidth,
-      animation: pseudo.animationName, content: pseudo.content };
+      animation: pseudo.animationName, content: pseudo.content,
+      spinnerColor: getComputedStyle(spinner).color,
+      labelColor: getComputedStyle(document.querySelector('.orrery-status-label')).color,
+      detailColor: getComputedStyle(document.querySelector('.orrery-status-detail')).color };
   });
   const center = layout.status.x + layout.status.width / 2;
   assert(Math.abs(center - page.viewportSize().width / 2) <= 1, 'Busy status is centered in the desktop footer');
@@ -60,6 +63,9 @@ async function checkDesktopStatus(page) {
   assert.equal(layout.overflow, false, 'Desktop footer does not overflow');
   assert.equal(layout.animation, 'orrery-status-spin', 'ASCII loading indicator animates');
   assert.match(layout.content, /\[/, 'ASCII loading indicator supplies a bracketed frame');
+  assert.equal(layout.spinnerColor, 'rgb(255, 255, 255)', 'Busy indicator is visually prominent');
+  assert.equal(layout.labelColor, 'rgb(255, 255, 255)', 'Busy message is visually prominent');
+  assert.equal(layout.detailColor, 'rgb(136, 136, 136)', 'Busy progress detail retains the secondary HUD color');
   await page.waitForTimeout(225);
   const nextFrame = await page.locator('.orrery-status-spinner').evaluate(element => getComputedStyle(element, '::before').content);
   assert.notEqual(nextFrame, layout.content, 'ASCII loading indicator advances through its character sequence');

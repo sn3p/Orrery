@@ -445,7 +445,7 @@ export default class App {
         status.replaceChildren();
         if (message) {
           const visual = document.createElement("span");
-          visual.className = "orrery-status-visual";
+          visual.className = `orrery-status-visual${busy ? " orrery-status-busy" : ""}`;
           if (busy) {
             const spinner = document.createElement("span");
             spinner.className = "orrery-status-spinner";

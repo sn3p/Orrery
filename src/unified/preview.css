@@ -213,6 +213,8 @@
   content: "[|]";
   animation: orrery-status-spin 800ms steps(1, end) infinite;
 }
+.orrery-status-busy .orrery-status-spinner,
+.orrery-status-busy .orrery-status-label { color: #fff; }
 .orrery-status-detail {
   margin-left: 1ch;
   white-space: nowrap;
