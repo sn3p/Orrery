@@ -16,7 +16,7 @@ async function checkTypography(page, { fontLoaded = true, waitForFont = true } =
     };
     const text = document.createRange();
     text.selectNodeContents(document.querySelector("input[aria-label='Playback speed']").closest("li").querySelector(".property-name"));
-    const selectors = ["#orrery-date", "#orrery-fps", "#orrery-count", ".dg .property-name", ".dg input"];
+    const selectors = ["#orrery-date", "#orrery-fps", "#orrery-count", ".dg .property-name", "input[aria-label='Playback speed']"];
     return {
       unified: !!document.querySelector(".orrery-footer"),
       readoutsHidden: !!document.querySelector(".orrery-readouts")?.hidden,
@@ -26,7 +26,7 @@ async function checkTypography(page, { fontLoaded = true, waitForFont = true } =
         return { family: style.fontFamily, size: style.fontSize };
       }),
       boxes: selectors.map(bounds),
-      input: bounds(".dg input"),
+      input: bounds("input[aria-label='Playback speed']"),
       slider: bounds(".dg .slider"),
       labelRight: text.getBoundingClientRect().right,
       width: innerWidth,
@@ -108,11 +108,12 @@ async function run({ browser, name, application = "unified", output: artifactDir
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${server.address().port}/Orrery/`;
-  const report = [];
+  const report = [], contexts = [];
   try {
     for (const width of [1280, 390, 360]) {
       const context = await browser.newContext({ viewport: { width, height: width === 1280 ? 800 : 844 },
         deviceScaleFactor: 2, isMobile: width < 500, hasTouch: width < 500 });
+      contexts.push(context);
       const page = await context.newPage();
       await routeDefaultCatalog(page);
       const errors = [];
@@ -149,6 +150,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
     }
 
     const page = await browser.newPage({ viewport: { width: 360, height: 844 }, isMobile: true, hasTouch: true });
+    contexts.push(page.context());
     await routeDefaultCatalog(page);
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
@@ -195,6 +197,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
     fs.writeFileSync(path.join(output, "results.json"), JSON.stringify(report, null, 2) + "\n");
     console.log("UI checks passed: production font/license delivery, desktop/mobile typography, keyboard and slider playback, reload, delayed loading and font fallback.");
   } finally {
+    await Promise.allSettled(contexts.map(context => context.close()));
     await new Promise(resolve => server.close(resolve));
   }
 }

@@ -9,6 +9,8 @@ import { allocateCatalogue, appendCatalogue, prepareCatalogue } from "./catalog/
 import { selectRenderer, renderers } from "./renderers.js";
 import switchRenderer from "./switchRenderer.js";
 import { isPlanetLabelMode, loadPlanetLabelMode, savePlanetLabelMode } from "./PlanetLabel.js";
+import { isPlanetOrbitVisibility, loadPlanetOrbitVisibility,
+  savePlanetOrbitVisibility } from "./PlanetOrbitPreference.js";
 
 // Shared across module replacements so stale disposal cannot erase a new App's feedback.
 const STATUS_OWNER = Symbol.for("orrery.statusOwner");
@@ -39,6 +41,8 @@ export default class App {
     this._pixelRatio = "1";
     this._planetLabels = options.planetLabels ?? loadPlanetLabelMode();
     if (!isPlanetLabelMode(this._planetLabels)) throw new Error("Invalid planet label mode.");
+    this._planetOrbits = options.planetOrbits ?? loadPlanetOrbitVisibility();
+    if (!isPlanetOrbitVisibility(this._planetOrbits)) throw new Error("Invalid planet orbit visibility.");
     this.held = false;
     this.clock = new PlaybackClock();
     this.elapsed = 0;
@@ -152,10 +156,19 @@ export default class App {
     this.renderer?.setOptions?.(this.rendererSettings());
     this.requestRender();
   }
+  get planetOrbits() { return this._planetOrbits; }
+  set planetOrbits(value) {
+    if (this.destroyed || !isPlanetOrbitVisibility(value) || value === this._planetOrbits) return;
+    this._planetOrbits = value;
+    savePlanetOrbitVisibility(value);
+    this.renderer?.setOptions?.(this.rendererSettings());
+    this.requestRender();
+  }
   get frameState() { return { jed: this.jed, elapsed: this.elapsed }; }
   get viewport() { return { width: innerWidth, height: innerHeight, pixelRatio: this.effectivePixelRatio }; }
   rendererSettings(id = this.rendererId, renderer = this.rendererOptions[id]) {
-    return { shared: { pixelRatio: this.pixelRatio, planetLabels: this.planetLabels }, renderer };
+    return { shared: { pixelRatio: this.pixelRatio, planetLabels: this.planetLabels,
+      planetOrbits: this.planetOrbits }, renderer };
   }
 
   init() {

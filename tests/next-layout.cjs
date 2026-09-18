@@ -38,7 +38,7 @@ exports.check = async page => {
   for (const control of [page.locator('.orrery-playback'), page.locator('.orrery-date')]) {
     assert((await control.boundingBox()).height >= 24, 'Timeline controls retain a comfortable target');
   }
-  const styles = await page.locator('.orrery-playback, .orrery-date, .orrery-count, .orrery-fps, .orrery-identity, .orrery-options-trigger, .orrery-options-indicator, .orrery-options-hint, .dg .property-name, .dg input, .dg select')
+  const styles = await page.locator('.orrery-playback, .orrery-date, .orrery-count, .orrery-fps, .orrery-identity, .orrery-options-trigger, .orrery-options-indicator, .orrery-options-hint, .dg .property-name, input[aria-label="Playback speed"], .dg select')
     .evaluateAll(elements => elements.map(element => getComputedStyle(element).fontSize));
   assert(styles.every(size => size === '12px'), 'All preview text uses 12px');
   return layout;

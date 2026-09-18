@@ -142,14 +142,15 @@ promotes the app to root; release still requires explicit approval.
   its adapter works. Unknown renderer IDs fall back with feedback; known renderer
   startup failures report failure and offer recovery. No broken selector is
   exposed while only one or neither adapter exists.
-- Options and separate renderer views last for the page only. Reload uses the
-  existing defaults: no localStorage; DPR starts at 1×, offers 2× when available,
-  and preserves the page's choice through supported display transitions.
-  Benchmark DPR remains independent.
+- Separate renderer views and DPR last for the page only. DPR starts at 1×,
+  offers 2× when available, and preserves the page's choice through supported
+  display transitions. Explicit planet-label and planet-orbit visibility choices
+  use local storage and apply to both renderers. Benchmark DPR remains independent.
 - Switching preserves date, requested speed, common options and separate camera
   states. It is not a discovery event: do not replay historic Pixi arrivals.
   Transient Pixi pulses may end on exit; Three's date-derived fade is rebuilt.
-- Shared Renderer/Speed/DPR controls use one existing-style options panel.
+- Shared Renderer/Speed/planet-label/planet-orbit/DPR controls use one
+  existing-style options panel.
   A small optional renderer control builder mounts and disposes its own section.
   Validate shared and per-renderer settings; store the latter under stable IDs.
   Test the extension with a fixture, without inventing public effect settings.
@@ -354,7 +355,7 @@ native display-transition behavior. Record precise verification limits without
 claiming those states complete.
 
 The enhancement backlog stays parked: play/pause/date UI, population filters,
-planet identification/focus/follow, About, orbit visibility, softness/glow and
+planet identification/focus/follow, About, softness/glow and
 stronger Three discoveries; camera presets, scale/orientation, timeline,
 share/export, legend, exploration, outer planets and date ranges. Three discovery
 emphasis is Three-specific; date-range scope remains Orrery with former 3D
@@ -365,9 +366,11 @@ those features.
 
 The root options panel offers Pixi.js (2D) and Three.js (3D). Switching keeps
 one App, clock, HUD, retained CPU catalogue, date, requested speed and DPR choice.
-Each mode remembers its own view for this page. There is no camera conversion or
-browser-storage persistence. The app uses the same complete discovery source
-in both modes. The historical 100k bundle is no longer part of the public site.
+Each mode remembers its own view for this page. There is no camera conversion;
+among renderer and Options state, only explicit planet-label and planet-orbit
+visibility choices persist in browser storage. The separately documented intro
+dismissal also persists. The app uses the same complete discovery source in both
+modes. The historical 100k bundle is no longer part of the public site.
 
 The controller loads destination code while the outgoing camera remains usable,
 suspends playback and speculative catalogue lookahead, then disposes the outgoing
