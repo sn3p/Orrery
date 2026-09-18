@@ -12,11 +12,13 @@ neutral reload guidance. Pixi does not load Three or require WebGL2.
 
 The shared App owns date, speed, scheduler, HUD/options and catalogue. The Three
 adapter owns scene resources, camera/input and restoration; it never fetches data
-or schedules its own loop. The shared Renderer/Speed/DPR panel operates on the
-current adapter. Its renderer selector changes modes in place without reloading
-or fetching retained data.
-Separate Pixi and Three views and options last for the page; reload uses the
-entry URL and existing defaults. See [switching](unification.md#renderer-switching).
+or schedules its own loop. The shared Renderer/Speed/planet-label/planet-orbit/DPR
+panel operates on the current adapter. Its renderer selector changes modes in
+place without reloading or fetching retained data.
+Separate Pixi and Three views and DPR last for the page; reload uses the entry
+URL and their existing defaults. Explicit planet-label and planet-orbit choices
+persist in local storage and apply to both adapters. See
+[switching](unification.md#renderer-switching).
 
 The source is the preserved MIT-licensed Orrery3D `93a3e1f` revision. The port
 keeps its 60-degree perspective camera at `(500,500,400)`, Z-up, clipping range
