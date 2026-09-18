@@ -67,15 +67,23 @@ async function entries(browser, base, output, name) {
         assert.equal(await options.count(), 1);
         await options.click();
         const labels = page.getByRole('combobox', { name: 'Planet labels' });
+        const orbits = page.getByRole('checkbox', { name: 'Planet orbits' });
         assert.equal(await labels.inputValue(), 'earth');
         assert.deepEqual(await labels.locator('option').allTextContents(), ['Off', 'Earth only', 'All planets']);
         assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetLabels')), null,
           'Default label mode does not invent a saved preference');
+        assert(await orbits.isChecked());
+        assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetOrbits')), null,
+          'Default orbit visibility does not invent a saved preference');
+        assert(await page.evaluate(() => app.planetOrbits === true && app.renderer.planetOrbits.length === 6
+          && app.renderer.planetOrbits.every(orbit => orbit.visible === true)));
         const persistenceBoundary = prefix === '' && renderer === 'pixi';
         if (persistenceBoundary) {
           await labels.selectOption('off');
+          await orbits.uncheck();
           assert.equal(await page.locator('.orrery-planet-label').count(), 0);
           assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetLabels')), 'off');
+          assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetOrbits')), 'false');
         } else await options.click();
         assert(requests.some(url => url.includes('/' + (renderer === 'three' ? 'three' : 'pixi') + '.')));
         assert(!requests.some(url => url.includes('/' + (renderer === 'three' ? 'pixi' : 'three') + '.')));
@@ -84,10 +92,19 @@ async function entries(browser, base, output, name) {
         await page.waitForFunction(() => Number(document.querySelector('#orrery-count').textContent.replaceAll("\u202f", "")) > 0);
         if (persistenceBoundary) {
           assert.equal(await page.evaluate(() => (window.threeTest?.app ?? window.catalogTest.app).planetLabels), 'off');
+          assert.equal(await page.evaluate(() => (window.threeTest?.app ?? window.catalogTest.app).planetOrbits), false);
           assert.equal(await page.locator('.orrery-planet-label').count(), 0);
           assert.equal(await page.locator('select[aria-label="Planet labels"]').inputValue(), 'off');
+          assert.equal(await page.locator('input[aria-label="Planet orbits"]').isChecked(), false);
+          assert(await page.evaluate(() => {
+            const app = window.threeTest?.app ?? window.catalogTest.app;
+            return app.renderer.planetOrbits.every(orbit => orbit.visible === false)
+              && app.renderer.planets.every(planet => planet.body.visible !== false
+                && (planet.body.alpha ?? planet.body.material?.opacity ?? 1) > 0);
+          }));
           await page.getByRole('button', { name: 'Options', exact: true }).click();
           await page.getByRole('combobox', { name: 'Planet labels' }).selectOption('earth');
+          await page.getByRole('checkbox', { name: 'Planet orbits' }).check();
         }
         const visibleEarth = page.locator('.orrery-planet-label[data-planet="Earth"]:visible');
         await visibleEarth.waitFor();

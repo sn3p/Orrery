@@ -222,7 +222,7 @@ exports.production = async (browser, url, output, name) => {
       await idle();
       assert.deepEqual(await canvas.evaluate(el => [el.width, el.height]), [width * 2, 1688]);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
-      for (const selector of ['#orrery-date', '#orrery-count', '#orrery-fps', '.dg .slider', '.dg input']) {
+      for (const selector of ['#orrery-date', '#orrery-count', '#orrery-fps', '.dg .slider', 'input[aria-label="Playback speed"]']) {
         const box = await page.locator(selector).boundingBox();
         assert(box.x >= 0 && box.y >= 0 && box.x + box.width <= width && box.y + box.height <= 844);
       }

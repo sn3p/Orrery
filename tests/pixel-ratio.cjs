@@ -23,6 +23,7 @@ module.exports = async (browser, url, output, name, application = "unified") => 
   page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
   const control = page.getByRole("combobox", { name: "Rendering pixel ratio" });
   const labels = page.getByRole("combobox", { name: "Planet labels" });
+  const orbits = page.getByRole("checkbox", { name: "Planet orbits" });
   const speed = page.getByRole("textbox", { name: "Playback speed" });
   const boot = async () => {
     await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
@@ -182,12 +183,17 @@ module.exports = async (browser, url, output, name, application = "unified") => 
     const dismissIntro = async () => { await page.locator('#orrery-intro[open]').waitFor(); await page.keyboard.press('Escape'); };
     await page.reload(); await dismissIntro(); await boot(); await checkBuffer(page, 1);
     assert.equal(await labels.inputValue(), "earth");
+    assert(await orbits.isChecked());
     await labels.selectOption("all"); await settle(page);
+    await orbits.uncheck(); await settle(page);
     assert.equal(await page.locator(".orrery-planet-label").count(), 6,
       "Blocked storage does not prevent changing the label mode for this session");
+    assert.equal(await orbits.isChecked(), false,
+      "Blocked storage does not prevent changing orbit visibility for this session");
     await choose("2"); await checkBuffer(page, 2);
     await page.reload(); await dismissIntro(); await boot(); await checkBuffer(page, 1);
     assert.equal(await labels.inputValue(), "earth", "Blocked storage falls back to Earth labels after reload");
+    assert(await orbits.isChecked(), "Blocked storage falls back to visible planet orbits after reload");
     assert.equal(await page.locator('.orrery-planet-label[data-planet="Earth"]').count(), 1);
     assert.deepEqual(errors, []);
   } finally {

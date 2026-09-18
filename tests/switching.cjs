@@ -323,8 +323,11 @@ async function lifecycle(browser, base) {
   try {
     await page.getByRole('button', { name: 'Options', exact: true }).click();
     const labels = page.getByRole('combobox', { name: 'Planet labels' });
+    const orbits = page.getByRole('checkbox', { name: 'Planet orbits' });
     await labels.selectOption('all');
+    await orbits.uncheck();
     assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetLabels')), 'all');
+    assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetOrbits')), 'false');
     assert.deepEqual((await page.locator('.orrery-planet-label').allTextContents()).sort(),
       ['Earth', 'Jupiter', 'Mars', 'Mercury', 'Saturn', 'Venus']);
     await page.getByRole('button', { name: 'Options', exact: true }).click();
@@ -338,6 +341,11 @@ async function lifecycle(browser, base) {
         if (i % 2) listenerCounts.push(activeListeners.length);
         check(document.querySelectorAll('canvas').length === 1 && document.querySelectorAll('.orrery-options').length === 1
           && document.querySelectorAll('.orrery-planet-label').length === 6 && app.planetLabels === 'all', 'One scene/UI and six labels');
+        check(app.planetOrbits === false && app.renderer.planetOrbits.length === 6
+          && app.renderer.planetOrbits.every(orbit => orbit.visible === false)
+          && app.renderer.planets.every(planet => planet.body.visible !== false
+            && (planet.body.alpha ?? planet.body.material?.opacity ?? 1) > 0),
+        'Hidden planet tracks survive switching without hiding planets');
         check(app.catalogue === model && !app.renderer.needsCatalogPacking(model), 'Retained population uploaded');
       }
       check(listenerCounts.every(n => n === listenerCounts[0]), 'Listener count stays bounded: ' + listenerCounts);
@@ -369,6 +377,11 @@ async function lifecycle(browser, base) {
         assert(await page.evaluate(() => app.catalogue === oldModel && !!app.renderer.render()));
       }
     }
+    await page.getByRole('button', { name: 'Options', exact: true }).click();
+    await orbits.check();
+    assert(await page.evaluate(() => app.planetOrbits === true
+      && app.renderer.planetOrbits.every(orbit => orbit.visible === true)));
+    assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetOrbits')), 'true');
     assert.deepEqual(errors, []);
     return result;
   } finally { await page.close(); }
