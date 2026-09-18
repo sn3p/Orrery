@@ -10,6 +10,11 @@ const loaded = page => page.waitForFunction(() => !document.querySelector('.orre
   && document.querySelector('#orrery-count').textContent !== ''
   && document.querySelector('#orrery-status').textContent === '');
 
+async function expectDateStable(page, date, message) {
+  await page.waitForTimeout(120);
+  assert.equal(await page.locator('#orrery-date').textContent(), date, message);
+}
+
 async function holds(page, dialog, label) {
   assert(await dialog.evaluate(el => el.open), `${label}: introduction is open`);
   assert(await dialog.evaluate(el => el.contains(document.activeElement)), `${label}: focus moves into the card`);
@@ -37,8 +42,42 @@ async function holds(page, dialog, label) {
     const style = getComputedStyle(link);
     return { color: style.color, decorationColor: style.textDecorationColor, decorationStyle: style.textDecorationStyle };
   }));
+  assert(linkThemes.every(link => link.color === 'rgb(111, 191, 131)'), `${label}: dialog links use the standard green`);
   assert(linkThemes.every(link => link.decorationStyle === 'solid'), `${label}: links use solid underlines`);
   assert(linkThemes.every(link => link.decorationColor !== link.color), `${label}: link underlines stay subdued`);
+  const firstLink = dialog.locator('a').first();
+  await firstLink.hover();
+  assert.equal(await firstLink.evaluate(link => getComputedStyle(link).color), 'rgb(0, 232, 90)',
+    `${label}: dialog links brighten on hover`);
+  await page.mouse.move(0, 0);
+  const actions = await dialog.locator('.orrery-intro-action').evaluateAll(buttons => buttons.map(button => {
+    const style = getComputedStyle(button);
+    return { name: button.textContent, pressed: button.getAttribute('aria-pressed'), disabled: button.disabled,
+      height: button.getBoundingClientRect().height, color: style.color, fontWeight: style.fontWeight,
+      decorationColor: style.textDecorationColor, decorationLine: style.textDecorationLine,
+      decorationStyle: style.textDecorationStyle };
+  }));
+  assert.equal(actions.length, 4, `${label}: date, options and both renderer shortcuts are available`);
+  assert(actions.every(action => action.height >= 24), `${label}: intro shortcuts keep comfortable targets`);
+  assert(actions.every(action => action.decorationStyle === 'solid' && action.decorationLine === 'underline'),
+    `${label}: available shortcuts use the link treatment`);
+  assert(actions.every(action => action.color === 'rgb(111, 191, 131)' && action.fontWeight === '400'),
+    `${label}: all shortcuts use the same plain green link treatment`);
+  assert(actions.filter(action => action.pressed !== null).length === 2, `${label}: both renderer choices expose pressed state`);
+  assert.equal(actions.filter(action => action.pressed === 'true').length, 1, `${label}: one renderer is current`);
+  assert.equal(actions.filter(action => action.pressed !== null && !action.disabled).length, 2,
+    `${label}: both renderer choices remain actionable`);
+  const alternate = dialog.locator('.orrery-intro-renderer[aria-pressed="false"]');
+  const disabledTheme = await alternate.evaluate(button => {
+    button.disabled = true;
+    const style = getComputedStyle(button);
+    const result = { color: style.color, decorationLine: style.textDecorationLine };
+    button.disabled = false;
+    return result;
+  });
+  assert.equal(disabledTheme.decorationLine, 'none', `${label}: an unavailable shortcut no longer looks linked`);
+  assert.notEqual(disabledTheme.color, actions.find(action => action.pressed === 'false').color,
+    `${label}: an unavailable shortcut uses a visibly muted color`);
   const date = await page.locator('#orrery-date').textContent();
   await page.waitForTimeout(300);
   assert.equal(await page.locator('#orrery-date').textContent(), date, `${label}: playback holds while the introduction is open`);
@@ -56,6 +95,12 @@ async function resumes(page, dialog, date, label) {
   assert.equal(await page.evaluate(() => localStorage.getItem('orrery.intro')), 'seen', `${label}: dismissal is remembered`);
 }
 
+async function activate(dialog, action) {
+  const closed = dialog.evaluate(el => new Promise(resolve => el.addEventListener('close', resolve, { once: true })));
+  await action.click();
+  await closed;
+}
+
 async function run({ browser, name, output = '.context/intro' }) {
   fs.mkdirSync(output, { recursive: true });
   const server = await serve(process.env.ORRERY_DEFAULT_DIST || 'dist');
@@ -67,7 +112,8 @@ async function run({ browser, name, output = '.context/intro' }) {
       const errors = [];
       page.on('pageerror', error => errors.push(error.message));
       page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
-      const capture = state => page.screenshot({ path: path.join(output, `${name}-${viewport.width}-${state}.png`) });
+      const capture = process.env.ORRERY_NO_SCREENSHOTS === '1' ? async () => {}
+        : state => page.screenshot({ path: path.join(output, `${name}-${viewport.width}-${state}.png`) });
       try {
         await routeDefaultCatalog(page);
         await page.goto(`${server.url}/`);
@@ -102,6 +148,59 @@ async function run({ browser, name, output = '.context/intro' }) {
         const again = await holds(page, dialog, 'About again');
         await dialog.getByRole('button', { name: 'Close' }).click();
         await resumes(page, dialog, again, 'Close button');
+
+        await about.click();
+        const beforeOptions = await holds(page, dialog, 'Options shortcut');
+        await activate(dialog, dialog.getByRole('button', { name: 'Open options' }));
+        const options = page.getByRole('button', { name: 'Options', exact: true });
+        await page.waitForFunction(() => document.querySelector('.orrery-options-trigger')?.getAttribute('aria-expanded') === 'true');
+        assert(await options.evaluate(el => el === document.activeElement), 'Options shortcut transfers focus to the real disclosure');
+        await page.waitForFunction(previous => document.querySelector('#orrery-date').textContent !== previous, beforeOptions);
+        await options.click();
+
+        await about.click();
+        const beforeDate = await holds(page, dialog, 'Date shortcut');
+        await activate(dialog, dialog.getByRole('button', { name: 'date', exact: true }));
+        const dateDialog = page.getByRole('dialog', { name: 'Jump to date' });
+        await dateDialog.waitFor();
+        assert(await page.locator('#orrery-date-title').evaluate(el => el === document.activeElement),
+          'Date shortcut preserves the title-first mobile picker behavior');
+        await expectDateStable(page, beforeDate, 'Date shortcut keeps playback held');
+        await dateDialog.getByRole('button', { name: 'cancel' }).click();
+        await page.waitForFunction(previous => document.querySelector('#orrery-date').textContent !== previous, beforeDate);
+
+        await about.click();
+        await holds(page, dialog, '3D shortcut');
+        const twoD = dialog.getByRole('button', { name: '2D', exact: true });
+        const threeD = dialog.getByRole('button', { name: '3D', exact: true });
+        assert.equal(await twoD.getAttribute('aria-pressed'), 'true');
+        assert(!await twoD.isDisabled());
+        await activate(dialog, threeD);
+        await page.waitForFunction(() => {
+          const select = document.querySelector('select[aria-label="Renderer"]');
+          return select?.value === 'three' && !select.disabled;
+        });
+
+        await about.click();
+        await holds(page, dialog, '2D shortcut');
+        assert.equal(await threeD.getAttribute('aria-pressed'), 'true');
+        assert(!await threeD.isDisabled());
+        assert.equal(await twoD.getAttribute('aria-pressed'), 'false');
+        assert(!await twoD.isDisabled());
+        await activate(dialog, twoD);
+        await page.waitForFunction(() => {
+          const select = document.querySelector('select[aria-label="Renderer"]');
+          return select?.value === 'pixi' && !select.disabled;
+        });
+
+        await about.click();
+        const beforeCurrent = await holds(page, dialog, 'Current renderer shortcut');
+        assert.equal(await twoD.getAttribute('aria-pressed'), 'true');
+        assert(!await twoD.isDisabled());
+        await activate(dialog, twoD);
+        await resumes(page, dialog, beforeCurrent, 'current renderer shortcut');
+        assert.equal(await page.locator('select[aria-label="Renderer"]').inputValue(), 'pixi',
+          'Choosing the current renderer leaves it selected');
         assert.deepEqual(errors, []);
         results.push({ browser: name, viewport, firstVisit: true, remembered: true, reopen: true });
       } finally { await context.close(); }
