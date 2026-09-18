@@ -10,9 +10,9 @@ and reload checks in both modes. Retired preview entries returned 404.
 - `/` starts Pixi; `/?renderer=three` starts Three. Assets resolve relative to
   the deployment base, including `/Orrery/` on Pages.
 - `/next`, `/next/` and `/next/index.html` remain retired, without forwarding.
-- Unit 7a compiles only the current application. It removes PR73's legacy root
-  bundle, historical catalogue, old CSS and duplicate `/next/` assets from the
-  site, plus the frozen compatibility snapshots. Current root assets are unchanged.
+- The build publishes one application with lazy renderer chunks. Historical
+  catalogue payloads, legacy bundles, preview assets and frozen compatibility
+  snapshots are not part of the site.
 - Cached PR73 documents can no longer load their removed dependencies. Open
   `/` or `/?renderer=three` to load the current application; reloading a retired
   preview URL still returns 404. Current missing-chunk guidance and Pixi recovery
@@ -51,19 +51,12 @@ branch or silently overwrite later master changes. The normal Pages workflow can
 rebuild a pinned source checkout with `npm ci && npm run build -- --output-clean`;
 a retained artifact can also be served separately for local verification.
 
-## Cleanup and separate follow-ups
+## Retained history and verification
 
-Unit 7a removed public compatibility payloads. Unit 7b moves the exact historical
-100k catalogue to a compressed, attributed test fixture and retires the importer
-and duplicate legacy application. Current tests import production classes;
-benchmark hashes still cover the exact decompressed catalogue bytes.
-
-Unit 7c removes `migration/orrery3d` after extracting attributed
-[independent Three shader/numerical references](../tests/fixtures/three-reference/README.md).
-GPU/pixel, production scene, interaction, upload and recovery checks remain.
-The completed source-port exact-canvas comparison is deliberately retired.
-Relevant licenses, provenance and all original imported Git commits remain. Historical rollback checkouts
-and artifacts remain independent of current fixture builds.
-
-Copy/help and buffering follow-ups remain separate. Orrery3D's move notice and
-site link need their own review unit; repository archival requires explicit approval.
+The exact historical 100k catalogue remains a compressed, attributed
+[test fixture](../tests/fixtures/historical100k/README.md); benchmark hashes cover
+its decompressed bytes. Attributed
+[independent Three shader/numerical references](../tests/fixtures/three-reference/README.md)
+support GPU, pixel, interaction, upload and recovery checks. Relevant licenses,
+provenance and original imported Git commits remain available, while historical
+rollback checkouts and artifacts stay independent of current fixture builds.

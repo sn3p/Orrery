@@ -19,7 +19,7 @@ The old `/next` entry is removed. `npm run serve` uses `CONDUCTOR_PORT` when set
 otherwise 3000. `serve:next` and `build:next` remain aliases for the main app.
 Production builds emit only the unified application; retired root and preview
 payloads are no longer deployed. See [catalogue loading](catalog-loading.md), the
-[unification plan](unification.md) and the [release/rollback procedure](promotion.md).
+[current architecture](architecture.md) and the [release/rollback procedure](promotion.md).
 
 ## Tests
 
