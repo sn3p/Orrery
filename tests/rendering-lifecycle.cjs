@@ -104,6 +104,9 @@ exports.disposal = async (page, url) => {
       const expected = [[window, 'resize', app.resize], [document, 'visibilitychange', app.onVisibilityChange],
         [canvas, 'webglcontextlost', app.onContextLost], [canvas, 'webglcontextrestored', app.onContextRestored],
         [canvas, 'wheel', app.controls.onScroll], [query, 'change', app.onResolutionChange],
+        [canvas, 'pointerdown', app.controls.onPointerDown], [canvas, 'pointermove', app.controls.onPointerMove],
+        [canvas, 'pointerup', app.controls.onPointerEnd], [canvas, 'pointercancel', app.controls.onPointerEnd],
+        [canvas, 'lostpointercapture', app.controls.onPointerEnd],
         [app.gui.controls.trigger, 'click', app.gui.controls.onToggle],
         [document, 'pointerdown', app.gui.controls.onOutsidePointer], [document, 'keydown', app.gui.controls.onKeyDown]];
       const removed = new Set(), restore = [];
@@ -128,7 +131,7 @@ exports.disposal = async (page, url) => {
         canvas: !!document.querySelector('canvas'), gui: !!document.querySelector('.dg.main'), cloudDestroyed: cloud.destroyed };
     });
     // This is evaluated in the page without adding production globals.
-    assert.equal(before.pending, null); assert.equal(before.removed, 9);
+    assert.equal(before.pending, null); assert.equal(before.removed, 14);
     assert.equal(before.canvas, false); assert.equal(before.gui, false); assert(before.cloudDestroyed);
     assert.equal(await page.getByRole('status').textContent(), '', 'Teardown clears pending loading feedback immediately');
     release(); assert.equal(await page.evaluate(() => window.pendingLoad), false);

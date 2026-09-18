@@ -35,6 +35,8 @@ body {
 
 .orrery canvas {
   display: block;
+  /* Scene gestures belong to the active renderer, not viewport pan/zoom. */
+  touch-action: none;
 }
 
 .orrery-date,

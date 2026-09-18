@@ -89,13 +89,22 @@ async function invalidations(page) {
   await page.mouse.move(600, 400); await page.mouse.wheel(0, -100);
   await page.waitForFunction(before => fixture.probe.image !== before, image);
   await idle(page);
+  const canvas = page.locator('canvas');
+  assert.equal(await canvas.evaluate(element => getComputedStyle(element).touchAction), 'none',
+    'The scene owns touch gestures instead of zooming the viewport');
+  const scale = await page.evaluate(() => fixture.app.stage.scale.x);
+  await canvas.dispatchEvent('pointerdown', { pointerId: 7, pointerType: 'touch', clientY: 100 });
+  await canvas.dispatchEvent('pointermove', { pointerId: 7, pointerType: 'touch', clientY: 180 });
+  await canvas.dispatchEvent('pointerup', { pointerId: 7, pointerType: 'touch', clientY: 180 });
+  await page.waitForFunction(previous => fixture.app.stage.scale.x > previous, scale);
+  await idle(page);
   await page.evaluate(() => { fixture.app.stage.position.x += 17; fixture.app.stage.position.y -= 23; });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForFunction(() => fixture.app.viewWidth === 390);
   await idle(page);
   assert.deepEqual(await page.evaluate(() => [fixture.app.stage.x, fixture.app.stage.y]), [212, 399], 'Resize preserves CSS-pixel centering and pan');
   assert.deepEqual(await page.locator('canvas').evaluate(el => [el.width, el.height]), [390, 844]);
-  return { emptyFullInvalid: 'passed', wheelAndResize: 'passed' };
+  return { emptyFullInvalid: 'passed', wheelTouchAndResize: 'passed' };
 }
 
 async function dpr(page, browserName) {
