@@ -1,9 +1,9 @@
 # Architecture
 
 Orrery is one application with renderer-neutral state and two graphics adapters.
-Pixi is the default 2D renderer. Three is the optional 3D renderer and is loaded
-only when selected. Both consume the same retained catalogue model and application
-clock.
+Pixi is the default 2D selection and Three is the optional 3D selection. Both
+adapters load on demand and consume the same retained catalogue model and
+application clock.
 
 ## Ownership boundary
 
@@ -29,8 +29,9 @@ renderer-specific options and view state. It validates and commits draws, restor
 graphics state and disposes its own resources. Adapters do not fetch catalogue data,
 advance the application clock or schedule their own animation loop.
 
-`src/unified/renderers.js` is the renderer registry. Pixi is available immediately;
-Three is a lazy import so the default entry does not load its code or require WebGL2.
+`src/unified/renderers.js` is the renderer registry. Both entries use dynamic
+imports. The default route selects Pixi, so its startup does not load Three code
+or require WebGL2.
 
 ## State and persistence
 
