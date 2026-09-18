@@ -219,7 +219,7 @@ export default class PixiRenderer {
     // ordinary chunk path. Each continuation is a new application frame/task.
     cloud.append(cloud.committedCount + 8192);
     if (cloud !== this.asteroids && activate && cloud.committedCount >= required) {
-      cloud.update(frame.jed, frame.elapsed);
+      cloud.update(frame.jed, frame.elapsed, { baseline: true });
       this.installAsteroids(cloud, true);
       this.stagedAsteroids = null;
     }
@@ -229,6 +229,11 @@ export default class PixiRenderer {
   needsCatalogPacking(model) {
     const cloud = this.asteroids?.catalogue === model ? this.asteroids : this.stagedAsteroids;
     return !!model && (cloud?.committedCount ?? 0) < model.count;
+  }
+
+  catalogueProgress(model) {
+    const cloud = this.asteroids?.catalogue === model ? this.asteroids : this.stagedAsteroids;
+    return cloud?.catalogue === model ? cloud.committedCount : 0;
   }
 
   discardStagedCatalogue() {
@@ -254,10 +259,10 @@ export default class PixiRenderer {
     this.catalogueTransition = null;
   }
 
-  update({ jed, elapsed }) {
+  update({ jed, elapsed }, options) {
     if (this.app.renderer.resolution !== this.viewport.pixelRatio) this.resize(this.viewport);
     if (this.circleTexture.source.resolution !== this.texturePixelRatio) this.refreshCircleTexture();
-    const count = this.asteroids?.update(jed, elapsed) ?? 0;
+    const count = this.asteroids?.update(jed, elapsed, options) ?? 0;
     for (const planet of this.planets) planet.render(jed);
     return count;
   }
@@ -268,8 +273,9 @@ export default class PixiRenderer {
       elapsed: cloud.elapsed, count: cloud.geometry.instanceCount } : null;
   }
 
-  captureFrame(frame) {
-    this.frameSnapshot = this.asteroids && { cloud: this.asteroids, state: this.asteroids.captureFrame(frame.jed, frame.elapsed) };
+  captureFrame(frame, options) {
+    this.frameSnapshot = this.asteroids
+      && { cloud: this.asteroids, state: this.asteroids.captureFrame(frame.jed, frame.elapsed, options) };
   }
 
   restoreFrame(frame) {

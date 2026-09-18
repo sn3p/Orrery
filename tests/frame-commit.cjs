@@ -178,11 +178,21 @@ async function directTickBuffering(browser, base, output, name) {
       const cloud = app.renderer.asteroids;
       window.completed = { cloud, model: app.catalogue, frame: app.renderer.frameState,
         pixels: app.renderer.canvas.toDataURL(), date: app.gui.date.textContent, count: app.gui.count.textContent,
+        pending: app.pendingSeek,
         epoch: cloud.epoch, markerEpoch: cloud.markerEpoch,
         means: cloud.geometry.getBuffer('aMeanAnomaly').data.slice(),
         markers: cloud.geometry.getBuffer('aDiscovery').data.slice() };
       await app.loadCatalog(pin);
     }, { ...cases.bundles.ties.pin, url: base + '/catalog-fixtures/ties/index.json' });
+    assert.deepEqual(await page.evaluate(() => ({
+      pending: !!app.pendingSession && !app.catalogLoader.initialRendered,
+      settledSeek: completed.pending === null,
+      previousActive: app.renderer.asteroids === completed.cloud && app.catalogue === completed.model,
+      hud: app.gui.date.textContent === completed.date && app.gui.count.textContent === completed.count,
+    })), { pending: true, settledSeek: true, previousActive: true, hud: true },
+    'An unrendered replacement retains the committed scene while reporting its loading state');
+    assert.equal(await page.locator('.orrery-status-label').textContent(), 'Loading asteroids…');
+    assert.equal(await page.locator('#orrery-status').ariaSnapshot(), '- status: Loading asteroids…');
     const waiting = await page.evaluate(() => {
       app.renderFrame(1100);
       // A later redraw must also preserve the last completed direct tick.
@@ -205,10 +215,52 @@ async function directTickBuffering(browser, base, output, name) {
     await page.waitForFunction(() => app.catalogLoader.committedCount >= 4);
     await page.evaluate(() => app.renderFrame(1200));
     assert.equal(await page.evaluate(() => app.catalogLoader.sceneComplete() && !app.pendingSession && app.catalogue !== completed.model), true);
+    assert.equal(await page.locator('#orrery-status').textContent(), '');
     await page.screenshot({ path: path.join(output, name + '-direct-tick-replacement.png') });
     assert.deepEqual(errors, []);
     return { directTickBuffering: true, completedFramePreserved: true, replacementRecovered: true };
   } finally { release(); await page.close(); }
+}
+
+async function loaderlessSeek(browser, base) {
+  const results = [];
+  for (const renderer of ['pixi', 'three']) {
+    const page = await browser.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+      await page.goto(`${base}/catalog-historical/?renderer=${renderer}`);
+      await page.evaluate(() => catalogReady);
+      const result = await page.evaluate(() => {
+        const app = window.app = catalogTest.app;
+        app.autoRender = false;
+        app.cancelRender();
+        app.jedDelta = 1.5;
+        app.resetClock();
+        app.renderFrame(1000);
+        const target = app.jed + 257;
+        app.jed = target;
+        app.renderFrame(1100);
+        const cloud = app.renderer.asteroids;
+        const baseline = app.rendererId === 'pixi'
+          ? Array.from(cloud.geometry.getBuffer('aDiscovery').data.slice(0, cloud.geometry.instanceCount))
+          : cloud.uniforms.discoveryBaseline.value;
+        return { target, jed: app.jed, frameJed: app.renderer.frameState.jed,
+          pending: app.pendingSeek, requested: app.requestedJed, baseline };
+      });
+      assert.equal(result.jed, result.target, `${renderer}: running loaderless seek commits the exact target`);
+      assert.equal(result.frameJed, result.target, `${renderer}: renderer commits the exact loaderless target`);
+      assert.equal(result.pending, null, `${renderer}: exact loaderless seek clears pending ownership`);
+      assert.equal(result.requested, null, `${renderer}: exact loaderless seek clears the queued target`);
+      if (renderer === 'pixi') assert(result.baseline.length > 0 && result.baseline.every(value => value === -1),
+        'Pixi loaderless seek treats every existing discovery as mature');
+      else assert.equal(result.baseline, result.target - 2458600.5,
+        'Three loaderless seek treats existing discoveries as mature');
+      assert.deepEqual(errors, []);
+      results.push({ renderer, exactTarget: true, matureBaseline: true });
+    } finally { await page.close(); }
+  }
+  return results;
 }
 
 async function uploadFailurePage(browser, version) {
@@ -419,11 +471,12 @@ async function replacementUploadFailure(browser, base, output, name, version = 2
 
 async function run(browser, base, output, name) {
   const results = [await nullReplacement(browser, base, output, name), ...await bundledFailures(browser, base, output, name),
-    await directTickBuffering(browser, base, output, name)];
+    await directTickBuffering(browser, base, output, name), ...await loaderlessSeek(browser, base)];
   for (const version of [1, 2]) {
     results.push(await bundledUploadFailure(browser, base, output, name, version),
       await replacementUploadFailure(browser, base, output, name, version));
   }
   return results;
 }
-module.exports = { run, nullReplacement, bundledFailures, directTickBuffering, bundledUploadFailure, replacementUploadFailure };
+module.exports = { run, nullReplacement, bundledFailures, directTickBuffering, loaderlessSeek,
+  bundledUploadFailure, replacementUploadFailure };

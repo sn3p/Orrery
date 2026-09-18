@@ -194,16 +194,27 @@ async function markers(browser, url) {
     };
     await page.goto(url + '/?empty'); await page.evaluate(() => window.ready);
     await page.clock.pauseAt(new Date('2026-01-01T00:10:00Z'));
-    await page.evaluate(() => {
+    const discovery = await page.evaluate(() => {
       const {app, probe} = fixture;
       app.stage.children.forEach(c => { c.visible = false; });
       app.stage.scale.set(12);
-      app.setAsteroids([{ a: 0.1, e: 0, i: 0, W: 0, wbar: 0, M: 35, n: 1, epoch: app.jed, disc: app.jed - 10000 }]);
+      const disc = app.jed + 0.1;
+      app.setAsteroids([{ a: 0.1, e: 0, i: 0, W: 0, wbar: 0, M: 35, n: 1, epoch: app.jed, disc }]);
       probe.capture = true;
+      app.requestRender();
+      return disc;
     });
+    const waiting = await idleAtControlledTime();
+    const waitingPixels = await page.evaluate(() => fixture.probe.pixels);
+    assert.equal(waitingPixels.green, 0, 'A future discovery is not highlighted before its date');
+    assert.equal(waitingPixels.gray, 0, 'A future discovery is hidden before its date');
+    await speed(page, 1.5);
+    await page.clock.runFor(160);
+    await speed(page, 0);
     const fresh = await idleAtControlledTime();
+    assert(fresh.jed >= discovery && fresh.jed > waiting.jed, 'Ordinary playback crosses the discovery date');
     const freshPixels = await page.evaluate(() => ({ ...fixture.probe.pixels, image: fixture.probe.image }));
-    assert(freshPixels.green > 0);
+    assert(freshPixels.green > 0, 'A chronological discovery crossing highlights the new marker');
     await speed(page, 1.5);
     // Deliver actual RAF callbacks at controlled times. Protocol/input latency
     // must not consume the 1/3-second window in which the marker is half shrunk.

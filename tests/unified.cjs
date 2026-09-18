@@ -204,7 +204,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
               }, { jed, elapsed, scale }));
             }
             assert.equal(results[0].count, results[0].expectedCount, 'Rendered HUD population matches independent fixture chronology');
-            assert.equal(results[0].date, new Date((jed - 2440587.5) * 86400000).toISOString().slice(0, 10), 'HUD date agrees with independent UTC conversion');
+            assert.equal(results[0].date, new Date((jed - 2440587.5) * 86400000).toISOString().split('T', 1)[0], 'HUD date agrees with independent UTC conversion');
             assert(results[0].litPixels > 0, 'Raw App renders visible scene pixels');
             const pixels = raster(results[0].pixels);
             for (const earlier of label === 'dense-mature' ? (compact ? ['sparse-half'] : ['dense-fresh', 'dense-half', 'sparse-mature'])

@@ -83,7 +83,9 @@ export default class Asteroids extends Mesh {
     this.elapsed = elapsed;
     this.uniforms = uniforms.uniforms;
     if (canonical) this.append(limit);
-    this.update(jed, elapsed);
+    // Creating or replacing a cloud establishes a complete historical baseline;
+    // only later chronological crossings should receive arrival emphasis.
+    this.update(jed, elapsed, { baseline: true });
   }
 
   // App keeps the canonical arrays; only the active adapter packs its projection.
@@ -129,11 +131,11 @@ export default class Asteroids extends Mesh {
     return this.committedCount;
   }
 
-  captureFrame(jed, elapsed) {
+  captureFrame(jed, elapsed, { baseline = false } = {}) {
     const previous = this.geometry.instanceCount, count = discoveryCount(this.discoveryDates.subarray(0, this.committedCount), jed);
     const rollover = elapsed - this.markerEpoch > 4096;
-    const markerStart = rollover ? 0 : previous;
-    const markerEnd = rollover ? this.committedCount : Math.max(previous, count);
+    const markerStart = rollover || baseline ? 0 : previous;
+    const markerEnd = rollover ? this.committedCount : baseline ? count : Math.max(previous, count);
     return { epoch: this.epoch, markerEpoch: this.markerEpoch, elapsed: this.elapsed,
       count: previous, visible: this.visible, orbitTime: this.uniforms.uOrbitTime, markerTime: this.uniforms.uMarkerTime,
       means: Math.abs(jed - this.epoch) > REBASE_DAYS
@@ -160,7 +162,7 @@ export default class Asteroids extends Mesh {
     this.uniforms.uMarkerTime = state.markerTime;
   }
 
-  update(jed, elapsed = this.elapsed) {
+  update(jed, elapsed = this.elapsed, { baseline = false } = {}) {
     if (!validDate(jed) || !Number.isFinite(elapsed) || elapsed < this.markerEpoch) throw new Error("Invalid asteroid time.");
     if (Math.abs(jed - this.epoch) > REBASE_DAYS) {
       // Refresh every row, including hidden discoveries, from canonical Float64
@@ -188,7 +190,10 @@ export default class Asteroids extends Mesh {
     }
     const previous = this.geometry.instanceCount;
     const count = discoveryCount(this.discoveryDates.subarray(0, this.committedCount), jed);
-    if (count > previous) {
+    if (baseline) {
+      markers.data.fill(-1, 0, count);
+      if (!refreshed) this.queueUpload("aDiscovery", 0, count * 4);
+    } else if (count > previous) {
       markers.data.fill(markerTime, previous, count);
       // Only the newly revealed range; no position or colour buffer exists.
       if (!refreshed) {

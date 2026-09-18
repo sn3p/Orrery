@@ -98,7 +98,7 @@ exports.disposal = async (page, url) => {
   await page.route('**/pending-disposal', async route => { await gate; await route.fulfill({ body: '[]' }).catch(() => {}); });
   try {
     await page.evaluate(url => { window.pendingLoad = fixture.app.loadAsteroids(url + '/pending-disposal'); }, url);
-    assert.equal(await page.getByRole('status').textContent(), 'Loading asteroids…');
+    assert.equal(await page.locator('.orrery-status-label').textContent(), 'Loading asteroids…');
     const before = await page.evaluate(() => {
       const {app, probe} = fixture, query = app.resolutionQuery, canvas = app.canvas, cloud = app.asteroids;
       const expected = [[window, 'resize', app.resize], [document, 'visibilitychange', app.onVisibilityChange],

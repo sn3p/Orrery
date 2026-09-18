@@ -6,6 +6,8 @@ const { routeDefaultCatalog, latestURL, producerBase } = require('./default-cata
 
 async function run({ browser, name, output = '.context/full-catalogue/default-entry' }) {
   fs.mkdirSync(output, { recursive: true });
+  const capture = process.env.ORRERY_NO_SCREENSHOTS === '1' ? async () => {}
+    : (page, options) => page.screenshot(options);
   const server = await serve(process.env.ORRERY_DEFAULT_DIST || 'dist');
   const pages = path.join(output, 'pages');
   fs.mkdirSync(pages, { recursive: true });
@@ -45,7 +47,7 @@ async function run({ browser, name, output = '.context/full-catalogue/default-en
             assert.equal(await page.locator('#orrery canvas').count(), 1);
             assert.deepEqual(catalogueRequests(), before, 'Repeated switches retain all indexed data without refetch');
           }
-          await page.screenshot({ path: path.join(output, `${name}-${prefix}-${renderer}-default-switching.png`) });
+          await capture(page, { path: path.join(output, `${name}-${prefix}-${renderer}-default-switching.png`) });
           assert.deepEqual(errors, []);
           await page.route(latestURL, route => route.fulfill({ status: 503, body: 'Unavailable' }));
           await page.reload();

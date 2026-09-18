@@ -8,6 +8,8 @@ const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 async function run({ browser, name, application = "unified", output: artifactDirectory }) {
   const directory = artifactDirectory || path.resolve(".context/build-test/deployment");
   fs.mkdirSync(directory, { recursive: true });
+  const capture = process.env.ORRERY_NO_SCREENSHOTS === "1" ? async () => {}
+    : (page, options) => page.screenshot(options);
   // Exact historical fixture delivery through the production App at root/subpath.
   const dist = path.join(directory, "fixture-site");
   await require("./support.cjs").build("./tests/bundled-entry.js", dist, { application: "unified" });
@@ -59,7 +61,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
           const response = page.waitForResponse(response => response.url() === `${url}data/catalog.json`);
           await page.goto(url, { waitUntil: "domcontentloaded" });
           assert.equal((await request).resourceType(), "fetch", "Catalogue stays an async fetch at the deployment path");
-          assert.equal(await page.getByRole("status").textContent(), "Loading asteroids…");
+          assert.equal(await page.locator(".orrery-status-label").textContent(), "Loading asteroids…");
           assert.equal(await page.locator("#orrery-count").textContent(), "0");
           assert.equal(await page.locator("#orrery canvas").count(), 1);
           release();
@@ -84,7 +86,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
             assert(box && box.width > 0 && box.height > 0 && box.x >= 0 && box.y >= 0
               && box.x + box.width <= viewport.width && box.y + box.height <= viewport.height, `${selector} fits`);
           }
-          await page.screenshot({ path: path.join(directory, `${name}-${label}-${viewport.width}.png`) });
+          await capture(page, { path: path.join(directory, `${name}-${label}-${viewport.width}.png`) });
           await page.unroute("**/data/catalog.json");
           await page.reload();
           await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
@@ -105,7 +107,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
           })).catch(error => ({ error: error.message }));
           const prefix = path.join(directory, `${name}-${label}-${viewport.width}-failure`);
           fs.writeFileSync(`${prefix}.json`, JSON.stringify(diagnostic, null, 2) + "\n");
-          await page.screenshot({ path: `${prefix}.png`, timeout: 5000 }).catch(() => {});
+          await capture(page, { path: `${prefix}.png`, timeout: 5000 }).catch(() => {});
           console.error(JSON.stringify(diagnostic));
           throw error;
         } finally { release(); await page.close(); }

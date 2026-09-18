@@ -9,6 +9,9 @@ test('preview entry, responsive layouts, lazy assets and recovery', { tag: ['@co
 test('preview footer loading, buffering, failure and empty states', { tag: ['@ui', '@data'] }, async ({ check }) => {
   await check('next-status');
 });
+test('atomic date seeks, unified progress and discovery baselines', { tag: ['@core', '@ui', '@data', '@graphics'] }, async ({ check }) => {
+  await check('date-seek');
+});
 test('first-visit introduction, playback hold and About', { tag: ['@core', '@ui'] }, async ({ check }) => {
   await check('intro');
 });

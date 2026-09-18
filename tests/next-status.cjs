@@ -10,13 +10,21 @@ async function checkStatus(page, retained) {
   const readouts = page.locator('.orrery-readouts');
   assert.equal(await readouts.isVisible(), retained, 'Only committed readouts are visible');
   const box = await status.boundingBox(), identity = await page.locator('.orrery-identity').boundingBox();
-  assert.equal(box.x, 8, 'Status shares the bottom-left inset');
   assert(box.y > page.viewportSize().height / 2, 'Status stays in the bottom area');
   assert(box.x + box.width <= page.viewportSize().width - 8 && box.y + box.height <= page.viewportSize().height - 8);
   assert(box.x + box.width < identity.x || box.y + box.height < identity.y, 'Status and identity do not overlap');
+  const narrow = page.viewportSize().width <= 860;
+  if (!narrow) {
+    assert(Math.abs(box.x + box.width / 2 - page.viewportSize().width / 2) <= 1,
+      'Desktop feedback is centered in the viewport');
+  }
   if (retained) {
     const data = await readouts.boundingBox();
-    assert.equal(box.y + box.height + 4, data.y, 'Feedback sits immediately above the retained readout');
+    if (narrow) assert.equal(box.y + box.height + 4, data.y, 'Narrow feedback sits immediately above the retained readout');
+    else {
+      assert(box.x + box.width < data.x || data.x + data.width < box.x, 'Desktop feedback does not overlap retained readouts');
+      assert(Math.abs(box.y + box.height - (data.y + data.height)) <= 1, 'Desktop feedback shares the footer baseline');
+    }
   }
   assert(await status.evaluate(el => el.scrollWidth <= el.clientWidth), 'Long status wraps inside the viewport');
 }
@@ -47,10 +55,13 @@ async function run({ browser, name, output = '.context/ui-polish/status' }) {
           if (failChunk) await route.fulfill({ status: 503, body: 'Controlled failure' });
           else await route.fallback();
         });
-        const capture = state => page.screenshot({ path: path.join(output, `${name}-${renderer}-${viewport.width}x${viewport.height}-${state}.png`) });
+        const capture = process.env.ORRERY_NO_SCREENSHOTS === '1' ? async () => {}
+          : state => page.screenshot({ path: path.join(output, `${name}-${renderer}-${viewport.width}x${viewport.height}-${state}.png`) });
         try {
           await page.goto(`${server.url}/?renderer=${renderer}`, { waitUntil: 'domcontentloaded' });
           await page.getByRole('status').filter({ hasText: 'Loading asteroids' }).waitFor();
+          assert.equal(await page.locator('#orrery-status').ariaSnapshot(), '- status: Loading asteroids…',
+            'Initial loading is exposed as live-region text');
           await checkStatus(page, false);
           await capture('initial');
           releaseLatest();
@@ -59,7 +70,7 @@ async function run({ browser, name, output = '.context/ui-polish/status' }) {
           const before = await page.locator('.orrery-readouts').textContent();
           await capture('buffering');
           releaseChunk();
-          await page.getByRole('alert').filter({ hasText: 'Could not load more asteroids' }).waitFor();
+          await page.getByRole('alert').filter({ hasText: 'Could not load asteroids for' }).waitFor();
           await checkStatus(page, true);
           assert.equal(await page.locator('.orrery-readouts').textContent(), before, 'Failed delivery retains the last date/count');
           await capture('error');

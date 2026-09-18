@@ -1,6 +1,5 @@
-import { fromJED, toJED } from "../../js/utils.js";
+import { formatIsoDay, toJED } from "../../js/utils.js";
 
-const isoDay = jed => fromJED(jed).toISOString().split("T", 1)[0];
 const interactive = target => target?.closest?.("button, a, input, select, textarea, dialog, [contenteditable='true']");
 
 export default class Timeline {
@@ -22,7 +21,7 @@ export default class Timeline {
       && this.dialog && typeof this.dialog.showModal === "function" && this.title && this.form && this.input
       && this.error && this.today && this.beginning && this.cancel);
     if (!this.enabled) return;
-    this.beginning.textContent = isoDay(app.startJed);
+    this.beginning.textContent = formatIsoDay(app.startJed);
     this.playButton.addEventListener("click", this.onTogglePlayback);
     this.date.addEventListener("click", this.onOpenDate);
     this.form.addEventListener("submit", this.onSubmitDate);
@@ -68,7 +67,7 @@ export default class Timeline {
   onOpenDate = () => {
     if (this.dialog.open) return;
     this.error.textContent = "";
-    this.input.value = isoDay(this.app.jed);
+    this.input.value = formatIsoDay(this.app.jed);
     this.app.hold(true);
     this.dialog.showModal();
     this.dialog.scrollTop = 0;
