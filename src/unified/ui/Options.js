@@ -58,7 +58,7 @@ export default class Options {
     this.planetOrbits = this.gui.add(this.orrery, "planetOrbits").name("orbits");
     this.planetOrbitsInput = this.planetOrbits.domElement.querySelector("input");
     this.planetOrbitsInput.setAttribute("aria-label", "Planet orbits");
-    this.planetOrbitsInput.title = "Show or hide planetary orbit lines without changing planet motion.";
+    this.planetOrbitsInput.title = "Show or hide planetary orbit lines.";
     this.addHint(this.planetOrbits, this.planetOrbitsInput.title, this.planetOrbitsInput);
 
     this.pixelRatio = this.gui.add(this.orrery, "pixelRatio", { "1×": "1", "2×": "2" }).name("DPR");

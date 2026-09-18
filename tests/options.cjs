@@ -101,7 +101,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     "Tab reaches the first revealed control");
     await expect(speed).toHaveAccessibleDescription("0 pauses; negative reverses. 1 = 60 days per second.");
     await expect(labels).toHaveAccessibleDescription("Show Earth as an orientation cue, label every planet, or hide planet labels.");
-    await expect(orbits).toHaveAccessibleDescription("Show or hide planetary orbit lines without changing planet motion.");
+    await expect(orbits).toHaveAccessibleDescription("Show or hide planetary orbit lines.");
     assert.deepEqual(await labels.locator("option").allTextContents(), ["Off", "Earth only", "All planets"]);
     assert.equal(await labels.inputValue(), "earth");
     assert(await orbits.isChecked(), "Planet orbits start visible");
