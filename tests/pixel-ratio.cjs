@@ -22,6 +22,7 @@ module.exports = async (browser, url, output, name, application = "unified") => 
   page.on("pageerror", error => errors.push(error.message));
   page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
   const control = page.getByRole("combobox", { name: "Rendering pixel ratio" });
+  const labels = page.getByRole("combobox", { name: "Planet labels" });
   const speed = page.getByRole("textbox", { name: "Playback speed" });
   const boot = async () => {
     await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
@@ -180,8 +181,14 @@ module.exports = async (browser, url, output, name, application = "unified") => 
     // Blocked storage cannot remember the introduction, so it returns on every visit.
     const dismissIntro = async () => { await page.locator('#orrery-intro[open]').waitFor(); await page.keyboard.press('Escape'); };
     await page.reload(); await dismissIntro(); await boot(); await checkBuffer(page, 1);
+    assert.equal(await labels.inputValue(), "earth");
+    await labels.selectOption("all"); await settle(page);
+    assert.equal(await page.locator(".orrery-planet-label").count(), 6,
+      "Blocked storage does not prevent changing the label mode for this session");
     await choose("2"); await checkBuffer(page, 2);
     await page.reload(); await dismissIntro(); await boot(); await checkBuffer(page, 1);
+    assert.equal(await labels.inputValue(), "earth", "Blocked storage falls back to Earth labels after reload");
+    assert.equal(await page.locator('.orrery-planet-label[data-planet="Earth"]').count(), 1);
     assert.deepEqual(errors, []);
   } finally {
     if (cdp) await cdp.detach();

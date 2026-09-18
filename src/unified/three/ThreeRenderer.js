@@ -4,6 +4,7 @@ import Sun from "./Sun.js";
 import Planet from "./Planet.js";
 import Orbit from "./Orbit.js";
 import Asteroids from "./Asteroids.js";
+import { DEFAULT_PLANET_LABEL_MODE, isPlanetLabelMode, PlanetLabels } from "../PlanetLabel.js";
 
 function disposePlanets(batch) {
   for (const { planet, orbit } of batch) {
@@ -36,10 +37,14 @@ export default class ThreeRenderer {
     this.contextLost = false;
     this.asteroids = this.stagedAsteroids = this.catalogueTransition = null;
     this.planets = [];
+    this.planetLabelMode = DEFAULT_PLANET_LABEL_MODE;
+    this.planetLabels = new PlanetLabels(container);
+    this.planetLabelPosition = new THREE.Vector3();
     this.onContextLost = event => {
       event.preventDefault();
       if (this.destroyed) return;
       this.contextLost = true;
+      this.planetLabels.hide();
       this.releaseSceneResources();
       this.reportGraphicsState(true);
     };
@@ -132,6 +137,15 @@ export default class ThreeRenderer {
     disposePlanets(preparePlanets(data, jed));
   }
 
+  setOptions({ shared } = {}) {
+    const mode = shared?.planetLabels;
+    if (mode === undefined || mode === this.planetLabelMode) return;
+    if (!isPlanetLabelMode(mode)) throw new RangeError("Invalid planet label mode.");
+    this.planetLabelMode = mode;
+    this.planetLabels.setMode(this.planets, mode);
+    this.requestRender();
+  }
+
   addPlanets(data, { jed }) {
     if (this.destroyed) return;
     const batch = preparePlanets(data, jed);
@@ -139,6 +153,7 @@ export default class ThreeRenderer {
       this.planets.push(planet);
       this.scene.add(orbit, planet.body);
     }
+    this.planetLabels.setMode(this.planets, this.planetLabelMode);
     this.requestRender();
   }
 
@@ -242,7 +257,17 @@ export default class ThreeRenderer {
       throw this.gpuError;
     }
     if (this.asteroids?.geometry.drawRange.count && this.drawnAsteroids !== this.asteroids) return null;
+    this.placePlanetLabels();
     return this.asteroids?.acknowledgeDraw() ?? (this.asteroids ? null : 0);
+  }
+
+  placePlanetLabels() {
+    const { width, height } = this.viewport;
+    this.planetLabels.forEach((planet, label) => {
+      const position = this.planetLabelPosition.copy(planet.body.position).project(this.camera);
+      label.place((position.x + 1) * width / 2, (1 - position.y) * height / 2,
+        { width, height, visible: position.z >= -1 && position.z <= 1 });
+    });
   }
 
   resize(viewport) {
@@ -289,6 +314,7 @@ export default class ThreeRenderer {
     this.canvas?.removeEventListener("webglcontextrestored", this.onContextRestored);
     this.controls?.removeEventListener("change", this.requestRender);
     this.controls?.dispose();
+    this.planetLabels.destroy();
     this.releaseSceneResources();
     for (const cloud of new Set([this.asteroids, this.stagedAsteroids, this.catalogueTransition?.previous])) cloud?.destroy();
     if (this.renderer) {

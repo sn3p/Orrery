@@ -56,11 +56,35 @@ async function run({ browser, name, application = "unified", output: artifactDir
           try { await app.init(); } catch { rejected = true; }
           check(rejected && app.destroyed && !app.initialized, 'Failed init is terminal and disposed');
           check(!failedPixi.renderer && !failedPixi.stage, 'Failed init releases partial GPU/stage resources');
-          check(!document.querySelector('canvas, .orrery-options'), 'Failed init attaches no canvas/UI');
+          check(!document.querySelector('canvas, .orrery-options, .orrery-planet-label'), 'Failed init attaches no canvas/UI');
           check(document.getElementById('orrery-status').textContent.includes('Unable to start'), 'Initial error remains visible');
           app.destroy(); app.destroy(); app.renderStatus();
           check(!document.getElementById('orrery-status').textContent, 'Explicit teardown clears failed Pixi startup feedback');
         }
+        Application.prototype.init = init;
+        let started, releaseStartup;
+        const startupReady = new Promise(resolve => { started = resolve; });
+        const startupGate = new Promise(resolve => { releaseStartup = resolve; release = resolve; });
+        Application.prototype.init = async function(options) {
+          const result = await init.call(this, options);
+          started();
+          await startupGate;
+          return result;
+        };
+        app = new App({ autoRender: false });
+        const startup = app.init();
+        await startupReady;
+        check(app.renderer.planets.length === 0 && !app.renderer.initialized,
+          'Pixi exposes an empty planet collection while GPU startup is pending');
+        app.planetLabels = 'all';
+        check(app.renderer.planetLabelMode === 'all' && app.renderer.planetLabels.labels.size === 0,
+          'A startup-time label change is accepted before the scene exists');
+        releaseStartup(); await startup;
+        app.addPlanets(fixture.planets);
+        check(app.renderer.planetLabels.labels.size === fixture.planets.length
+          && document.querySelectorAll('.orrery-planet-label').length === fixture.planets.length,
+          'The startup-time label mode applies when planets arrive');
+        app.destroy(); localStorage.removeItem('orrery.planetLabels');
         Application.prototype.init = init;
         app = new App({ autoRender: false, jedDelta: 0 });
         // Exercise a real early load; App must wait for its own lazy renderer.
@@ -76,8 +100,9 @@ async function run({ browser, name, application = "unified", output: artifactDir
         app.renderFrame(100000);
         check(Math.abs(app.jed - start - 112.5) < 1e-6, 'Long stalls preserve the existing250ms cap');
         app.destroy(); app.destroy();
-        check(!document.querySelector('canvas, .orrery-options') && pendingFrames.size === 0, 'Raw lifecycle leaves no UI/canvas/RAF');
-        return { sharedInit: true, lazyDispose: true, failedInit: ['before-allocation', 'after-allocation'], earlyLoad: 100000, clock: true, pendingFrames: pendingFrames.size };
+        check(!document.querySelector('canvas, .orrery-options, .orrery-planet-label') && pendingFrames.size === 0, 'Raw lifecycle leaves no UI/canvas/RAF');
+        return { sharedInit: true, lazyDispose: true, failedInit: ['before-allocation', 'after-allocation'],
+          startupLabels: true, earlyLoad: 100000, clock: true, pendingFrames: pendingFrames.size };
       } finally {
         release?.(); Application.prototype.init = init; app?.destroy();
         window.requestAnimationFrame = raf; window.cancelAnimationFrame = caf;

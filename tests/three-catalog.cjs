@@ -115,7 +115,7 @@ async function data(browser, base, output, name) {
     await replacement.evaluate(() => { window.loading = app.loadAsteroids('/delayed-catalog'); });
     await request; await replacement.evaluate(() => app.destroy()); releaseLoad();
     assert.equal(await replacement.evaluate(() => loading), false);
-    assert.equal(await replacement.locator('canvas, .orrery-options').count(), 0);
+    assert.equal(await replacement.locator('canvas, .orrery-options, .orrery-planet-label').count(), 0);
     results.push({ stale: true, retry: attempts, malformedReplacementPreserved: true, disposedLoad: true });
   } finally { release?.(); await replacement.close(); }
   return results;

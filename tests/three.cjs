@@ -49,12 +49,49 @@ async function entries(browser, base, output, name) {
         assert.equal(await page.evaluate(() => app.rendererId), renderer === 'three' ? 'three' : 'pixi');
         assert.equal(await page.evaluate(() => app.catalogue.count), 100000);
         assert.equal(await page.locator('#orrery canvas').count(), 1);
-        assert.equal(await page.getByRole('button', { name: 'Options', exact: true }).count(), 1);
+        const label = page.locator('.orrery-planet-label[data-planet="Earth"]');
+        assert.equal(await label.count(), 1);
+        assert.equal(await label.textContent(), 'Earth');
+        assert.equal(await label.getAttribute('aria-hidden'), 'true');
+        assert(await label.isVisible());
+        const labelPresentation = await label.evaluate(element => {
+          const style = getComputedStyle(element), rect = element.getBoundingClientRect();
+          return { color: style.color, fontSize: style.fontSize, opacity: style.opacity,
+            pointerEvents: style.pointerEvents,
+            insideViewport: rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight };
+        });
+        assert.deepEqual(labelPresentation,
+          { color: 'rgb(152, 192, 255)', fontSize: '10px', opacity: '0.5', pointerEvents: 'none',
+            insideViewport: true });
+        const options = page.getByRole('button', { name: 'Options', exact: true });
+        assert.equal(await options.count(), 1);
+        await options.click();
+        const labels = page.getByRole('combobox', { name: 'Planet labels' });
+        assert.equal(await labels.inputValue(), 'earth');
+        assert.deepEqual(await labels.locator('option').allTextContents(), ['Off', 'Earth only', 'All planets']);
+        assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetLabels')), null,
+          'Default label mode does not invent a saved preference');
+        const persistenceBoundary = prefix === '' && renderer === 'pixi';
+        if (persistenceBoundary) {
+          await labels.selectOption('off');
+          assert.equal(await page.locator('.orrery-planet-label').count(), 0);
+          assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetLabels')), 'off');
+        } else await options.click();
         assert(requests.some(url => url.includes('/' + (renderer === 'three' ? 'three' : 'pixi') + '.')));
         assert(!requests.some(url => url.includes('/' + (renderer === 'three' ? 'pixi' : 'three') + '.')));
         if (renderer === 'unknown') assert.equal(await page.locator('#orrery-status').textContent(), 'Unknown renderer. Showing Pixi.');
         await page.reload();
         await page.waitForFunction(() => Number(document.querySelector('#orrery-count').textContent.replaceAll("\u202f", "")) > 0);
+        if (persistenceBoundary) {
+          assert.equal(await page.evaluate(() => (window.threeTest?.app ?? window.catalogTest.app).planetLabels), 'off');
+          assert.equal(await page.locator('.orrery-planet-label').count(), 0);
+          assert.equal(await page.locator('select[aria-label="Planet labels"]').inputValue(), 'off');
+          await page.getByRole('button', { name: 'Options', exact: true }).click();
+          await page.getByRole('combobox', { name: 'Planet labels' }).selectOption('earth');
+        }
+        const visibleEarth = page.locator('.orrery-planet-label[data-planet="Earth"]:visible');
+        await visibleEarth.waitFor();
+        assert.equal(await visibleEarth.count(), 1);
         // Existing Pixi/WebGL1 texture setup emits this exact WebKit diagnostic
         // on the no-fault baseline too (see frame-commit.cjs). Keep it recorded;
         // every other console error and all Three errors remain failures.
@@ -66,7 +103,7 @@ async function entries(browser, base, output, name) {
           await page.evaluate(() => { threeTest.app.destroy(); threeTest.app.destroy(); threeTest.app.renderStatus(); });
           assert.equal(await page.locator('#orrery-status').textContent(), '', 'Unknown-renderer notice is cleared by teardown');
           assert.equal(await page.locator('#orrery-status').getAttribute('role'), 'status');
-          assert.equal(await page.locator('canvas, .orrery-options').count(), 0);
+          assert.equal(await page.locator('canvas, .orrery-options, .orrery-planet-label').count(), 0);
         }
         results.push({ prefix, renderer, historical100k: true, lazy: true, knownWebGL1Warnings: diagnostics.filter(known).length });
       } finally { await page.close(); }
@@ -93,7 +130,7 @@ async function entries(browser, base, output, name) {
       if (kind === 'shader') {
         assert.equal(await page.evaluate(() => threeTest.ready), false, 'Initial GPU failure does not report a successful load');
         assert(await page.evaluate(() => threeTest.app.initialized && threeTest.app.renderFailure && !threeTest.app.catalogue));
-      } else assert.equal(await page.locator('canvas, .orrery-options').count(), 0);
+      } else assert.equal(await page.locator('canvas, .orrery-options, .orrery-planet-label').count(), 0);
       const link = page.getByRole('link', { name: 'Open Pixi preview', exact: true });
       assert.equal(await link.evaluate(el => new URL(el.href).pathname), '/Orrery/next/');
       const box = await link.boundingBox(); assert(box.x >= 0 && box.x + box.width <= 320);
@@ -116,7 +153,7 @@ async function entries(browser, base, output, name) {
           stale.destroy(); stale.destroy(); stale.renderStatus();
           const retained = untouched && message === 'Unknown renderer. Showing Pixi.' && status.textContent === message;
           replacement.destroy();
-          return retained && !status.textContent && !document.querySelector('canvas, .orrery-options');
+          return retained && !status.textContent && !document.querySelector('canvas, .orrery-options, .orrery-planet-label');
         }), 'Startup teardown clears its own feedback and preserves a newer App status');
         await page.reload();
         await page.getByRole('alert').filter({ hasText: 'Unable to start the 3D visualization' }).waitFor();
@@ -285,16 +322,24 @@ async function lifecycle(browser, base, output, name) {
       // A completely offscreen camera still commits time with an actual draw.
       app.renderer.controls.target.set(1e8,1e8,1e8); app.renderer.controls.update();
       app.jed += 1; const requested = app.jed; app.renderFrame();
-      return { hidden: hidden === before, resume: first === before, advance, offscreen: app.jed === requested && !app.requestedJed };
+      return { hidden: hidden === before, resume: first === before, advance,
+        offscreen: app.jed === requested && !app.requestedJed,
+        labelHidden: document.querySelector('.orrery-planet-label').hidden };
     });
-    assert.deepEqual(visibility, { hidden: true, resume: true, advance: 9, offscreen: true });
+    assert.deepEqual(visibility, { hidden: true, resume: true, advance: 9, offscreen: true, labelHidden: true });
     for (let cycle = 0; cycle < 2; cycle++) {
       await page.evaluate(() => { window.loss = app.renderer.renderer.getContext().getExtension('WEBGL_lose_context'); loss.loseContext(); });
       await page.waitForFunction(() => app.contextLost);
       assert.match(await page.locator('#orrery-status').textContent(), /Graphics connection lost/);
       assert.equal(await page.evaluate(() => app.animationFrame), null);
+      assert(await page.locator('.orrery-planet-label').isHidden());
       await page.evaluate(() => loss.restoreContext()); await page.waitForFunction(() => !app.contextLost);
-      assert(await page.evaluate(() => { app.renderFrame(); return !app.renderFailure && app.catalogue === model; }));
+      assert(await page.evaluate(() => {
+        app.renderer.controls.reset();
+        app.renderFrame();
+        return !app.renderFailure && app.catalogue === model;
+      }));
+      assert(await page.locator('.orrery-planet-label[data-planet="Earth"]').isVisible());
     }
     assert.equal(requests.length, 1, 'Two graphics restorations reuse retained CPU catalogue');
     assert(await page.evaluate(() => Object.entries(originalArrays).every(([key, values]) => values.every((v,i) => Object.is(v, model[key][i])))), 'Canonical data remains unmutated');
@@ -304,7 +349,7 @@ async function lifecycle(browser, base, output, name) {
       return Object.keys(cloud.geometry.attributes).length === 0 && adapter.scene.children.length === 0
         && adapter.planets.length === 0 && adapter.asteroids === null;
     }), 'Final destruction releases CPU arrays and scene ownership as well as GPU storage');
-    assert.equal(await page.locator('canvas, .orrery-options').count(), 0);
+    assert.equal(await page.locator('canvas, .orrery-options, .orrery-planet-label').count(), 0);
     assert.equal(await page.evaluate(() => app.animationFrame), null);
     const initialization = await page.evaluate(async () => {
       const { App, ThreeRenderer } = await threeTest.constructors();
@@ -324,7 +369,7 @@ async function lifecycle(browser, base, output, name) {
         let rejected = false;
         try { await failing.init(); } catch { rejected = true; }
         check(rejected && failing.destroyed && adapter.destroyed, 'Partial initialization is terminal and disposed');
-        check(!document.querySelector('canvas, .orrery-options'), 'Initialization failure releases all attached resources');
+        check(!document.querySelector('canvas, .orrery-options, .orrery-planet-label'), 'Initialization failure releases all attached resources');
         failing.destroy();
       }
       return { lazyDisposal: true, partialInitialization: ['before', 'after'] };

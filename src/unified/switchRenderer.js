@@ -34,7 +34,7 @@ async function rebuild(app, create, id, signal) {
     await renderer.init();
     signal.throwIfAborted();
     renderer.restoreView?.(app.rendererViews[id]);
-    renderer.setOptions?.({ shared: { pixelRatio: app.pixelRatio }, renderer: app.rendererOptions[id] });
+    renderer.setOptions?.(app.rendererSettings(id));
     const model = app.catalogue;
     if (model) {
       // Retain only one packed cloud. Yield between bounded CPU batches, also
@@ -50,7 +50,7 @@ async function rebuild(app, create, id, signal) {
     // Tracks retain the sampling date used when their planets were added.
     // Re-sampling at each switch subtly moves their polygon vertices.
     for (const batch of app.planetBatches) renderer.addPlanets(batch.planets, { jed: batch.jed });
-    renderer.setOptions?.({ shared: { pixelRatio: app.pixelRatio }, renderer: app.rendererOptions[id] });
+    renderer.setOptions?.(app.rendererSettings(id));
     renderer.resize(app.viewport);
     renderer.update(app.frameState);
     renderer.restoreDiscoveries?.();

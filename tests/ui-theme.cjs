@@ -59,9 +59,16 @@ module.exports = async function checkTheme(page) {
       / (luminance(getComputedStyle(element.closest('.orrery-options-panel')).backgroundColor) + 0.05);
   });
   assert(contrast >= 4.5, 'Muted help text keeps readable contrast');
+  // The scrollable Options popover intentionally covers lower-page controls
+  // in very short viewports. Close it before checking the footer interaction,
+  // then reopen it for the panel/control states below.
+  await page.keyboard.press('Escape');
   await page.locator('#orrery-date').hover();
   assert.equal(await page.locator('#orrery-date').evaluate(element => getComputedStyle(element).color), 'rgb(0, 232, 90)',
     'White links turn green on hover');
+  await require('./options.cjs').openOptions(page);
+  await page.mouse.move(viewport.width / 2, viewport.height / 2);
+  assert.deepEqual(await snapshot(), normal, 'Reopening preserves text roles');
   await page.getByRole('button', { name: 'Options', exact: true }).hover();
   assert.equal(await page.getByRole('button', { name: 'Options', exact: true }).evaluate(element => getComputedStyle(element).color),
     'rgb(0, 232, 90)', 'Options turns green only on hover');
@@ -72,9 +79,5 @@ module.exports = async function checkTheme(page) {
     await control.focus();
     assert.deepEqual(await snapshot(), normal, 'Focus preserves each text role');
   }
-  await page.keyboard.press('Escape');
-  await require('./options.cjs').openOptions(page);
-  await page.mouse.move(viewport.width / 2, viewport.height / 2);
-  assert.deepEqual(await snapshot(), normal, 'Reopening preserves text roles');
   return normal;
 };

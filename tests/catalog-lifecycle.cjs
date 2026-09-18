@@ -250,7 +250,7 @@ async function run(browser, base, output, name) {
     });
     assert.deepEqual(packing, { first: 8192, final: 10000, matches: true });
     await page.evaluate(() => { app.destroy(); app.destroy(); });
-    assert.equal(await page.locator('canvas, .orrery-options').count(), 0);
+    assert.equal(await page.locator('canvas, .orrery-options, .orrery-planet-label').count(), 0);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
   const prefix = await browser.newPage();
