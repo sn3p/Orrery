@@ -324,10 +324,13 @@ async function lifecycle(browser, base) {
     await page.getByRole('button', { name: 'Options', exact: true }).click();
     const labels = page.getByRole('combobox', { name: 'Planet labels' });
     const orbits = page.getByRole('checkbox', { name: 'Planet orbits' });
+    const groups = page.getByRole('combobox', { name: 'Minor-planet groups' });
     await labels.selectOption('all');
     await orbits.uncheck();
+    await groups.selectOption('nea');
     assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetLabels')), 'all');
     assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetOrbits')), 'false');
+    assert.equal(await page.evaluate(() => localStorage.getItem('orrery.populationPreset')), null);
     assert.deepEqual((await page.locator('.orrery-planet-label').allTextContents()).sort(),
       ['Earth', 'Jupiter', 'Mars', 'Mercury', 'Saturn', 'Venus']);
     await page.getByRole('button', { name: 'Options', exact: true }).click();
@@ -346,6 +349,12 @@ async function lifecycle(browser, base) {
           && app.renderer.planets.every(planet => planet.body.visible !== false
             && (planet.body.alpha ?? planet.body.material?.opacity ?? 1) > 0),
         'Hidden planet tracks survive switching without hiding planets');
+        check(app.populationPreset === 'nea' && app.renderer.populationPreset === 'nea',
+          'Population preset survives switching');
+        const discovered = app.rendererId === 'pixi' ? app.renderer.asteroids.geometry.instanceCount
+          : app.renderer.asteroids.geometry.drawRange.count;
+        check(discovered === app.asteroidsDiscovered, 'Draw range stays the discovery prefix');
+        check(app.asteroidsVisible <= app.asteroidsDiscovered, 'HUD visible count cannot exceed discoveries');
         check(app.catalogue === model && !app.renderer.needsCatalogPacking(model), 'Retained population uploaded');
       }
       check(listenerCounts.every(n => n === listenerCounts[0]), 'Listener count stays bounded: ' + listenerCounts);

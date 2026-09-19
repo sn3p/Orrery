@@ -489,3 +489,83 @@ dialog .orrery-dialog-title:focus { outline: none; }
   outline-offset: 2px;
 }
 .orrery-date-actions button:hover { border-color: var(--color-accent-muted); color: #fff; }
+
+.orrery-glossary-trigger {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: -4px 0 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent-muted);
+  font: inherit;
+  font-size: var(--font-ui-size);
+  line-height: 18px;
+  text-align: left;
+  text-decoration-line: underline;
+  text-decoration-style: solid;
+  text-decoration-color: #477b54;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.orrery-glossary-trigger:hover,
+.orrery-glossary-trigger:focus-visible { color: var(--color-accent); text-decoration-color: var(--color-accent-muted); }
+.orrery-glossary-trigger:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.orrery-glossary {
+  width: 440px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 16px);
+  box-sizing: border-box;
+  margin: auto;
+  padding: 0;
+  border: 1px solid #365c41;
+  background: #111;
+  color: #ccc;
+  font-size: var(--font-ui-size);
+  line-height: 18px;
+}
+.orrery-glossary:not([open]) { display: none; }
+.orrery-glossary::backdrop { background: rgba(0, 0, 0, 0.6); }
+.orrery-glossary-card { padding: 16px; }
+.orrery-glossary h1 {
+  margin: 0 0 12px;
+  font-size: var(--font-ui-size);
+  font-weight: 600;
+  color: #eee;
+}
+.orrery-glossary p,
+.orrery-glossary dl { margin: 0 0 12px; }
+.orrery-glossary dt { margin: 0; color: #eee; font-weight: 600; }
+.orrery-glossary dd { margin: 0 0 8px; }
+.orrery-glossary dd:last-child { margin-bottom: 0; }
+.orrery-glossary-links { color: var(--color-hud); }
+.orrery-glossary a {
+  color: var(--color-accent-muted);
+  text-decoration-style: solid;
+  text-decoration-color: #477b54;
+  text-underline-offset: 3px;
+}
+.orrery-glossary a:hover,
+.orrery-glossary a:focus-visible {
+  color: var(--color-accent);
+  text-decoration-color: var(--color-accent-muted);
+}
+.orrery-glossary a:focus-visible,
+.orrery-glossary-close:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.orrery-glossary-close {
+  font: inherit;
+  color: #b5e8c1;
+  background: #1a1a1a;
+  border: 1px solid #477b54;
+  padding: 3px 12px;
+  cursor: pointer;
+}
+.orrery-glossary-close:hover { color: #fff; border-color: var(--color-accent-muted); }

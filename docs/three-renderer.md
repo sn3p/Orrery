@@ -12,7 +12,7 @@ neutral reload guidance. Pixi does not load Three or require WebGL2.
 
 The shared App owns date, speed, scheduler, HUD/options and catalogue. The Three
 adapter owns scene resources, camera/input and restoration; it never fetches data
-or schedules its own loop. The shared Renderer/Speed/planet-label/planet-orbit/DPR
+or schedules its own loop. The shared Renderer/Speed/planet-label/planet-orbit/groups/DPR
 panel operates on the current adapter. Its renderer selector changes modes in
 place without reloading or fetching retained data.
 Each renderer keeps its own view for the page session, and the shared DPR choice

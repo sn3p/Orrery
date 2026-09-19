@@ -43,7 +43,7 @@ and restores its normal view and DPR defaults.
 Explicit planet-label and planet-orbit choices are stored under
 `orrery.planetLabels` and `orrery.planetOrbits`; they apply to both adapters.
 Introduction dismissal is stored separately under `orrery.intro`. Renderer choice,
-renderer-specific view state and DPR are not persisted.
+renderer-specific view state, DPR and the minor-planet group preset are not persisted.
 
 ## Renderer switching
 

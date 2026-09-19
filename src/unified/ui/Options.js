@@ -1,4 +1,5 @@
 import * as dat from "dat.gui";
+import { DEFAULT_POPULATION_PRESET, POPULATION_PRESET_OPTIONS, populationHint } from "../catalog/population.js";
 
 let nextPanelId = 0;
 
@@ -61,6 +62,13 @@ export default class Options {
     this.planetOrbitsInput.title = "Show or hide planetary orbit lines.";
     this.addHint(this.planetOrbits, this.planetOrbitsInput.title, this.planetOrbitsInput);
 
+    this.population = this.gui.add(this.orrery, "populationPreset", POPULATION_PRESET_OPTIONS).name("groups");
+    this.populationSelect = this.population.domElement.querySelector("select");
+    this.populationSelect.setAttribute("aria-label", "Minor-planet groups");
+    this.setPopulationHint(this.orrery.populationPreset ?? DEFAULT_POPULATION_PRESET);
+    this.population.onChange(value => this.setPopulationHint(value));
+    this.mountGlossary();
+
     this.pixelRatio = this.gui.add(this.orrery, "pixelRatio", { "1×": "1", "2×": "2" }).name("DPR");
     this.pixelRatioSelect = this.pixelRatio.domElement.querySelector("select");
     this.pixelRatioSelect.setAttribute("aria-label", "Rendering pixel ratio");
@@ -81,6 +89,7 @@ export default class Options {
     // dat.gui skips focused selects; recovery still needs a truthful value.
     this.rendererSelect.value = this.rendererState.renderer;
     this.speed?.updateDisplay();
+    this.population?.updateDisplay();
     this.rendererSelect.disabled = !!this.orrery.switching;
     this.panel.setAttribute("aria-busy", String(!!this.orrery.switching));
     if (focused && this.rendererSelect.disabled) {
@@ -127,7 +136,55 @@ export default class Options {
     hint.textContent = text;
     controller.domElement.closest("li").appendChild(hint);
     input.setAttribute("aria-describedby", hint.id);
+    return hint;
   }
+
+  setPopulationHint(preset) {
+    const text = populationHint(preset);
+    this.populationSelect.title = text;
+    if (!this.populationHint) {
+      this.populationHint = this.addHint(this.population, text, this.populationSelect);
+      return;
+    }
+    this.populationHint.textContent = text;
+  }
+
+  mountGlossary() {
+    this.glossary = document.getElementById("orrery-glossary");
+    this.glossaryTitle = document.getElementById("orrery-glossary-title");
+    if (typeof this.glossary?.showModal !== "function" || !this.glossaryTitle) {
+      this.glossary = null;
+      return;
+    }
+    const trigger = this.glossaryTrigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "orrery-glossary-trigger";
+    trigger.textContent = "What is this?";
+    trigger.setAttribute("aria-haspopup", "dialog");
+    trigger.setAttribute("aria-controls", this.glossary.id);
+    this.population.domElement.closest("li").appendChild(trigger);
+    trigger.addEventListener("click", this.onOpenGlossary);
+    this.glossary.addEventListener("close", this.onGlossaryClose);
+    this.glossary.addEventListener("click", this.onGlossaryBackdrop);
+  }
+
+  openGlossary() {
+    if (this.destroyed || !this.glossary || this.glossary.open) return false;
+    this.orrery.hold(true);
+    this.glossary.showModal();
+    this.glossary.scrollTop = 0;
+    this.glossaryTitle.focus({ preventScroll: true });
+    return true;
+  }
+
+  onOpenGlossary = () => { this.openGlossary(); };
+
+  onGlossaryBackdrop = event => { if (event.target === this.glossary) this.glossary.close(); };
+
+  onGlossaryClose = () => {
+    this.orrery.hold(false);
+    if (!this.destroyed) this.glossaryTrigger?.focus();
+  };
 
   setOpen(open, restoreFocus = true) {
     const hadFocus = this.panel.contains(document.activeElement);
@@ -137,6 +194,7 @@ export default class Options {
     // Leave focus on the disclosure when opening. Programmatically focusing a
     // select invokes the full-screen native picker on iOS; keyboard users can
     // reach the first newly revealed control with Tab.
+    if (!open && this.glossary?.open) this.glossary.close();
     if (!open && restoreFocus && hadFocus) this.trigger.focus();
   }
 
@@ -150,11 +208,12 @@ export default class Options {
   onToggle = () => { this.setOpen(this.panel.hidden); };
 
   onOutsidePointer = event => {
-    if (!this.panel.hidden && !this.element.contains(event.target)) this.setOpen(false);
+    if (!this.panel.hidden && !this.element.contains(event.target)
+      && !this.glossary?.contains(event.target)) this.setOpen(false);
   };
 
   onKeyDown = event => {
-    if (event.key !== "Escape" || this.panel.hidden) return;
+    if (event.key !== "Escape" || this.panel.hidden || event.target?.closest?.("dialog")) return;
     event.preventDefault();
     this.setOpen(false, false);
     this.trigger.focus();
@@ -175,6 +234,10 @@ export default class Options {
     this.trigger.removeEventListener("click", this.onToggle);
     document.removeEventListener("pointerdown", this.onOutsidePointer, true);
     document.removeEventListener("keydown", this.onKeyDown);
+    if (this.glossary?.open) this.glossary.close();
+    this.glossaryTrigger?.removeEventListener("click", this.onOpenGlossary);
+    this.glossary?.removeEventListener("close", this.onGlossaryClose);
+    this.glossary?.removeEventListener("click", this.onGlossaryBackdrop);
     this.unmountRenderer();
     this.gui.destroy();
     this.element.remove();

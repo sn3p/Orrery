@@ -4,6 +4,7 @@ import Planet from "./Planet.js";
 import Asteroids from "./Asteroids.js";
 import { DEFAULT_PLANET_LABEL_MODE, isPlanetLabelMode, PlanetLabels } from "../PlanetLabel.js";
 import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "../PlanetOrbitPreference.js";
+import { DEFAULT_POPULATION_PRESET, isPopulationPreset } from "../catalog/population.js";
 
 function disposePlanets(batch) {
   for (const { orbit } of batch) orbit?.destroy();
@@ -35,6 +36,7 @@ export default class PixiRenderer {
     this.planetOrbits = [];
     this.planetLabelMode = DEFAULT_PLANET_LABEL_MODE;
     this.planetOrbitsVisible = DEFAULT_PLANET_ORBITS_VISIBLE;
+    this.populationPreset = DEFAULT_POPULATION_PRESET;
     this.planetLabels = new PlanetLabels(container);
     this.destroyed = false;
     this.initialized = false;
@@ -188,9 +190,13 @@ export default class PixiRenderer {
   setOptions({ shared } = {}) {
     const mode = shared?.planetLabels;
     const orbits = shared?.planetOrbits;
+    const population = shared?.populationPreset;
     if (mode !== undefined && !isPlanetLabelMode(mode)) throw new RangeError("Invalid planet label mode.");
     if (orbits !== undefined && !isPlanetOrbitVisibility(orbits)) {
       throw new RangeError("Invalid planet orbit visibility.");
+    }
+    if (population !== undefined && !isPopulationPreset(population)) {
+      throw new RangeError("Invalid population preset.");
     }
     let changed = false;
     if (mode !== undefined && mode !== this.planetLabelMode) {
@@ -201,6 +207,13 @@ export default class PixiRenderer {
     if (orbits !== undefined && orbits !== this.planetOrbitsVisible) {
       this.planetOrbitsVisible = orbits;
       for (const orbit of this.planetOrbits) orbit.visible = orbits;
+      changed = true;
+    }
+    if (population !== undefined && population !== this.populationPreset) {
+      this.populationPreset = population;
+      this.asteroids?.setPopulationPreset(population);
+      this.stagedAsteroids?.setPopulationPreset(population);
+      this.catalogueTransition?.previous?.setPopulationPreset(population);
       changed = true;
     }
     if (changed) this.requestRender();
@@ -225,6 +238,7 @@ export default class PixiRenderer {
     // Prepare/allocate completely before replacing the usable scene.
     const next = new Asteroids(data, this.circleTexture, jed, elapsed,
       this.app.renderer.context.webGLVersion === 2);
+    next.setPopulationPreset(this.populationPreset);
     this.discardStagedCatalogue();
     this.installAsteroids(next, preservePrevious);
     return next.geometry.instanceCount;
@@ -247,6 +261,7 @@ export default class PixiRenderer {
       this.stagedAsteroids?.destroy();
       cloud = this.stagedAsteroids = new Asteroids(model, this.circleTexture, frame.jed, frame.elapsed,
         this.app.renderer.context.webGLVersion === 2, 0);
+      cloud.setPopulationPreset(this.populationPreset);
     }
     // Bound catch-up after late starts and graphics suspension as well as the
     // ordinary chunk path. Each continuation is a new application frame/task.
@@ -303,7 +318,7 @@ export default class PixiRenderer {
   get frameState() {
     const cloud = this.asteroids;
     return cloud ? { jed: cloud.epoch + cloud.uniforms.uOrbitTime,
-      elapsed: cloud.elapsed, count: cloud.geometry.instanceCount } : null;
+      elapsed: cloud.elapsed, count: cloud.geometry.instanceCount, visibleCount: cloud.visibleCount } : null;
   }
 
   captureFrame(frame, options) {

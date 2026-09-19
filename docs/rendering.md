@@ -7,9 +7,17 @@ current rendering and options contract.
 ## Options
 
 Open `[+] options` in the top-left corner for playback speed, renderer, planet
-labels, planetary orbit lines and rendering resolution. Click outside or press
+labels, planetary orbit lines, minor-planet groups and rendering resolution. Click outside or press
 Escape to close it. Speed 0 pauses; negative values reverse. Speed 1 advances
 60 days per second (default 1.5).
+
+Minor-planet groups isolate numbered objects already in this catalogue: All,
+Near Earth, Jupiter Trojans, Distant, or Without the belt. The filter hides
+non-matching points; it does not change the discovery prefix or download extra
+data. Reload returns to All. One-line help sits under the control; **What is
+this?** opens a short glossary. The bottom-left count is the objects on screen
+for the active preset at the committed date, not a live MPC census. Cuts are by
+orbit shape in this app, not official MPC `Orbit_type`.
 
 Planetary orbit lines are shown by default. Hiding them leaves the planets and
 their motion unchanged. Explicit orbit-line and planet-label choices are remembered

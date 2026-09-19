@@ -11,6 +11,7 @@ import switchRenderer from "./switchRenderer.js";
 import { isPlanetLabelMode, loadPlanetLabelMode, savePlanetLabelMode } from "./PlanetLabel.js";
 import { isPlanetOrbitVisibility, loadPlanetOrbitVisibility,
   savePlanetOrbitVisibility } from "./PlanetOrbitPreference.js";
+import { DEFAULT_POPULATION_PRESET, isPopulationPreset } from "./catalog/population.js";
 
 // Shared across module replacements so stale disposal cannot erase a new App's feedback.
 const STATUS_OWNER = Symbol.for("orrery.statusOwner");
@@ -43,10 +44,13 @@ export default class App {
     if (!isPlanetLabelMode(this._planetLabels)) throw new Error("Invalid planet label mode.");
     this._planetOrbits = options.planetOrbits ?? loadPlanetOrbitVisibility();
     if (!isPlanetOrbitVisibility(this._planetOrbits)) throw new Error("Invalid planet orbit visibility.");
+    this._populationPreset = options.populationPreset ?? DEFAULT_POPULATION_PRESET;
+    if (!isPopulationPreset(this._populationPreset)) throw new Error("Invalid population preset.");
     this.held = false;
     this.clock = new PlaybackClock();
     this.elapsed = 0;
     this.asteroidsDiscovered = 0;
+    this.asteroidsVisible = 0;
     this.hasCommittedReadouts = false;
     this.loadVersion = 0;
     this.seekGeneration = 0;
@@ -165,11 +169,18 @@ export default class App {
     this.renderer?.setOptions?.(this.rendererSettings());
     this.requestRender();
   }
+  get populationPreset() { return this._populationPreset; }
+  set populationPreset(value) {
+    if (this.destroyed || !isPopulationPreset(value) || value === this._populationPreset) return;
+    this._populationPreset = value;
+    this.renderer?.setOptions?.(this.rendererSettings());
+    this.requestRender();
+  }
   get frameState() { return { jed: this.jed, elapsed: this.elapsed }; }
   get viewport() { return { width: innerWidth, height: innerHeight, pixelRatio: this.effectivePixelRatio }; }
   rendererSettings(id = this.rendererId, renderer = this.rendererOptions[id]) {
     return { shared: { pixelRatio: this.pixelRatio, planetLabels: this.planetLabels,
-      planetOrbits: this.planetOrbits }, renderer };
+      planetOrbits: this.planetOrbits, populationPreset: this.populationPreset }, renderer };
   }
 
   init() {
@@ -252,7 +263,7 @@ export default class App {
     if (!this.initialized || this.destroyed) return false;
     const model = prepareCatalogue(data, this.jed);
     const previous = this.pendingBundled?.previous ?? this.renderer?.frameState
-      ?? { ...this.frameState, count: this.asteroidsDiscovered };
+      ?? { ...this.frameState, count: this.asteroidsDiscovered, visibleCount: this.asteroidsVisible };
     this.pendingBundled = { model, previous };
     this.catalogOpening?.abort();
     this.catalogOpening = null;
@@ -535,7 +546,7 @@ export default class App {
     if (this.destroyed) return;
     // A loaded empty catalogue is valid too. Retain the last committed readouts
     // while a replacement, renderer switch or graphics recovery is pending.
-    this.gui?.update(this.jed, this.stats.fps, this.asteroidsDiscovered, this.hasCommittedReadouts);
+    this.gui?.update(this.jed, this.stats.fps, this.asteroidsVisible, this.hasCommittedReadouts);
   }
   resetClock() {
     this.clock.reset();
@@ -574,7 +585,8 @@ export default class App {
     // A direct seek changes App.jed before its draw. The adapter still owns
     // the previous scene, including changes made through direct tick callers.
     const previous = this.pendingBundled?.previous ?? this.renderer?.frameState
-      ?? { jed: this.jed, elapsed: this.elapsed, count: this.asteroidsDiscovered };
+      ?? { jed: this.jed, elapsed: this.elapsed, count: this.asteroidsDiscovered,
+        visibleCount: this.asteroidsVisible };
     const requested = this.requestedJed ?? (this.jed !== previous.jed ? this.jed : null);
     const seek = this.pendingSeek;
     const graphicsGeneration = this.rendererGeneration;
@@ -613,7 +625,10 @@ export default class App {
         && drawn >= session.loader.source.countThrough(this.jed)));
     // Receipts cover the uploaded prefix; the HUD counts only discoveries at
     // this date, which may be much smaller than the retained catalogue.
-    if (committed) this.asteroidsDiscovered = this.renderer.frameState?.count ?? 0;
+    if (committed) {
+      this.asteroidsDiscovered = this.renderer.frameState?.count ?? 0;
+      this.asteroidsVisible = this.renderer.frameState?.visibleCount ?? this.asteroidsDiscovered;
+    }
     if (committed && this.pendingBundled) {
       this.renderer.commitCatalogue();
       this.catalogue = this.pendingBundled.model;
@@ -638,6 +653,7 @@ export default class App {
       this._jed = previous.jed;
       this.elapsed = previous.elapsed;
       this.asteroidsDiscovered = previous.count;
+      this.asteroidsVisible = previous.visibleCount ?? previous.count;
       // Renderer state includes the shared planets as well as the cloud cutoff.
       // A later invalidation must not draw the rejected date under the old HUD.
       this.renderer.restoreFrame(this.frameState);
@@ -710,7 +726,10 @@ export default class App {
     // Direct tick callers own their synchronous update boundary and do not
     // return through renderFrame's receipt handling.
     if (!this.deferReadouts && baseline && this.pendingSeek?.generation === seek.generation) this.pendingSeek = null;
-    if (!this.deferReadouts) this.asteroidsDiscovered = count;
+    if (!this.deferReadouts) {
+      this.asteroidsDiscovered = count;
+      this.asteroidsVisible = this.renderer.asteroids?.visibleCount ?? count;
+    }
     if (this.isPlaying) this.stats.update();
     else this.stats.reset();
     if (!loader?.source && !this.deferReadouts) this.updateGui();

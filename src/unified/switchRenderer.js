@@ -66,6 +66,8 @@ async function rebuild(app, create, id, signal) {
     app.rendererId = id;
     app.createRenderer = create;
     app.validatePlanets = renderer.validatePlanets;
+    app.asteroidsDiscovered = renderer.frameState?.count ?? app.asteroidsDiscovered;
+    app.asteroidsVisible = renderer.frameState?.visibleCount ?? app.asteroidsVisible;
     // Clear only adapter failures; a CPU preparation/source failure still owns
     // its own error and cannot be fixed by changing the graphics engine.
     for (const session of new Set([app.activeSession, app.pendingSession])) {
@@ -99,6 +101,7 @@ async function transition(app, id, signal) {
     app._jed = previousFrame.jed;
     app.elapsed = previousFrame.elapsed;
     app.asteroidsDiscovered = previousFrame.count;
+    app.asteroidsVisible = previousFrame.visibleCount ?? previousFrame.count;
   }
   app.switching = "loading";
   app.switchError = "";

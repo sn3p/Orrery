@@ -15,7 +15,7 @@ the options panel.
 ## How to use
 
 Open `[+] options` (top left) for playback speed, renderer, planet labels, planetary
-orbit lines and rendering resolution.
+orbit lines, minor-planet groups and rendering resolution.
 Speed 0 pauses, negative values reverse, and speed 1 advances 60 days per second.
 Scroll to zoom; in 3D, drag to orbit the camera. The date and discovery count sit at
 the bottom left, and **Orrery** in the footer reopens the introduction, which also links the

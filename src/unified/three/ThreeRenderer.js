@@ -6,6 +6,7 @@ import Orbit from "./Orbit.js";
 import Asteroids from "./Asteroids.js";
 import { DEFAULT_PLANET_LABEL_MODE, isPlanetLabelMode, PlanetLabels } from "../PlanetLabel.js";
 import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "../PlanetOrbitPreference.js";
+import { DEFAULT_POPULATION_PRESET, isPopulationPreset } from "../catalog/population.js";
 
 function disposePlanets(batch) {
   for (const { planet, orbit } of batch) {
@@ -41,6 +42,7 @@ export default class ThreeRenderer {
     this.planetOrbits = [];
     this.planetLabelMode = DEFAULT_PLANET_LABEL_MODE;
     this.planetOrbitsVisible = DEFAULT_PLANET_ORBITS_VISIBLE;
+    this.populationPreset = DEFAULT_POPULATION_PRESET;
     this.planetLabels = new PlanetLabels(container);
     this.planetLabelPosition = new THREE.Vector3();
     this.onContextLost = event => {
@@ -121,7 +123,7 @@ export default class ThreeRenderer {
   }
 
   createCloud(model, frame, committedCount = model.count) {
-    const cloud = new Asteroids(model, { jed: frame.jed, committedCount });
+    const cloud = new Asteroids(model, { jed: frame.jed, committedCount, populationPreset: this.populationPreset });
     for (const attribute of Object.values(cloud.geometry.attributes)) {
       attribute.onUpload(() => {
         const gl = this.renderer.getContext();
@@ -143,9 +145,13 @@ export default class ThreeRenderer {
   setOptions({ shared } = {}) {
     const mode = shared?.planetLabels;
     const orbits = shared?.planetOrbits;
+    const population = shared?.populationPreset;
     if (mode !== undefined && !isPlanetLabelMode(mode)) throw new RangeError("Invalid planet label mode.");
     if (orbits !== undefined && !isPlanetOrbitVisibility(orbits)) {
       throw new RangeError("Invalid planet orbit visibility.");
+    }
+    if (population !== undefined && !isPopulationPreset(population)) {
+      throw new RangeError("Invalid population preset.");
     }
     let changed = false;
     if (mode !== undefined && mode !== this.planetLabelMode) {
@@ -156,6 +162,13 @@ export default class ThreeRenderer {
     if (orbits !== undefined && orbits !== this.planetOrbitsVisible) {
       this.planetOrbitsVisible = orbits;
       for (const orbit of this.planetOrbits) orbit.visible = orbits;
+      changed = true;
+    }
+    if (population !== undefined && population !== this.populationPreset) {
+      this.populationPreset = population;
+      this.asteroids?.setPopulationPreset(population);
+      this.stagedAsteroids?.setPopulationPreset(population);
+      this.catalogueTransition?.previous?.setPopulationPreset(population);
       changed = true;
     }
     if (changed) this.requestRender();
@@ -247,7 +260,7 @@ export default class ThreeRenderer {
   get frameState() {
     const cloud = this.asteroids;
     return cloud ? { jed: cloud.epoch + cloud.uniforms.orbitTime.value,
-      elapsed: cloud.elapsed, count: cloud.geometry.drawRange.count } : null;
+      elapsed: cloud.elapsed, count: cloud.geometry.drawRange.count, visibleCount: cloud.visibleCount } : null;
   }
   captureFrame({ jed }) {
     this.frameSnapshot = this.asteroids && { cloud: this.asteroids, state: this.asteroids.captureFrame(jed) };

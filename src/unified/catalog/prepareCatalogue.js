@@ -1,6 +1,7 @@
 import { DEG_TO_RAD, PIXELS_PER_AU } from "../../js/constants.js";
 
 import { validDate, REBASE_DAYS, MAX_PHASE_ADVANCE } from "../../js/asteroidOrbits.js";
+import { classifyOrbit } from "./population.js";
 
 export const REFERENCE_JED = 2458600.5;
 const TAU = 2 * Math.PI;
@@ -11,7 +12,8 @@ export function allocateCatalogue(count, epoch = REFERENCE_JED) {
   return {
     p: new Float32Array(count * 3), q: new Float32Array(count * 3),
     elements: new Float32Array(count * 2), phases: new Float64Array(count * 2),
-    dates: new Float64Array(count), rows: new Uint32Array(count), radius: 0, epoch, count: 0,
+    dates: new Float64Array(count), rows: new Uint32Array(count),
+    classes: new Uint8Array(count), radius: 0, epoch, count: 0,
   };
 }
 
@@ -37,7 +39,7 @@ export function prepareCatalogue(data, epoch = REFERENCE_JED, rowOffset = 0) {
   const sorted = Array.from({ length: data.length }, (_, index) => index)
     .sort((a, b) => data[a].disc - data[b].disc);
   const count = sorted.length;
-  const { p, q, elements, phases, dates, rows } = allocateCatalogue(count, epoch);
+  const { p, q, elements, phases, dates, rows, classes } = allocateCatalogue(count, epoch);
   let radius = 0;
   sorted.forEach((sourceIndex, index) => {
     const d = data[sourceIndex];
@@ -62,6 +64,7 @@ export function prepareCatalogue(data, epoch = REFERENCE_JED, rowOffset = 0) {
     phases.set([mean, n], index * 2);
     dates[index] = d.disc;
     rows[index] = rowOffset + sourceIndex;
+    classes[index] = classifyOrbit(d.a, d.e);
     radius = Math.max(radius, a * (1 + d.e));
     let finite = Number.isFinite(Math.fround(radius)) && Math.fround(a) > 0
       && Number.isFinite(Math.fround(wrapPhase(mean + n * (epoch - REFERENCE_JED))))
@@ -74,7 +77,7 @@ export function prepareCatalogue(data, epoch = REFERENCE_JED, rowOffset = 0) {
       throw new Error(`Orbit exceeds rendering precision at catalogue entry ${rowOffset + sourceIndex + 1}.`);
     }
   });
-  return { p, q, elements, phases, dates, rows, radius, epoch, count };
+  return { p, q, elements, phases, dates, rows, classes, radius, epoch, count };
 }
 
 // Prepare a complete batch before touching retained state: invalid rows cannot
@@ -82,7 +85,7 @@ export function prepareCatalogue(data, epoch = REFERENCE_JED, rowOffset = 0) {
 export function appendCatalogue(model, records, start) {
   if (start !== model.count || start + records.length > model.dates.length) throw new Error("Noncontiguous catalogue commitment.");
   const packed = prepareCatalogue(records, model.epoch, start);
-  for (const [key, stride] of Object.entries({ p: 3, q: 3, elements: 2, phases: 2, dates: 1, rows: 1 })) {
+  for (const [key, stride] of Object.entries({ p: 3, q: 3, elements: 2, phases: 2, dates: 1, rows: 1, classes: 1 })) {
     model[key].set(packed[key], start * stride);
   }
   model.radius = Math.max(model.radius, packed.radius);
