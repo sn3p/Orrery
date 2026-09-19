@@ -72,31 +72,27 @@ export default class Asteroids extends THREE.Points {
         uniform vec3 freshColor;
         uniform vec3 oldColor;
         uniform float classMask;
-        varying float vPopulationVisible;
         ${orbitGLSL}
         ${populationGLSL}
       `).replace("#include <color_vertex>", `
-        vPopulationVisible = populationVisible(classId, classMask);
-        vColor = discovery <= discoveryBaseline ? oldColor
-          : discoveryColor(discoveryTime, discovery, fadeDuration, freshColor, oldColor);
+        float visible = populationVisible(classId, classMask);
+        vColor = vec4(discovery <= discoveryBaseline ? oldColor
+          : discoveryColor(discoveryTime, discovery, fadeDuration, freshColor, oldColor), visible);
       `).replace("#include <begin_vertex>", "vec3 transformed = orbitPosition(position, basisQ, elements, meanAnomaly, orbitTime);")
         .replace("#include <fog_vertex>", `
         // WebGL clamps gl_PointSize to at least 1, so masked points must leave clip space.
-        if (vPopulationVisible < 0.5) {
+        if (vColor.a < 0.5) {
           gl_PointSize = 0.0;
           gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
         }
         #include <fog_vertex>
       `);
-      shader.fragmentShader = shader.fragmentShader.replace("#include <common>", `
-        #include <common>
-        varying float vPopulationVisible;
-      `).replace("#include <clipping_planes_fragment>", `
-        if (vPopulationVisible < 0.5) discard;
+      shader.fragmentShader = shader.fragmentShader.replace("#include <clipping_planes_fragment>", `
+        if (vColor.a < 0.5) discard;
         #include <clipping_planes_fragment>
       `);
     };
-    material.customProgramCacheKey = () => "asteroid-orbits-r186-v5";
+    material.customProgramCacheKey = () => "asteroid-orbits-r186-v6";
     super(geometry, material);
     this.name = "Asteroids";
     this.catalogue = model;

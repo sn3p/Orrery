@@ -103,7 +103,8 @@ test("both renderers apply a population preset without touching other shared opt
 
 test("Three hides masked points by clipping and discard, not point size alone", () => {
   const source = fs.readFileSync(new URL("../src/unified/three/Asteroids.js", import.meta.url), "utf8");
+  assert.match(source, /vColor = vec4\(/);
   assert.match(source, /gl_Position = vec4\(2\.0, 2\.0, 2\.0, 1\.0\)/);
-  assert.match(source, /if \(vPopulationVisible < 0\.5\) discard/);
-  assert.doesNotMatch(source, /if \(populationVisible\(classId, classMask\) < 0\.5\) gl_PointSize = 0\.0;/);
+  assert.match(source, /if \(vColor\.a < 0\.5\) discard/);
+  assert.doesNotMatch(source, /vPopulationVisible/);
 });
