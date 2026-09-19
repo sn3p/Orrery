@@ -44,6 +44,8 @@ Explicit planet-label and planet-orbit choices are stored under
 `orrery.planetLabels` and `orrery.planetOrbits`; they apply to both adapters.
 Introduction dismissal is stored separately under `orrery.intro`. Renderer choice,
 renderer-specific view state, DPR and the minor-planet group preset are not persisted.
+Choosing Jupiter Trojans may ease the active camera out so Jupiter’s orbit fits;
+switching still restores each renderer’s last stored view.
 
 ## Renderer switching
 

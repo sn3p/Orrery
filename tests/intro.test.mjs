@@ -30,7 +30,7 @@ function fixture({ renderer = {}, rendererId = "pixi", remembered = false } = {}
     querySelectorAll() { return this.rendererActions ?? []; }
   }
   for (const id of ["orrery-intro", "orrery-about", "orrery-intro-date", "orrery-intro-options",
-    "orrery-intro-renderers", "intro-2d", "intro-3d"]) elements[id] = new Element(id);
+    "orrery-intro-glossary", "orrery-intro-renderers", "intro-2d", "intro-3d"]) elements[id] = new Element(id);
   elements["intro-2d"].dataset.renderer = "pixi";
   elements["intro-3d"].dataset.renderer = "three";
   elements["orrery-intro"].rendererActions = [elements["intro-2d"], elements["intro-3d"]];
@@ -51,7 +51,14 @@ function fixture({ renderer = {}, rendererId = "pixi", remembered = false } = {}
     notifyRendererState() { for (const observer of rendererStateObservers) observer(); },
     gui: {
       timeline: { open() { order.push("date"); app.hold(true); } },
-      controls: { open() { order.push("options"); } },
+      controls: {
+        open() { order.push("options"); },
+        openGlossary({ restoreFocus } = {}) {
+          order.push("glossary");
+          order.push(restoreFocus === elements["orrery-about"] ? "restore:about" : "restore:missing");
+          app.hold(true);
+        },
+      },
     },
     async switchRenderer(id) {
       order.push(`renderer:${id}`);
@@ -80,7 +87,7 @@ async function withFixture(options, run) {
   }
 }
 
-test("intro releases its hold before handing off to date and options controls", async () => {
+test("intro releases its hold before handing off to date, options and glossary controls", async () => {
   await withFixture({}, async ({ app, elements, order, storage }) => {
     const intro = new Intro(app);
     assert.equal(elements["orrery-intro"].open, true);
@@ -96,6 +103,14 @@ test("intro releases its hold before handing off to date and options controls", 
     elements["orrery-intro-options"].click();
     await settle();
     assert.deepEqual(order, ["hold:true", "hold:false", "options"]);
+    intro.destroy();
+  });
+
+  await withFixture({}, async ({ app, elements, order }) => {
+    const intro = new Intro(app);
+    elements["orrery-intro-glossary"].click();
+    await settle();
+    assert.deepEqual(order, ["hold:true", "hold:false", "glossary", "restore:about", "hold:true"]);
     intro.destroy();
   });
 });
@@ -161,7 +176,8 @@ test("renderer shortcuts stay actionable, recover missing graphics and follow ex
     app.destroyed = true;
     intro.updateRendererActions();
     assert(twoD.disabled && threeD.disabled, "Terminal startup failure disables both shortcuts");
-    assert(elements["orrery-intro-date"].disabled && elements["orrery-intro-options"].disabled,
+    assert(elements["orrery-intro-date"].disabled && elements["orrery-intro-options"].disabled
+      && elements["orrery-intro-glossary"].disabled,
       "Terminal startup failure disables controls that require the app GUI");
     assert.equal(twoD.getAttribute("aria-pressed"), "false");
     assert.equal(threeD.getAttribute("aria-pressed"), "false");

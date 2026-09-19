@@ -174,6 +174,7 @@ export default class App {
     if (this.destroyed || !isPopulationPreset(value) || value === this._populationPreset) return;
     this._populationPreset = value;
     this.renderer?.setOptions?.(this.rendererSettings());
+    this.renderer?.ensurePopulationView?.(value);
     this.requestRender();
   }
   get frameState() { return { jed: this.jed, elapsed: this.elapsed }; }
@@ -567,7 +568,10 @@ export default class App {
     this.renderFrame(timestamp);
     const packing = this.renderer && this.catalogLoader && !this.catalogLoader.error
       && this.renderer.needsCatalogPacking?.((this.pendingSession ?? this.activeSession)?.model);
-    if (!this.switching && !this.renderFailure && ((this.isPlaying && !this.catalogWaiting) || packing)) this.requestRender();
+    if (!this.switching && !this.renderFailure
+      && ((this.isPlaying && !this.catalogWaiting) || packing || this.renderer?.viewAnimating)) {
+      this.requestRender();
+    }
   }
   renderFrame(timestamp = performance.now(), { beforeRender, afterRender } = {}) {
     if (this.destroyed || !this.initialized || !this.renderer) return;

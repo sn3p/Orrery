@@ -571,6 +571,23 @@ async function options(browser, base, output, name) {
   } finally { await page.close(); }
 }
 
+// Wheel reaches the canvas, not HUD/options overlays. Groups made the panel
+// cover the old 100,400 point on this 320x568 phone viewport.
+async function wheelOnCanvas(page, deltaY = -100) {
+  const point = await page.evaluate(() => {
+    const canvas = document.querySelector('canvas');
+    const box = canvas.getBoundingClientRect();
+    for (const [x, y] of [[box.right - 6, box.top + 80], [box.right - 6, (box.top + box.bottom) / 2],
+      [box.right - 6, box.bottom - 80]]) {
+      const hit = document.elementFromPoint(x, y);
+      if (hit === canvas || canvas.contains(hit)) return { x, y };
+    }
+    throw new Error('Canvas is covered; wheel cannot zoom during loading');
+  });
+  await page.mouse.move(point.x, point.y);
+  await page.mouse.wheel(0, deltaY);
+}
+
 async function network(browser, base, output, name) {
   const results = [];
   for (const prefix of ['', '/Orrery']) {
@@ -591,7 +608,7 @@ async function network(browser, base, output, name) {
       await page.waitForFunction(() => app.switching === 'loading');
       assert(await page.getByRole('combobox', { name: 'Renderer', exact: true }).isDisabled());
       const frozen = await page.evaluate(() => ({ jed: app.jed, count: app.asteroidsDiscovered, scale: app.renderer.stage.scale.x }));
-      await page.mouse.move(100, 400); await page.mouse.wheel(0, -100);
+      await wheelOnCanvas(page);
       await page.waitForFunction(scale => app.renderer.stage.scale.x !== scale, frozen.scale);
       assert.deepEqual(await page.evaluate(() => ({ jed: app.jed, count: app.asteroidsDiscovered })), { jed: frozen.jed, count: frozen.count });
       await page.screenshot({ path: path.join(output, `${name}-${prefix ? 'pages' : 'root'}-switch-loading.png`) });

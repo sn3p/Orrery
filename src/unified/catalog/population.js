@@ -96,8 +96,13 @@ export function resyncClassTallies(classes, count, preset, tallies = new Uint32A
 }
 
 export function advanceClassTallies(classes, from, to, preset, tallies) {
-  if (to < from) return resyncClassTallies(classes, to, preset, tallies);
-  countClassTallies(classes, from, to, tallies);
+  if (to < from) {
+    for (let i = to; i < from; i++) {
+      const id = classes[i];
+      if (!tallies[id]) return resyncClassTallies(classes, to, preset, tallies);
+      tallies[id]--;
+    }
+  } else countClassTallies(classes, from, to, tallies);
   return { tallies, tallyCount: to, visibleCount: visibleFromTallies(tallies, preset) };
 }
 

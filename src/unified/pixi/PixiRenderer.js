@@ -5,6 +5,7 @@ import Asteroids from "./Asteroids.js";
 import { DEFAULT_PLANET_LABEL_MODE, isPlanetLabelMode, PlanetLabels } from "../PlanetLabel.js";
 import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "../PlanetOrbitPreference.js";
 import { DEFAULT_POPULATION_PRESET, isPopulationPreset } from "../catalog/population.js";
+import { VIEW_FIT_MS, easeOutCubic, lerp, pixiTrojanTargetScale } from "../viewFit.js";
 
 function disposePlanets(batch) {
   for (const { orbit } of batch) orbit?.destroy();
@@ -37,6 +38,7 @@ export default class PixiRenderer {
     this.planetLabelMode = DEFAULT_PLANET_LABEL_MODE;
     this.planetOrbitsVisible = DEFAULT_PLANET_ORBITS_VISIBLE;
     this.populationPreset = DEFAULT_POPULATION_PRESET;
+    this.viewFit = null;
     this.planetLabels = new PlanetLabels(container);
     this.destroyed = false;
     this.initialized = false;
@@ -219,6 +221,29 @@ export default class PixiRenderer {
     if (changed) this.requestRender();
   }
 
+  get viewAnimating() { return !!this.viewFit; }
+
+  cancelViewFit() { this.viewFit = null; }
+
+  ensurePopulationView(preset, now = performance.now()) {
+    this.cancelViewFit();
+    if (this.destroyed || !this.stage || preset !== "trojans") return false;
+    const needed = pixiTrojanTargetScale(this.viewWidth, this.viewHeight,
+      this.stage.position.x, this.stage.position.y, this.stage.scale.x);
+    if (needed == null) return false;
+    this.viewFit = { from: this.stage.scale.x, to: needed, start: now, duration: VIEW_FIT_MS };
+    return true;
+  }
+
+  advanceViewFit(now = performance.now()) {
+    if (!this.viewFit || this.destroyed || !this.stage) return false;
+    const { from, to, start, duration } = this.viewFit;
+    const t = Math.min(1, duration > 0 ? (now - start) / duration : 1);
+    this.stage.scale.set(lerp(from, to, easeOutCubic(t)));
+    if (t >= 1) this.viewFit = null;
+    return true;
+  }
+
   addPlanets(data, { jed }) {
     if (this.destroyed) return;
     const batch = preparePlanets(data, jed, this.circleTexture);
@@ -310,6 +335,7 @@ export default class PixiRenderer {
   update({ jed, elapsed }, options) {
     if (this.app.renderer.resolution !== this.viewport.pixelRatio) this.resize(this.viewport);
     if (this.circleTexture.source.resolution !== this.texturePixelRatio) this.refreshCircleTexture();
+    this.advanceViewFit();
     const count = this.asteroids?.update(jed, elapsed, options) ?? 0;
     for (const planet of this.planets) planet.render(jed);
     return count;
@@ -375,11 +401,13 @@ export default class PixiRenderer {
   }
 
   captureView() {
+    this.advanceViewFit(Number.POSITIVE_INFINITY);
     return { x: this.stage.x - this.viewWidth / 2, y: this.stage.y - this.viewHeight / 2,
       scale: this.stage.scale.x };
   }
 
   restoreView(view) {
+    this.cancelViewFit();
     if (!view) return;
     this.stage.position.set(this.viewWidth / 2 + view.x, this.viewHeight / 2 + view.y);
     this.stage.scale.set(view.scale);
@@ -404,6 +432,7 @@ export default class PixiRenderer {
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.viewFit = null;
     this.frameSnapshot = null;
     this.canvas?.removeEventListener("webglcontextlost", this.onContextLost);
     this.canvas?.removeEventListener("webglcontextrestored", this.onContextRestored);
