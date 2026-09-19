@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { prepareCatalogue } from "../src/unified/catalog/prepareCatalogue.js";
 import {
   CLASS_BELT, CLASS_DISTANT, CLASS_NEA, CLASS_TROJAN, DEFAULT_POPULATION_PRESET,
@@ -98,4 +99,11 @@ test("both renderers apply a population preset without touching other shared opt
       { shared: { planetLabels: "all", populationPreset: "nope" } }), RangeError);
     assert.equal(receiver.planetLabelMode, "earth", "Invalid combined settings are rejected atomically");
   }
+});
+
+test("Three hides masked points by clipping and discard, not point size alone", () => {
+  const source = fs.readFileSync(new URL("../src/unified/three/Asteroids.js", import.meta.url), "utf8");
+  assert.match(source, /gl_Position = vec4\(2\.0, 2\.0, 2\.0, 1\.0\)/);
+  assert.match(source, /if \(vPopulationVisible < 0\.5\) discard/);
+  assert.doesNotMatch(source, /if \(populationVisible\(classId, classMask\) < 0\.5\) gl_PointSize = 0\.0;/);
 });

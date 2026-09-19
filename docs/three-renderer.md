@@ -24,7 +24,9 @@ The source is the preserved MIT-licensed Orrery3D `93a3e1f` revision. The port
 keeps its 60-degree perspective camera at `(500,500,400)`, Z-up, clipping range
 `.001–2,000,000`, OrbitControls gestures, sphere bodies, dashed tracks and full
 XYZ orbital bases. Points retain size 1 and fade from green to `0x999999` across
-200 simulated Julian days. Pixi's different arrival effect is preserved.
+200 simulated Julian days. Group filters hide unmatched points by moving them out
+of clip space and discarding them; WebGL point size cannot go below 1. Pixi's
+different arrival effect is preserved.
 
 `Orbit`, `Planet`, `Sun` and `createSphere` retain source mechanics with local
 imports. `Asteroids` retains the source shader/material and adapts CPU ownership,
