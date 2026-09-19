@@ -26,7 +26,8 @@ keeps its 60-degree perspective camera at `(500,500,400)`, Z-up, clipping range
 XYZ orbital bases. Points retain size 1 and fade from green to `0x999999` across
 200 simulated Julian days. Group filters hide unmatched points by moving them out
 of clip space and discarding them; WebGL point size cannot go below 1. Pixi's
-different arrival effect is preserved.
+different arrival effect is preserved. Choosing Jupiter Trojans dollies out when
+Jupiter’s orbit is off-screen, without resetting the current viewing direction.
 
 `Orbit`, `Planet`, `Sun` and `createSphere` retain source mechanics with local
 imports. `Asteroids` retains the source shader/material and adapts CPU ownership,

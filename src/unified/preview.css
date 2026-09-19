@@ -540,7 +540,12 @@ dialog .orrery-dialog-title:focus { outline: none; }
 }
 .orrery-glossary p,
 .orrery-glossary dl { margin: 0 0 12px; }
-.orrery-glossary dt { margin: 0; color: #eee; font-weight: 600; }
+.orrery-glossary dt {
+  margin: 12px 0 2px;
+  color: #b5e8c1;
+  font-weight: 700;
+}
+.orrery-glossary dt:first-of-type { margin-top: 0; }
 .orrery-glossary dd { margin: 0 0 8px; }
 .orrery-glossary dd:last-child { margin-bottom: 0; }
 .orrery-glossary-links { color: var(--color-hud); }

@@ -166,10 +166,12 @@ export default class Options {
     trigger.addEventListener("click", this.onOpenGlossary);
     this.glossary.addEventListener("close", this.onGlossaryClose);
     this.glossary.addEventListener("click", this.onGlossaryBackdrop);
+    this.glossaryRestoreFocus = trigger;
   }
 
-  openGlossary() {
+  openGlossary({ restoreFocus } = {}) {
     if (this.destroyed || !this.glossary || this.glossary.open) return false;
+    this.glossaryRestoreFocus = restoreFocus ?? this.glossaryTrigger;
     this.orrery.hold(true);
     this.glossary.showModal();
     this.glossary.scrollTop = 0;
@@ -183,7 +185,9 @@ export default class Options {
 
   onGlossaryClose = () => {
     this.orrery.hold(false);
-    if (!this.destroyed) this.glossaryTrigger?.focus();
+    const restore = this.glossaryRestoreFocus;
+    this.glossaryRestoreFocus = this.glossaryTrigger;
+    if (!this.destroyed) restore?.focus?.();
   };
 
   setOpen(open, restoreFocus = true) {

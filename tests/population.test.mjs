@@ -28,6 +28,15 @@ test("orbit-shape cuts follow the Phase 1 class ids", () => {
   assert.equal(classifyOrbit(2.7, 0.1), CLASS_BELT);
 });
 
+test("Jupiter Trojans are not the main belt and stay visible without it", () => {
+  assert.equal(classifyOrbit(5.2, 0.1), CLASS_TROJAN);
+  assert.equal(populationMask("without-belt") & (1 << CLASS_TROJAN), 1 << CLASS_TROJAN);
+  assert.equal(populationMask("without-belt") & (1 << CLASS_BELT), 0);
+  assert.equal(populationMask("all") & (1 << CLASS_TROJAN), 1 << CLASS_TROJAN);
+  assert.equal(visibleFromTallies(Uint32Array.from([0, 0, 4, 0, 10]), "without-belt"), 4);
+  assert.equal(visibleFromTallies(Uint32Array.from([0, 0, 4, 0, 10]), "all"), 14);
+});
+
 test("presets validate, default to All, and do not persist a storage key", () => {
   assert.equal(DEFAULT_POPULATION_PRESET, "all");
   assert.deepEqual(Object.values(POPULATION_PRESET_OPTIONS),
@@ -59,8 +68,13 @@ test("prepareCatalogue classifies the discovery-sorted prefix and tallies match 
   assert.equal(visibleFromTallies(all.tallies, "trojans"), 1);
   assert.equal(visibleFromTallies(all.tallies, "distant"), 1);
   assert.equal(visibleFromTallies(all.tallies, "without-belt"), 3);
-  const rewind = resyncClassTallies(model.classes, 1, "without-belt", all.tallies);
+  const rewind = advanceClassTallies(model.classes, discovered, 1, "without-belt", all.tallies);
   assert.equal(rewind.visibleCount, 0);
+  assert.equal(rewind.tallyCount, 1);
+  assert.deepEqual([...rewind.tallies], [...resyncClassTallies(model.classes, 1, "without-belt").tallies]);
+  const recovered = advanceClassTallies(model.classes, 4, 1, "all", new Uint32Array(5));
+  assert.equal(recovered.visibleCount, 1);
+  assert.deepEqual([...recovered.tallies], [...resyncClassTallies(model.classes, 1, "all").tallies]);
   const forward = advanceClassTallies(model.classes, 1, discovered, "nea", rewind.tallies);
   assert.equal(forward.tallyCount, discovered);
   assert.equal(forward.visibleCount, 1);
@@ -107,4 +121,13 @@ test("Three hides masked points by clipping and discard, not point size alone", 
   assert.match(source, /gl_Position = vec4\(2\.0, 2\.0, 2\.0, 1\.0\)/);
   assert.match(source, /if \(vColor\.a < 0\.5\) discard/);
   assert.doesNotMatch(source, /vPopulationVisible/);
+});
+
+test("both asteroid adapters rewind tallies incrementally", () => {
+  for (const file of ["../src/unified/pixi/Asteroids.js", "../src/unified/three/Asteroids.js"]) {
+    const source = fs.readFileSync(new URL(file, import.meta.url), "utf8");
+    const body = source.slice(source.indexOf("syncTallies(count)"), source.indexOf("captureFrame"));
+    assert.match(body, /advanceClassTallies/, file);
+    assert.doesNotMatch(body, /resyncClassTallies/, file);
+  }
 });

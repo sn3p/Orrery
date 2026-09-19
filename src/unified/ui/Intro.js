@@ -17,10 +17,12 @@ export default class Intro {
     this.dialog.addEventListener("click", this.onBackdrop);
     this.dateAction = document.getElementById("orrery-intro-date");
     this.optionsAction = document.getElementById("orrery-intro-options");
+    this.glossaryAction = document.getElementById("orrery-intro-glossary");
     this.rendererGroup = document.getElementById("orrery-intro-renderers");
     this.rendererActions = [...this.dialog.querySelectorAll(".orrery-intro-renderer[data-renderer]")];
     this.dateAction?.addEventListener("click", this.onDate);
     this.optionsAction?.addEventListener("click", this.onOptions);
+    this.glossaryAction?.addEventListener("click", this.onGlossary);
     for (const action of this.rendererActions) action.addEventListener("click", this.onRenderer);
     this.stopRendererStateObserver = this.app.observeRendererState?.(this.onRendererState);
     if (!remembered()) this.open();
@@ -56,6 +58,7 @@ export default class Intro {
     this.rendererGroup?.setAttribute("aria-busy", String(busy));
     if (this.dateAction) this.dateAction.disabled = this.app.destroyed;
     if (this.optionsAction) this.optionsAction.disabled = this.app.destroyed;
+    if (this.glossaryAction) this.glossaryAction.disabled = this.app.destroyed;
     for (const action of this.rendererActions ?? []) {
       const active = !this.app.destroyed && !!this.app.renderer
         && action.dataset.renderer === this.app.rendererId;
@@ -80,6 +83,9 @@ export default class Intro {
   onRendererState = () => { if (this.dialog) this.updateRendererActions(); };
   onDate = () => { this.closeWith(() => this.withControls(gui => gui?.timeline.open())); };
   onOptions = () => { this.closeWith(() => this.withControls(gui => gui?.controls.open())); };
+  onGlossary = () => {
+    this.closeWith(() => this.withControls(gui => gui?.controls.openGlossary({ restoreFocus: this.trigger })));
+  };
   onRenderer = event => {
     const id = event.currentTarget.dataset.renderer;
     if (this.app.destroyed || !Object.hasOwn(this.app.rendererRegistry, id)
@@ -115,6 +121,7 @@ export default class Intro {
     this.dialog.removeEventListener("click", this.onBackdrop);
     this.dateAction?.removeEventListener("click", this.onDate);
     this.optionsAction?.removeEventListener("click", this.onOptions);
+    this.glossaryAction?.removeEventListener("click", this.onGlossary);
     for (const action of this.rendererActions ?? []) action.removeEventListener("click", this.onRenderer);
     this.stopRendererStateObserver?.();
     this.stopRendererStateObserver = null;

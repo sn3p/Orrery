@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { REFERENCE_JED, wrapPhase } from "../catalog/prepareCatalogue.js";
 import { validDate, MAX_PHASE_ADVANCE } from "../../js/asteroidOrbits.js";
 import { CLASS_COUNT, DEFAULT_POPULATION_PRESET, advanceClassTallies, isPopulationPreset,
-  populationGLSL, populationMask, resyncClassTallies, visibleFromTallies } from "../catalog/population.js";
+  populationGLSL, populationMask, visibleFromTallies } from "../catalog/population.js";
 
 export { REFERENCE_JED } from "../catalog/prepareCatalogue.js";
 export const REBASE_DAYS = 4096;
@@ -143,9 +143,7 @@ export default class Asteroids extends THREE.Points {
   }
 
   syncTallies(count) {
-    const next = count >= this.tallyCount
-      ? advanceClassTallies(this.classes, this.tallyCount, count, this.populationPreset, this.classTallies)
-      : resyncClassTallies(this.classes, count, this.populationPreset, this.classTallies);
+    const next = advanceClassTallies(this.classes, this.tallyCount, count, this.populationPreset, this.classTallies);
     this.tallyCount = next.tallyCount;
     this.visibleCount = next.visibleCount;
   }

@@ -90,6 +90,15 @@ test("mouse drags and multi-touch movement do not trigger Pixi zoom", () => {
   assert.equal(scale.x, 1.04, "A new one-finger gesture starts normally");
 });
 
+test("wheel zoom cancels an in-flight view fit", () => {
+  const { controls, orrery, scale } = fixture();
+  let cancelled = 0;
+  orrery.cancelViewFit = () => { cancelled++; };
+  controls.onScroll({ deltaY: -100, preventDefault() {} });
+  assert.equal(cancelled, 1);
+  assert.equal(scale.x, 1.04);
+});
+
 test("a release over the HUD clears touch state without pointer capture", () => {
   for (const capture of ["missing", "throw", "noop"]) {
     const { controls, orrery, ownerDocument, scale } = fixture(undefined, { capture });
