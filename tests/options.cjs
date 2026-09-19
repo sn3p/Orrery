@@ -19,6 +19,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
   const speed = page.getByRole("textbox", { name: "Playback speed" });
   const labels = page.getByRole("combobox", { name: "Planet labels" });
   const orbits = page.getByRole("checkbox", { name: "Planet orbits" });
+  const groups = page.getByRole("combobox", { name: "Minor-planet groups" });
   const dpr = page.getByRole("combobox", { name: "Rendering pixel ratio" });
   const checkSpacing = async () => {
     const spacing = await panel.evaluate(el => {
@@ -54,6 +55,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert.equal(await speed.count(), 0, "Closed controls are absent from the accessibility tree");
     assert.equal(await labels.count(), 0, "Closed label modes are absent from the accessibility tree");
     assert.equal(await orbits.count(), 0, "Closed orbit visibility is absent from the accessibility tree");
+    assert.equal(await groups.count(), 0, "Closed group filters are absent from the accessibility tree");
     const triggerStyle = await trigger.evaluate(element => {
       const style = getComputedStyle(element);
       return {
@@ -105,9 +107,16 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     await expect(speed).toHaveAccessibleDescription("Time scale: 1 = 60 days/s; 0 pauses; negative reverses.");
     await expect(labels).toHaveAccessibleDescription("Show labels for Earth, all planets, or none.");
     await expect(orbits).toHaveAccessibleDescription("Show or hide planetary orbit lines.");
+    await expect(groups).toHaveAccessibleDescription("Numbered minor planets with known discovery dates. Most are in the main belt.");
     assert.deepEqual(await labels.locator("option").allTextContents(), ["Off", "Earth only", "All planets"]);
     assert.equal(await labels.inputValue(), "earth");
     assert(await orbits.isChecked(), "Planet orbits start visible");
+    assert.deepEqual(await groups.locator("option").allTextContents(),
+      ["All", "Near Earth", "Jupiter Trojans", "Distant", "Without the belt"]);
+    assert.equal(await groups.inputValue(), "all", "Group filter starts at All");
+    assert.equal(await page.getByRole("button", { name: "What is this?" }).count(), 1);
+    assert.equal(await page.evaluate(() => localStorage.getItem("orrery.populationPreset")), null,
+      "The All default does not invent a saved population preference");
     assert.deepEqual(await orbits.evaluate(element => {
       const bounds = element.getBoundingClientRect();
       return { width: bounds.width, height: bounds.height };
@@ -191,6 +200,21 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert.equal(await page.evaluate(() => localStorage.getItem("orrery.planetOrbits")), "false");
     await dpr.selectOption("2");
     await dpr.selectOption("1");
+    await groups.selectOption("nea");
+    assert.equal(await groups.inputValue(), "nea");
+    await expect(groups).toHaveAccessibleDescription("Perihelion closer than 1.3 AU. Sparse at 1980; this numbered catalog is a sample.");
+    assert.equal(await page.evaluate(() => localStorage.getItem("orrery.populationPreset")), null,
+      "Changing groups does not persist the preset");
+    const glossary = page.locator("#orrery-glossary");
+    const glossaryTrigger = page.getByRole("button", { name: "What is this?" });
+    await glossaryTrigger.click();
+    assert(await glossary.evaluate(el => el.open), "Glossary opens from the groups control");
+    assert.equal(await page.evaluate(() => document.activeElement?.id), "orrery-glossary-title");
+    await page.keyboard.press("Escape");
+    assert(await glossary.evaluate(el => !el.open), "Escape closes the glossary");
+    assert(await panel.isVisible(), "Glossary Escape leaves Options open");
+    assert(await glossaryTrigger.evaluate(el => el === document.activeElement),
+      "Closing the glossary returns focus to What is this?");
     await page.waitForFunction(() => document.querySelector("#orrery-fps").textContent === "0 FPS");
     await page.waitForTimeout(100);
     const draws = await page.evaluate(() => window.panelDraws);
@@ -206,6 +230,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert.equal(await trigger.textContent(), "[-] options");
     assert.equal(await speed.inputValue(), "0");
     assert.equal(await dpr.inputValue(), "1");
+    assert.equal(await groups.inputValue(), "nea", "Closing keeps the active group filter");
     await page.waitForTimeout(100);
     assert.equal(await page.evaluate(() => window.panelDraws), draws, "Panel toggles do not restart paused rendering");
     assert.equal(await page.locator("#orrery-date").textContent(), date);
@@ -227,7 +252,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       assert(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= viewport.width
         && bounds.y + bounds.height <= viewport.height, "Options fit narrow and short viewports");
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), viewport.width);
-      for (const control of [speed, labels, orbits, dpr]) {
+      for (const control of [speed, labels, orbits, groups, dpr]) {
         await control.scrollIntoViewIfNeeded();
         const box = await control.boundingBox();
         assert(box.x >= bounds.x && box.x + box.width <= bounds.x + bounds.width);
@@ -248,6 +273,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert.equal(await trigger.textContent(), "[+] options");
     await exports.openOptions(page);
     assert.equal(await dpr.inputValue(), "1", "Reload starts at the 1× default");
+    assert.equal(await groups.inputValue(), "all", "Reload returns the group filter to All");
     assert.equal(await orbits.isChecked(), false, "Explicit orbit visibility survives reload");
     assert.equal(await page.evaluate(() => localStorage.getItem("orrery.planetOrbits")), "false",
       "Reload retains the explicit hidden-orbit preference");

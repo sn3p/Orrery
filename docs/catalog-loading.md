@@ -81,7 +81,9 @@ the January 1, 1980 UTC start and speed 1.5 unless overridden. Private
 slots. A slot remains held through ordered parsing and CPU preparation. The loader
 commits a contiguous prefix into one renderer-neutral numeric model, with original
 row ordinals within the pin, full 3D orbital bases and Float64 phase/date data.
-It retains no parsed row graph. Source and catalogue identities accompany each
+It retains no parsed row graph. Each committed row also stores a compact orbit-class
+id from `a` and `e` for the Options group filter; adapters mask in the shader without
+changing the discovery draw range. Source and catalogue identities accompany each
 batch; superseded generations cannot commit.
 Rejected HTTP responses cancel their bodies before returning the status error;
 successful responses without a readable body fail explicitly.

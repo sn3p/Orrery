@@ -324,10 +324,13 @@ async function lifecycle(browser, base) {
     await page.getByRole('button', { name: 'Options', exact: true }).click();
     const labels = page.getByRole('combobox', { name: 'Planet labels' });
     const orbits = page.getByRole('checkbox', { name: 'Planet orbits' });
+    const groups = page.getByRole('combobox', { name: 'Minor-planet groups' });
     await labels.selectOption('all');
     await orbits.uncheck();
+    await groups.selectOption('nea');
     assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetLabels')), 'all');
     assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetOrbits')), 'false');
+    assert.equal(await page.evaluate(() => localStorage.getItem('orrery.populationPreset')), null);
     assert.deepEqual((await page.locator('.orrery-planet-label').allTextContents()).sort(),
       ['Earth', 'Jupiter', 'Mars', 'Mercury', 'Saturn', 'Venus']);
     await page.getByRole('button', { name: 'Options', exact: true }).click();
@@ -346,6 +349,12 @@ async function lifecycle(browser, base) {
           && app.renderer.planets.every(planet => planet.body.visible !== false
             && (planet.body.alpha ?? planet.body.material?.opacity ?? 1) > 0),
         'Hidden planet tracks survive switching without hiding planets');
+        check(app.populationPreset === 'nea' && app.renderer.populationPreset === 'nea',
+          'Population preset survives switching');
+        const discovered = app.rendererId === 'pixi' ? app.renderer.asteroids.geometry.instanceCount
+          : app.renderer.asteroids.geometry.drawRange.count;
+        check(discovered === app.asteroidsDiscovered, 'Draw range stays the discovery prefix');
+        check(app.asteroidsVisible <= app.asteroidsDiscovered, 'HUD visible count cannot exceed discoveries');
         check(app.catalogue === model && !app.renderer.needsCatalogPacking(model), 'Retained population uploaded');
       }
       check(listenerCounts.every(n => n === listenerCounts[0]), 'Listener count stays bounded: ' + listenerCounts);
@@ -562,6 +571,23 @@ async function options(browser, base, output, name) {
   } finally { await page.close(); }
 }
 
+// Wheel reaches the canvas, not HUD/options overlays. Groups made the panel
+// cover the old 100,400 point on this 320x568 phone viewport.
+async function wheelOnCanvas(page, deltaY = -100) {
+  const point = await page.evaluate(() => {
+    const canvas = document.querySelector('canvas');
+    const box = canvas.getBoundingClientRect();
+    for (const [x, y] of [[box.right - 6, box.top + 80], [box.right - 6, (box.top + box.bottom) / 2],
+      [box.right - 6, box.bottom - 80]]) {
+      const hit = document.elementFromPoint(x, y);
+      if (hit === canvas || canvas.contains(hit)) return { x, y };
+    }
+    throw new Error('Canvas is covered; wheel cannot zoom during loading');
+  });
+  await page.mouse.move(point.x, point.y);
+  await page.mouse.wheel(0, deltaY);
+}
+
 async function network(browser, base, output, name) {
   const results = [];
   for (const prefix of ['', '/Orrery']) {
@@ -582,7 +608,7 @@ async function network(browser, base, output, name) {
       await page.waitForFunction(() => app.switching === 'loading');
       assert(await page.getByRole('combobox', { name: 'Renderer', exact: true }).isDisabled());
       const frozen = await page.evaluate(() => ({ jed: app.jed, count: app.asteroidsDiscovered, scale: app.renderer.stage.scale.x }));
-      await page.mouse.move(100, 400); await page.mouse.wheel(0, -100);
+      await wheelOnCanvas(page);
       await page.waitForFunction(scale => app.renderer.stage.scale.x !== scale, frozen.scale);
       assert.deepEqual(await page.evaluate(() => ({ jed: app.jed, count: app.asteroidsDiscovered })), { jed: frozen.jed, count: frozen.count });
       await page.screenshot({ path: path.join(output, `${name}-${prefix ? 'pages' : 'root'}-switch-loading.png`) });

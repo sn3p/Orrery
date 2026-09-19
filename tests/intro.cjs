@@ -57,7 +57,7 @@ async function holds(page, dialog, label) {
       decorationColor: style.textDecorationColor, decorationLine: style.textDecorationLine,
       decorationStyle: style.textDecorationStyle };
   }));
-  assert.equal(actions.length, 4, `${label}: date, options and both renderer shortcuts are available`);
+  assert.equal(actions.length, 5, `${label}: date, options, groups and both renderer shortcuts are available`);
   assert(actions.every(action => action.height >= 24), `${label}: intro shortcuts keep comfortable targets`);
   assert(actions.every(action => action.decorationStyle === 'solid' && action.decorationLine === 'underline'),
     `${label}: available shortcuts use the link treatment`);
@@ -136,6 +136,8 @@ async function run({ browser, name, output = '.context/intro' }) {
         await about.click();
         const reopened = await holds(page, dialog, 'About');
         assert.equal(await dialog.getByRole('link', { name: 'GitHub' }).getAttribute('href'), 'https://github.com/sn3p/Orrery', 'The card links the repository');
+        assert.deepEqual(await dialog.locator('a').evaluateAll(links => links.map(link => link.textContent.trim())),
+          ['GitHub', 'Minor Planet Center', 'orrery-data'], 'Code precedes data in the About card');
         await capture('about');
         await page.mouse.click(2, 2);
         await resumes(page, dialog, reopened, 'backdrop click');
@@ -157,6 +159,19 @@ async function run({ browser, name, output = '.context/intro' }) {
         assert(await options.evaluate(el => el === document.activeElement), 'Options shortcut transfers focus to the real disclosure');
         await page.waitForFunction(previous => document.querySelector('#orrery-date').textContent !== previous, beforeOptions);
         await options.click();
+
+        await about.click();
+        const beforeGlossary = await holds(page, dialog, 'Groups shortcut');
+        await activate(dialog, dialog.getByRole('button', { name: 'minor-planet groups', exact: true }));
+        const glossary = page.getByRole('dialog', { name: 'Minor-planet groups' });
+        await glossary.waitFor();
+        assert.equal(await page.evaluate(() => document.activeElement?.id), 'orrery-glossary-title',
+          'Groups shortcut focuses the glossary title');
+        await expectDateStable(page, beforeGlossary, 'Groups shortcut keeps playback held');
+        await glossary.getByRole('button', { name: 'Close' }).click();
+        assert(await about.evaluate(el => el === document.activeElement),
+          'Closing the glossary opened from About returns to the footer trigger');
+        await page.waitForFunction(previous => document.querySelector('#orrery-date').textContent !== previous, beforeGlossary);
 
         await about.click();
         const beforeDate = await holds(page, dialog, 'Date shortcut');
