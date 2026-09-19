@@ -31,6 +31,7 @@ export default class Controls {
   }
 
   zoom(factor) {
+    this.orrery.cancelViewFit?.();
     const scale = this.orrery.stage.scale;
     scale.set(scale.x * factor);
     this.orrery.requestRender();

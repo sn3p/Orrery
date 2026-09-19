@@ -6,6 +6,8 @@ import Orbit from "./Orbit.js";
 import Asteroids from "./Asteroids.js";
 import { DEFAULT_PLANET_LABEL_MODE, isPlanetLabelMode, PlanetLabels } from "../PlanetLabel.js";
 import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "../PlanetOrbitPreference.js";
+import { DEFAULT_POPULATION_PRESET, isPopulationPreset } from "../catalog/population.js";
+import { VIEW_FIT_MS, easeOutCubic, lerp3, threeTrojanTargetPose } from "../viewFit.js";
 
 function disposePlanets(batch) {
   for (const { planet, orbit } of batch) {
@@ -41,6 +43,9 @@ export default class ThreeRenderer {
     this.planetOrbits = [];
     this.planetLabelMode = DEFAULT_PLANET_LABEL_MODE;
     this.planetOrbitsVisible = DEFAULT_PLANET_ORBITS_VISIBLE;
+    this.populationPreset = DEFAULT_POPULATION_PRESET;
+    this.viewFit = null;
+    this.viewFitInternal = false;
     this.planetLabels = new PlanetLabels(container);
     this.planetLabelPosition = new THREE.Vector3();
     this.onContextLost = event => {
@@ -83,7 +88,7 @@ export default class ThreeRenderer {
       // OrbitControls binds keyboard interception to getRootNode(). Connect
       // after attachment so disposal removes it from the same document.
       this.controls = new OrbitControls(this.camera, this.canvas);
-      this.controls.addEventListener("change", this.requestRender);
+      this.controls.addEventListener("change", this.onControlsChange);
       this.canvas.addEventListener("webglcontextlost", this.onContextLost);
       this.canvas.addEventListener("webglcontextrestored", this.onContextRestored);
     } catch (error) { this.destroy(); throw error; }
@@ -121,7 +126,7 @@ export default class ThreeRenderer {
   }
 
   createCloud(model, frame, committedCount = model.count) {
-    const cloud = new Asteroids(model, { jed: frame.jed, committedCount });
+    const cloud = new Asteroids(model, { jed: frame.jed, committedCount, populationPreset: this.populationPreset });
     for (const attribute of Object.values(cloud.geometry.attributes)) {
       attribute.onUpload(() => {
         const gl = this.renderer.getContext();
@@ -143,9 +148,13 @@ export default class ThreeRenderer {
   setOptions({ shared } = {}) {
     const mode = shared?.planetLabels;
     const orbits = shared?.planetOrbits;
+    const population = shared?.populationPreset;
     if (mode !== undefined && !isPlanetLabelMode(mode)) throw new RangeError("Invalid planet label mode.");
     if (orbits !== undefined && !isPlanetOrbitVisibility(orbits)) {
       throw new RangeError("Invalid planet orbit visibility.");
+    }
+    if (population !== undefined && !isPopulationPreset(population)) {
+      throw new RangeError("Invalid population preset.");
     }
     let changed = false;
     if (mode !== undefined && mode !== this.planetLabelMode) {
@@ -158,7 +167,54 @@ export default class ThreeRenderer {
       for (const orbit of this.planetOrbits) orbit.visible = orbits;
       changed = true;
     }
+    if (population !== undefined && population !== this.populationPreset) {
+      this.populationPreset = population;
+      this.asteroids?.setPopulationPreset(population);
+      this.stagedAsteroids?.setPopulationPreset(population);
+      this.catalogueTransition?.previous?.setPopulationPreset(population);
+      changed = true;
+    }
     if (changed) this.requestRender();
+  }
+
+  get viewAnimating() { return !!this.viewFit; }
+
+  cancelViewFit() { this.viewFit = null; }
+
+  onControlsChange = () => {
+    if (!this.viewFitInternal) this.cancelViewFit();
+    this.requestRender();
+  };
+
+  ensurePopulationView(preset, now = performance.now()) {
+    this.cancelViewFit();
+    if (this.destroyed || !this.camera || !this.controls || preset !== "trojans") return false;
+    const pose = threeTrojanTargetPose(this.camera.position.toArray(), this.controls.target.toArray(),
+      this.camera.fov, this.camera.aspect, this.camera.zoom);
+    if (!pose) return false;
+    this.viewFit = {
+      fromPosition: this.camera.position.toArray(),
+      fromTarget: this.controls.target.toArray(),
+      toPosition: pose.position,
+      toTarget: pose.target,
+      start: now,
+      duration: VIEW_FIT_MS,
+    };
+    return true;
+  }
+
+  advanceViewFit(now = performance.now()) {
+    if (!this.viewFit || this.destroyed || !this.camera || !this.controls) return false;
+    const { fromPosition, fromTarget, toPosition, toTarget, start, duration } = this.viewFit;
+    const t = Math.min(1, duration > 0 ? (now - start) / duration : 1);
+    const k = easeOutCubic(t);
+    this.viewFitInternal = true;
+    this.camera.position.fromArray(lerp3(fromPosition, toPosition, k));
+    this.controls.target.fromArray(lerp3(fromTarget, toTarget, k));
+    this.controls.update();
+    this.viewFitInternal = false;
+    if (t >= 1) this.viewFit = null;
+    return true;
   }
 
   addPlanets(data, { jed }) {
@@ -240,6 +296,7 @@ export default class ThreeRenderer {
   }
 
   update({ jed, elapsed }, options) {
+    this.advanceViewFit();
     const count = this.asteroids?.update(jed, elapsed, options) ?? 0;
     for (const planet of this.planets) planet.render(jed);
     return count;
@@ -247,7 +304,7 @@ export default class ThreeRenderer {
   get frameState() {
     const cloud = this.asteroids;
     return cloud ? { jed: cloud.epoch + cloud.uniforms.orbitTime.value,
-      elapsed: cloud.elapsed, count: cloud.geometry.drawRange.count } : null;
+      elapsed: cloud.elapsed, count: cloud.geometry.drawRange.count, visibleCount: cloud.visibleCount } : null;
   }
   captureFrame({ jed }) {
     this.frameSnapshot = this.asteroids && { cloud: this.asteroids, state: this.asteroids.captureFrame(jed) };
@@ -297,12 +354,14 @@ export default class ThreeRenderer {
   }
 
   captureView() {
+    this.advanceViewFit(Number.POSITIVE_INFINITY);
     return { position: this.camera.position.toArray(), up: this.camera.up.toArray(),
       quaternion: this.camera.quaternion.toArray(), zoom: this.camera.zoom,
       target: this.controls.target.toArray() };
   }
 
   restoreView(view) {
+    this.cancelViewFit();
     if (!view) return;
     this.camera.position.fromArray(view.position);
     this.camera.up.fromArray(view.up);
@@ -326,10 +385,11 @@ export default class ThreeRenderer {
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.viewFit = null;
     this.frameSnapshot = null;
     this.canvas?.removeEventListener("webglcontextlost", this.onContextLost);
     this.canvas?.removeEventListener("webglcontextrestored", this.onContextRestored);
-    this.controls?.removeEventListener("change", this.requestRender);
+    this.controls?.removeEventListener("change", this.onControlsChange);
     this.controls?.dispose();
     this.planetLabels.destroy();
     this.releaseSceneResources();

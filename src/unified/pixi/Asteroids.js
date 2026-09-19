@@ -1,5 +1,7 @@
 import { Bounds, Buffer, BufferUsage, Geometry, Mesh, Shader, UniformGroup } from "pixi.js";
 import { DISCOVERY_SECONDS, REBASE_DAYS, REFERENCE_JED, discoveryCount, orbitGLSL, prepareOrbits, validDate, wrap } from "../../js/asteroidOrbits.js";
+import { CLASS_COUNT, DEFAULT_POPULATION_PRESET, advanceClassTallies, classifyCatalogue,
+  isPopulationPreset, populationGLSL, populationMask, visibleFromTallies } from "../catalog/population.js";
 
 const vertex = `
 precision highp float;
@@ -8,6 +10,7 @@ attribute vec4 aBasis;
 attribute vec2 aElements;
 attribute float aMeanAnomaly;
 attribute float aDiscovery;
+attribute float aClass;
 uniform mat3 uProjectionMatrix;
 uniform mat3 uWorldTransformMatrix;
 uniform mat3 uTransformMatrix;
@@ -15,18 +18,21 @@ uniform vec4 uWorldColorAlpha;
 uniform vec4 uColor;
 uniform float uOrbitTime;
 uniform float uMarkerTime;
+uniform float uClassMask;
 varying vec2 vUV;
 varying vec4 vColor;
 ${orbitGLSL}
+${populationGLSL}
 void main() {
   float age = uMarkerTime - aDiscovery;
   bool fresh = aDiscovery >= 0.0 && age < ${DISCOVERY_SECONDS};
-  float size = fresh ? 3.0 - 3.0 * max(age, 0.0) : 1.0;
+  float visible = populationVisible(aClass, uClassMask);
+  float size = visible * (fresh ? 3.0 - 3.0 * max(age, 0.0) : 1.0);
   vec2 center = orbitPosition(aBasis.xy, aBasis.zw, aElements, aMeanAnomaly, uOrbitTime);
   vec3 position = uProjectionMatrix * uWorldTransformMatrix * uTransformMatrix * vec3(center + aPosition * size, 1.0);
   gl_Position = vec4(position.xy, 0.0, 1.0);
   vUV = aPosition + 0.5;
-  vColor = vec4(fresh ? vec3(0.0, 1.0, 0.0) : vec3(0.6666666667), 1.0) * uColor * uWorldColorAlpha;
+  vColor = vec4(fresh ? vec3(0.0, 1.0, 0.0) : vec3(0.6666666667), visible) * uColor * uWorldColorAlpha;
 }`;
 const fragment = `
 precision mediump float;
@@ -59,6 +65,8 @@ export default class Asteroids extends Mesh {
     const elements = buffer(packed.elements, "orbital elements");
     const meanAnomalies = buffer(packed.meanAnomalies, "orbital phases");
     const markers = buffer(new Float32Array(packed.dates.length).fill(-1), "discovery timestamps");
+    const classes = canonical ? data.classes : classifyCatalogue(data);
+    const classValues = buffer(new Float32Array(packed.dates.length), "population classes");
     const geometry = new OrbitGeometry({
       attributes: {
         aPosition: { buffer: buffer(new Float32Array([-0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, 0.5]), "unit quad"), format: "float32x2" },
@@ -66,10 +74,12 @@ export default class Asteroids extends Mesh {
         aElements: { buffer: elements, format: "float32x2", instance: true },
         aMeanAnomaly: { buffer: meanAnomalies, format: "float32", instance: true },
         aDiscovery: { buffer: markers, format: "float32", instance: true },
+        aClass: { buffer: classValues, format: "float32", instance: true },
       },
       indexBuffer: new Uint16Array([0, 1, 2, 0, 2, 3]), instanceCount: 0,
     }, packed.radius);
-    const uniforms = new UniformGroup({ uOrbitTime: { value: 0, type: "f32" }, uMarkerTime: { value: 0, type: "f32" } });
+    const uniforms = new UniformGroup({ uOrbitTime: { value: 0, type: "f32" }, uMarkerTime: { value: 0, type: "f32" },
+      uClassMask: { value: populationMask(DEFAULT_POPULATION_PRESET), type: "f32" } });
     const shader = Shader.from({ gl: { vertex, fragment, name: "asteroid-orbits" }, resources: { orbitUniforms: uniforms, uTexture: texture.source } });
     super({ geometry, shader, texture, eventMode: "none", label: "Asteroids" });
     this.partialUploads = partialUploads;
@@ -78,11 +88,20 @@ export default class Asteroids extends Mesh {
     this.pendingRanges = new Map();
     this.phases = packed.phases;
     this.discoveryDates = packed.dates;
+    this.classes = classes;
+    this.classTallies = new Uint32Array(CLASS_COUNT);
+    this.tallyCount = 0;
+    this.visibleCount = 0;
+    this.populationPreset = DEFAULT_POPULATION_PRESET;
     this.epoch = packed.epoch;
     this.markerEpoch = elapsed;
     this.elapsed = elapsed;
     this.uniforms = uniforms.uniforms;
     if (canonical) this.append(limit);
+    else {
+      this.copyClasses(0, this.committedCount);
+      this.queueUpload("aClass", 0, this.committedCount * 4);
+    }
     // Creating or replacing a cloud establishes a complete historical baseline;
     // only later chronological crossings should receive arrival emphasis.
     this.update(jed, elapsed, { baseline: true });
@@ -100,11 +119,30 @@ export default class Asteroids extends Mesh {
       means.data[i] = wrap(model.phases[i * 2] + model.phases[i * 2 + 1] * (this.epoch - REFERENCE_JED));
     }
     this.committedCount = end;
+    this.copyClasses(start, end);
     const extent = model.radius * 1.00001 + 2;
     this.geometry.orbitBounds = new Bounds(-extent, -extent, extent, extent);
-    for (const [name, stride] of [["aBasis", 4], ["aElements", 2], ["aMeanAnomaly", 1]]) {
+    for (const [name, stride] of [["aBasis", 4], ["aElements", 2], ["aMeanAnomaly", 1], ["aClass", 1]]) {
       this.queueUpload(name, start * stride * 4, end * stride * 4);
     }
+  }
+
+  copyClasses(start, end) {
+    const values = this.geometry.getBuffer("aClass").data;
+    for (let i = start; i < end; i++) values[i] = this.classes[i];
+  }
+
+  setPopulationPreset(preset) {
+    if (!isPopulationPreset(preset) || preset === this.populationPreset) return;
+    this.populationPreset = preset;
+    this.uniforms.uClassMask = populationMask(preset);
+    this.visibleCount = visibleFromTallies(this.classTallies, preset);
+  }
+
+  syncTallies(count) {
+    const next = advanceClassTallies(this.classes, this.tallyCount, count, this.populationPreset, this.classTallies);
+    this.tallyCount = next.tallyCount;
+    this.visibleCount = next.visibleCount;
   }
 
   queueUpload(name, start, end) {
@@ -123,7 +161,7 @@ export default class Asteroids extends Mesh {
 
   acknowledgeDraw(renderer) {
     if (!this.geometry.instanceCount) return 0;
-    for (const name of ["aBasis", "aElements", "aMeanAnomaly", "aDiscovery"]) {
+    for (const name of ["aBasis", "aElements", "aMeanAnomaly", "aDiscovery", "aClass"]) {
       const buffer = this.geometry.getBuffer(name);
       if (buffer._gpuData[renderer.uid]?.updateID !== buffer._updateID) return null;
     }
@@ -158,6 +196,7 @@ export default class Asteroids extends Mesh {
     this.elapsed = state.elapsed;
     this.geometry.instanceCount = state.count;
     this.visible = state.visible;
+    this.syncTallies(state.count);
     this.uniforms.uOrbitTime = state.orbitTime;
     this.uniforms.uMarkerTime = state.markerTime;
   }
@@ -205,6 +244,7 @@ export default class Asteroids extends Mesh {
     if (refreshed) this.queueUpload("aDiscovery", 0, this.committedCount * 4);
     this.geometry.instanceCount = count;
     this.visible = count > 0;
+    this.syncTallies(count);
     this.uniforms.uOrbitTime = jed - this.epoch;
     this.uniforms.uMarkerTime = markerTime;
     return count;
@@ -224,7 +264,7 @@ export default class Asteroids extends Mesh {
     geometry.destroy(true);
     // Pixi caches programs across meshes; replacing one must not destroy them.
     shader.destroy();
-    this.phases = this.discoveryDates = this.catalogue = null;
+    this.phases = this.discoveryDates = this.classes = this.catalogue = null;
     this.pendingRanges.clear();
   }
 }

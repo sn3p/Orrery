@@ -7,9 +7,22 @@ current rendering and options contract.
 ## Options
 
 Open `[+] options` in the top-left corner for playback speed, renderer, planet
-labels, planetary orbit lines and rendering resolution. Click outside or press
+labels, planetary orbit lines, minor-planet groups and rendering resolution. Click outside or press
 Escape to close it. Speed 0 pauses; negative values reverse. Speed 1 advances
 60 days per second (default 1.5).
+
+Minor-planet groups isolate numbered objects already in this catalogue: All,
+Near Earth, Jupiter Trojans, Distant, or Without the belt. The filter hides
+non-matching points; it does not change the discovery prefix or download extra
+data. Reload returns to All. One-line help sits under the control; **What is
+this?** opens a short glossary, as does the **minor-planet groups** shortcut in
+the introduction card. The bottom-left count is the objects on screen
+for the active preset at the committed date, not a live MPC census. Cuts are by
+orbit shape in this app, not official MPC `Orbit_type`. Choosing Jupiter Trojans
+eases the current camera out until Jupiter’s orbit fits, if it is not already on
+screen; other presets leave the view alone. Wheel or drag cancels the motion.
+Switching renderers restores each mode’s last view and does not repeat that
+courtesy.
 
 Planetary orbit lines are shown by default. Hiding them leaves the planets and
 their motion unchanged. Explicit orbit-line and planet-label choices are remembered
@@ -45,7 +58,7 @@ Date jumps reveal the newly included records immediately. Hidden/context
 downtime is excluded, and individual elapsed intervals are capped at 250 ms.
 
 Paused scenes render on demand and show `0 FPS`. Initial/async catalogue loading,
-date changes, wheel zoom, resize/DPR changes and graphics/visibility recovery
+date changes, wheel zoom, a Trojan view-fit animation, resize/DPR changes and graphics/visibility recovery
 request a redraw; simultaneous requests share one frame. Orrery owns the RAF
 scheduler and keeps Pixi's independent automatic ticker stopped. Tests and
 benchmarks use `new Orrery({ autoRender: false })`: setters and recovery never
