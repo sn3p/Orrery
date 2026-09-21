@@ -36,9 +36,11 @@ first visit; playback holds while it is open and the chosen speed is kept. Dismi
 is remembered in `localStorage` under `orrery.intro`. Initial loading occupies the date/count position; later buffering
 or recovery feedback appears above the last committed readout.
 
-Every load starts at 1× DPR, with the options panel closed. On displays with
+Every load starts at 2× DPR when the display’s native ratio is at least 2, and
+at 1× otherwise, with the options panel closed. On displays with
 native DPR of at least 2, choose 1× or 2×: 2× is sharper but requires more graphics
-processing. The choice lasts for the current page only. Moving to a lower-DPR
+processing. The choice lasts for the current page only. Reload returns to that
+supported default. Moving to a lower-DPR
 display hides the selector and uses 1× (or native DPR below 1); moving back restores
 the page's selection. Canvas CSS size, view position and dot sizes stay the same.
 
