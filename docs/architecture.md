@@ -39,7 +39,8 @@ Switching renderers preserves the current date, requested speed, retained catalo
 common options and last committed readout. Each renderer's view and the shared DPR
 choice last for the page session. A reload returns to the renderer named by the URL
 (`renderer=three`; Pixi is the omitted default) and to a `date=YYYY-MM-DD` UTC day
-when present, paused like a HUD jump. Without `date`, playback still starts at the
+when present, paused like a HUD jump. An unrecognized `renderer` value stays in the
+query so reload still shows the Pixi fallback notice. Without `date`, playback still starts at the
 configured beginning (publicly 1980-01-01) and plays. Invalid dates are ignored.
 Options switches, successful intro renderer choices, date jumps and pauses update
 that query with `history.replaceState`; playback frames do not. Camera, DPR and the

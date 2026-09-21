@@ -33,6 +33,8 @@ test("shareSearch names Three and non-beginning dates, and preserves extra param
 
   assert.equal(shareSearch({ renderer: "pixi", date: null }, "?renderer=three&date=2000-01-01"), "");
   assert.equal(shareSearch({ renderer: "three" }, "?date=2005-05-03"), "?date=2005-05-03&renderer=three");
+  assert.equal(shareSearch({ renderer: "unknown" }, "?extra=keep"), "?extra=keep&renderer=unknown",
+    "Unrecognized renderer ids stay shareable so reload still shows the fallback notice");
   assert.equal(shareDateValue(start, start), null);
   assert.equal(shareDateValue(jumped, start), "2005-05-03");
   assert.equal(shareDateValue(start + 0.4, start), null, "The beginning UTC day is omitted");
@@ -64,6 +66,8 @@ test("replaceShareUrl updates search in place and keeps pathname and hash", () =
   assert.equal(history.calls.length, 1, "Matching URLs do not replace again");
   replaceShareUrl({ renderer: "pixi", date: null }, location, history);
   assert.equal(history.calls.at(-1).url, "/Orrery/?extra=keep#view");
+  replaceShareUrl({ renderer: "unknown", date: null }, location, history);
+  assert.equal(history.calls.at(-1).url, "/Orrery/?extra=keep&renderer=unknown#view");
 });
 
 test("formatIsoDay round-trips through parseIsoDay for four-digit years", () => {

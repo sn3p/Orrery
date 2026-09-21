@@ -41,6 +41,9 @@ export default class App {
     const selection = selectRenderer(options.renderer, this.rendererRegistry);
     this.rendererId = selection.id;
     this.rendererNotice = selection.notice;
+    // Reload must reproduce an unrecognized ?renderer= value; the resolved Pixi
+    // id would omit it from the share URL and drop the fallback notice.
+    this.rendererQuery = selection.notice ? options.renderer : selection.id;
     this.createRenderer = options.createRenderer ?? selection.create;
     this._pixelRatio = (window.devicePixelRatio || 1) >= 2 ? "2" : "1";
     this._planetLabels = options.planetLabels ?? loadPlanetLabelMode();
@@ -254,7 +257,7 @@ export default class App {
   syncShareUrl() {
     if (this.destroyed) return;
     replaceShareUrl({
-      renderer: this.rendererId,
+      renderer: this.rendererNotice ? this.rendererQuery : this.rendererId,
       ...(this.jedDelta === 0 ? { date: shareDateValue(this.requestedJed ?? this._jed, this.startJed) } : {}),
     });
   }
