@@ -1,4 +1,4 @@
-import { formatIsoDay, toJED } from "../../js/utils.js";
+import { formatIsoDay, parseIsoDay, toJED } from "../../js/utils.js";
 
 const interactive = target => target?.closest?.("button, a, input, select, textarea, dialog, [contenteditable='true']");
 
@@ -81,8 +81,8 @@ export default class Timeline {
   onOpenDate = () => { this.open(); };
 
   commitDate(value) {
-    const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00.000Z`) : null;
-    if (!date || Number.isNaN(date.valueOf()) || date.toISOString().slice(0, 10) !== value) {
+    const date = parseIsoDay(value);
+    if (!date) {
       this.error.textContent = "Enter a valid UTC date.";
       this.input.focus();
       return;

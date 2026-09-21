@@ -5,6 +5,7 @@ const { serve } = require('./support.cjs');
 const { routeDefaultCatalog } = require('./default-catalog-route.cjs');
 
 const text = (page, selector) => page.locator(selector).textContent();
+const share = page => new URL(page.url()).searchParams;
 
 async function expectDateStable(page, date, message) {
   await page.waitForTimeout(120);
@@ -24,12 +25,24 @@ async function run({ browser, name, output = '.context/timeline' }) {
       page.on('pageerror', error => errors.push(error.message));
       page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
       try {
-        await page.goto(`${server.url}/?renderer=${renderer}`);
-        await page.waitForFunction(() => document.querySelector('#orrery-count')?.textContent === '6');
         const play = page.locator('#orrery-playback');
         const date = page.locator('#orrery-date');
         const dialog = page.getByRole('dialog', { name: 'Jump to date' });
         const input = page.getByLabel('UTC date');
+        const shared = renderer === 'three' ? '?renderer=three&date=2005-05-03' : '?date=2005-05-03';
+        await page.goto(`${server.url}/${shared}`);
+        await page.waitForFunction(() => document.querySelector('#orrery-count')?.textContent === '6');
+        assert.equal(await date.textContent(), '2005-05-03', 'A shared UTC date is the initial inspection day');
+        assert.equal(await play.getAttribute('aria-label'), 'Resume playback', 'A shared date starts paused');
+        assert.equal(share(page).get('date'), '2005-05-03');
+        assert.equal(share(page).get('renderer'), renderer === 'three' ? 'three' : null);
+
+        await page.goto(`${server.url}/?renderer=${renderer}&date=not-a-day`);
+        await page.waitForFunction(() => document.querySelector('#orrery-count')?.textContent === '6');
+        assert.equal(await play.getAttribute('aria-label'), 'Pause playback', 'An invalid date is ignored');
+
+        await page.goto(`${server.url}/?renderer=${renderer}`);
+        await page.waitForFunction(() => document.querySelector('#orrery-count')?.textContent === '6');
 
         assert.equal(await play.getAttribute('aria-label'), 'Pause playback');
         assert.equal(await play.getAttribute('aria-keyshortcuts'), 'Space');
@@ -61,6 +74,9 @@ async function run({ browser, name, output = '.context/timeline' }) {
         await page.waitForFunction(() => document.querySelector('#orrery-fps').textContent === '0 FPS');
         const paused = await date.textContent();
         await expectDateStable(page, paused, 'Visible playback control pauses the timeline');
+        assert.equal(share(page).get('date'), paused === '1980-01-01' ? null : paused,
+          'Pause writes the visible UTC day, omitting the 1980 beginning');
+        assert.equal(share(page).get('renderer'), renderer === 'three' ? 'three' : null);
         assert.equal(await play.getAttribute('aria-label'), 'Resume playback');
         assert.equal((await play.textContent()).trim(), '[⏵︎]');
         assert.equal(await play.locator('.orrery-control-indicator').evaluate(element => element.getBoundingClientRect().width),
@@ -116,17 +132,20 @@ async function run({ browser, name, output = '.context/timeline' }) {
         assert.equal(await play.getAttribute('aria-label'), 'Resume reverse playback',
           'A date jump stays paused and preserves reverse as the resume direction');
         await expectDateStable(page, '2000-01-01', 'Applied UTC date remains paused for inspection');
+        assert.equal(share(page).get('date'), '2000-01-01', 'A date jump is named in the URL');
 
         const today = new Date().toISOString().slice(0, 10);
         await date.click();
         await page.getByRole('button', { name: 'today', exact: true }).click();
         await page.waitForFunction(expected => document.querySelector('#orrery-date').textContent === expected, today);
         assert.equal(await play.getAttribute('aria-label'), 'Resume reverse playback');
+        assert.equal(share(page).get('date'), today);
 
         await date.click();
         await page.getByRole('button', { name: '1980-01-01', exact: true }).click();
         await page.waitForFunction(() => document.querySelector('#orrery-date').textContent === '1980-01-01');
         assert.equal(await text(page, '#orrery-fps'), '0 FPS');
+        assert.equal(share(page).get('date'), null, 'The 1980 beginning is omitted from the URL');
 
         await page.setViewportSize({ width: 320, height: 568 });
         await date.press('Enter');

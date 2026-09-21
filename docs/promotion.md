@@ -7,7 +7,8 @@ and reload checks in both modes. Retired preview entries returned 404.
 
 ## Current public build
 
-- `/` starts Pixi; `/?renderer=three` starts Three. Assets resolve relative to
+- `/` starts Pixi; `/?renderer=three` starts Three. `?date=YYYY-MM-DD` starts paused
+  on that UTC day. Assets resolve relative to
   the deployment base, including `/Orrery/` on Pages.
 - `/next`, `/next/` and `/next/index.html` remain retired, without forwarding.
 - The build publishes one application with lazy renderer chunks. Historical

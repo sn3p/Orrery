@@ -38,12 +38,19 @@ or require WebGL2.
 Switching renderers preserves the current date, requested speed, retained catalogue,
 common options and last committed readout. Each renderer's view and the shared DPR
 choice last for the page session. A reload returns to the renderer named by the URL
-and restores its normal view and DPR defaults.
+(`renderer=three`; Pixi is the omitted default) and to a `date=YYYY-MM-DD` UTC day
+when present, paused like a HUD jump. An unrecognized `renderer` value stays in the
+query so reload still shows the Pixi fallback notice. Without `date`, playback still starts at the
+configured beginning (publicly 1980-01-01) and plays. Invalid dates are ignored.
+Options switches, successful intro renderer choices, date jumps and pauses update
+that query with `history.replaceState`; playback frames do not. Camera, DPR and the
+group preset are still page-session only.
 
 Explicit planet-label and planet-orbit choices are stored under
 `orrery.planetLabels` and `orrery.planetOrbits`; they apply to both adapters.
-Introduction dismissal is stored separately under `orrery.intro`. Renderer choice,
-renderer-specific view state, DPR and the minor-planet group preset are not persisted.
+Introduction dismissal is stored separately under `orrery.intro`. Renderer choice and
+date are named only by the URL, not `localStorage`. Renderer-specific view state, DPR
+and the minor-planet group preset are not persisted.
 Choosing Jupiter Trojans may ease the active camera out so Jupiter’s orbit fits;
 switching still restores each renderer’s last stored view.
 
@@ -58,7 +65,7 @@ and must commit a complete frame before it becomes active.
 A failed candidate is cleaned up and the previous renderer is rebuilt from retained
 state when possible. If restoration also fails, the status remains accessible and
 offers retry or renderer-selection recovery. Switching does not replay historical
-Pixi discovery effects, and queued requests converge on the latest selection.
+discovery pulses, and queued requests converge on the latest selection.
 
 ## Detailed contracts
 

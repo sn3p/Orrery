@@ -69,23 +69,29 @@ module.exports = async (browser, url, output, name, application = "unified") => 
     });
     await page.goto(url); await boot();
     assert.equal(await control.count(), 1, "High-DPI display exposes the DPR control");
-    assert.equal(await control.inputValue(), "1", "Fresh production boot defaults to 1×");
+    assert.equal(await control.inputValue(), "2", "Fresh production boot defaults to 2× when the display supports it");
     assert.deepEqual(await control.locator("option").evaluateAll(options => options.map(o => o.value)), ["1", "2"]);
-    await checkBuffer(page, 1);
+    await checkBuffer(page, 2);
     assert.equal(await page.evaluate(key => localStorage.getItem(key), key), null, "Boot does not invent a saved preference");
     await page.screenshot({ path: path.join(output, `${name}-dpr-default-desktop.png`) });
     await page.reload(); await boot();
-    assert.equal(await control.inputValue(), "1", "An unset preference stays at 1× after reload");
-    await checkBuffer(page, 1);
-    for (const ratio of [2, 1, 2]) {
+    assert.equal(await control.inputValue(), "2", "An unset preference stays at 2× after reload on a high-DPI display");
+    await checkBuffer(page, 2);
+    for (const ratio of [1, 2, 1]) {
       await choose(String(ratio)); await checkBuffer(page, ratio);
       assert.equal(await page.evaluate(key => localStorage.getItem(key), key), null, "DPR choices are not saved");
     }
     await page.reload(); await boot();
-    assert.equal(await control.inputValue(), "1", "Reload starts at 1× after choosing 2×");
-    await checkBuffer(page, 1);
+    assert.equal(await control.inputValue(), "2", "Reload starts at 2× after choosing 1×");
+    await checkBuffer(page, 2);
     // Native select stays focused and operable with the keyboard.
-    await control.focus(); await control.press("2"); await control.press("Enter");
+    await control.focus(); await control.press("1"); await control.press("Enter");
+    await settle(page);
+    assert.equal(await control.inputValue(), "1");
+    assert(await control.evaluate(el => el === document.activeElement));
+    await checkBuffer(page, 1);
+    await idle();
+    await control.press("2"); await control.press("Enter");
     await settle(page);
     assert.equal(await control.inputValue(), "2");
     assert(await control.evaluate(el => el === document.activeElement));
@@ -167,12 +173,12 @@ module.exports = async (browser, url, output, name, application = "unified") => 
         : document.querySelector("#orrery-date").textContent < date, { date, forward: Number(speedValue) > 0 });
       await speed.fill("0"); await speed.press("Enter"); await idle();
     }
-    // Every legacy saved choice is ignored: each boot starts at 1×.
+    // Every legacy saved choice is ignored: each boot starts at 2× on this display.
     for (const value of ["auto", "1", "2", "3", "not-a-ratio"]) {
       await page.evaluate(({ key, value }) => localStorage.setItem(key, value), { key, value });
-      await page.reload(); await boot(); await checkBuffer(page, 1);
-      assert.equal(await control.inputValue(), "1", `Legacy ${value} cannot override the default`);
-      await choose("2"); await checkBuffer(page, 2);
+      await page.reload(); await boot(); await checkBuffer(page, 2);
+      assert.equal(await control.inputValue(), "2", `Legacy ${value} cannot override the default`);
+      await choose("1"); await checkBuffer(page, 1);
       assert.equal(await page.evaluate(key => localStorage.getItem(key), key), value, "Controls do not write preferences");
     }
     // Unavailable storage does not break boot or control changes.
@@ -181,7 +187,7 @@ module.exports = async (browser, url, output, name, application = "unified") => 
     });
     // Blocked storage cannot remember the introduction, so it returns on every visit.
     const dismissIntro = async () => { await page.locator('#orrery-intro[open]').waitFor(); await page.keyboard.press('Escape'); };
-    await page.reload(); await dismissIntro(); await boot(); await checkBuffer(page, 1);
+    await page.reload(); await dismissIntro(); await boot(); await checkBuffer(page, 2);
     assert.equal(await labels.inputValue(), "earth");
     assert(await orbits.isChecked());
     await labels.selectOption("all"); await settle(page);
@@ -190,8 +196,8 @@ module.exports = async (browser, url, output, name, application = "unified") => 
       "Blocked storage does not prevent changing the label mode for this session");
     assert.equal(await orbits.isChecked(), false,
       "Blocked storage does not prevent changing orbit visibility for this session");
-    await choose("2"); await checkBuffer(page, 2);
-    await page.reload(); await dismissIntro(); await boot(); await checkBuffer(page, 1);
+    await choose("1"); await checkBuffer(page, 1);
+    await page.reload(); await dismissIntro(); await boot(); await checkBuffer(page, 2);
     assert.equal(await labels.inputValue(), "earth", "Blocked storage falls back to Earth labels after reload");
     assert(await orbits.isChecked(), "Blocked storage falls back to visible planet orbits after reload");
     assert.equal(await page.locator('.orrery-planet-label[data-planet="Earth"]').count(), 1);
@@ -209,13 +215,13 @@ module.exports = async (browser, url, output, name, application = "unified") => 
       await require("./options.cjs").openOptions(standard);
       const select = standard.locator("select[aria-label='Rendering pixel ratio']");
       assert.equal(await select.isVisible(), native >= 2, "2× availability controls visibility, including fractional displays");
-      assert.equal(await select.inputValue(), "1");
+      assert.equal(await select.inputValue(), native >= 2 ? "2" : "1");
       assert.deepEqual(await select.locator("option").allTextContents(), ["1×", "2×"]);
-      await checkBuffer(standard, Math.min(1, native));
+      await checkBuffer(standard, native >= 2 ? 2 : Math.min(1, native));
       assert.deepEqual(await standard.locator('canvas').evaluate(el => [el.getBoundingClientRect().width, el.getBoundingClientRect().height]), [390, 843]);
       await standard.screenshot({ path: path.join(output, `${name}-dpr-native-${native}.png`) });
     } finally { await standard.close(); }
   }
-  return { freshDefaultAndReload: "always 1×", choicesAndKeyboard: "1×/2×", legacyAndUnavailableStorage: "ignored", lifecycle: "passed",
+  return { freshDefaultAndReload: "2× when native ≥ 2", choicesAndKeyboard: "1×/2×", legacyAndUnavailableStorage: "ignored", lifecycle: "passed",
     desktopAndNarrow: "passed", displayTransitions: name === "chromium" ? "CDP with delivered media events" : "not exercised" };
 };

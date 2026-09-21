@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { REFERENCE_JED, wrapPhase } from "../catalog/prepareCatalogue.js";
-import { validDate, MAX_PHASE_ADVANCE } from "../../js/asteroidOrbits.js";
+import { DISCOVERY_SECONDS, validDate, MAX_PHASE_ADVANCE } from "../../js/asteroidOrbits.js";
 import { CLASS_COUNT, DEFAULT_POPULATION_PRESET, advanceClassTallies, isPopulationPreset,
   populationGLSL, populationMask, visibleFromTallies } from "../catalog/population.js";
 
@@ -32,17 +32,20 @@ export const orbitGLSL = `
 `;
 
 export default class Asteroids extends THREE.Points {
-  constructor(model, { jed, color = new THREE.Color(0x999999), discoveryColor = new THREE.Color(0x00ff00),
+  constructor(model, { jed, elapsed = 0, color = new THREE.Color(0x999999), discoveryColor = new THREE.Color(0x00ff00),
     discoveryDuration = 200, committedCount = model.count, populationPreset = DEFAULT_POPULATION_PRESET }) {
-    if (!validDate(jed) || !Number.isFinite(discoveryDuration) || discoveryDuration < 0) {
+    if (!validDate(jed) || !Number.isFinite(elapsed) || elapsed < 0
+      || !Number.isFinite(discoveryDuration) || discoveryDuration < 0) {
       throw new Error("Invalid asteroid date or discovery duration.");
     }
     const geometry = new THREE.BufferGeometry();
-    // Static attributes reference retained CPU data read-only. Only phase and
-    // discovery packing are adapter-owned; no canonical array is transferred.
+    // Static attributes reference retained CPU data read-only. Only phase,
+    // discovery packing and arrival timestamps are adapter-owned.
+    const arrivals = new Float32Array(model.dates.length).fill(-1);
     for (const [name, array, size] of [["position", model.p, 3], ["basisQ", model.q, 3],
       ["elements", model.elements, 2], ["meanAnomaly", new Float32Array(model.dates.length), 1],
-      ["discovery", new Float32Array(model.dates.length), 1], ["classId", model.classes, 1]]) {
+      ["discovery", new Float32Array(model.dates.length), 1], ["arrival", arrivals, 1],
+      ["classId", model.classes, 1]]) {
       geometry.setAttribute(name, new THREE.BufferAttribute(array, size));
     }
     geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), model.radius * 1.00001 + 1);
@@ -54,6 +57,7 @@ export default class Asteroids extends THREE.Points {
       fadeDuration: { value: discoveryDuration },
       freshColor: { value: discoveryColor }, oldColor: { value: color },
       classMask: { value: populationMask(preset) },
+      pulseTime: { value: 0 },
     };
     const material = new THREE.PointsMaterial({ size: 1, vertexColors: true });
     material.onBeforeCompile = shader => {
@@ -64,6 +68,7 @@ export default class Asteroids extends THREE.Points {
         attribute vec2 elements;
         attribute float meanAnomaly;
         attribute float discovery;
+        attribute float arrival;
         attribute float classId;
         uniform float orbitTime;
         uniform float discoveryTime;
@@ -72,6 +77,7 @@ export default class Asteroids extends THREE.Points {
         uniform vec3 freshColor;
         uniform vec3 oldColor;
         uniform float classMask;
+        uniform float pulseTime;
         ${orbitGLSL}
         ${populationGLSL}
       `).replace("#include <color_vertex>", `
@@ -84,6 +90,10 @@ export default class Asteroids extends THREE.Points {
         if (vColor.a < 0.5) {
           gl_PointSize = 0.0;
           gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        } else {
+          float age = pulseTime - arrival;
+          gl_PointSize = max(gl_PointSize, 1.0) * (arrival >= 0.0 && age >= 0.0 && age < ${DISCOVERY_SECONDS}
+            ? 3.0 - 3.0 * age : 1.0);
         }
         #include <fog_vertex>
       `);
@@ -92,7 +102,7 @@ export default class Asteroids extends THREE.Points {
         #include <clipping_planes_fragment>
       `);
     };
-    material.customProgramCacheKey = () => "asteroid-orbits-r186-v6";
+    material.customProgramCacheKey = () => "asteroid-orbits-r186-v7";
     super(geometry, material);
     this.name = "Asteroids";
     this.catalogue = model;
@@ -100,7 +110,8 @@ export default class Asteroids extends THREE.Points {
     this.classes = model.classes;
     this.phases = model.phases;
     this.epoch = jed;
-    this.elapsed = 0;
+    this.elapsed = elapsed;
+    this.markerEpoch = 0;
     this.rebaseDays = REBASE_DAYS;
     this.committedCount = 0;
     this.uploadedVersions = new Map();
@@ -113,7 +124,7 @@ export default class Asteroids extends THREE.Points {
     // GPU clipping handles it without confusing completion with CPU culling.
     this.frustumCulled = false;
     this.append(committedCount);
-    this.update(jed, this.elapsed, { baseline: true });
+    this.update(jed, elapsed, { baseline: true });
   }
 
   append(limit = this.catalogue.count) {
@@ -148,12 +159,27 @@ export default class Asteroids extends THREE.Points {
     this.visibleCount = next.visibleCount;
   }
 
-  captureFrame(jed) {
-    return { epoch: this.epoch, elapsed: this.elapsed, orbitTime: this.uniforms.orbitTime.value,
+  captureFrame(jed, elapsed = this.elapsed, { baseline = false } = {}) {
+    const previous = this.geometry.drawRange.count;
+    let lo = 0, hi = this.committedCount;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (this.discoveryDates[mid] <= jed) lo = mid + 1;
+      else hi = mid;
+    }
+    const count = lo;
+    const rollover = elapsed - this.markerEpoch > 4096;
+    const arrivalStart = rollover || baseline ? 0 : previous;
+    const arrivalEnd = rollover ? this.committedCount : baseline ? count : Math.max(previous, count);
+    return { epoch: this.epoch, elapsed: this.elapsed, markerEpoch: this.markerEpoch,
+      orbitTime: this.uniforms.orbitTime.value,
       discoveryTime: this.uniforms.discoveryTime.value, discoveryBaseline: this.uniforms.discoveryBaseline.value,
-      count: this.geometry.drawRange.count, visible: this.visible,
+      pulseTime: this.uniforms.pulseTime.value,
+      count: previous, visible: this.visible,
       means: Math.abs(jed - this.epoch) > this.rebaseDays
-        ? this.geometry.attributes.meanAnomaly.array.slice(0, this.committedCount) : null };
+        ? this.geometry.attributes.meanAnomaly.array.slice(0, this.committedCount) : null,
+      arrivalStart, arrivals: arrivalEnd > arrivalStart
+        ? this.geometry.attributes.arrival.array.slice(arrivalStart, arrivalEnd) : null };
   }
 
   restoreFrame(state) {
@@ -163,18 +189,28 @@ export default class Asteroids extends THREE.Points {
       attribute.addUpdateRange(0, state.means.length);
       attribute.needsUpdate = true;
     }
+    if (state.arrivals) {
+      const attribute = this.geometry.attributes.arrival;
+      attribute.array.set(state.arrivals, state.arrivalStart);
+      attribute.addUpdateRange(state.arrivalStart, state.arrivals.length);
+      attribute.needsUpdate = true;
+    }
     this.epoch = state.epoch;
     this.elapsed = state.elapsed;
+    this.markerEpoch = state.markerEpoch;
     this.uniforms.orbitTime.value = state.orbitTime;
     this.uniforms.discoveryTime.value = state.discoveryTime;
     this.uniforms.discoveryBaseline.value = state.discoveryBaseline;
+    this.uniforms.pulseTime.value = state.pulseTime;
     this.geometry.setDrawRange(0, state.count);
     this.visible = state.visible;
     this.syncTallies(state.count);
   }
 
   update(jed, elapsed = this.elapsed, { baseline = false } = {}) {
-    if (!validDate(jed)) throw new Error("Invalid asteroid date.");
+    if (!validDate(jed) || !Number.isFinite(elapsed) || elapsed < this.markerEpoch) {
+      throw new Error("Invalid asteroid date.");
+    }
     const previousJed = this.uniforms.discoveryTime.value + REFERENCE_JED;
     if (Math.abs(jed - this.epoch) > this.rebaseDays) {
       const meanAnomaly = this.geometry.attributes.meanAnomaly;
@@ -188,19 +224,51 @@ export default class Asteroids extends THREE.Points {
       this.epoch = jed;
     }
     this.elapsed = elapsed;
-    this.uniforms.orbitTime.value = jed - this.epoch;
-    this.uniforms.discoveryTime.value = jed - REFERENCE_JED;
-    if (baseline) this.uniforms.discoveryBaseline.value = jed - REFERENCE_JED;
-    else if (jed < previousJed) {
-      // Rewinding lowers the mature cutoff. A later ordinary forward crossing
-      // can therefore receive discovery emphasis again.
-      this.uniforms.discoveryBaseline.value = Math.min(this.uniforms.discoveryBaseline.value, jed - REFERENCE_JED);
+    let pulseTime = elapsed - this.markerEpoch;
+    const arrivals = this.geometry.attributes.arrival;
+    let refreshed = false;
+    // Bound animation-time float error as well, even after hours of playback.
+    if (pulseTime > 4096) {
+      for (let i = 0; i < this.committedCount; i++) {
+        const age = pulseTime - arrivals.array[i];
+        arrivals.array[i] = arrivals.array[i] >= 0 && age < DISCOVERY_SECONDS ? DISCOVERY_SECONDS - age : -1;
+      }
+      this.markerEpoch = elapsed - DISCOVERY_SECONDS;
+      pulseTime = DISCOVERY_SECONDS;
+      refreshed = true;
     }
+    const previous = this.geometry.drawRange.count;
     let lo = 0, hi = this.committedCount;
     while (lo < hi) {
       const mid = (lo + hi) >>> 1;
       if (this.discoveryDates[mid] <= jed) lo = mid + 1;
       else hi = mid;
+    }
+    if (baseline) {
+      arrivals.array.fill(-1, 0, lo);
+      if (!refreshed && lo) {
+        arrivals.addUpdateRange(0, lo);
+        arrivals.needsUpdate = true;
+      }
+    } else if (lo > previous) {
+      arrivals.array.fill(pulseTime, previous, lo);
+      if (!refreshed) {
+        arrivals.addUpdateRange(previous, lo - previous);
+        arrivals.needsUpdate = true;
+      }
+    }
+    if (refreshed && this.committedCount) {
+      arrivals.addUpdateRange(0, this.committedCount);
+      arrivals.needsUpdate = true;
+    }
+    this.uniforms.orbitTime.value = jed - this.epoch;
+    this.uniforms.discoveryTime.value = jed - REFERENCE_JED;
+    this.uniforms.pulseTime.value = pulseTime;
+    if (baseline) this.uniforms.discoveryBaseline.value = jed - REFERENCE_JED;
+    else if (jed < previousJed) {
+      // Rewinding lowers the mature cutoff. A later ordinary forward crossing
+      // can therefore receive discovery emphasis again.
+      this.uniforms.discoveryBaseline.value = Math.min(this.uniforms.discoveryBaseline.value, jed - REFERENCE_JED);
     }
     this.geometry.setDrawRange(0, lo);
     // Three otherwise uploads every preallocated attribute even for zero draws.

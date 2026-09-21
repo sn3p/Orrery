@@ -36,9 +36,18 @@ first visit; playback holds while it is open and the chosen speed is kept. Dismi
 is remembered in `localStorage` under `orrery.intro`. Initial loading occupies the date/count position; later buffering
 or recovery feedback appears above the last committed readout.
 
-Every load starts at 1× DPR, with the options panel closed. On displays with
+The address bar is the shareable renderer and date. Choosing 2D or 3D in Options (or
+the introduction) updates `renderer` in place; Pixi is omitted. Jumping to a UTC day
+or pausing writes `date=YYYY-MM-DD`; the 1980 beginning is omitted so `/` stays
+clean. A shared date is the initial inspection JED and does not change the story
+beginning. Playing does not rewrite the date every frame. Neither value is stored in
+`localStorage`. Camera, groups and DPR stay page-session only.
+
+Every load starts at 2× DPR when the display’s native ratio is at least 2, and
+at 1× otherwise, with the options panel closed. On displays with
 native DPR of at least 2, choose 1× or 2×: 2× is sharper but requires more graphics
-processing. The choice lasts for the current page only. Moving to a lower-DPR
+processing. The choice lasts for the current page only. Reload returns to that
+supported default. Moving to a lower-DPR
 display hides the selector and uses 1× (or native DPR below 1); moving back restores
 the page's selection. Canvas CSS size, view position and dot sizes stay the same.
 
@@ -53,7 +62,8 @@ parent pan/zoom transforms, blending and discovery colours remain the same.
 Speed 1 is 60 days/second; the default 1.5 is 90 days/second, independent of frame
 rate. Pausing freezes motion and marker animation. Green discoveries shrink
 from 3× to 1× over two-thirds of an active playback second, then turn grey.
-Reverse playback hides future discoveries; replaying them flashes them again.
+Three keeps the 200-day colour fade and uses the same 3× size pulse on that
+presentation clock. Reverse playback hides future discoveries; replaying them flashes them again.
 Date jumps reveal the newly included records immediately. Hidden/context
 downtime is excluded, and individual elapsed intervals are capped at 250 ms.
 

@@ -272,7 +272,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert(await panel.isHidden(), "Reload starts with a closed panel");
     assert.equal(await trigger.textContent(), "[+] options");
     await exports.openOptions(page);
-    assert.equal(await dpr.inputValue(), "1", "Reload starts at the 1× default");
+    assert.equal(await dpr.inputValue(), "2", "Reload starts at the 2× default on a high-DPI display");
     assert.equal(await groups.inputValue(), "all", "Reload returns the group filter to All");
     assert.equal(await orbits.isChecked(), false, "Explicit orbit visibility survives reload");
     assert.equal(await page.evaluate(() => localStorage.getItem("orrery.planetOrbits")), "false",

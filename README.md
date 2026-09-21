@@ -20,6 +20,9 @@ Speed 0 pauses, negative values reverse, and speed 1 advances 60 days per second
 Scroll to zoom; in 3D, drag to orbit the camera. The date and on-screen count sit at
 the bottom left (the active group at the committed date), and **Orrery** in the footer
 reopens the introduction, which also links the source on GitHub.
+Copy the address bar to share the current renderer and a jumped or paused UTC date
+(`?renderer=three&date=2005-05-03`). Pixi and the 1980 beginning are omitted, so `/`
+stays the default visit. Playing does not rewrite the date every frame.
 
 ## Development
 
