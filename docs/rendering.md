@@ -53,7 +53,8 @@ parent pan/zoom transforms, blending and discovery colours remain the same.
 Speed 1 is 60 days/second; the default 1.5 is 90 days/second, independent of frame
 rate. Pausing freezes motion and marker animation. Green discoveries shrink
 from 3× to 1× over two-thirds of an active playback second, then turn grey.
-Reverse playback hides future discoveries; replaying them flashes them again.
+Three keeps the 200-day colour fade and uses the same 3× size pulse on that
+presentation clock. Reverse playback hides future discoveries; replaying them flashes them again.
 Date jumps reveal the newly included records immediately. Hidden/context
 downtime is excluded, and individual elapsed intervals are capped at 250 ms.
 
