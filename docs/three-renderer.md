@@ -1,6 +1,7 @@
 # Three adapter
 
-Open `/?renderer=three` for 3D; `/` defaults to Pixi. The old `/next/` entry is removed. Both modes use the complete published
+Open `/?renderer=three` for 3D; `/` defaults to Pixi. `?date=YYYY-MM-DD` starts paused
+on that UTC day in either mode. The old `/next/` entry is removed. Both modes use the complete published
 discovery catalogue. An unknown renderer falls back to Pixi with feedback.
 A Three startup failure reports the failure and offers the accessible Pixi recovery
 link (`Open Pixi preview`), preserving the deployment prefix. Terminal Three shader/upload/draw failures
@@ -16,7 +17,8 @@ or schedules its own loop. The shared Renderer/Speed/planet-label/planet-orbit/g
 panel operates on the current adapter. Its renderer selector changes modes in
 place without reloading or fetching retained data.
 Each renderer keeps its own view for the page session, and the shared DPR choice
-also lasts for that session; reload uses the entry URL and their existing defaults.
+also lasts for that session; reload uses the entry URL (including a renderer or date
+written by Options, a jump or a pause) and their existing view/DPR defaults.
 Explicit planet-label and planet-orbit choices persist in local storage and apply
 to both adapters. See [renderer switching](architecture.md#renderer-switching).
 

@@ -1,14 +1,17 @@
 import App from "./App.js";
 import Intro from "./ui/Intro.js";
 import planets from "../js/planets.js";
+import { parseShareDate } from "./shareUrl.js";
 import "../css/main.css";
 import "./preview.css";
 import "../fonts/OFL.txt";
 
 const selection = __CATALOG_SELECTION__;
+const params = new URLSearchParams(location.search);
+const shareJed = parseShareDate(params.get("date"));
 const app = new App({ container: document.getElementById("orrery"),
-  renderer: new URLSearchParams(location.search).get("renderer") ?? "pixi",
-  startJed: selection?.startJed, jedDelta: selection?.speed });
+  renderer: params.get("renderer") ?? "pixi", startJed: selection?.startJed,
+  jed: shareJed ?? undefined, jedDelta: shareJed != null ? 0 : selection?.speed });
 // The introduction and its footer trigger stay usable even if the renderer fails to start.
 const intro = new Intro(app);
 const ready = app.init().then(() => {

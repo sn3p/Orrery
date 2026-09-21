@@ -52,7 +52,8 @@ async function run({ browser, output, renderer }) {
     await pause();
     await speed.press('Escape');
     assert.equal(await button.getAttribute('aria-expanded'), 'false');
-    await page.reload(); await ready();
+    await page.reload();
+    await page.waitForFunction(() => document.querySelector('#orrery canvas') && document.querySelector('#orrery-count'));
     assert.equal(await page.locator('#orrery canvas').count(), 1);
     await button.click();
     assert.equal(await ratio.inputValue(), '2', 'Reload starts with the default DPR');
