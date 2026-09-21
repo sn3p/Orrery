@@ -39,7 +39,7 @@ export default class App {
     this.rendererId = selection.id;
     this.rendererNotice = selection.notice;
     this.createRenderer = options.createRenderer ?? selection.create;
-    this._pixelRatio = "1";
+    this._pixelRatio = (window.devicePixelRatio || 1) >= 2 ? "2" : "1";
     this._planetLabels = options.planetLabels ?? loadPlanetLabelMode();
     if (!isPlanetLabelMode(this._planetLabels)) throw new Error("Invalid planet label mode.");
     this._planetOrbits = options.planetOrbits ?? loadPlanetOrbitVisibility();

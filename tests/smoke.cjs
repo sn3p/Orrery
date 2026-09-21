@@ -55,7 +55,7 @@ async function run({ browser, output, renderer }) {
     await page.reload(); await ready();
     assert.equal(await page.locator('#orrery canvas').count(), 1);
     await button.click();
-    assert.equal(await ratio.inputValue(), '1', 'Reload starts with the default DPR');
+    assert.equal(await ratio.inputValue(), '2', 'Reload starts with the default DPR');
     assert.equal(await page.getByRole('combobox', { name: 'Renderer', exact: true }).inputValue(), renderer);
     assert.deepEqual(errors, [], 'No unhandled errors through startup, recovery or reload');
   } finally { await page.close(); await server.close(); }

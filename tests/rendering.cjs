@@ -124,6 +124,12 @@ async function dpr(page, browserName) {
     const results = [];
     // Real media-query changes at fixed viewport dimensions, in both directions.
     await page.evaluate(() => { window.resizeEvents = 0; window.addEventListener('resize', () => window.resizeEvents++); });
+    await require('./options.cjs').openOptions(page);
+    const dprControl = page.getByRole('combobox', { name: 'Rendering pixel ratio' });
+    if (await dprControl.isVisible()) {
+      await dprControl.selectOption('1');
+      await idle(page);
+    }
     for (const value of [2, 1, 2]) {
       const before = await snapshot(page);
       await session.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: value, mobile: false });
