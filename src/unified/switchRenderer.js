@@ -172,5 +172,9 @@ export default function switchRenderer(app, id) {
     });
   }
   app.notifyRendererState?.();
-  return app.switchPromise.then(() => !app.destroyed && !!app.renderer && app.rendererId === id);
+  return app.switchPromise.then(() => {
+    const ok = !app.destroyed && !!app.renderer && app.rendererId === id;
+    if (ok) app.syncShareUrl?.();
+    return ok;
+  });
 }

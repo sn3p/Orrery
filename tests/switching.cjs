@@ -621,11 +621,13 @@ async function network(browser, base, output, name) {
       await page.unroute('**/assets/three.*.js');
       await page.getByRole('combobox', { name: 'Renderer', exact: true }).selectOption('three');
       await page.waitForFunction(() => app.rendererId === 'three' && !app.switching);
-      assert.equal(new URL(page.url()).search, '', 'Selection is page-local, with no navigation');
+      const switched = new URL(page.url());
+      assert.equal(switched.searchParams.get('renderer'), 'three', 'Successful switch names the renderer in the URL');
+      assert.match(switched.pathname, /\/next\/?$/);
       await page.reload(); await page.evaluate(() => threeTest.ready);
-      assert.equal(await page.evaluate(() => threeTest.app.rendererId), 'pixi', 'Reload uses entry default');
+      assert.equal(await page.evaluate(() => threeTest.app.rendererId), 'three', 'Reload uses the renderer from the URL');
       const expectedDiagnostics = errors.filter(message => /Failed to load resource.*503/.test(message));
-      results.push({ prefix, coldChunkRecovery: true, reloadDefault: true, expectedDiagnostics });
+      results.push({ prefix, coldChunkRecovery: true, reloadFromUrl: true, expectedDiagnostics });
       assert.deepEqual(errors.filter(message => !expectedDiagnostics.includes(message)), []);
     } finally { await page.close(); }
   }

@@ -36,6 +36,13 @@ first visit; playback holds while it is open and the chosen speed is kept. Dismi
 is remembered in `localStorage` under `orrery.intro`. Initial loading occupies the date/count position; later buffering
 or recovery feedback appears above the last committed readout.
 
+The address bar is the shareable renderer and date. Choosing 2D or 3D in Options (or
+the introduction) updates `renderer` in place; Pixi is omitted. Jumping to a UTC day
+or pausing writes `date=YYYY-MM-DD`; the 1980 beginning is omitted so `/` stays
+clean. A shared date is the initial inspection JED and does not change the story
+beginning. Playing does not rewrite the date every frame. Neither value is stored in
+`localStorage`. Camera, groups and DPR stay page-session only.
+
 Every load starts at 2× DPR when the display’s native ratio is at least 2, and
 at 1× otherwise, with the options panel closed. On displays with
 native DPR of at least 2, choose 1× or 2×: 2× is sharper but requires more graphics

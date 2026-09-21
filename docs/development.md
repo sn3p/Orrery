@@ -15,7 +15,9 @@ npm run watch        # rebuild on changes
 ```
 
 The unified app runs at `/`, with Pixi by default and Three at `/?renderer=three`.
-The old `/next` entry is removed. `npm run serve` uses `CONDUCTOR_PORT` when set,
+`?date=YYYY-MM-DD` (UTC) starts paused on that day; combine as
+`/?renderer=three&date=2005-05-03`. Invalid dates are ignored. The old `/next` entry
+is removed. `npm run serve` uses `CONDUCTOR_PORT` when set,
 otherwise 3000. `serve:next` and `build:next` remain aliases for the main app.
 Production builds emit only the unified application; retired root and preview
 payloads are no longer deployed. See [catalogue loading](catalog-loading.md), the
