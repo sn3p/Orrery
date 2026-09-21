@@ -1,13 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { prepareCatalogue } from "../src/unified/catalog/prepareCatalogue.js";
+import { prepareCatalogue, REFERENCE_JED } from "../src/unified/catalog/prepareCatalogue.js";
 import {
   CLASS_BELT, CLASS_DISTANT, CLASS_NEA, CLASS_TROJAN, DEFAULT_POPULATION_PRESET,
   POPULATION_PRESET_OPTIONS, advanceClassTallies, classifyOrbit, isPopulationPreset,
   populationHint, populationMask, resyncClassTallies, visibleFromTallies,
 } from "../src/unified/catalog/population.js";
 import PixiRenderer from "../src/unified/pixi/PixiRenderer.js";
+import Asteroids from "../src/unified/three/Asteroids.js";
 import ThreeRenderer from "../src/unified/three/ThreeRenderer.js";
 
 const sample = {
@@ -120,7 +121,47 @@ test("Three hides masked points by clipping and discard, not point size alone", 
   assert.match(source, /vColor = vec4\(/);
   assert.match(source, /gl_Position = vec4\(2\.0, 2\.0, 2\.0, 1\.0\)/);
   assert.match(source, /if \(vColor\.a < 0\.5\) discard/);
+  assert.match(source, /pulseTime - arrival/);
+  assert.match(source, /3\.0 - 3\.0 \* age/);
   assert.doesNotMatch(source, /vPopulationVisible/);
+});
+
+test("Three stamps a forward discovery pulse and suppresses seek, switch and restored frames", () => {
+  const cloud = new Asteroids(prepareCatalogue([
+    { ...sample, disc: REFERENCE_JED, epoch: REFERENCE_JED },
+    { ...sample, a: 2.8, disc: REFERENCE_JED + 1, epoch: REFERENCE_JED },
+  ]), { jed: REFERENCE_JED - 1, elapsed: 0 });
+  const arrivals = cloud.geometry.attributes.arrival.array;
+  assert.equal(cloud.geometry.drawRange.count, 0);
+  assert.equal(arrivals[0], -1);
+  assert.equal(arrivals[1], -1);
+
+  cloud.update(REFERENCE_JED, 0.25);
+  assert.equal(cloud.geometry.drawRange.count, 1);
+  assert.equal(arrivals[0], 0.25);
+  assert.equal(cloud.uniforms.pulseTime.value, 0.25);
+  assert.equal(arrivals[1], -1);
+
+  cloud.update(REFERENCE_JED + 1, 1, { baseline: true });
+  assert.equal(cloud.geometry.drawRange.count, 2);
+  assert.equal(arrivals[0], -1);
+  assert.equal(arrivals[1], -1);
+
+  cloud.update(REFERENCE_JED - 1, 1.5);
+  cloud.update(REFERENCE_JED, 1.5);
+  assert.equal(arrivals[0], 1.5, "Rewind then forward restamps the pulse");
+
+  ThreeRenderer.prototype.restoreDiscoveries.call({ asteroids: cloud });
+  assert.equal(arrivals[0], -1);
+  assert.equal(arrivals[1], -1);
+  assert.equal(cloud.geometry.drawRange.count, 1, "Switch restoration ends the pulse without hiding the prefix");
+
+  const snapshot = cloud.captureFrame(REFERENCE_JED + 1, 2);
+  cloud.update(REFERENCE_JED + 1, 2);
+  assert.equal(arrivals[1], 2);
+  cloud.restoreFrame(snapshot);
+  assert.equal(cloud.geometry.drawRange.count, 1);
+  assert.equal(arrivals[1], -1, "A restored frame does not keep the speculative pulse");
 });
 
 test("both asteroid adapters rewind tallies incrementally", () => {

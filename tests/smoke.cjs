@@ -52,10 +52,15 @@ async function run({ browser, output, renderer }) {
     await pause();
     await speed.press('Escape');
     assert.equal(await button.getAttribute('aria-expanded'), 'false');
-    await page.reload(); await ready();
+    await page.reload();
+    await page.waitForFunction(() => {
+      const readouts = document.querySelector('.orrery-readouts');
+      return document.querySelector('#orrery canvas') && readouts && !readouts.hidden
+        && (document.querySelector('#orrery-count')?.textContent ?? '') !== '';
+    });
     assert.equal(await page.locator('#orrery canvas').count(), 1);
     await button.click();
-    assert.equal(await ratio.inputValue(), '1', 'Reload starts with the default DPR');
+    assert.equal(await ratio.inputValue(), '2', 'Reload starts with the default DPR');
     assert.equal(await page.getByRole('combobox', { name: 'Renderer', exact: true }).inputValue(), renderer);
     assert.deepEqual(errors, [], 'No unhandled errors through startup, recovery or reload');
   } finally { await page.close(); await server.close(); }

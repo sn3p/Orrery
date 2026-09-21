@@ -34,6 +34,8 @@ module.exports = async (browser, url, name) => {
   });
   try {
     await page.goto(url + '/fixture/'); await prepare();
+    assert.equal((await snapshot()).ratio, 2, 'High-DPI fixture boots at 2×');
+    await select.selectOption('1'); await settle(page);
     const one = await snapshot();
     assert.equal(one.ratio, 1); assert.equal(one.textureRatio, 1);
     assert.deepEqual(one.size, [10, 10]); assert.deepEqual(one.pixels, [10, 10]);
@@ -131,6 +133,7 @@ module.exports = async (browser, url, name) => {
         });
         await webgl1.goto(url + '/fixture/'); await webgl1.evaluate(() => window.ready);
         await openOptions(webgl1);
+        await webgl1.getByRole('combobox', { name: 'Rendering pixel ratio' }).selectOption('1'); await settle(webgl1);
         for (const ratio of [2, 1, 2]) {
           await webgl1.getByRole('combobox', { name: 'Rendering pixel ratio' }).selectOption(String(ratio)); await settle(webgl1);
           assert.deepEqual(await webgl1.evaluate(() => {

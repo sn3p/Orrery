@@ -1,5 +1,6 @@
 import { formatIsoDay, toJED } from "../js/utils.js";
 import { validDate } from "../js/asteroidOrbits.js";
+import { replaceShareUrl, shareDateValue } from "./shareUrl.js";
 import PlaybackClock from "../js/PlaybackClock.js";
 import Stats from "../js/Stats.js";
 import Hud from "./ui/Hud.js";
@@ -22,10 +23,12 @@ export default class App {
   constructor(options = {}) {
     this.container = options.container || document.body;
     this.startDate = options.startDate ?? new Date(Date.UTC(1980, 0, 1));
-    this._jed = options.startJed ?? toJED(this.startDate);
+    this.startJed = options.startJed ?? toJED(this.startDate);
+    this._jed = options.jed ?? this.startJed;
     this._jedDelta = options.jedDelta ?? 1.5;
-    if (!validDate(this.jed) || !Number.isFinite(this.jedDelta)) throw new Error("Invalid initial playback time.");
-    this.startJed = this._jed;
+    if (!validDate(this.startJed) || !validDate(this.jed) || !Number.isFinite(this.jedDelta)) {
+      throw new Error("Invalid initial playback time.");
+    }
     this.autoRender = options.autoRender ?? true;
     this.fixedResolution = options.resolution;
     if (this.fixedResolution !== undefined && (this.autoRender || !Number.isFinite(this.fixedResolution) || this.fixedResolution <= 0)) {
@@ -38,8 +41,11 @@ export default class App {
     const selection = selectRenderer(options.renderer, this.rendererRegistry);
     this.rendererId = selection.id;
     this.rendererNotice = selection.notice;
+    // Reload must reproduce an unrecognized ?renderer= value; the resolved Pixi
+    // id would omit it from the share URL and drop the fallback notice.
+    this.rendererQuery = selection.notice ? options.renderer : selection.id;
     this.createRenderer = options.createRenderer ?? selection.create;
-    this._pixelRatio = "1";
+    this._pixelRatio = (window.devicePixelRatio || 1) >= 2 ? "2" : "1";
     this._planetLabels = options.planetLabels ?? loadPlanetLabelMode();
     if (!isPlanetLabelMode(this._planetLabels)) throw new Error("Invalid planet label mode.");
     this._planetOrbits = options.planetOrbits ?? loadPlanetOrbitVisibility();
@@ -55,6 +61,10 @@ export default class App {
     this.loadVersion = 0;
     this.seekGeneration = 0;
     this.pendingSeek = null;
+    if (options.jed !== undefined && !Object.is(this._jed, this.startJed)) {
+      this.pendingSeek = { generation: ++this.seekGeneration, target: this._jed };
+      this.requestedJed = this._jed;
+    }
     this.rendererGeneration = 0;
     this.destroyed = false;
     this.initialized = false;
@@ -113,12 +123,14 @@ export default class App {
       this.resetClock();
       this.demandCatalog();
       this.onCatalogChange();
+      this.syncShareUrl();
       return;
     }
     this.requestedJed = value;
     this.resetClock();
     this._jed = value;
     this.requestRender();
+    this.syncShareUrl();
   }
   get jedDelta() { return this._jedDelta; }
   set jedDelta(value) {
@@ -131,6 +143,7 @@ export default class App {
     this.demandCatalog();
     if (!wasPlaying || !this.isPlaying) this.resetClock();
     this.requestRender();
+    if (value === 0) this.syncShareUrl();
   }
   get isPlaying() { return this.jedDelta !== 0 && !this.held; }
   // Hold playback without changing the chosen speed, e.g. while the introduction is open.
@@ -241,6 +254,13 @@ export default class App {
   }
 
   switchRenderer(id) { return switchRenderer(this, id); }
+  syncShareUrl() {
+    if (this.destroyed) return;
+    replaceShareUrl({
+      renderer: this.rendererNotice ? this.rendererQuery : this.rendererId,
+      ...(this.jedDelta === 0 ? { date: shareDateValue(this.requestedJed ?? this._jed, this.startJed) } : {}),
+    });
+  }
 
   setRendererOptions(id, changes) {
     const entry = this.rendererRegistry[id];

@@ -126,7 +126,8 @@ export default class ThreeRenderer {
   }
 
   createCloud(model, frame, committedCount = model.count) {
-    const cloud = new Asteroids(model, { jed: frame.jed, committedCount, populationPreset: this.populationPreset });
+    const cloud = new Asteroids(model, { jed: frame.jed, elapsed: frame.elapsed ?? 0, committedCount,
+      populationPreset: this.populationPreset });
     for (const attribute of Object.values(cloud.geometry.attributes)) {
       attribute.onUpload(() => {
         const gl = this.renderer.getContext();
@@ -137,7 +138,6 @@ export default class ThreeRenderer {
         if (!this.gpuError) cloud.uploadedVersions.set(attribute, attribute.version);
       });
     }
-    cloud.elapsed = frame.elapsed;
     return cloud;
   }
 
@@ -306,8 +306,9 @@ export default class ThreeRenderer {
     return cloud ? { jed: cloud.epoch + cloud.uniforms.orbitTime.value,
       elapsed: cloud.elapsed, count: cloud.geometry.drawRange.count, visibleCount: cloud.visibleCount } : null;
   }
-  captureFrame({ jed }) {
-    this.frameSnapshot = this.asteroids && { cloud: this.asteroids, state: this.asteroids.captureFrame(jed) };
+  captureFrame(frame, options) {
+    this.frameSnapshot = this.asteroids
+      && { cloud: this.asteroids, state: this.asteroids.captureFrame(frame.jed, frame.elapsed, options) };
   }
   restoreFrame({ jed }) {
     if (this.frameSnapshot && this.frameSnapshot.cloud === this.asteroids) this.asteroids.restoreFrame(this.frameSnapshot.state);
@@ -315,6 +316,19 @@ export default class ThreeRenderer {
     this.frameSnapshot = null;
   }
   commitFrame() { this.frameSnapshot = null; }
+
+  // A mode restoration is not a discovery. End transient arrivals without
+  // changing the constructor/update semantics used for initial and new data.
+  restoreDiscoveries() {
+    const cloud = this.asteroids;
+    if (!cloud) return;
+    const arrival = cloud.geometry.attributes.arrival;
+    arrival.array.fill(-1, 0, cloud.committedCount);
+    if (cloud.committedCount) {
+      arrival.addUpdateRange(0, cloud.committedCount);
+      arrival.needsUpdate = true;
+    }
+  }
 
   render() {
     if (this.destroyed || this.contextLost) return null;
