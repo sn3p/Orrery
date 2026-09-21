@@ -24,9 +24,11 @@ The source is the preserved MIT-licensed Orrery3D `93a3e1f` revision. The port
 keeps its 60-degree perspective camera at `(500,500,400)`, Z-up, clipping range
 `.001–2,000,000`, OrbitControls gestures, sphere bodies, dashed tracks and full
 XYZ orbital bases. Points retain size 1 and fade from green to `0x999999` across
-200 simulated Julian days. Group filters hide unmatched points by moving them out
-of clip space and discarding them; WebGL point size cannot go below 1. Pixi's
-different arrival effect is preserved. Choosing Jupiter Trojans dollies out when
+200 simulated Julian days. Newly revealed points also shrink from 3× to 1× over
+two-thirds of an active playback second, using the same presentation clock as Pixi.
+Load, seek and renderer switches do not replay that pulse. Group filters hide unmatched points by moving them out
+of clip space and discarding them; WebGL point size cannot go below 1. Pixi still
+snaps arrival colour from green to grey when the pulse ends. Choosing Jupiter Trojans dollies out when
 Jupiter’s orbit is off-screen, without resetting the current viewing direction.
 
 `Orbit`, `Planet`, `Sun` and `createSphere` retain source mechanics with local
@@ -39,8 +41,8 @@ independent orbital calculations and the original GPU/pixel assertions.
 ## Retained data and graphics commitment
 
 Three references canonical `p`, `q` and `elements` arrays read-only. Its own
-Float32 phase and discovery arrays add 8 bytes per row to the shared model's
-60 bytes per row. Nominal asteroid GPU attributes use 40 bytes per row; this
+Float32 phase, discovery and arrival arrays add 12 bytes per row to the shared model's
+60 bytes per row. Nominal asteroid GPU attributes use 44 bytes per row; this
 excludes driver overhead, scene bodies and render targets. Parsed source objects
 are not retained. Final disposal releases CPU references and GPU resources;
 context loss retains CPU state for restoration.

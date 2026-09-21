@@ -120,6 +120,8 @@ test("Three hides masked points by clipping and discard, not point size alone", 
   assert.match(source, /vColor = vec4\(/);
   assert.match(source, /gl_Position = vec4\(2\.0, 2\.0, 2\.0, 1\.0\)/);
   assert.match(source, /if \(vColor\.a < 0\.5\) discard/);
+  assert.match(source, /pulseTime - arrival/);
+  assert.match(source, /3\.0 - 3\.0 \* age/);
   assert.doesNotMatch(source, /vPopulationVisible/);
 });
 

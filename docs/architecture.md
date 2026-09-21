@@ -58,7 +58,7 @@ and must commit a complete frame before it becomes active.
 A failed candidate is cleaned up and the previous renderer is rebuilt from retained
 state when possible. If restoration also fails, the status remains accessible and
 offers retry or renderer-selection recovery. Switching does not replay historical
-Pixi discovery effects, and queued requests converge on the latest selection.
+discovery pulses, and queued requests converge on the latest selection.
 
 ## Detailed contracts
 
