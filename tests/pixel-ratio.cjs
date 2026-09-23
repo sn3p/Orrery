@@ -91,6 +91,8 @@ module.exports = async (browser, url, output, name, application = "unified") => 
     assert(await control.evaluate(el => el === document.activeElement));
     await checkBuffer(page, 1);
     await idle();
+    // A native select concatenates typeahead for about a second, so "2" must not join the earlier "1".
+    await page.waitForTimeout(1100);
     await control.press("2"); await control.press("Enter");
     await settle(page);
     assert.equal(await control.inputValue(), "2");

@@ -1,7 +1,7 @@
 # Architecture
 
 Orrery is one application with renderer-neutral state and two graphics adapters.
-Pixi is the default 2D selection and Three is the optional 3D selection. Both
+Three.js is the default 3D selection and Pixi is the optional 2D selection. Both
 adapters load on demand and consume the same retained catalogue model and
 application clock.
 
@@ -30,17 +30,18 @@ graphics state and disposes its own resources. Adapters do not fetch catalogue d
 advance the application clock or schedule their own animation loop.
 
 `src/unified/renderers.js` is the renderer registry. Both entries use dynamic
-imports. The default route selects Pixi, so its startup does not load Three code
-or require WebGL2.
+imports. The default route selects Three.js, so startup loads that chunk and
+requires WebGL2. Without WebGL2, `App` starts Pixi instead with a notice and without
+loading the Three chunk. Pixi stays a separate chunk and does not require WebGL2.
 
 ## State and persistence
 
 Switching renderers preserves the current date, requested speed, retained catalogue,
 common options and last committed readout. Each renderer's view and the shared DPR
 choice last for the page session. A reload returns to the renderer named by the URL
-(`renderer=three`; Pixi is the omitted default) and to a `date=YYYY-MM-DD` UTC day
+(`renderer=pixi`; Three.js is the omitted default) and to a `date=YYYY-MM-DD` UTC day
 when present, paused like a HUD jump. An unrecognized `renderer` value stays in the
-query so reload still shows the Pixi fallback notice. Without `date`, playback still starts at the
+query so reload still shows the Three.js fallback notice. Without `date`, playback still starts at the
 configured beginning (publicly 1980-01-01) and plays. Invalid dates are ignored.
 Options switches, successful intro renderer choices, date jumps and pauses update
 that query with `history.replaceState`; playback frames do not. Camera, DPR, planet orbit lines and the

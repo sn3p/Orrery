@@ -7,7 +7,7 @@ and reload checks in both modes. Retired preview entries returned 404.
 
 ## Current public build
 
-- `/` starts Pixi; `/?renderer=three` starts Three. `?date=YYYY-MM-DD` starts paused
+- `/` starts Three.js; `/?renderer=pixi` starts Pixi. `/?renderer=three` also starts Three.js. `?date=YYYY-MM-DD` starts paused
   on that UTC day. Assets resolve relative to
   the deployment base, including `/Orrery/` on Pages.
 - `/next`, `/next/` and `/next/index.html` remain retired, without forwarding.
@@ -15,7 +15,7 @@ and reload checks in both modes. Retired preview entries returned 404.
   catalogue payloads, legacy bundles, preview assets and frozen compatibility
   snapshots are not part of the site.
 - Cached PR73 documents can no longer load their removed dependencies. Open
-  `/` or `/?renderer=three` to load the current application; reloading a retired
+  `/` or `/?renderer=pixi` to load the current application; reloading a retired
   preview URL still returns 404. Current missing-chunk guidance and Pixi recovery
   remain available.
 - Configured builds publish verified data and explicitly retained pins only
