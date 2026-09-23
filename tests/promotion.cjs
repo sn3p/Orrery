@@ -32,10 +32,10 @@ async function run({ browser, name, output }) {
         } finally { await response.close(); }
       }
       for (const [query, mode] of [
-        ['', 'pixi'], ['?renderer=three', 'three'],
+        ['', 'three'], ['?renderer=three', 'three'],
         ['?renderer=three&extra=a%20b#view', 'three'],
         ['?renderer=pixi&extra=%2F%3F#section', 'pixi'],
-        ['?renderer=unknown', 'pixi'], ['?renderer=three&renderer=pixi', 'three'],
+        ['?renderer=unknown', 'three'], ['?renderer=three&renderer=pixi', 'three'],
       ]) {
         const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
         const errors = [], requests = [];
@@ -48,6 +48,9 @@ async function run({ browser, name, output }) {
           await ready(page);
           assert.equal(await page.title(), 'Orrery');
           assert.equal(await (await options(page)).inputValue(), mode);
+          if (query === '?renderer=unknown') {
+            assert.equal(await page.locator('#orrery-status').textContent(), 'Unknown renderer. Showing Three.js.');
+          }
           assert(!requests.some(url => /data\/catalog.json/.test(url)));
           assert(requests.filter(url => !url.startsWith('data:')).every(url => url.startsWith(base) || url.startsWith(producerBase)));
           assert.deepEqual(errors, []);

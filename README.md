@@ -4,13 +4,13 @@
 [minor planets](https://en.wikipedia.org/wiki/Minor_planet), shown in the order they
 were discovered. Each dot is an asteroid on its orbit; new discoveries appear green,
 then fade to grey as the date advances. One app offers a
-[2D](https://sn3p.github.io/Orrery) (Pixi.js) and a
-[3D](https://sn3p.github.io/Orrery/?renderer=three) (Three.js) renderer; switch in
+[3D](https://sn3p.github.io/Orrery) (Three.js) and a
+[2D](https://sn3p.github.io/Orrery/?renderer=pixi) (Pixi.js) renderer; switch in
 the options panel.
 
-| [2D](https://sn3p.github.io/Orrery) (Pixi.js) | [3D](https://sn3p.github.io/Orrery/?renderer=three) (Three.js) |
+| [3D](https://sn3p.github.io/Orrery) (Three.js) | [2D](https://sn3p.github.io/Orrery/?renderer=pixi) (Pixi.js) |
 |---|---|
-| ![Orrery in the 2D renderer](screenshot.png) | ![Orrery in the 3D renderer](screenshot-three.png) |
+| ![Orrery in the 3D renderer](screenshot-three.png) | ![Orrery in the 2D renderer](screenshot.png) |
 
 ## How to use
 
@@ -22,8 +22,9 @@ Scroll to zoom; in 3D, drag to orbit the camera. The date and on-screen count si
 the bottom left (the active group at the committed date), and **Orrery** in the footer
 reopens the introduction, which also links the source on GitHub.
 Copy the address bar to share the current renderer and a jumped or paused UTC date
-(`?renderer=three&date=2005-05-03`). Pixi and the 1980 beginning are omitted, so `/`
-stays the default visit. Playing does not rewrite the date every frame.
+(`?date=2005-05-03` for 3D, `?renderer=pixi&date=2005-05-03` for 2D). Three.js and the
+1980 beginning are omitted, so `/` stays the default visit. Playing does not rewrite
+the date every frame.
 
 ## Development
 

@@ -53,7 +53,7 @@ is remembered in `localStorage` under `orrery.intro`. Initial loading occupies t
 or recovery feedback appears above the last committed readout.
 
 The address bar is the shareable renderer and date. Choosing 2D or 3D in Options (or
-the introduction) updates `renderer` in place; Pixi is omitted. Jumping to a UTC day
+the introduction) updates `renderer` in place; Three.js is omitted. Jumping to a UTC day
 or pausing writes `date=YYYY-MM-DD`; the 1980 beginning is omitted so `/` stays
 clean. A shared date is the initial inspection JED and does not change the story
 beginning. Playing does not rewrite the date every frame. Neither value is stored in

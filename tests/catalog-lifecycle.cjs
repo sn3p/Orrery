@@ -10,7 +10,7 @@ async function run(browser, base, output, name) {
   const pins = Object.fromEntries(Object.entries(cases.bundles).map(([key, value]) => [key,
     { ...value.pin, url: base + '/catalog-fixtures/' + key + '/index.json' }]));
   const open = async () => {
-    await page.goto(base + '/catalog-indexed/');
+    await page.goto(base + '/catalog-indexed/?renderer=pixi');
     await page.waitForFunction(() => catalogTest.app.catalogLoader?.sceneComplete());
     await page.evaluate(() => { window.app = catalogTest.app; app.autoRender = false; app.cancelRender(); });
   };
@@ -255,7 +255,7 @@ async function run(browser, base, output, name) {
   } finally { await page.close(); }
   const prefix = await browser.newPage();
   try {
-    await prefix.goto(base + '/catalog-indexed/');
+    await prefix.goto(base + '/catalog-indexed/?renderer=pixi');
     await prefix.waitForFunction(() => catalogTest.app.catalogLoader?.sceneComplete());
     await prefix.evaluate(() => {
       const app = catalogTest.app;
@@ -290,7 +290,7 @@ async function run(browser, base, output, name) {
     });
     const requests = [];
     latest.on('request', req => requests.push(req.url()));
-    await latest.goto(base + '/catalog-latest/');
+    await latest.goto(base + '/catalog-latest/?renderer=pixi');
     await latest.waitForFunction(() => catalogTest.app.catalogLoader?.sceneComplete());
     assert.equal(await latest.locator('#orrery-count').textContent(), '4');
     const beginning = latest.getByRole('button', { name: '2000-01-01', exact: true });

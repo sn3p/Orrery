@@ -11,7 +11,7 @@ const selection = __CATALOG_SELECTION__;
 const params = new URLSearchParams(location.search);
 const shareJed = parseShareDate(params.get("date"));
 const app = new App({ container: document.getElementById("orrery"),
-  renderer: params.get("renderer") ?? "pixi", startJed: selection?.startJed,
+  renderer: params.get("renderer"), startJed: selection?.startJed,
   jed: shareJed ?? undefined, jedDelta: shareJed != null ? 0 : selection?.speed,
   holdAtPresent: loadRealTimePreference() });
 // The introduction and its footer trigger stay usable even if the renderer fails to start.

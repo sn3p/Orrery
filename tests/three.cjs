@@ -162,7 +162,7 @@ async function entries(browser, base, output, name) {
           // the shared status node, as during replacement or hot disposal.
           const stale = new failed.constructor({ renderer: 'three' });
           try { await stale.init(); } catch { /* The same startup fault remains installed. */ }
-          const replacement = new failed.constructor({ renderer: 'unknown', autoRender: false });
+          const replacement = new failed.constructor({ renderer: 'unknown', defaultRenderer: failed.defaultRenderer, autoRender: false });
           await replacement.loadAsteroids('data/catalog.json');
           const message = status.textContent;
           stale.renderStatus();

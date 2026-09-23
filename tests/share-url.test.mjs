@@ -21,18 +21,21 @@ test("parseShareDate returns a valid JED or ignores the query value", () => {
   for (const value of [null, "nope", "2005-05-32"]) assert.equal(parseShareDate(value), null);
 });
 
-test("shareSearch names Three and non-beginning dates, and preserves extra params", () => {
-  const three = new URLSearchParams(shareSearch({ renderer: "three", date: "2005-05-03" }, "?extra=a%20b").slice(1));
-  assert.equal(three.get("renderer"), "three");
-  assert.equal(three.get("date"), "2005-05-03");
-  assert.equal(three.get("extra"), "a b");
+test("shareSearch names Pixi and non-beginning dates, and preserves extra params", () => {
+  const pixi = new URLSearchParams(shareSearch({ renderer: "pixi", date: "2005-05-03" }, "?extra=a%20b").slice(1));
+  assert.equal(pixi.get("renderer"), "pixi");
+  assert.equal(pixi.get("date"), "2005-05-03");
+  assert.equal(pixi.get("extra"), "a b");
 
-  const pixi = new URLSearchParams(shareSearch({ renderer: "pixi", date: "2000-01-01" }, "?renderer=three").slice(1));
-  assert.equal(pixi.get("renderer"), null);
-  assert.equal(pixi.get("date"), "2000-01-01");
+  const three = new URLSearchParams(shareSearch({ renderer: "three", date: "2000-01-01" }, "?renderer=pixi").slice(1));
+  assert.equal(three.get("renderer"), null);
+  assert.equal(three.get("date"), "2000-01-01");
 
-  assert.equal(shareSearch({ renderer: "pixi", date: null }, "?renderer=three&date=2000-01-01"), "");
-  assert.equal(shareSearch({ renderer: "three" }, "?date=2005-05-03"), "?date=2005-05-03&renderer=three");
+  assert.equal(shareSearch({ renderer: "three", date: null }, "?renderer=pixi&date=2000-01-01"), "");
+  assert.equal(shareSearch({ renderer: "pixi" }, "?date=2005-05-03"), "?date=2005-05-03&renderer=pixi");
+  assert.equal(shareSearch({ renderer: "three", defaultRenderer: "pixi" }, "?date=2005-05-03"), "?date=2005-05-03&renderer=three",
+    "The Pixi test oracle still names Three when Pixi is its omitted default");
+  assert.equal(shareSearch({ renderer: "pixi", defaultRenderer: "pixi", date: null }, "?renderer=three"), "");
   assert.equal(shareSearch({ renderer: "unknown" }, "?extra=keep"), "?extra=keep&renderer=unknown",
     "Unrecognized renderer ids stay shareable so reload still shows the fallback notice");
   assert.equal(shareDateValue(start, start), null);
@@ -52,19 +55,19 @@ test("replaceShareUrl updates search in place and keeps pathname and hash", () =
       location.hash = parsed.hash;
     },
   };
-  replaceShareUrl({ renderer: "three", date: "2005-05-03" }, location, history);
+  replaceShareUrl({ renderer: "pixi", date: "2005-05-03" }, location, history);
   assert.equal(history.calls.length, 1);
   assert.equal(history.calls[0].state, history.state);
   assert.equal(history.calls[0].title, "");
   const params = new URL(history.calls[0].url, "https://example.test").searchParams;
-  assert.equal(params.get("renderer"), "three");
+  assert.equal(params.get("renderer"), "pixi");
   assert.equal(params.get("date"), "2005-05-03");
   assert.equal(params.get("extra"), "keep");
   assert.equal(location.hash, "#view");
   assert.equal(location.pathname, "/Orrery/");
-  replaceShareUrl({ renderer: "three", date: "2005-05-03" }, location, history);
+  replaceShareUrl({ renderer: "pixi", date: "2005-05-03" }, location, history);
   assert.equal(history.calls.length, 1, "Matching URLs do not replace again");
-  replaceShareUrl({ renderer: "pixi", date: null }, location, history);
+  replaceShareUrl({ renderer: "three", date: null }, location, history);
   assert.equal(history.calls.at(-1).url, "/Orrery/?extra=keep#view");
   replaceShareUrl({ renderer: "unknown", date: null }, location, history);
   assert.equal(history.calls.at(-1).url, "/Orrery/?extra=keep&renderer=unknown#view");
