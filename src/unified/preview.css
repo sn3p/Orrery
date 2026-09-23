@@ -184,6 +184,9 @@
 }
 
 .orrery-options-panel .dg .property-name { color: #b5e8c1 !important; }
+/* The wall clock is driving the date; the slider value is not the rate. */
+.orrery-options-panel .dg li.orrery-options-inactive .property-name,
+.orrery-options-panel .dg li.orrery-options-inactive .c { opacity: .5; }
 .orrery-options-panel .dg li:has(+ .orrery-options-rule) .orrery-options-hint {
   margin-bottom: 0;
 }
