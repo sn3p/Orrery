@@ -40,6 +40,8 @@ export default class Timeline {
   updatePresentCopy(enabled = this.app.holdAtPresent) {
     if (!this.enabled) return;
     const live = !!enabled;
+    if (live === this.presentCopyLive) return;
+    this.presentCopyLive = live;
     if (this.help) {
       this.help.textContent = live
         ? "A chosen date stays paused. Today keeps playing."

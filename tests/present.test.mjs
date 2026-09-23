@@ -193,6 +193,77 @@ test("today keeps playing when real time is on", () => {
   }
 });
 
+test("real time dialog copy is rebuilt only when the option changes", () => {
+  const originalDocument = globalThis.document;
+  try {
+    const { app, document, elements } = timelineFixture({ holdAtPresent: true });
+    globalThis.document = document;
+    const timeline = new Timeline(app);
+    let writes = 0;
+    const today = elements["orrery-date-today"];
+    const build = today.replaceChildren.bind(today);
+    today.replaceChildren = (...nodes) => { writes += 1; build(...nodes); };
+    let text = today.textContent;
+    Object.defineProperty(today, "textContent", {
+      configurable: true,
+      get() { return text; },
+      set(value) { writes += 1; text = value; },
+    });
+    timeline.updatePresentCopy(true);
+    timeline.updatePresentCopy(true);
+    assert.equal(writes, 0);
+    timeline.updatePresentCopy(false);
+    assert.equal(writes, 1);
+    timeline.updatePresentCopy(false);
+    assert.equal(writes, 1);
+    timeline.destroy();
+  } finally {
+    if (originalDocument === undefined) delete globalThis.document;
+    else globalThis.document = originalDocument;
+  }
+});
+
+test("enabling real time clamps a queued future seek", async () => {
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  const head = { appendChild() {} };
+  globalThis.window = { devicePixelRatio: 1 };
+  globalThis.document = {
+    hidden: true,
+    documentElement: {},
+    head,
+    createElement() { return { setAttribute() {}, style: {}, innerHTML: "" }; },
+    getElementsByTagName(name) { return name === "head" ? [head] : []; },
+    addEventListener() {},
+    removeEventListener() {},
+    getElementById() { return null; },
+    querySelector() { return null; },
+  };
+  try {
+    const { default: App } = await import("../src/unified/App.js");
+    const app = new App({ container: {}, autoRender: false, jedDelta: 0, holdAtPresent: false });
+    const committed = app.jed;
+    app.requestedJed = 9999999;
+    app.pendingSeek = { generation: 1, target: 9999999 };
+    const before = Date.now();
+    app.holdAtPresent = true;
+    const after = Date.now();
+    assert.ok(app.jed < 9999999);
+    assert.ok(app.jed >= currentJed(before) - 1 / 86400);
+    assert.ok(app.jed <= currentJed(after));
+    assert.equal(app.requestedJed, app.jed);
+    assert.equal(app.pendingSeek.target, app.jed);
+    assert.equal(app.followingPresent, true);
+    assert.ok(app.jedDelta > 0);
+    assert.notEqual(app.jed, committed);
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+  }
+});
+
 test("the date readout has a present indicator", () => {
   const html = readFileSync(new URL("../src/unified/index.html", import.meta.url), "utf8");
   assert.match(html, /id="orrery-now"[^>]*>\(real time\)</);

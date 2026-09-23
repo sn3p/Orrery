@@ -39,7 +39,7 @@ async function data(browser, base, output, name) {
         return { reset: first === before, count, complete, advance };
       }), { reset: true, count: 4, complete: true, advance: 9 });
       await page.unroute(first);
-      await page.evaluate(() => { app.autoRender = true; app.jed = 9999999; app.requestRender(); });
+      await page.evaluate(() => { app.autoRender = true; app.holdAtPresent = false; app.jed = 9999999; app.requestRender(); });
       await page.waitForFunction(() => app.asteroidsDiscovered === 6 && app.catalogLoader.sceneComplete());
       const comparison = await page.evaluate(async () => {
         // Capture actual adapter data independently of the source's delivery mode.
@@ -169,6 +169,7 @@ async function frames(browser, base, output, name) {
         app.autoRender = false; app.cancelRender(); app.elapsed = 2; app.renderFrame(1000);
         window.previous = { model: app.catalogue, cloud: app.renderer.asteroids, date: app.jed, count: app.asteroidsDiscovered,
           hud: app.gui.count.textContent, dateText: app.gui.date.textContent, pixels: app.renderer.canvas.toDataURL() };
+        app.holdAtPresent = false;
         await app.loadCatalog(next); app.jed = 9999999;
       }, pin(base));
       await page.waitForFunction(() => app.catalogLoader.committedCount === 6);
@@ -197,7 +198,7 @@ async function frames(browser, base, output, name) {
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     try {
       await boot(page, base + '/catalog/catalog-indexed/?renderer=three');
-      await page.evaluate(() => app.jed = 9999999);
+      await page.evaluate(() => { app.holdAtPresent = false; app.jed = 9999999; });
       await page.waitForFunction(() => app.asteroidsDiscovered === 6 && app.catalogLoader.sceneComplete());
       await page.evaluate(date => app.jed = date, tie.through);
       await page.waitForFunction(() => app.asteroidsDiscovered === 4 && app.catalogLoader.sceneComplete());

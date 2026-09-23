@@ -126,7 +126,7 @@ async function run(browser, base, output, name) {
       await page.waitForFunction(() => !window.catalogTest.app.catalogLoader.request);
 
       // Explicit late jump, full commitment, reverse and committed-only rebase.
-      await page.evaluate(() => { const app = window.catalogTest.app; app.jed = 9999999; app.renderFrame(); });
+      await page.evaluate(() => { const app = window.catalogTest.app; app.holdAtPresent = false; app.jed = 9999999; app.renderFrame(); });
       await page.waitForFunction(() => window.catalogTest.app.catalogLoader.committedCount === 6);
       await page.evaluate(() => window.catalogTest.app.renderFrame());
       await page.waitForFunction(() => window.catalogTest.app.asteroidsDiscovered === 6);

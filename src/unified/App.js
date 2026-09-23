@@ -180,8 +180,11 @@ export default class App {
     saveRealTimePreference(value);
     if (!value) this.followingPresent = false;
     else {
+      // A streamed seek keeps the target in requestedJed while jed is still
+      // the last committed day. Judge that target, then assign through the
+      // setter so it replaces the queued seek.
       const engaged = engagePresent({
-        jed: this.jed, now: currentJed(), speed: this.jedDelta,
+        jed: this.requestedJed ?? this.jed, now: currentJed(), speed: this.jedDelta,
         resumeSpeed: this.gui?.timeline?.resumeSpeed,
       });
       this.followingPresent = engaged.following;

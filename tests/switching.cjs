@@ -196,7 +196,8 @@ async function reviewRegressions(browser, base, output, name) {
       assert(await trigger.evaluate(el => el === document.activeElement),
         'Pending switch keeps focus on the disclosure');
       await trigger.press('Tab');
-      assert(await page.getByRole('textbox', { name: 'Playback speed' }).evaluate(el => el === document.activeElement), 'Pending switch opens at an enabled control');
+      assert(await page.getByRole('combobox', { name: 'Rendering pixel ratio' }).evaluate(el => el === document.activeElement && !el.disabled),
+        'Pending switch opens at an enabled control');
       await page.evaluate(() => rejectSwitch());
       await page.waitForFunction(() => !app.switching && !!app.switchError);
       await visibleStatus('failure');
@@ -606,6 +607,8 @@ async function network(browser, base, output, name) {
       await page.getByRole('button', { name: 'Options', exact: true }).click();
       await page.getByRole('combobox', { name: 'Renderer', exact: true }).selectOption('three');
       await page.waitForFunction(() => app.switching === 'loading');
+      const optionsButton = page.getByRole('button', { name: 'Options', exact: true });
+      if (await optionsButton.getAttribute('aria-expanded') !== 'true') await optionsButton.click();
       assert(await page.getByRole('combobox', { name: 'Renderer', exact: true }).isDisabled());
       const frozen = await page.evaluate(() => ({ jed: app.jed, count: app.asteroidsDiscovered, scale: app.renderer.stage.scale.x }));
       await wheelOnCanvas(page);

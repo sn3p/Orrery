@@ -150,7 +150,12 @@ async function runRenderer(context, base, renderer) {
 
     // Programmatic/configured dates support the full Date range, including
     // signed six-digit ISO years. Keep both visible and spoken copy complete.
-    await page.evaluate(target => { window.catalogTest.app.jed = target; }, EXTENDED);
+    // Real time would clamp this sentinel to the clock, so this case turns it off.
+    await page.evaluate(target => {
+      const app = window.catalogTest.app;
+      app.holdAtPresent = false;
+      app.jed = target;
+    }, EXTENDED);
     await page.waitForFunction(() => document.querySelector('.orrery-status-detail')?.textContent.includes('+022666-12-19'));
     assert.equal(await page.locator('.orrery-status-detail').textContent(), '+022666-12-19 · 4 / 6');
     await checkBusyAnnouncement(page, 'Buffering asteroids for +022666-12-19.');
