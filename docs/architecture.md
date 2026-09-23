@@ -43,14 +43,15 @@ when present, paused like a HUD jump. An unrecognized `renderer` value stays in 
 query so reload still shows the Pixi fallback notice. Without `date`, playback still starts at the
 configured beginning (publicly 1980-01-01) and plays. Invalid dates are ignored.
 Options switches, successful intro renderer choices, date jumps and pauses update
-that query with `history.replaceState`; playback frames do not. Camera, DPR and the
+that query with `history.replaceState`; playback frames do not. Camera, DPR, planet orbit lines and the
 group preset are still page-session only.
 
-Explicit planet-label and planet-orbit choices are stored under
-`orrery.planetLabels` and `orrery.planetOrbits`; they apply to both adapters.
+Explicit planet-label and real-time choices are stored under
+`orrery.planetLabels` and `orrery.realTime`; they apply to both adapters.
+Real time defaults on.
 Introduction dismissal is stored separately under `orrery.intro`. Renderer choice and
-date are named only by the URL, not `localStorage`. Renderer-specific view state, DPR
-and the minor-planet group preset are not persisted.
+date are named only by the URL, not `localStorage`. Renderer-specific view state, DPR,
+planet orbit lines and the minor-planet group preset are not persisted.
 Choosing Jupiter Trojans may ease the active camera out so Jupiter’s orbit fits;
 switching still restores each renderer’s last stored view.
 

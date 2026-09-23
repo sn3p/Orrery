@@ -92,7 +92,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
           && app.renderer.planets.every(planet => planet.body.visible !== false
             && (planet.body.alpha ?? planet.body.material?.opacity ?? 1) > 0),
           'The startup-time orbit visibility applies without hiding planets');
-        app.destroy(); localStorage.removeItem('orrery.planetLabels'); localStorage.removeItem('orrery.planetOrbits');
+        app.destroy(); localStorage.removeItem('orrery.planetLabels');
         Application.prototype.init = init;
         app = new App({ autoRender: false, jedDelta: 0 });
         // Exercise a real early load; App must wait for its own lazy renderer.

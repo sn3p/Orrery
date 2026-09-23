@@ -1,4 +1,5 @@
 import { formatIsoDay, parseIsoDay, toJED } from "../../js/utils.js";
+import { currentJed } from "../present.js";
 
 const interactive = target => target?.closest?.("button, a, input, select, textarea, dialog, [contenteditable='true']");
 
@@ -13,6 +14,7 @@ export default class Timeline {
     this.form = document.getElementById("orrery-date-form");
     this.input = document.getElementById("orrery-date-input");
     this.error = document.getElementById("orrery-date-error");
+    this.help = document.getElementById("orrery-date-help");
     this.today = document.getElementById("orrery-date-today");
     this.beginning = document.getElementById("orrery-date-beginning");
     this.cancel = document.getElementById("orrery-date-cancel");
@@ -32,6 +34,28 @@ export default class Timeline {
     this.dialog.addEventListener("click", this.onBackdrop);
     document.addEventListener("keydown", this.onShortcut);
     this.updatePlayback(app.jedDelta);
+    this.updatePresentCopy();
+  }
+
+  updatePresentCopy(enabled = this.app.holdAtPresent) {
+    if (!this.enabled) return;
+    const live = !!enabled;
+    if (live === this.presentCopyLive) return;
+    this.presentCopyLive = live;
+    if (this.help) {
+      this.help.textContent = live
+        ? "A chosen date stays paused. Today keeps playing."
+        : "Playback stays paused after jumping.";
+    }
+    this.today.title = live ? "Jump to the current time and keep playing" : "Jump to today";
+    if (!live || typeof this.today.replaceChildren !== "function" || typeof document.createElement !== "function") {
+      this.today.textContent = live ? "today (real time)" : "today";
+      return;
+    }
+    const mark = document.createElement("span");
+    mark.className = "orrery-realtime-mark";
+    mark.textContent = "(real time)";
+    this.today.replaceChildren("today ", mark);
   }
 
   updatePlayback(speed) {
@@ -74,6 +98,7 @@ export default class Timeline {
     // Keep native date pickers closed until the user explicitly chooses the
     // field. In particular, focusing a date input opens a full-screen picker
     // on iOS and hides the rest of this dialog.
+    this.updatePresentCopy();
     this.title.focus({ preventScroll: true });
     return true;
   }
@@ -102,7 +127,18 @@ export default class Timeline {
     this.commitDate(this.input.value);
   };
 
-  onToday = () => { this.commitDate(new Date().toISOString().slice(0, 10)); };
+  onToday = () => {
+    const now = currentJed();
+    if (this.app.holdAtPresent) {
+      const forward = this.app.jedDelta > 0 ? this.app.jedDelta
+        : (this.resumeSpeed > 0 ? this.resumeSpeed : 1.5);
+      if (this.app.jedDelta !== forward) this.app.jedDelta = forward;
+      this.app.jed = now;
+      this.dialog.close("apply");
+      return;
+    }
+    this.applyJed(now);
+  };
   onBeginning = () => { this.applyJed(this.app.startJed); };
   onCancel = () => { this.dialog.close("cancel"); };
   onBackdrop = event => { if (event.target === this.dialog) this.dialog.close("cancel"); };

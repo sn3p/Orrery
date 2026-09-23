@@ -1,31 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_PLANET_ORBITS_VISIBLE, PLANET_ORBIT_STORAGE_KEY, isPlanetOrbitVisibility,
-  loadPlanetOrbitVisibility, savePlanetOrbitVisibility } from "../src/unified/PlanetOrbitPreference.js";
+import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "../src/unified/PlanetOrbitPreference.js";
 import PixiRenderer from "../src/unified/pixi/PixiRenderer.js";
 import ThreeRenderer from "../src/unified/three/ThreeRenderer.js";
 
-test("planet orbit preference defaults, validates and survives unavailable storage", () => {
-  const values = new Map(), scope = { localStorage: {
-    getItem(key) { return values.get(key) ?? null; },
-    setItem(key, value) { values.set(key, value); },
-  } };
+test("planet orbit visibility defaults to shown and accepts only booleans", () => {
   assert.equal(DEFAULT_PLANET_ORBITS_VISIBLE, true);
   assert.deepEqual([true, false, "true", 1, null].map(isPlanetOrbitVisibility),
     [true, true, false, false, false]);
-  assert.equal(loadPlanetOrbitVisibility(scope), true);
-  assert.equal(savePlanetOrbitVisibility(false, scope), true);
-  assert.equal(values.get(PLANET_ORBIT_STORAGE_KEY), "false");
-  assert.equal(loadPlanetOrbitVisibility(scope), false);
-  values.set(PLANET_ORBIT_STORAGE_KEY, "true");
-  assert.equal(loadPlanetOrbitVisibility(scope), true);
-  values.set(PLANET_ORBIT_STORAGE_KEY, "hidden");
-  assert.equal(loadPlanetOrbitVisibility(scope), true);
-  assert.equal(savePlanetOrbitVisibility("false", scope), false);
-  assert.equal(savePlanetOrbitVisibility(false, {}), false);
-  const blocked = { get localStorage() { throw new Error("blocked"); } };
-  assert.equal(loadPlanetOrbitVisibility(blocked), true);
-  assert.equal(savePlanetOrbitVisibility(false, blocked), false);
 });
 
 test("both renderers apply orbit visibility independently of other shared options", () => {
