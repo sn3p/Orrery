@@ -6,7 +6,7 @@ were discovered. Each dot is an asteroid on its orbit; new discoveries appear gr
 then fade to grey as the date advances. One app offers a
 [3D](https://sn3p.github.io/Orrery) (Three.js) and a
 [2D](https://sn3p.github.io/Orrery/?renderer=pixi) (Pixi.js) renderer; switch in
-the options panel.
+the options panel. Without WebGL2 the app opens the 2D view and says so.
 
 | [3D](https://sn3p.github.io/Orrery) (Three.js) | [2D](https://sn3p.github.io/Orrery/?renderer=pixi) (Pixi.js) |
 |---|---|

@@ -31,7 +31,8 @@ advance the application clock or schedule their own animation loop.
 
 `src/unified/renderers.js` is the renderer registry. Both entries use dynamic
 imports. The default route selects Three.js, so startup loads that chunk and
-requires WebGL2. Pixi stays a separate chunk and does not require WebGL2.
+requires WebGL2. Without WebGL2, `App` starts Pixi instead with a notice and without
+loading the Three chunk. Pixi stays a separate chunk and does not require WebGL2.
 
 ## State and persistence
 
