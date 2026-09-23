@@ -7,6 +7,15 @@ function launchOptions(name) {
   if (mesa && process.platform !== "linux") throw new Error("Mesa test graphics requires Linux and Xvfb");
   return {
     headless: !mesa && process.env.HEADLESS !== "0",
+    ...(name === "firefox" ? {
+      // A cold Firefox window on the software display can refuse the first
+      // WebGL context. These prefs keep that context available for the probe.
+      firefoxUserPrefs: {
+        "webgl.disabled": false,
+        "webgl.force-enabled": true,
+        "webgl.enable-webgl2": true,
+      },
+    } : {}),
     ...(name === "chromium" ? {
       channel: process.env.CHROME_CHANNEL || "chrome",
       // Hosted Linux has no hardware GPU. Use Mesa through the virtual display
