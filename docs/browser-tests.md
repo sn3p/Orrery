@@ -81,7 +81,7 @@ are still retained. Use `npx playwright test --project=webkit --grep 'texture re
 
 | Project | Checks |
 | --- | --- |
-| `chromium`, `firefox`, `webkit` | Actual promoted root/nested deployment, removed preview entry, absence of retired payloads, missing chunks/lazy assets, default indexed Pixi/direct Three startup and retained switching, raw App lifecycle and scene/recovery checks, current production GPU/rendering/options/DPR/benchmark-frame checks, catalogue loading/lifecycle/frame-commit recovery, Three scenes/numerics/entry/camera/recovery, and in-page renderer switching with retained data, faults, views, options and resource checks |
+| `chromium`, `firefox`, `webkit` | Actual promoted root/nested deployment, removed preview entry, absence of retired payloads, missing chunks/lazy assets, default indexed Three.js startup, direct Pixi startup and retained switching, raw App lifecycle and scene/recovery checks, current production GPU/rendering/options/DPR/benchmark-frame checks, catalogue loading/lifecycle/frame-commit recovery, Three scenes/numerics/entry/camera/recovery, and in-page renderer switching with retained data, faults, views, options and resource checks |
 | `chromium-only` | Current production scheduling, typography and benchmark CLI checks; promoted and configured catalogue development commands; catalogue benchmark completion for Pixi and Three; Three configured development/HMR; ordinary-clone benchmark provenance; runner failure/cleanup diagnostics |
 | Standalone configuration | Two public-renderer smoke checks against a fresh promoted build, without prepared browser fixtures |
 

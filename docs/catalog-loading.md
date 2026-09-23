@@ -2,7 +2,7 @@
 
 The unified root uses the complete available discovery catalogue by default,
 through `catalog-profiles/latest.json` and the reviewed indexed/latest loader.
-`/?renderer=three` uses the same source and retained population. Switching
+`/` and `/?renderer=pixi` use the same source and retained population. Switching
 renderers does not fetch that population again or impose a population limit.
 A `?date=` inspection day still uses this catalogue; it does not change the story
 beginning.

@@ -131,8 +131,8 @@ async function run({ browser, name, application = "unified", output: artifactDir
           assert(requests.some(url => /\/index-[a-f0-9]+\.json$/.test(url)), "Default preview resolves the verified index");
           assert(requests.some(url => /\/chunks\/[a-f0-9]+\.json$/.test(url)), "Default preview loads indexed chunks");
           assert(!requests.some(url => /\/data\/catalog.json$|\/full\/catalog/.test(url)), "Preview never requests historical or whole-file data");
-          assert(requests.some(url => /\/pixi\.[\da-f]+\.js$/.test(url)), "Preview loads the real lazy Pixi adapter");
-          assert(!requests.some(url => /\/three\.[\da-f]+\.js$/.test(url)), "Pixi startup does not eagerly load Three");
+          assert(requests.some(url => /\/three\.[\da-f]+\.js$/.test(url)), "Preview loads the real lazy Three adapter");
+          assert(!requests.some(url => /\/pixi\.[\da-f]+\.js$/.test(url)), "Three startup does not eagerly load Pixi");
           assert.equal((await page.request.get(base + "next/")).status(), 404);
           assert.deepEqual(errors, []);
           results.push({ browser: name, path: label, viewport, reload: true, keyboardLink: true, isolated: true });
@@ -160,15 +160,15 @@ async function run({ browser, name, application = "unified", output: artifactDir
       assert.equal(await failure.locator("#orrery-count").textContent(), "0");
       await removeEmpty();
       await routeDefaultCatalog(failure);
-      await failure.route("**/assets/pixi.*.js", route => route.fulfill({ status: 503, body: "Unavailable" }));
+      await failure.route("**/assets/three.*.js", route => route.fulfill({ status: 503, body: "Unavailable" }));
       await failure.reload();
-      await failure.getByRole("status").filter({ hasText: "Unable to start" }).waitFor();
-      assert.equal(await failure.getByRole("status").textContent(),
-        "Unable to start the visualization. Please reload to try again.",
+      await failure.getByRole("alert").filter({ hasText: "Unable to start the 3D visualization" }).waitFor();
+      assert.equal(await failure.locator("#orrery-status").textContent(),
+        "Unable to start the 3D visualization. Please reload to try again. Open Pixi preview",
         "A failed renderer download gives recovery guidance without claiming WebGL is missing");
       assert.equal(await failure.locator("canvas, .orrery-options, .orrery-planet-label").count(), 0);
       assert(await failure.getByRole("button", { name: "About Orrery", exact: true }).isVisible());
-      await failure.unroute("**/assets/pixi.*.js");
+      await failure.unroute("**/assets/three.*.js");
       await failure.reload();
       await failure.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
       assert.equal(await failure.locator("#orrery canvas").count(), 1);

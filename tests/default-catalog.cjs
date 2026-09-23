@@ -25,7 +25,7 @@ async function run({ browser, name, output = '.context/full-catalogue/default-en
         page.on('request', request => requests.push(request.url()));
         page.on('pageerror', error => errors.push(error.message));
         try {
-          await page.goto(url + (renderer === 'three' ? '?renderer=three' : ''));
+          await page.goto(url + (renderer === 'pixi' ? '?renderer=pixi' : ''));
           await page.waitForFunction(() => document.querySelector('#orrery-count').textContent === '6');
           await page.getByRole('button', { name: 'Options', exact: true }).click();
           const speed = page.getByRole('textbox', { name: 'Playback speed' });

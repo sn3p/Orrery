@@ -8,7 +8,7 @@ async function nullReplacement(browser, base, output, name) {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   try {
-    await page.goto(base + '/catalog-indexed/');
+    await page.goto(base + '/catalog-indexed/?renderer=pixi');
     await page.waitForFunction(() => catalogTest.app.catalogLoader?.sceneComplete());
     await page.evaluate(async pin => {
       const app = window.app = catalogTest.app;
@@ -412,7 +412,7 @@ async function replacementUploadFailure(browser, base, output, name, version = 2
   const page = await uploadFailurePage(browser, version);
   const diagnostics = uploadDiagnostics(page, name);
   try {
-    await page.goto(base + '/catalog-indexed/');
+    await page.goto(base + '/catalog-indexed/?renderer=pixi');
     await page.waitForFunction(() => catalogTest.app.catalogLoader?.sceneComplete());
     await page.evaluate(async pin => {
       const app = window.app = catalogTest.app;

@@ -361,10 +361,17 @@ export default class ThreeRenderer {
   resize(viewport) {
     if (this.destroyed || !this.initialized) return;
     this.viewport = viewport;
-    this.camera.aspect = viewport.width / viewport.height;
+    const { width, height, pixelRatio } = viewport;
+    this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
-    this.renderer.setPixelRatio(viewport.pixelRatio);
-    this.renderer.setSize(viewport.width, viewport.height);
+    // Three's setPixelRatio floors both axes. Fractional displays need the same
+    // rounded backing store Pixi uses, which one ratio cannot floor onto.
+    const physicalWidth = Math.max(1, Math.round(width * pixelRatio));
+    const physicalHeight = Math.max(1, Math.round(height * pixelRatio));
+    this.renderer.setPixelRatio(1);
+    this.renderer.setSize(physicalWidth, physicalHeight, false);
+    this.canvas.style.width = `${width}px`;
+    this.canvas.style.height = `${height}px`;
   }
 
   captureView() {

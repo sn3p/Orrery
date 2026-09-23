@@ -29,13 +29,13 @@ async function run({ browser, name, output = '.context/timeline' }) {
         const date = page.locator('#orrery-date');
         const dialog = page.getByRole('dialog', { name: 'Jump to date' });
         const input = page.getByLabel('UTC date');
-        const shared = renderer === 'three' ? '?renderer=three&date=2005-05-03' : '?date=2005-05-03';
+        const shared = renderer === 'pixi' ? '?renderer=pixi&date=2005-05-03' : '?date=2005-05-03';
         await page.goto(`${server.url}/${shared}`);
         await page.waitForFunction(() => document.querySelector('#orrery-count')?.textContent === '6');
         assert.equal(await date.textContent(), '2005-05-03', 'A shared UTC date is the initial inspection day');
         assert.equal(await play.getAttribute('aria-label'), 'Resume playback', 'A shared date starts paused');
         assert.equal(share(page).get('date'), '2005-05-03');
-        assert.equal(share(page).get('renderer'), renderer === 'three' ? 'three' : null);
+        assert.equal(share(page).get('renderer'), renderer === 'pixi' ? 'pixi' : null);
 
         const currentDay = new Date().toISOString().slice(0, 10);
         await page.goto(`${server.url}/?renderer=${renderer}&date=${currentDay}`);
@@ -84,7 +84,7 @@ async function run({ browser, name, output = '.context/timeline' }) {
         await expectDateStable(page, paused, 'Visible playback control pauses the timeline');
         assert.equal(share(page).get('date'), paused === '1980-01-01' ? null : paused,
           'Pause writes the visible UTC day, omitting the 1980 beginning');
-        assert.equal(share(page).get('renderer'), renderer === 'three' ? 'three' : null);
+        assert.equal(share(page).get('renderer'), renderer === 'pixi' ? 'pixi' : null);
         assert.equal(await play.getAttribute('aria-label'), 'Resume playback');
         assert.equal((await play.textContent()).trim(), '[⏵︎]');
         assert.equal(await play.locator('.orrery-control-indicator').evaluate(element => element.getBoundingClientRect().width),

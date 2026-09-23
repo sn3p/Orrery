@@ -116,7 +116,8 @@ async function run({ browser, name, output = '.context/intro' }) {
         : state => page.screenshot({ path: path.join(output, `${name}-${viewport.width}-${state}.png`) });
       try {
         await routeDefaultCatalog(page);
-        await page.goto(`${server.url}/`);
+        // The shortcut sequence starts on Pixi. `/` itself opens Three.js.
+        await page.goto(`${server.url}/?renderer=pixi`);
         const dialog = page.getByRole('dialog', { name: 'Orrery' });
         await dialog.waitFor();
         await loaded(page);

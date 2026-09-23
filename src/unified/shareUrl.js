@@ -1,5 +1,6 @@
 import { formatIsoDay, parseIsoDay, toJED } from "../js/utils.js";
 import { validDate } from "../js/asteroidOrbits.js";
+import { DEFAULT_RENDERER } from "./renderers.js";
 
 export function parseShareDate(value) {
   const date = parseIsoDay(value);
@@ -8,9 +9,9 @@ export function parseShareDate(value) {
   return validDate(jed) ? jed : null;
 }
 
-export function shareSearch({ renderer, date } = {}, currentSearch = "") {
+export function shareSearch({ renderer, date, defaultRenderer = DEFAULT_RENDERER } = {}, currentSearch = "") {
   const params = new URLSearchParams(currentSearch.startsWith("?") ? currentSearch.slice(1) : currentSearch);
-  if (renderer && renderer !== "pixi") params.set("renderer", renderer);
+  if (renderer && renderer !== defaultRenderer) params.set("renderer", renderer);
   else params.delete("renderer");
   if (date !== undefined) {
     if (date) params.set("date", date);
