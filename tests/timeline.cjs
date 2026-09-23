@@ -135,11 +135,26 @@ async function run({ browser, name, output = '.context/timeline' }) {
         assert.equal(share(page).get('date'), '2000-01-01', 'A date jump is named in the URL');
 
         const today = new Date().toISOString().slice(0, 10);
+        await page.keyboard.press('Escape');
+        await page.getByRole('button', { name: 'Options', exact: true }).click();
+        await page.getByRole('checkbox', { name: 'Real time' }).uncheck();
+        await page.keyboard.press('Escape');
         await date.click();
         await page.getByRole('button', { name: 'today', exact: true }).click();
         await page.waitForFunction(expected => document.querySelector('#orrery-date').textContent === expected, today);
-        assert.equal(await play.getAttribute('aria-label'), 'Resume reverse playback');
+        assert.equal(await play.getAttribute('aria-label'), 'Resume reverse playback',
+          'Today pauses and keeps the reverse resume direction while real time is off');
         assert.equal(share(page).get('date'), today);
+
+        await page.getByRole('button', { name: 'Options', exact: true }).click();
+        await page.getByRole('checkbox', { name: 'Real time' }).check();
+        await page.keyboard.press('Escape');
+        await date.click();
+        await page.getByRole('button', { name: 'today (real time)', exact: true }).click();
+        await page.waitForFunction(expected => document.querySelector('#orrery-date').textContent === expected, today);
+        assert.equal(await play.getAttribute('aria-label'), 'Pause playback',
+          'Today keeps playing while real time is on');
+        assert.equal(share(page).get('date'), null, 'Playing does not pin the date');
 
         await date.click();
         await page.getByRole('button', { name: '1980-01-01', exact: true }).click();

@@ -129,6 +129,11 @@ async function run({ browser, name, application = "unified", output: artifactDir
         assert(await renderer.evaluate(input => input === document.activeElement), "Renderer input is keyboard reachable");
         await page.keyboard.press("Tab");
       }
+      const pixelRatio = page.getByRole("combobox", { name: "Rendering pixel ratio" });
+      if (await pixelRatio.count() && await pixelRatio.isVisible()) {
+        assert(await pixelRatio.evaluate(input => input === document.activeElement), "Pixel ratio input is keyboard reachable");
+        await page.keyboard.press("Tab");
+      }
       assert(await page.getByRole("textbox", { name: "Playback speed" }).evaluate(input => input === document.activeElement), "Speed input is keyboard reachable");
       await setSpeed(page, 0);
       const date = await page.locator("#orrery-date").textContent();
