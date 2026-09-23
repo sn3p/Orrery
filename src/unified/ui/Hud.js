@@ -9,6 +9,7 @@ export default class Hud {
   constructor(app) {
     this.timeline = new Timeline(app);
     this.date = this.timeline.date;
+    this.now = document.getElementById("orrery-now");
     this.fps = document.getElementById("orrery-fps");
     this.count = document.getElementById("orrery-count");
     this.readouts = this.date.closest(".orrery-readouts");
@@ -43,6 +44,13 @@ export default class Hud {
   }
 
   updatePlayback(speed) { this.timeline.updatePlayback(speed); }
+
+  updateNow(active) {
+    if (!this.now) return;
+    this.now.hidden = !active;
+  }
+
+  updatePresentCopy(enabled) { this.timeline.updatePresentCopy(enabled); }
 
   destroy() { this.timeline.destroy(); this.controls.destroy(); }
 }

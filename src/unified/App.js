@@ -10,9 +10,10 @@ import { allocateCatalogue, appendCatalogue, prepareCatalogue } from "./catalog/
 import { selectRenderer, renderers } from "./renderers.js";
 import switchRenderer from "./switchRenderer.js";
 import { isPlanetLabelMode, loadPlanetLabelMode, savePlanetLabelMode } from "./PlanetLabel.js";
-import { isPlanetOrbitVisibility, loadPlanetOrbitVisibility,
-  savePlanetOrbitVisibility } from "./PlanetOrbitPreference.js";
+import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "./PlanetOrbitPreference.js";
 import { DEFAULT_POPULATION_PRESET, isPopulationPreset } from "./catalog/population.js";
+import { currentJed, engagePresent, frameSeconds, seekPresent, stepPresent } from "./present.js";
+import { loadRealTimePreference, saveRealTimePreference } from "./RealTimePreference.js";
 
 // Shared across module replacements so stale disposal cannot erase a new App's feedback.
 const STATUS_OWNER = Symbol.for("orrery.statusOwner");
@@ -48,10 +49,21 @@ export default class App {
     this._pixelRatio = (window.devicePixelRatio || 1) >= 2 ? "2" : "1";
     this._planetLabels = options.planetLabels ?? loadPlanetLabelMode();
     if (!isPlanetLabelMode(this._planetLabels)) throw new Error("Invalid planet label mode.");
-    this._planetOrbits = options.planetOrbits ?? loadPlanetOrbitVisibility();
+    this._planetOrbits = options.planetOrbits ?? DEFAULT_PLANET_ORBITS_VISIBLE;
+    try { localStorage.removeItem("orrery.planetOrbits"); } catch { /* Drop a retired preference. */ }
     if (!isPlanetOrbitVisibility(this._planetOrbits)) throw new Error("Invalid planet orbit visibility.");
     this._populationPreset = options.populationPreset ?? DEFAULT_POPULATION_PRESET;
     if (!isPopulationPreset(this._populationPreset)) throw new Error("Invalid population preset.");
+    // Remembered in this browser. The app entry passes the saved choice; other
+    // callers stay off unless they opt in.
+    this._holdAtPresent = !!options.holdAtPresent;
+    this.followingPresent = false;
+    if (this._holdAtPresent) {
+      const engaged = engagePresent({ jed: this._jed, now: currentJed(), speed: this._jedDelta });
+      this.followingPresent = engaged.following;
+      this._jed = engaged.jed;
+      this._jedDelta = engaged.speed;
+    }
     this.held = false;
     this.clock = new PlaybackClock();
     this.elapsed = 0;
@@ -65,6 +77,7 @@ export default class App {
       this.pendingSeek = { generation: ++this.seekGeneration, target: this._jed };
       this.requestedJed = this._jed;
     }
+    if (this.followingPresent && this._jedDelta !== 0) this.syncShareUrl();
     this.rendererGeneration = 0;
     this.destroyed = false;
     this.initialized = false;
@@ -115,8 +128,17 @@ export default class App {
 
   get jed() { return this._jed; }
   set jed(value) {
-    if (this.destroyed || Object.is(value, this.requestedJed ?? this._jed)) return;
+    if (this.destroyed) return;
     if (!validDate(value)) throw new Error("Invalid playback date.");
+    if (this._holdAtPresent) {
+      const sought = seekPresent({ jed: value, hold: true, now: currentJed() });
+      value = sought.jed;
+      this.followingPresent = sought.following;
+    }
+    if (Object.is(value, this.requestedJed ?? this._jed)) {
+      this.notePresent();
+      return;
+    }
     this.pendingSeek = { generation: ++this.seekGeneration, target: value };
     if (this.switching || this.catalogOpening || this.catalogLoader?.source) {
       this.requestedJed = value;
@@ -124,6 +146,7 @@ export default class App {
       this.demandCatalog();
       this.onCatalogChange();
       this.syncShareUrl();
+      this.notePresent();
       return;
     }
     this.requestedJed = value;
@@ -131,6 +154,7 @@ export default class App {
     this._jed = value;
     this.requestRender();
     this.syncShareUrl();
+    this.notePresent();
   }
   get jedDelta() { return this._jedDelta; }
   set jedDelta(value) {
@@ -138,12 +162,39 @@ export default class App {
     if (!Number.isFinite(value)) throw new Error("Invalid playback speed.");
     const wasPlaying = this.isPlaying;
     this._jedDelta = value;
+    // Reverse leaves the wall clock. Forward play catches the present again.
+    if (value < 0) this.followingPresent = false;
     this.gui?.updatePlayback(value);
     this.gui?.controls.speed?.updateDisplay();
     this.demandCatalog();
     if (!wasPlaying || !this.isPlaying) this.resetClock();
     this.requestRender();
     if (value === 0) this.syncShareUrl();
+    this.notePresent();
+  }
+  get holdAtPresent() { return this._holdAtPresent; }
+  set holdAtPresent(value) {
+    value = !!value;
+    if (this.destroyed || value === this._holdAtPresent) return;
+    this._holdAtPresent = value;
+    saveRealTimePreference(value);
+    if (!value) this.followingPresent = false;
+    else {
+      const engaged = engagePresent({
+        jed: this.jed, now: currentJed(), speed: this.jedDelta,
+        resumeSpeed: this.gui?.timeline?.resumeSpeed,
+      });
+      this.followingPresent = engaged.following;
+      if (engaged.speed !== this.jedDelta) this.jedDelta = engaged.speed;
+      if (engaged.seek) this.jed = engaged.jed;
+    }
+    this.gui?.controls.present?.updateDisplay();
+    this.notePresent();
+    this.requestRender();
+  }
+  notePresent() {
+    this.gui?.updateNow?.(this._holdAtPresent && this.followingPresent);
+    this.gui?.updatePresentCopy?.(this._holdAtPresent);
   }
   get isPlaying() { return this.jedDelta !== 0 && !this.held; }
   // Hold playback without changing the chosen speed, e.g. while the introduction is open.
@@ -178,7 +229,6 @@ export default class App {
   set planetOrbits(value) {
     if (this.destroyed || !isPlanetOrbitVisibility(value) || value === this._planetOrbits) return;
     this._planetOrbits = value;
-    savePlanetOrbitVisibility(value);
     this.renderer?.setOptions?.(this.rendererSettings());
     this.requestRender();
   }
@@ -406,8 +456,9 @@ export default class App {
   }
   demandCatalog(date = this.requestedJed ?? this.jed) {
     const hidden = document.hidden || !this.renderer || this.contextLost || !!this.catalogOpening || !!this.switching;
+    const live = this._holdAtPresent && this.followingPresent;
     return this.catalogLoader?.demand(date, { playing: this.isPlaying && !!this.renderer && !this.catalogOpening && !this.switching, hidden,
-      daysPerSecond: this.jedDelta * 60 }) ?? !this.catalogOpening;
+      daysPerSecond: live ? 0 : this.jedDelta * 60 }) ?? !this.catalogOpening;
   }
   onCatalogChange() {
     if (this.catalogWaiting) this.resetClock();
@@ -568,6 +619,7 @@ export default class App {
     // A loaded empty catalogue is valid too. Retain the last committed readouts
     // while a replacement, renderer switch or graphics recovery is pending.
     this.gui?.update(this.jed, this.stats.fps, this.asteroidsVisible, this.hasCommittedReadouts);
+    this.notePresent();
   }
   resetClock() {
     this.clock.reset();
@@ -725,8 +777,20 @@ export default class App {
     const loader = this.catalogLoader;
     const wasWaiting = this.catalogWaiting;
     if (wasWaiting) this.resetClock();
-    const advance = this.clock.advance(timestamp, wasWaiting || this.held ? 0 : this.jedDelta);
-    const next = this.requestedJed ?? (validDate(this.jed + advance) ? this.jed + advance : this.jed);
+    const blocked = wasWaiting || this.held;
+    const followClock = this._holdAtPresent && this.followingPresent && !blocked && this.jedDelta > 0;
+    const realSeconds = followClock ? frameSeconds(this.clock.previous, timestamp) : 0;
+    const advance = this.clock.advance(timestamp, blocked || followClock ? 0 : this.jedDelta);
+    let next = this.requestedJed;
+    if (next == null) {
+      const storyAdvance = validDate(this.jed + advance) ? advance : 0;
+      const stepped = stepPresent({
+        jed: this.jed, advance: storyAdvance, speed: blocked ? 0 : this.jedDelta,
+        hold: this._holdAtPresent, following: this.followingPresent, now: currentJed(),
+      });
+      next = stepped.jed;
+      this.followingPresent = stepped.following;
+    }
     if (this.pendingBundled && this.renderer.asteroids?.catalogue !== this.pendingBundled.model) {
       this.renderer.setAsteroids(this.pendingBundled.model, { jed: next, elapsed: this.elapsed }, { preservePrevious: true });
     }
@@ -742,7 +806,7 @@ export default class App {
     }
     this.requestedJed = null;
     this._jed = next;
-    this.elapsed += wasWaiting ? 0 : this.clock.seconds;
+    this.elapsed += wasWaiting ? 0 : (followClock ? realSeconds : this.clock.seconds);
     const seek = this.pendingSeek;
     const baseline = !!seek && Object.is(next, seek.target);
     this.renderer.captureFrame(this.frameState, { baseline });

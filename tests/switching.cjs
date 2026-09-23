@@ -329,7 +329,7 @@ async function lifecycle(browser, base) {
     await orbits.uncheck();
     await groups.selectOption('nea');
     assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetLabels')), 'all');
-    assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetOrbits')), 'false');
+    assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetOrbits')), null);
     assert.equal(await page.evaluate(() => localStorage.getItem('orrery.populationPreset')), null);
     assert.deepEqual((await page.locator('.orrery-planet-label').allTextContents()).sort(),
       ['Earth', 'Jupiter', 'Mars', 'Mercury', 'Saturn', 'Venus']);
@@ -390,7 +390,7 @@ async function lifecycle(browser, base) {
     await orbits.check();
     assert(await page.evaluate(() => app.planetOrbits === true
       && app.renderer.planetOrbits.every(orbit => orbit.visible === true)));
-    assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetOrbits')), 'true');
+    assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetOrbits')), null);
     assert.deepEqual(errors, []);
     return result;
   } finally { await page.close(); }

@@ -19,8 +19,8 @@ place without reloading or fetching retained data.
 Each renderer keeps its own view for the page session, and the shared DPR choice
 also lasts for that session; reload uses the entry URL (including a renderer or date
 written by Options, a jump or a pause) and their existing view/DPR defaults.
-Explicit planet-label and planet-orbit choices persist in local storage and apply
-to both adapters. See [renderer switching](architecture.md#renderer-switching).
+Explicit planet-label choices persist in local storage and apply to both adapters.
+Planet orbit lines last for the page visit and start visible again on reload. See [renderer switching](architecture.md#renderer-switching).
 
 The source is the preserved MIT-licensed Orrery3D `93a3e1f` revision. The port
 keeps its 60-degree perspective camera at `(500,500,400)`, Z-up, clipping range

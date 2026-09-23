@@ -197,7 +197,8 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert.equal(await orbits.isChecked(), false, "Orbit control reflects the hidden production state");
     assert.equal(await page.locator('.orrery-planet-label[data-planet="Earth"]').count(), 1,
       "Hiding orbit tracks keeps the Earth label visible");
-    assert.equal(await page.evaluate(() => localStorage.getItem("orrery.planetOrbits")), "false");
+    assert.equal(await page.evaluate(() => localStorage.getItem("orrery.planetOrbits")), null,
+      "Hiding orbit lines does not save a preference");
     await dpr.selectOption("2");
     await dpr.selectOption("1");
     await groups.selectOption("nea");
@@ -274,9 +275,9 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     await exports.openOptions(page);
     assert.equal(await dpr.inputValue(), "2", "Reload starts at the 2× default on a high-DPI display");
     assert.equal(await groups.inputValue(), "all", "Reload returns the group filter to All");
-    assert.equal(await orbits.isChecked(), false, "Explicit orbit visibility survives reload");
-    assert.equal(await page.evaluate(() => localStorage.getItem("orrery.planetOrbits")), "false",
-      "Reload retains the explicit hidden-orbit preference");
+    assert.equal(await orbits.isChecked(), true, "Reload shows planet orbit lines again");
+    assert.equal(await page.evaluate(() => localStorage.getItem("orrery.planetOrbits")), null,
+      "Orbit visibility is not saved");
     assert.equal(await page.locator('.orrery-planet-label[data-planet="Earth"]').count(), 1,
       "Reload with hidden orbit tracks keeps Earth visible");
     await orbits.check();

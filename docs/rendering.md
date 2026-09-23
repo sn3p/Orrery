@@ -6,10 +6,23 @@ current rendering and options contract.
 
 ## Options
 
-Open `[+] options` in the top-left corner for playback speed, renderer, planet
-labels, planetary orbit lines, minor-planet groups and rendering resolution. Click outside or press
-Escape to close it. Speed 0 pauses; negative values reverse. Speed 1 advances
-60 days per second (default 1.5).
+Open `[+] options` in the top-left corner. Renderer and resolution come first,
+then playback speed and real time, then planet labels, orbit lines and
+minor-planet groups. A line separates those groups. Click outside or press Escape to close it. Speed 0 pauses;
+negative values reverse. Speed 1 advances 60 days per second (default 1.5).
+
+**Real time** is on by default and remembered in this browser (`orrery.realTime`),
+not in the address bar. While it is on, the date runs forward only until the
+current UTC time, then stays on that time and orbits move at their real rate.
+Pause freezes it. Play resumes it. A jump into the past, or reverse speed, leaves
+real time until forward playback reaches the current time again. Turning it on
+while the date is already today, or later, moves to the current instant, shows
+`(real time)`, and plays forward. An earlier day only arms that stop and leaves
+pause as it is. **Today** follows the option. With real time off, it jumps
+to the current instant and pauses, like any other date. With real time on, the
+button reads `today (real time)`, the jump keeps playback running, and the
+dialog says a chosen date stays paused while Today keeps playing. The date
+readout shows `(real time)` in the same green while that mode is active.
 
 Minor-planet groups isolate numbered objects already in this catalogue: All,
 Near Earth, Jupiter Trojans, Distant, or Without the belt. The filter hides
@@ -25,9 +38,10 @@ Switching renderers restores each mode’s last view and does not repeat that
 courtesy.
 
 Planetary orbit lines are shown by default. Hiding them leaves the planets and
-their motion unchanged. Explicit orbit-line and planet-label choices are remembered
+their motion unchanged. The choice lasts for the page visit and applies to both
+renderers; a reload shows the lines again. Planet-label choices are remembered
 in local storage and apply to both renderers; unavailable or invalid storage falls
-back to visible orbit lines and the Earth-only label default.
+back to the Earth-only label default.
 
 The app uses 12px UI text, with date and space-grouped discovery count at the
 bottom-left (`2005-05-03 / 353 381`), Orrery at the bottom-right and FPS at the
@@ -41,7 +55,7 @@ the introduction) updates `renderer` in place; Pixi is omitted. Jumping to a UTC
 or pausing writes `date=YYYY-MM-DD`; the 1980 beginning is omitted so `/` stays
 clean. A shared date is the initial inspection JED and does not change the story
 beginning. Playing does not rewrite the date every frame. Neither value is stored in
-`localStorage`. Camera, groups and DPR stay page-session only.
+`localStorage`. Camera, orbit lines, groups and DPR stay page-session only.
 
 Every load starts at 2× DPR when the display’s native ratio is at least 2, and
 at 1× otherwise, with the options panel closed. On displays with
