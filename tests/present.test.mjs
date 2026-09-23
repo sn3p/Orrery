@@ -223,7 +223,7 @@ test("real time dialog copy is rebuilt only when the option changes", () => {
   }
 });
 
-test("enabling real time clamps a queued future seek", async () => {
+async function withAppDocument(run) {
   const previousWindow = globalThis.window;
   const previousDocument = globalThis.document;
   const head = { appendChild() {} };
@@ -241,27 +241,75 @@ test("enabling real time clamps a queued future seek", async () => {
   };
   try {
     const { default: App } = await import("../src/unified/App.js");
-    const app = new App({ container: {}, autoRender: false, jedDelta: 0, holdAtPresent: false });
-    const committed = app.jed;
-    app.requestedJed = 9999999;
-    app.pendingSeek = { generation: 1, target: 9999999 };
-    const before = Date.now();
-    app.holdAtPresent = true;
-    const after = Date.now();
-    assert.ok(app.jed < 9999999);
-    assert.ok(app.jed >= currentJed(before) - 1 / 86400);
-    assert.ok(app.jed <= currentJed(after));
-    assert.equal(app.requestedJed, app.jed);
-    assert.equal(app.pendingSeek.target, app.jed);
-    assert.equal(app.followingPresent, true);
-    assert.ok(app.jedDelta > 0);
-    assert.notEqual(app.jed, committed);
+    await run(App);
   } finally {
     if (previousWindow === undefined) delete globalThis.window;
     else globalThis.window = previousWindow;
     if (previousDocument === undefined) delete globalThis.document;
     else globalThis.document = previousDocument;
   }
+}
+
+test("enabling real time clamps a queued future seek", () => withAppDocument(App => {
+  const app = new App({ container: {}, autoRender: false, jedDelta: 0, holdAtPresent: false });
+  const committed = app.jed;
+  app.requestedJed = 9999999;
+  app.pendingSeek = { generation: 1, target: 9999999 };
+  const before = Date.now();
+  app.holdAtPresent = true;
+  const after = Date.now();
+  assert.ok(app.jed < 9999999);
+  assert.ok(app.jed >= currentJed(before) - 1 / 86400);
+  assert.ok(app.jed <= currentJed(after));
+  assert.equal(app.requestedJed, app.jed);
+  assert.equal(app.pendingSeek.target, app.jed);
+  assert.equal(app.followingPresent, true);
+  assert.ok(app.jedDelta > 0);
+  assert.notEqual(app.jed, committed);
+}));
+
+test("a shared date for today opens paused even with real time on", () => withAppDocument(App => {
+  const now = currentJed();
+  const midnight = toJED(new Date(new Date().setUTCHours(0, 0, 0, 0)));
+  const app = new App({ container: {}, autoRender: false, jed: midnight, jedDelta: 0, holdAtPresent: true });
+  assert.equal(app.jedDelta, 0);
+  assert.equal(app.jed, midnight);
+  assert.equal(app.requestedJed, midnight);
+  if (now - midnight > PRESENT_SLACK) assert.equal(app.followingPresent, false);
+}));
+
+test("a shared future date opens paused at the current instant", () => withAppDocument(App => {
+  const before = Date.now();
+  const app = new App({ container: {}, autoRender: false, jed: currentJed(before) + 30, jedDelta: 0, holdAtPresent: true });
+  assert.equal(app.jedDelta, 0);
+  assert.ok(app.jed >= currentJed(before) - PRESENT_SLACK);
+  assert.ok(app.jed <= currentJed(Date.now()));
+  assert.equal(app.requestedJed, app.jed);
+  assert.equal(app.followingPresent, true);
+}));
+
+test("the default entry only arms the stop", () => withAppDocument(App => {
+  const app = new App({ container: {}, autoRender: false, holdAtPresent: true });
+  assert.equal(app.jed, app.startJed);
+  assert.equal(app.jedDelta, 1.5);
+  assert.equal(app.followingPresent, false);
+  assert.equal(app.requestedJed, undefined);
+}));
+
+test("the present indicator is written only when its state changes", async () => {
+  const { default: Hud } = await import("../src/unified/ui/Hud.js");
+  let writes = 0, hidden = true;
+  const now = { get hidden() { return hidden; }, set hidden(value) { writes += 1; hidden = value; } };
+  const hud = { now };
+  Hud.prototype.updateNow.call(hud, false);
+  assert.equal(writes, 0);
+  Hud.prototype.updateNow.call(hud, true);
+  Hud.prototype.updateNow.call(hud, true);
+  assert.equal(writes, 1);
+  assert.equal(hidden, false);
+  Hud.prototype.updateNow.call(hud, false);
+  assert.equal(writes, 2);
+  Hud.prototype.updateNow.call({ now: null }, true);
 });
 
 test("the date readout has a present indicator", () => {

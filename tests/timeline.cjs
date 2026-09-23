@@ -37,6 +37,14 @@ async function run({ browser, name, output = '.context/timeline' }) {
         assert.equal(share(page).get('date'), '2005-05-03');
         assert.equal(share(page).get('renderer'), renderer === 'three' ? 'three' : null);
 
+        const currentDay = new Date().toISOString().slice(0, 10);
+        await page.goto(`${server.url}/?renderer=${renderer}&date=${currentDay}`);
+        await page.waitForFunction(() => document.querySelector('#orrery-count')?.textContent === '6');
+        assert.equal(await date.textContent(), currentDay, 'A shared today opens on today');
+        assert.equal(await play.getAttribute('aria-label'), 'Resume playback', 'A shared today stays paused with real time on');
+        assert.equal(await page.locator('#orrery-now').isHidden(), true, 'A paused shared today shows no real-time mark');
+        assert.equal(share(page).get('date'), currentDay);
+
         await page.goto(`${server.url}/?renderer=${renderer}&date=not-a-day`);
         await page.waitForFunction(() => document.querySelector('#orrery-count')?.textContent === '6');
         assert.equal(await play.getAttribute('aria-label'), 'Pause playback', 'An invalid date is ignored');
