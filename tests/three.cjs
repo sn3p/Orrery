@@ -83,7 +83,7 @@ async function entries(browser, base, output, name) {
           await orbits.uncheck();
           assert.equal(await page.locator('.orrery-planet-label').count(), 0);
           assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetLabels')), 'off');
-          assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetOrbits')), 'false');
+          assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetOrbits')), null);
         } else await options.click();
         assert(requests.some(url => url.includes('/' + (renderer === 'three' ? 'three' : 'pixi') + '.')));
         assert(!requests.some(url => url.includes('/' + (renderer === 'three' ? 'pixi' : 'three') + '.')));
@@ -92,13 +92,13 @@ async function entries(browser, base, output, name) {
         await page.waitForFunction(() => Number(document.querySelector('#orrery-count').textContent.replaceAll("\u202f", "")) > 0);
         if (persistenceBoundary) {
           assert.equal(await page.evaluate(() => (window.threeTest?.app ?? window.catalogTest.app).planetLabels), 'off');
-          assert.equal(await page.evaluate(() => (window.threeTest?.app ?? window.catalogTest.app).planetOrbits), false);
+          assert.equal(await page.evaluate(() => (window.threeTest?.app ?? window.catalogTest.app).planetOrbits), true);
           assert.equal(await page.locator('.orrery-planet-label').count(), 0);
           assert.equal(await page.locator('select[aria-label="Planet labels"]').inputValue(), 'off');
-          assert.equal(await page.locator('input[aria-label="Planet orbits"]').isChecked(), false);
+          assert.equal(await page.locator('input[aria-label="Planet orbits"]').isChecked(), true);
           assert(await page.evaluate(() => {
             const app = window.threeTest?.app ?? window.catalogTest.app;
-            return app.renderer.planetOrbits.every(orbit => orbit.visible === false)
+            return app.renderer.planetOrbits.every(orbit => orbit.visible === true)
               && app.renderer.planets.every(planet => planet.body.visible !== false
                 && (planet.body.alpha ?? planet.body.material?.opacity ?? 1) > 0);
           }));

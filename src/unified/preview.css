@@ -144,6 +144,10 @@
   outline-offset: 2px;
 }
 
+.orrery-realtime-mark { color: var(--color-accent); }
+.orrery-date-actions button:hover .orrery-realtime-mark { color: var(--color-accent); }
+.orrery-now[hidden] { display: none; }
+
 .orrery-readouts[hidden] { display: none; }
 
 .orrery-separator { color: #666; }
@@ -173,12 +177,52 @@
 
 .orrery-options-panel {
   max-width: calc(100vw - 16px);
-  max-height: calc(100dvh - 42px);
+  /* Clear the top trigger and a two-row footer so the panel scrolls
+     instead of covering the identity or the status. */
+  max-height: calc(100dvh - 96px);
   border-color: #365c41;
 }
 
 .orrery-options-panel .dg .property-name { color: #b5e8c1 !important; }
+.orrery-options-panel .dg li:has(+ .orrery-options-rule) .orrery-options-hint {
+  margin-bottom: 0;
+}
+.orrery-options-panel .dg li.orrery-options-rule {
+  height: auto !important;
+  margin: 0 -8px;
+  padding: 12px 0 !important;
+  border: 0 !important;
+  background: none !important;
+  line-height: 0;
+  pointer-events: none;
+}
+.orrery-options-panel .dg li.orrery-options-rule::before {
+  content: "";
+  display: block;
+  height: 1px;
+  background: #365c41;
+}
 .orrery-options-panel .dg .c select { border-color: #477b54; }
+
+/* Checkbox rows sit label-then-box. The rest of the row is not a target. */
+.orrery-options-panel .dg .cr.boolean > div {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: middle;
+}
+.orrery-options-panel .dg .cr.boolean .property-name,
+.orrery-options-panel .dg .cr.boolean .c {
+  display: inline-block;
+  float: none;
+  width: auto !important;
+  overflow: visible;
+  vertical-align: middle;
+}
+.orrery-options-panel .dg .cr.boolean .property-name { margin-right: 8px; }
+.orrery-options-panel .dg .cr.boolean,
+.orrery-options-panel .dg .cr.boolean * { cursor: default; }
+.orrery-options-panel .dg .cr.boolean .property-name,
+.orrery-options-panel .dg .cr.boolean input[type="checkbox"] { cursor: pointer; }
 
 .orrery-fps {
   top: 8px;

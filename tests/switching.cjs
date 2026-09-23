@@ -181,8 +181,18 @@ async function reviewRegressions(browser, base, output, name) {
       await page.setViewportSize(viewport);
       await page.waitForFunction(() => app.renderer.viewport.width === innerWidth && app.renderer.viewport.height === innerHeight);
       const visibleStatus = async label => {
-        assert.equal(await trigger.getAttribute('aria-expanded'), 'false', label + ': overlapping panel closes');
-        assert(await trigger.evaluate(el => el === document.activeElement), label + ': focus returns to trigger');
+        // Feedback stays readable: a panel that would cover it closes and hands
+        // focus back; a panel that fits above the footer stays open beside it.
+        if (await trigger.getAttribute('aria-expanded') === 'false') {
+          assert(await trigger.evaluate(el => el === document.activeElement), label + ': focus returns to trigger');
+        } else {
+          assert(await page.evaluate(() => {
+            const panel = document.querySelector('.orrery-options-panel').getBoundingClientRect();
+            const feedback = document.getElementById('orrery-status').getBoundingClientRect();
+            return !(panel.left < feedback.right && panel.right > feedback.left
+              && panel.top < feedback.bottom && panel.bottom > feedback.top);
+          }), label + ': an open panel does not overlap the feedback');
+        }
         assert(await page.locator('#orrery-status').evaluate(el => {
           const r = el.getBoundingClientRect();
           return r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth
@@ -192,15 +202,16 @@ async function reviewRegressions(browser, base, output, name) {
       };
       await visibleStatus('loading');
       // Reopening remains possible while waiting; new failure must reveal itself.
-      await trigger.click();
+      if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
       assert(await trigger.evaluate(el => el === document.activeElement),
         'Pending switch keeps focus on the disclosure');
       await trigger.press('Tab');
-      assert(await page.getByRole('textbox', { name: 'Playback speed' }).evaluate(el => el === document.activeElement), 'Pending switch opens at an enabled control');
+      assert(await page.getByRole('combobox', { name: 'Rendering pixel ratio' }).evaluate(el => el === document.activeElement && !el.disabled),
+        'Pending switch opens at an enabled control');
       await page.evaluate(() => rejectSwitch());
       await page.waitForFunction(() => !app.switching && !!app.switchError);
       await visibleStatus('failure');
-      await trigger.click();
+      if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
       assert.equal(await trigger.getAttribute('aria-expanded'), 'true', 'Mode choices remain accessible for retry');
       await page.keyboard.press('Escape');
       assert.deepEqual(errors, []);
@@ -329,7 +340,7 @@ async function lifecycle(browser, base) {
     await orbits.uncheck();
     await groups.selectOption('nea');
     assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetLabels')), 'all');
-    assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetOrbits')), 'false');
+    assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetOrbits')), null);
     assert.equal(await page.evaluate(() => localStorage.getItem('orrery.populationPreset')), null);
     assert.deepEqual((await page.locator('.orrery-planet-label').allTextContents()).sort(),
       ['Earth', 'Jupiter', 'Mars', 'Mercury', 'Saturn', 'Venus']);
@@ -390,7 +401,7 @@ async function lifecycle(browser, base) {
     await orbits.check();
     assert(await page.evaluate(() => app.planetOrbits === true
       && app.renderer.planetOrbits.every(orbit => orbit.visible === true)));
-    assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetOrbits')), 'true');
+    assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetOrbits')), null);
     assert.deepEqual(errors, []);
     return result;
   } finally { await page.close(); }
@@ -606,6 +617,8 @@ async function network(browser, base, output, name) {
       await page.getByRole('button', { name: 'Options', exact: true }).click();
       await page.getByRole('combobox', { name: 'Renderer', exact: true }).selectOption('three');
       await page.waitForFunction(() => app.switching === 'loading');
+      const optionsButton = page.getByRole('button', { name: 'Options', exact: true });
+      if (await optionsButton.getAttribute('aria-expanded') !== 'true') await optionsButton.click();
       assert(await page.getByRole('combobox', { name: 'Renderer', exact: true }).isDisabled());
       const frozen = await page.evaluate(() => ({ jed: app.jed, count: app.asteroidsDiscovered, scale: app.renderer.stage.scale.x }));
       await wheelOnCanvas(page);
@@ -619,6 +632,8 @@ async function network(browser, base, output, name) {
       await page.screenshot({ path: path.join(output, `${name}-${prefix ? 'pages' : 'root'}-switch-error.png`) });
       assert(await page.evaluate(() => app.renderer === outgoing && !outgoing.destroyed && app.rendererId === 'pixi'));
       await page.unroute('**/assets/three.*.js');
+      // The failure alert closes a panel that would cover it; retry reopens.
+      if (await optionsButton.getAttribute('aria-expanded') !== 'true') await optionsButton.click();
       await page.getByRole('combobox', { name: 'Renderer', exact: true }).selectOption('three');
       await page.waitForFunction(() => app.rendererId === 'three' && !app.switching);
       const switched = new URL(page.url());

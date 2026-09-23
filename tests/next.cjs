@@ -97,10 +97,18 @@ async function run({ browser, name, application = "unified", output: artifactDir
           await page.keyboard.press("Tab");
           assert(await page.getByRole("combobox", { name: "Renderer", exact: true }).evaluate(el => el === document.activeElement));
           await page.keyboard.press("Tab");
+          const pixelRatio = page.getByRole("combobox", { name: "Rendering pixel ratio" });
+          if (await pixelRatio.isVisible()) {
+            assert(await pixelRatio.evaluate(el => el === document.activeElement), "Tab reaches pixel ratio after Renderer");
+            await page.keyboard.press("Tab");
+          }
           assert(await input.evaluate(el => el === document.activeElement), "Tab reaches speed after Renderer");
           await page.keyboard.press("Tab");
+          assert(await page.getByRole("checkbox", { name: "Real time" }).evaluate(el => el === document.activeElement),
+            "Tab reaches real time after speed");
+          await page.keyboard.press("Tab");
           assert(await page.getByRole("combobox", { name: "Planet labels" }).evaluate(el => el === document.activeElement),
-            "Tab reaches planet labels after speed");
+            "Tab reaches planet labels after real time");
           await input.fill("0"); await input.press("Enter");
           await page.waitForFunction(() => document.querySelector("#orrery-fps").textContent === "0 FPS");
           await require("./next-layout.cjs").checkLongReadouts(page);
