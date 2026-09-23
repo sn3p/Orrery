@@ -1,6 +1,8 @@
 import * as dat from "dat.gui";
 import { DEFAULT_POPULATION_PRESET, POPULATION_PRESET_OPTIONS, populationHint } from "../catalog/population.js";
 
+export const SPEED_LIVE_HINT = "Real time: one second per second. 0 pauses; negative reverses.";
+
 let nextPanelId = 0;
 
 export default class Options {
@@ -56,7 +58,10 @@ export default class Options {
     const input = this.speedInput = speed.domElement.querySelector("input");
     input.setAttribute("aria-label", "Playback speed");
     input.title = "Time scale: 1 = 60 days/s; 0 pauses; negative reverses.";
-    this.addHint(speed, input.title, input);
+    this.speedHint = this.addHint(speed, input.title, input);
+    this.speedRow = speed.domElement.closest("li");
+    this.speedLive = null;
+    this.setSpeedLive(this.orrery.holdAtPresent && this.orrery.followingPresent && this.orrery.jedDelta > 0);
 
     this.present = this.gui.add(this.orrery, "holdAtPresent").name("real time");
     this.presentInput = this.present.domElement.querySelector("input");
@@ -159,6 +164,16 @@ export default class Options {
       if (cluster.contains(event.target)) return;
       event.stopImmediatePropagation();
     }, true);
+  }
+
+  // While the wall clock drives the date, the slider value is not the rate.
+  // The row dims but stays live: 0 still pauses and a negative speed rewinds.
+  setSpeedLive(live) {
+    live = !!live;
+    if (this.destroyed || live === this.speedLive) return;
+    this.speedLive = live;
+    this.speedRow.classList.toggle("orrery-options-inactive", live);
+    this.speedHint.textContent = live ? SPEED_LIVE_HINT : this.speedInput.title;
   }
 
   addHint(controller, text, input) {

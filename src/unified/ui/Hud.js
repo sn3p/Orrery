@@ -53,5 +53,7 @@ export default class Hud {
 
   updatePresentCopy(enabled) { this.timeline.updatePresentCopy(enabled); }
 
+  updateSpeedLive(live) { this.controls?.setSpeedLive(live); }
+
   destroy() { this.timeline.destroy(); this.controls.destroy(); }
 }

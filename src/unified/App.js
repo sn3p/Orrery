@@ -207,7 +207,9 @@ export default class App {
     this.requestRender();
   }
   notePresent() {
-    this.gui?.updateNow?.(this._holdAtPresent && this.followingPresent);
+    const live = this._holdAtPresent && this.followingPresent;
+    this.gui?.updateNow?.(live);
+    this.gui?.updateSpeedLive?.(live && this.jedDelta > 0);
     this.gui?.updatePresentCopy?.(this._holdAtPresent);
   }
   get isPlaying() { return this.jedDelta !== 0 && !this.held; }
