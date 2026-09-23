@@ -126,15 +126,35 @@ async function entries(browser, base, output, name) {
       } finally { await page.close(); }
     }
   }
-  for (const kind of ['chunk', 'webgl2', 'shader']) {
+  // Without WebGL2 the requested Three route starts Pixi itself, never downloads
+  // the Three chunk, explains the substitution and keeps the requested address.
+  const fallback = await browser.newPage({ viewport: { width: 320, height: 568 } });
+  const fallbackErrors = [], fallbackRequests = [];
+  fallback.on('pageerror', e => fallbackErrors.push(e.message));
+  fallback.on('request', r => fallbackRequests.push(r.url()));
+  try {
+    await fallback.addInitScript(() => {
+      const get = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function(type, ...args) { return type === 'webgl2' ? null : get.call(this, type, ...args); };
+    });
+    await fallback.goto(base + '/Orrery/next/?renderer=three');
+    await fallback.waitForFunction(() => Number(document.querySelector('#orrery-count').textContent.replaceAll("\u202f", "")) > 0);
+    assert.equal(await fallback.evaluate(() => threeTest.app.rendererId), 'pixi');
+    assert.equal(await fallback.locator('#orrery canvas').count(), 1);
+    assert.equal(await fallback.locator('#orrery-status').textContent(), 'Three.js needs WebGL2. Showing Pixi.');
+    assert.equal(await fallback.locator('#orrery-status').getAttribute('role'), 'status');
+    assert.equal(await fallback.getByRole('link', { name: 'Open Pixi preview', exact: true }).count(), 0);
+    assert(!fallbackRequests.some(url => /\/three\.[^/]*\.js$/.test(url)), 'The fallback does not download the Three chunk');
+    assert.equal(await fallback.evaluate(() => { threeTest.app.syncShareUrl(); return location.search; }), '?renderer=three',
+      'The address keeps the requested renderer for capable devices');
+    assert.deepEqual(fallbackErrors, []);
+    results.push({ failure: 'webgl2', automaticPixiFallback: true });
+  } finally { await fallback.close(); }
+  for (const kind of ['chunk', 'shader']) {
     const page = await browser.newPage({ viewport: { width: 320, height: 568 } });
     const unhandled = []; page.on('pageerror', e => unhandled.push(e.message));
     try {
       if (kind === 'chunk') await page.route('**/assets/three.*.js', route => route.fulfill({ status: 503, body: 'Unavailable' }));
-      else if (kind === 'webgl2') await page.addInitScript(() => {
-        const get = HTMLCanvasElement.prototype.getContext;
-        HTMLCanvasElement.prototype.getContext = function(type, ...args) { return type === 'webgl2' ? null : get.call(this, type, ...args); };
-      });
       else await page.addInitScript(() => {
         const original = WebGL2RenderingContext.prototype.shaderSource;
         WebGL2RenderingContext.prototype.shaderSource = function(shader, source) {

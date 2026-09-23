@@ -3,11 +3,13 @@
 Open `/` for 3D. `/?renderer=pixi` opens 2D, and `/?renderer=three` still selects 3D.
 `?date=YYYY-MM-DD` starts paused on that UTC day in either mode. The old `/next/` entry is removed. Both modes use the complete published
 discovery catalogue. An unknown renderer falls back to Three.js with feedback.
-A Three startup failure reports the failure and offers the accessible Pixi recovery
+Without WebGL2 the app starts Pixi instead, before downloading any Three code, with
+the notice `Three.js needs WebGL2. Showing Pixi.`; the address keeps the requested
+renderer so the same link opens 3D on a capable device. A Three startup failure with
+WebGL2 present reports the failure and offers the accessible Pixi recovery
 link (`Open Pixi preview`), preserving the deployment prefix. Terminal Three shader/upload/draw failures
 offer the same recovery link; successful graphics recovery clears it.
-Missing code and unavailable WebGL2 use
-neutral reload guidance. The 2D entry does not load Three.js or require WebGL2.
+Missing code uses neutral reload guidance. The 2D entry does not load Three.js or require WebGL2.
 
 ## Ownership and presentation
 
@@ -94,7 +96,7 @@ RENDERER=three HEADLESS=1 DURATION_SECONDS=120 PROFILES=native \
 ```
 
 Native projects include the real direct entry at root and Pages subpaths,
-WebGL1-only Pixi fallback, missing Three chunk/WebGL2 recovery, production scene/reverse-return
+WebGL1-only Pixi fallback, automatic Pixi fallback without WebGL2, missing Three chunk recovery, production scene/reverse-return
 checks, independent XYZ GLSL/colour and rendered CPU-reference comparisons, upload budgets, catalogue modes,
 camera/time/visibility, failed frames and retained graphics restoration. The complete native suite selects all
 Three cases; standalone verification covers the two public renderer smoke cases. Benchmark reports

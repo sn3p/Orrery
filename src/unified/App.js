@@ -7,7 +7,7 @@ import Hud from "./ui/Hud.js";
 import CatalogSource from "./catalog/CatalogSource.js";
 import CatalogLoader from "./catalog/CatalogLoader.js";
 import { allocateCatalogue, appendCatalogue, prepareCatalogue } from "./catalog/prepareCatalogue.js";
-import { DEFAULT_RENDERER, selectRenderer, renderers } from "./renderers.js";
+import { DEFAULT_RENDERER, rendererName, selectRenderer, renderers } from "./renderers.js";
 import switchRenderer from "./switchRenderer.js";
 import { isPlanetLabelMode, loadPlanetLabelMode, savePlanetLabelMode } from "./PlanetLabel.js";
 import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "./PlanetOrbitPreference.js";
@@ -19,6 +19,12 @@ import { loadRealTimePreference, saveRealTimePreference } from "./RealTimePrefer
 const STATUS_OWNER = Symbol.for("orrery.statusOwner");
 const countFormat = new Intl.NumberFormat("en-US");
 const formatCount = value => countFormat.format(value).replaceAll(",", "\u202f");
+
+function webgl2Available() {
+  const gl = document.createElement("canvas").getContext("webgl2");
+  gl?.getExtension("WEBGL_lose_context")?.loseContext();
+  return !!gl;
+}
 
 export default class App {
   constructor(options = {}) {
@@ -47,7 +53,10 @@ export default class App {
     // Reload must reproduce an unrecognized ?renderer= value; the resolved default
     // id would omit it from the share URL and drop the fallback notice.
     this.rendererQuery = selection.notice ? options.renderer : selection.id;
+    this.requestedRenderer = options.renderer ?? null;
     this.createRenderer = options.createRenderer ?? selection.create;
+    // An injected adapter is the caller's choice; only registry adapters are probed.
+    this.probeGraphics = !options.createRenderer;
     this._pixelRatio = (window.devicePixelRatio || 1) >= 2 ? "2" : "1";
     this._planetLabels = options.planetLabels ?? loadPlanetLabelMode();
     if (!isPlanetLabelMode(this._planetLabels)) throw new Error("Invalid planet label mode.");
@@ -258,8 +267,23 @@ export default class App {
     return this.initialization;
   }
 
+  // Three needs WebGL2. A device without it starts Pixi with a notice instead of
+  // a startup failure. The share URL keeps the requested id, so the same address
+  // opens the 3D view on a capable device.
+  fallBackWithoutWebGL2() {
+    const entry = this.rendererRegistry[this.rendererId];
+    if (!entry?.needsWebGL2 || !this.probeGraphics || webgl2Available()) return;
+    const fallbackId = Object.keys(this.rendererRegistry).find(id => !this.rendererRegistry[id].needsWebGL2);
+    if (fallbackId === undefined) return;
+    this.rendererQuery = this.requestedRenderer;
+    this.rendererNotice = `${rendererName(entry)} needs WebGL2. Showing ${rendererName(this.rendererRegistry[fallbackId])}.`;
+    this.rendererId = fallbackId;
+    this.createRenderer = selectRenderer(fallbackId, this.rendererRegistry).create;
+  }
+
   async initialize() {
     try {
+      this.fallBackWithoutWebGL2();
       const renderer = this.createRenderer(this.rendererContext(this.rendererToken = {}));
       this.renderer = renderer instanceof Promise ? await renderer : renderer;
       if (this.destroyed) { this.renderer.destroy(); return; }
