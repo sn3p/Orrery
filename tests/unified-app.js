@@ -6,7 +6,8 @@ import PixiRenderer from "../src/unified/pixi/PixiRenderer.js";
 export default class UnifiedFixture extends App {
   static application = "unified";
   constructor(options) {
-    super({ ...options, createRenderer: callbacks => new PixiRenderer(callbacks) });
+    super({ ...options, renderer: options.renderer ?? "pixi", defaultRenderer: options.defaultRenderer ?? "pixi",
+      createRenderer: callbacks => new PixiRenderer(callbacks) });
   }
   async initialize() {
     await super.initialize();

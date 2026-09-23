@@ -39,7 +39,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
       const init = Application.prototype.init;
       try {
         let adapter;
-        app = new App({ createRenderer: callbacks => new Promise(resolve => { release = () => resolve(adapter = new PixiRenderer(callbacks)); }) });
+        app = new App({ renderer: 'pixi', createRenderer: callbacks => new Promise(resolve => { release = () => resolve(adapter = new PixiRenderer(callbacks)); }) });
         const first = app.init();
         check(app.init() === first, 'Raw App initialization is shared');
         app.destroy(); release(); await first;
@@ -51,7 +51,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
             if (afterAllocation) await init.call(this, options);
             throw new Error('forced init failure');
           };
-          app = new App();
+          app = new App({ renderer: 'pixi' });
           let rejected = false;
           try { await app.init(); } catch { rejected = true; }
           check(rejected && app.destroyed && !app.initialized, 'Failed init is terminal and disposed');
@@ -71,7 +71,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
           await startupGate;
           return result;
         };
-        app = new App({ autoRender: false });
+        app = new App({ renderer: 'pixi', autoRender: false });
         const startup = app.init();
         await startupReady;
         check(app.renderer.planets.length === 0 && !app.renderer.initialized,
@@ -94,7 +94,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
           'The startup-time orbit visibility applies without hiding planets');
         app.destroy(); localStorage.removeItem('orrery.planetLabels');
         Application.prototype.init = init;
-        app = new App({ autoRender: false, jedDelta: 0 });
+        app = new App({ renderer: 'pixi', autoRender: false, jedDelta: 0 });
         // Exercise a real early load; App must wait for its own lazy renderer.
         check(await app.loadAsteroids(fixture.catalogURL), 'Load before init is accepted and committed');
         check(app.renderer.asteroids.discoveryDates.length === 100000, 'Historical100k committed');
@@ -125,7 +125,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
     });
     try {
       await page.evaluate(async () => {
-        window.recoveryApp = new fixture.App({ jedDelta: 0, autoRender: false });
+        window.recoveryApp = new fixture.App({ renderer: 'pixi', jedDelta: 0, autoRender: false });
         await recoveryApp.init();
         await recoveryApp.loadAsteroids(fixture.catalogURL);
         recoveryApp.renderFrame(0);
@@ -194,7 +194,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
             p.on('console', m => { if (m.type() === 'error') errors.push(`${name}: ${m.text()}`); });
             await p.goto(server.url + '/fixture/');
             await p.evaluate(async application => {
-              const app = window.app = new fixture[application]({ jedDelta: 0, autoRender: false, resolution: devicePixelRatio });
+              const app = window.app = new fixture[application]({ renderer: 'pixi', jedDelta: 0, autoRender: false, resolution: devicePixelRatio });
               await app.init();
               window.scene = app.renderer ?? app;
               app.addPlanets(fixture.planets);

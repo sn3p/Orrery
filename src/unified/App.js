@@ -7,7 +7,7 @@ import Hud from "./ui/Hud.js";
 import CatalogSource from "./catalog/CatalogSource.js";
 import CatalogLoader from "./catalog/CatalogLoader.js";
 import { allocateCatalogue, appendCatalogue, prepareCatalogue } from "./catalog/prepareCatalogue.js";
-import { selectRenderer, renderers } from "./renderers.js";
+import { DEFAULT_RENDERER, selectRenderer, renderers } from "./renderers.js";
 import switchRenderer from "./switchRenderer.js";
 import { isPlanetLabelMode, loadPlanetLabelMode, savePlanetLabelMode } from "./PlanetLabel.js";
 import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "./PlanetOrbitPreference.js";
@@ -39,10 +39,12 @@ export default class App {
     this.rendererOptions = Object.fromEntries(Object.entries(this.rendererRegistry).map(([id, entry]) => [id, { ...entry.defaults }]));
     this.rendererViews = {};
     this.planetBatches = [];
-    const selection = selectRenderer(options.renderer, this.rendererRegistry);
+    this.defaultRenderer = options.defaultRenderer ?? DEFAULT_RENDERER;
+    const requested = options.renderer == null ? this.defaultRenderer : options.renderer;
+    const selection = selectRenderer(requested, this.rendererRegistry, this.defaultRenderer);
     this.rendererId = selection.id;
     this.rendererNotice = selection.notice;
-    // Reload must reproduce an unrecognized ?renderer= value; the resolved Pixi
+    // Reload must reproduce an unrecognized ?renderer= value; the resolved default
     // id would omit it from the share URL and drop the fallback notice.
     this.rendererQuery = selection.notice ? options.renderer : selection.id;
     this.createRenderer = options.createRenderer ?? selection.create;
@@ -310,6 +312,7 @@ export default class App {
   syncShareUrl() {
     if (this.destroyed) return;
     replaceShareUrl({
+      defaultRenderer: this.defaultRenderer,
       renderer: this.rendererNotice ? this.rendererQuery : this.rendererId,
       ...(this.jedDelta === 0 ? { date: shareDateValue(this.requestedJed ?? this._jed, this.startJed) } : {}),
     });

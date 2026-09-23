@@ -73,7 +73,7 @@ async function run(browser, base, output, name) {
     page.on("pageerror", error => errors.push(error.message));
     page.on("console", message => { if (message.type() === "error" && !/Failed to load resource/.test(message.text())) errors.push(message.text()); });
     await page.addInitScript(instrument);
-    const url = base + "/catalog-" + mode + "/";
+    const url = base + "/catalog-" + mode + "/?renderer=pixi";
     const firstFile = mode === "whole" ? "full/catalog.json" : "chunks/000000.json";
     let releaseFirst;
     const firstGate = new Promise(resolve => { releaseFirst = resolve; });
@@ -213,7 +213,7 @@ async function run(browser, base, output, name) {
     let attempts = 0;
     await page.route("**/chunks/000001.json", route => ++attempts === 1
       ? route.fulfill({ status: 503, body: "unavailable" }) : route.continue());
-    await page.goto(base + "/catalog-indexed/");
+    await page.goto(base + "/catalog-indexed/?renderer=pixi");
     await page.waitForFunction(sceneComplete);
     assert.equal(attempts, 2);
     await page.unroute("**/chunks/000001.json");
@@ -239,7 +239,7 @@ async function run(browser, base, output, name) {
   try {
     const gate = new Promise(resolve => { release = resolve; });
     await lifecycle.route("**/chunks/*.json", async route => { await gate; await route.continue().catch(() => {}); });
-    await lifecycle.goto(base + "/catalog-indexed/");
+    await lifecycle.goto(base + "/catalog-indexed/?renderer=pixi");
     await lifecycle.evaluate(() => window.catalogReady);
     const native = await lifecycle.evaluate(async ({ pin, tiesPin, base }) => {
       const app = window.catalogTest.app;
@@ -280,7 +280,7 @@ async function run(browser, base, output, name) {
           ? source + "\ncontrolled_invalid_shader_token;\n" : source);
       };
     });
-    await failedShader.goto(base + "/catalog-indexed/");
+    await failedShader.goto(base + "/catalog-indexed/?renderer=pixi");
     await failedShader.getByRole("alert").waitFor();
     await failedShader.evaluate(() => window.catalogReady);
     await failedShader.waitForFunction(() => !window.catalogTest.app.catalogLoader.request);
@@ -304,7 +304,7 @@ async function run(browser, base, output, name) {
     await prefetch.route("**/chunks/000002.json", async route => {
       requests++; await gate; await route.continue().catch(() => {});
     });
-    await prefetch.goto(base + "/catalog-indexed/");
+    await prefetch.goto(base + "/catalog-indexed/?renderer=pixi");
     await prefetch.waitForFunction(sceneComplete);
     assert.equal(requests, 0, "Paused initial population does not trigger lookahead");
     for (const pause of ["speed", "hidden"]) {
@@ -331,7 +331,7 @@ async function run(browser, base, output, name) {
     try {
       const gate = new Promise(resolve => { releaseIndex = resolve; });
       await opening.route("**/data/*/index.json", async route => { await gate; await route.continue().catch(() => {}); });
-      await opening.goto(base + "/catalog-indexed/");
+      await opening.goto(base + "/catalog-indexed/?renderer=pixi");
       await opening.waitForFunction(() => !!window.catalogTest?.app.catalogOpening);
       if (action === "replace") {
         await opening.evaluate(async ({ pin, base }) => {

@@ -1,13 +1,13 @@
 # Three adapter
 
-Open `/?renderer=three` for 3D; `/` defaults to Pixi. `?date=YYYY-MM-DD` starts paused
-on that UTC day in either mode. The old `/next/` entry is removed. Both modes use the complete published
-discovery catalogue. An unknown renderer falls back to Pixi with feedback.
+Open `/` for 3D. `/?renderer=pixi` opens 2D, and `/?renderer=three` still selects 3D.
+`?date=YYYY-MM-DD` starts paused on that UTC day in either mode. The old `/next/` entry is removed. Both modes use the complete published
+discovery catalogue. An unknown renderer falls back to Three.js with feedback.
 A Three startup failure reports the failure and offers the accessible Pixi recovery
 link (`Open Pixi preview`), preserving the deployment prefix. Terminal Three shader/upload/draw failures
 offer the same recovery link; successful graphics recovery clears it.
 Missing code and unavailable WebGL2 use
-neutral reload guidance. Pixi does not load Three or require WebGL2.
+neutral reload guidance. The 2D entry does not load Three.js or require WebGL2.
 
 ## Ownership and presentation
 
