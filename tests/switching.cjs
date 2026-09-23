@@ -181,8 +181,18 @@ async function reviewRegressions(browser, base, output, name) {
       await page.setViewportSize(viewport);
       await page.waitForFunction(() => app.renderer.viewport.width === innerWidth && app.renderer.viewport.height === innerHeight);
       const visibleStatus = async label => {
-        assert.equal(await trigger.getAttribute('aria-expanded'), 'false', label + ': overlapping panel closes');
-        assert(await trigger.evaluate(el => el === document.activeElement), label + ': focus returns to trigger');
+        // Feedback stays readable: a panel that would cover it closes and hands
+        // focus back; a panel that fits above the footer stays open beside it.
+        if (await trigger.getAttribute('aria-expanded') === 'false') {
+          assert(await trigger.evaluate(el => el === document.activeElement), label + ': focus returns to trigger');
+        } else {
+          assert(await page.evaluate(() => {
+            const panel = document.querySelector('.orrery-options-panel').getBoundingClientRect();
+            const feedback = document.getElementById('orrery-status').getBoundingClientRect();
+            return !(panel.left < feedback.right && panel.right > feedback.left
+              && panel.top < feedback.bottom && panel.bottom > feedback.top);
+          }), label + ': an open panel does not overlap the feedback');
+        }
         assert(await page.locator('#orrery-status').evaluate(el => {
           const r = el.getBoundingClientRect();
           return r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth
@@ -192,7 +202,7 @@ async function reviewRegressions(browser, base, output, name) {
       };
       await visibleStatus('loading');
       // Reopening remains possible while waiting; new failure must reveal itself.
-      await trigger.click();
+      if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
       assert(await trigger.evaluate(el => el === document.activeElement),
         'Pending switch keeps focus on the disclosure');
       await trigger.press('Tab');
@@ -201,7 +211,7 @@ async function reviewRegressions(browser, base, output, name) {
       await page.evaluate(() => rejectSwitch());
       await page.waitForFunction(() => !app.switching && !!app.switchError);
       await visibleStatus('failure');
-      await trigger.click();
+      if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
       assert.equal(await trigger.getAttribute('aria-expanded'), 'true', 'Mode choices remain accessible for retry');
       await page.keyboard.press('Escape');
       assert.deepEqual(errors, []);
@@ -622,6 +632,8 @@ async function network(browser, base, output, name) {
       await page.screenshot({ path: path.join(output, `${name}-${prefix ? 'pages' : 'root'}-switch-error.png`) });
       assert(await page.evaluate(() => app.renderer === outgoing && !outgoing.destroyed && app.rendererId === 'pixi'));
       await page.unroute('**/assets/three.*.js');
+      // The failure alert closes a panel that would cover it; retry reopens.
+      if (await optionsButton.getAttribute('aria-expanded') !== 'true') await optionsButton.click();
       await page.getByRole('combobox', { name: 'Renderer', exact: true }).selectOption('three');
       await page.waitForFunction(() => app.rendererId === 'three' && !app.switching);
       const switched = new URL(page.url());
