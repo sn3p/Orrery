@@ -312,6 +312,31 @@ test("the present indicator is written only when its state changes", async () =>
   Hud.prototype.updateNow.call({ now: null }, true);
 });
 
+test("the speed row dims only while the wall clock drives the date", async () => {
+  const { default: Options, SPEED_LIVE_HINT } = await import("../src/unified/ui/Options.js");
+  const title = "Time scale: 1 = 60 days/s; 0 pauses; negative reverses.";
+  let toggles = 0, writes = 0, text = title;
+  const controls = {
+    speedLive: null,
+    speedInput: { title },
+    speedRow: { classList: { toggle(name, force) { toggles += 1; assert.equal(name, "orrery-options-inactive"); controls.inactive = force; } } },
+    speedHint: { get textContent() { return text; }, set textContent(value) { writes += 1; text = value; } },
+  };
+  const set = live => Options.prototype.setSpeedLive.call(controls, live);
+  set(false);
+  assert.equal(toggles, 1);
+  assert.equal(controls.inactive, false);
+  assert.equal(text, title);
+  set(true); set(true);
+  assert.equal(toggles, 2);
+  assert.equal(writes, 2);
+  assert.equal(controls.inactive, true);
+  assert.equal(text, SPEED_LIVE_HINT);
+  set(false);
+  assert.equal(text, title);
+  assert.equal(controls.inactive, false);
+});
+
 test("the date readout has a present indicator", () => {
   const html = readFileSync(new URL("../src/unified/index.html", import.meta.url), "utf8");
   assert.match(html, /id="orrery-now"[^>]*>\(real time\)</);
