@@ -12,7 +12,7 @@ import switchRenderer from "./switchRenderer.js";
 import { isPlanetLabelMode, loadPlanetLabelMode, savePlanetLabelMode } from "./PlanetLabel.js";
 import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "./PlanetOrbitPreference.js";
 import { DEFAULT_POPULATION_PRESET, isPopulationPreset } from "./catalog/population.js";
-import { currentJed, engagePresent, frameSeconds, seekPresent, stepPresent } from "./present.js";
+import { armPresent, currentJed, engagePresent, frameSeconds, seekPresent, stepPresent } from "./present.js";
 import { loadRealTimePreference, saveRealTimePreference } from "./RealTimePreference.js";
 
 // Shared across module replacements so stale disposal cannot erase a new App's feedback.
@@ -59,10 +59,11 @@ export default class App {
     this._holdAtPresent = !!options.holdAtPresent;
     this.followingPresent = false;
     if (this._holdAtPresent) {
-      const engaged = engagePresent({ jed: this._jed, now: currentJed(), speed: this._jedDelta });
-      this.followingPresent = engaged.following;
-      this._jed = engaged.jed;
-      this._jedDelta = engaged.speed;
+      // A remembered option is not the gesture of turning it on. An address-bar
+      // date opens paused on that day; only a future date moves to the clock.
+      const armed = armPresent({ jed: this._jed, now: currentJed() });
+      this.followingPresent = armed.following;
+      this._jed = armed.jed;
     }
     this.held = false;
     this.clock = new PlaybackClock();
@@ -77,7 +78,6 @@ export default class App {
       this.pendingSeek = { generation: ++this.seekGeneration, target: this._jed };
       this.requestedJed = this._jed;
     }
-    if (this.followingPresent && this._jedDelta !== 0) this.syncShareUrl();
     this.rendererGeneration = 0;
     this.destroyed = false;
     this.initialized = false;

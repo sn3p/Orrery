@@ -18,7 +18,9 @@ Pause freezes it. Play resumes it. A jump into the past, or reverse speed, leave
 real time until forward playback reaches the current time again. Turning it on
 while the date is already today, or later, moves to the current instant, shows
 `(real time)`, and plays forward. An earlier day only arms that stop and leaves
-pause as it is. **Today** follows the option. With real time off, it jumps
+pause as it is. Opening the page is not that gesture: a shared `?date=` still
+opens paused on that day, even today's, and a future day opens paused at the
+current instant. **Today** follows the option. With real time off, it jumps
 to the current instant and pauses, like any other date. With real time on, the
 button reads `today (real time)`, the jump keeps playback running, and the
 dialog says a chosen date stays paused while Today keeps playing. The date
