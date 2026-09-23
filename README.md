@@ -17,7 +17,7 @@ the options panel. Without WebGL2 the app opens the 2D view and says so.
 Open `[+] options` (top left) for renderer and resolution, playback speed and
 real time, then planet labels, orbit lines and minor-planet groups.
 Speed 0 pauses, negative values reverse, and speed 1 advances 60 days per second.
-Real time starts on and is remembered in this browser; a shared date still opens paused.
+Real time starts off and is remembered in this browser; a shared date still opens paused.
 Scroll to zoom; in 3D, drag to orbit the camera. The date and on-screen count sit at
 the bottom left (the active group at the committed date), and **Orrery** in the footer
 reopens the introduction, which also links the source on GitHub.

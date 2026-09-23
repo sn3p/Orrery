@@ -37,6 +37,7 @@ async function run({ browser, name, output = '.context/timeline' }) {
         assert.equal(share(page).get('date'), '2005-05-03');
         assert.equal(share(page).get('renderer'), renderer === 'pixi' ? 'pixi' : null);
 
+        await page.evaluate(() => localStorage.setItem("orrery.realTime", "true"));
         const currentDay = new Date().toISOString().slice(0, 10);
         await page.goto(`${server.url}/?renderer=${renderer}&date=${currentDay}`);
         await page.waitForFunction(() => document.querySelector('#orrery-count')?.textContent === '6');
