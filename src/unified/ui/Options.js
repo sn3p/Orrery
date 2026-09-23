@@ -43,11 +43,28 @@ export default class Options {
     this.rendererSelect.prepend(placeholder);
     this.addHint(this.renderer, "Change renderer; time and options persist.", this.rendererSelect);
     this.renderer.onChange(id => { if (id) void this.orrery.switchRenderer(id); });
+
+    this.pixelRatio = this.gui.add(this.orrery, "pixelRatio", { "1×": "1", "2×": "2" }).name("DPR");
+    this.pixelRatioSelect = this.pixelRatio.domElement.querySelector("select");
+    this.pixelRatioSelect.setAttribute("aria-label", "Rendering pixel ratio");
+    this.pixelRatioSelect.title = "Pixel density: 2× is sharper but uses more GPU.";
+    this.addHint(this.pixelRatio, this.pixelRatioSelect.title, this.pixelRatioSelect);
+    this.updatePixelRatio();
+    this.rendererRule = this.insertRule(this.pixelRatio);
+
     const speed = this.speed = this.gui.add(this.orrery, "jedDelta", -8, 8).name("speed");
     const input = this.speedInput = speed.domElement.querySelector("input");
     input.setAttribute("aria-label", "Playback speed");
     input.title = "Time scale: 1 = 60 days/s; 0 pauses; negative reverses.";
     this.addHint(speed, input.title, input);
+
+    this.present = this.gui.add(this.orrery, "holdAtPresent").name("real time");
+    this.presentInput = this.present.domElement.querySelector("input");
+    this.presentInput.setAttribute("aria-label", "Real time");
+    this.presentInput.title = "The date runs forward only until today, then stays on the current time. Remembered in this browser.";
+    this.addHint(this.present, this.presentInput.title, this.presentInput);
+    this.confineCheckbox(this.present);
+    this.insertRule(this.present);
 
     this.planetLabels = this.gui.add(this.orrery, "planetLabels",
       { Off: "off", "Earth only": "earth", "All planets": "all" }).name("labels");
@@ -61,6 +78,7 @@ export default class Options {
     this.planetOrbitsInput.setAttribute("aria-label", "Planet orbits");
     this.planetOrbitsInput.title = "Show or hide planetary orbit lines.";
     this.addHint(this.planetOrbits, this.planetOrbitsInput.title, this.planetOrbitsInput);
+    this.confineCheckbox(this.planetOrbits);
 
     this.population = this.gui.add(this.orrery, "populationPreset", POPULATION_PRESET_OPTIONS).name("groups");
     this.populationSelect = this.population.domElement.querySelector("select");
@@ -69,12 +87,6 @@ export default class Options {
     this.population.onChange(value => this.setPopulationHint(value));
     this.mountGlossary();
 
-    this.pixelRatio = this.gui.add(this.orrery, "pixelRatio", { "1×": "1", "2×": "2" }).name("DPR");
-    this.pixelRatioSelect = this.pixelRatio.domElement.querySelector("select");
-    this.pixelRatioSelect.setAttribute("aria-label", "Rendering pixel ratio");
-    this.pixelRatioSelect.title = "Pixel density: 2× is sharper but uses more GPU.";
-    this.addHint(this.pixelRatio, this.pixelRatioSelect.title, this.pixelRatioSelect);
-    this.updatePixelRatio();
     try { this.mountRenderer(); }
     catch (error) { this.destroy(); throw error; }
     this.trigger.addEventListener("click", this.onToggle);
@@ -119,6 +131,7 @@ export default class Options {
     if (!entry.buildOptions) return;
     const folder = this.rendererFolder = this.gui.addFolder(entry.label);
     folder.domElement.classList.add("orrery-renderer-settings");
+    this.rendererRule.before(folder.domElement.parentElement);
     // Builders edit their own model; the setter validates before touching App
     // or graphics. Their cleanup owns any listeners beyond dat.gui controls.
     this.disposeRendererControls = entry.buildOptions({ gui: folder,
@@ -127,6 +140,25 @@ export default class Options {
       addHint: (controller, text, input) => this.addHint(controller, text, input) });
     if (!folder.__controllers.length && !Object.keys(folder.__folders).length) this.unmountRenderer();
     else folder.open();
+  }
+
+  insertRule(controller) {
+    const rule = document.createElement("li");
+    rule.className = "orrery-options-rule";
+    rule.setAttribute("role", "separator");
+    rule.setAttribute("aria-hidden", "true");
+    controller.domElement.closest("li").after(rule);
+    return rule;
+  }
+
+  confineCheckbox(controller) {
+    const row = controller.domElement.closest("li");
+    const cluster = row.querySelector(":scope > div");
+    // dat.gui toggles a checkbox from a click anywhere on the row.
+    row.addEventListener("click", event => {
+      if (cluster.contains(event.target)) return;
+      event.stopImmediatePropagation();
+    }, true);
   }
 
   addHint(controller, text, input) {
