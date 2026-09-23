@@ -1,5 +1,5 @@
 export const REAL_TIME_STORAGE_KEY = "orrery.realTime";
-export const DEFAULT_REAL_TIME = true;
+export const DEFAULT_REAL_TIME = false;
 
 export function loadRealTimePreference(scope = globalThis) {
   try {

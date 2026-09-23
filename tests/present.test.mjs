@@ -72,22 +72,24 @@ test("turning real time on plays when the date is already today", () => {
     { jed: midnight - 3, following: false, seek: false, speed: 0 });
 });
 
-test("real time is on by default and remembered in this browser", () => {
+test("real time is off by default and remembered in this browser", () => {
   const values = new Map();
   const scope = { localStorage: {
     getItem: key => values.get(key) ?? null,
     setItem: (key, value) => values.set(key, value),
   } };
-  assert.equal(DEFAULT_REAL_TIME, true);
+  assert.equal(DEFAULT_REAL_TIME, false);
+  assert.equal(loadRealTimePreference(scope), false);
+  assert.equal(saveRealTimePreference(true, scope), true);
+  assert.equal(values.get(REAL_TIME_STORAGE_KEY), "true");
   assert.equal(loadRealTimePreference(scope), true);
   assert.equal(saveRealTimePreference(false, scope), true);
-  assert.equal(values.get(REAL_TIME_STORAGE_KEY), "false");
   assert.equal(loadRealTimePreference(scope), false);
   values.set(REAL_TIME_STORAGE_KEY, "yes");
-  assert.equal(loadRealTimePreference(scope), true);
+  assert.equal(loadRealTimePreference(scope), false);
   const blocked = { get localStorage() { throw new Error("blocked"); } };
-  assert.equal(loadRealTimePreference(blocked), true);
-  assert.equal(saveRealTimePreference(false, blocked), false);
+  assert.equal(loadRealTimePreference(blocked), false);
+  assert.equal(saveRealTimePreference(true, blocked), false);
 });
 
 test("turning the option on seeks back only from the future", () => {
