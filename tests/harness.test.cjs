@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
@@ -9,6 +10,71 @@ const cli = require.resolve('@playwright/test/cli');
 const { build } = require('./support.cjs');
 const { copyPrepared, inventory, sourceFingerprint } = require('./fixture-builds.cjs');
 fs.mkdirSync('.context', { recursive: true });
+
+test('an unavailable WebGL probe is retried before the legacy requirement fails', async () => {
+  const { run } = require('./browser-environment.cjs');
+  const unavailable = [{ type: 'webgl', available: false }, { type: 'webgl2', available: false }];
+  const ready = [
+    { type: 'webgl', available: true, renderer: 'llvmpipe', precision: 23 },
+    { type: 'webgl2', available: true, renderer: 'llvmpipe', precision: 23 },
+  ];
+  const results = [unavailable, ready];
+  const pages = [];
+  const browser = {
+    version: () => '155.0',
+    async newPage() {
+      const contexts = results.shift();
+      const page = { closed: false, async evaluate() { return contexts; }, async close() { page.closed = true; } };
+      pages.push(page);
+      return page;
+    },
+  };
+  const output = fs.mkdtempSync(path.join(os.tmpdir(), 'orrery-webgl-probe-'));
+  try {
+    await run({ browser, name: 'firefox', output, graphics: 'mesa', pause: async () => {} });
+    assert.equal(pages.length, 2);
+    assert.equal(pages.every(page => page.closed), true);
+    const report = JSON.parse(fs.readFileSync(path.join(output, 'firefox.json'), 'utf8'));
+    assert.equal(report.contexts[0].available, true);
+    assert.equal(report.graphics, 'mesa');
+  } finally { fs.rmSync(output, { recursive: true, force: true }); }
+});
+
+test('a persistently unavailable WebGL probe still fails the legacy requirement', async () => {
+  const { run } = require('./browser-environment.cjs');
+  const unavailable = [{ type: 'webgl', available: false }, { type: 'webgl2', available: false }];
+  let opened = 0;
+  const browser = {
+    version: () => '155.0',
+    async newPage() {
+      opened += 1;
+      return { async evaluate() { return unavailable; }, async close() {} };
+    },
+  };
+  const output = fs.mkdtempSync(path.join(os.tmpdir(), 'orrery-webgl-probe-'));
+  try {
+    await assert.rejects(
+      run({ browser, name: 'firefox', output, graphics: 'mesa', pause: async () => {} }),
+      /firefox: WebGL is required by the legacy browser tests/);
+    assert.equal(opened, 3);
+  } finally { fs.rmSync(output, { recursive: true, force: true }); }
+});
+
+test('firefox launch forces WebGL on', () => {
+  const previous = process.env.ORRERY_TEST_GRAPHICS;
+  delete process.env.ORRERY_TEST_GRAPHICS;
+  try {
+    const options = require('./browsers.cjs').launchOptions('firefox');
+    assert.deepEqual(options.firefoxUserPrefs, {
+      'webgl.disabled': false,
+      'webgl.force-enabled': true,
+      'webgl.enable-webgl2': true,
+    });
+  } finally {
+    if (previous === undefined) delete process.env.ORRERY_TEST_GRAPHICS;
+    else process.env.ORRERY_TEST_GRAPHICS = previous;
+  }
+});
 
 test('every runner entry imports without starting a standalone process', () => {
   for (const suite of ['assets', 'next', 'unified', 'gpu', 'rendering', 'options-browser',
