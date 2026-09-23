@@ -46,7 +46,8 @@ export default class Hud {
   updatePlayback(speed) { this.timeline.updatePlayback(speed); }
 
   updateNow(active) {
-    if (!this.now) return;
+    // Reached after every rendered frame; skip the reflected write when unchanged.
+    if (!this.now || this.now.hidden === !active) return;
     this.now.hidden = !active;
   }
 
