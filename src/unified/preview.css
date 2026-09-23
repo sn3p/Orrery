@@ -177,7 +177,9 @@
 
 .orrery-options-panel {
   max-width: calc(100vw - 16px);
-  max-height: calc(100dvh - 42px);
+  /* Clear the top trigger and a two-row footer so the panel scrolls
+     instead of covering the identity or the status. */
+  max-height: calc(100dvh - 96px);
   border-color: #365c41;
 }
 

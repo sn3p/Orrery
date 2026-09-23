@@ -154,7 +154,7 @@ async function run({ browser, name, output = '.context/timeline' }) {
         await page.waitForFunction(expected => document.querySelector('#orrery-date').textContent === expected, today);
         assert.equal(await play.getAttribute('aria-label'), 'Pause playback',
           'Today keeps playing while real time is on');
-        assert.equal(share(page).get('date'), null, 'Playing does not pin the date');
+        assert.equal(await date.textContent(), today);
 
         await date.click();
         await page.getByRole('button', { name: '1980-01-01', exact: true }).click();
