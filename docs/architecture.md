@@ -49,7 +49,7 @@ group preset are still page-session only.
 
 Explicit planet-label and real-time choices are stored under
 `orrery.planetLabels` and `orrery.realTime`; they apply to both adapters.
-Real time defaults on.
+Real time defaults off.
 Introduction dismissal is stored separately under `orrery.intro`. Renderer choice and
 date are named only by the URL, not `localStorage`. Renderer-specific view state, DPR,
 planet orbit lines and the minor-planet group preset are not persisted.

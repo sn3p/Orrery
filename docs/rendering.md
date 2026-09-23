@@ -11,7 +11,7 @@ then playback speed and real time, then planet labels, orbit lines and
 minor-planet groups. A line separates those groups. Click outside or press Escape to close it. Speed 0 pauses;
 negative values reverse. Speed 1 advances 60 days per second (default 1.5).
 
-**Real time** is on by default and remembered in this browser (`orrery.realTime`),
+**Real time** is off by default and remembered in this browser (`orrery.realTime`),
 not in the address bar. While it is on, the date runs forward only until the
 current UTC time, then stays on that time and orbits move at their real rate.
 Pause freezes it. Play resumes it. A jump into the past, or reverse speed, leaves
