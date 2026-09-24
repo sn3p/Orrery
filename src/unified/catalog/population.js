@@ -78,10 +78,11 @@ export function highlightMask(preset, colorize = false) {
   return HIGHLIGHT_MASKS[preset] ?? 0;
 }
 
+// colorName is the spoken hue for the legend; the swatch itself is only CSS.
 const LEGEND_GROUPS = [
-  { id: CLASS_NEA, name: "Near Earth", color: CLASS_REST_COLOR[CLASS_NEA] },
-  { id: CLASS_TROJAN, name: "Jupiter Trojans", color: CLASS_REST_COLOR[CLASS_TROJAN] },
-  { id: CLASS_DISTANT, name: "Distant", color: CLASS_REST_COLOR[CLASS_DISTANT] },
+  { id: CLASS_NEA, name: "Near Earth", color: CLASS_REST_COLOR[CLASS_NEA], colorName: "teal" },
+  { id: CLASS_TROJAN, name: "Jupiter Trojans", color: CLASS_REST_COLOR[CLASS_TROJAN], colorName: "gold" },
+  { id: CLASS_DISTANT, name: "Distant", color: CLASS_REST_COLOR[CLASS_DISTANT], colorName: "violet" },
 ];
 
 export function legendGroups(preset, colorize = false) {

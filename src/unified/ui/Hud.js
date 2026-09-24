@@ -56,6 +56,8 @@ export default class Hud {
       const item = document.createElement("span");
       item.className = "orrery-swatch-item";
       item.setAttribute("role", "listitem");
+      // The dot carries the hue visually; say it for screen readers.
+      item.setAttribute("aria-label", `${group.name}, ${group.colorName}`);
       const dot = document.createElement("span");
       dot.className = "orrery-swatch";
       dot.style.backgroundColor = `#${group.color.toString(16).padStart(6, "0")}`;
