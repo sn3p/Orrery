@@ -58,13 +58,18 @@ export default class Hud {
       item.setAttribute("role", "listitem");
       // The dot carries the hue visually; say it for screen readers.
       item.setAttribute("aria-label", `${group.name}, ${group.colorName}`);
-      const dot = document.createElement("span");
-      dot.className = "orrery-swatch";
-      dot.style.backgroundColor = `#${group.color.toString(16).padStart(6, "0")}`;
+      const dots = document.createElement("span");
+      dots.className = "orrery-swatch-dots";
+      dots.append(...group.colors.map(color => {
+        const dot = document.createElement("span");
+        dot.className = "orrery-swatch";
+        dot.style.backgroundColor = `#${color.toString(16).padStart(6, "0")}`;
+        return dot;
+      }));
       const name = document.createElement("span");
       name.className = "orrery-swatch-name";
       name.textContent = group.name;
-      item.append(dot, name);
+      item.append(dots, name);
       return item;
     }));
     this.swatches.hidden = groups.length === 0;
