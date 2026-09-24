@@ -31,8 +31,8 @@ readout shows `(real time)` in the same green while that mode is active.
 Minor-planet groups name numbered objects already in this catalogue: All,
 Near Earth, Jupiter Trojans, Distant, or Without the belt. The menu decides
 which objects are drawn: everything, one group alone, or everything but the
-belt. Colorize, on by default and not remembered, never changes that set; it
-paints it. Near Earth is teal, Jupiter Trojans gold, Distant violet, and the
+belt. Group colors, on by default and not remembered, never changes that set;
+it paints it. Near Earth is teal, Jupiter Trojans gold, Distant violet, and the
 belt stays gray either way. Every new arrival is pure green and then settles
 to its group color, or to gray. Neither choice changes the discovery prefix or
 downloads extra data. Reload returns to All.
