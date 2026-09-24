@@ -217,7 +217,11 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert(await glossaryTrigger.evaluate(el => el === document.activeElement),
       "Closing the glossary returns focus to What is this?");
     await page.waitForFunction(() => document.querySelector("#orrery-fps").textContent === "0 FPS");
-    await page.waitForTimeout(100);
+    // Choosing a group eases the camera to its frame for half a second; the
+    // FPS readout counts playback frames, not that motion. Let it settle.
+    for (let last = -1, now = await page.evaluate(() => window.panelDraws); now !== last;) {
+      last = now; await page.waitForTimeout(250); now = await page.evaluate(() => window.panelDraws);
+    }
     const draws = await page.evaluate(() => window.panelDraws);
     const date = await page.locator("#orrery-date").textContent();
     await speed.press("Enter"); await page.keyboard.press("Escape");
