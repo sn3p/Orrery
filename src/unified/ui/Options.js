@@ -95,7 +95,7 @@ export default class Options {
     this.colorize = this.gui.add(this.orrery, "colorizeGroups").name("group colors");
     this.colorizeInput = this.colorize.domElement.querySelector("input");
     this.colorizeInput.setAttribute("aria-label", "Group colors");
-    this.colorizeInput.title = "Color the shown groups by orbit: Near Earth teal, Hungarias orange, Hildas blue, Jupiter Trojans gold, Distant violet. The belt stays gray on All and shows its zones in rose on the belt presets. Turning it off lasts the visit.";
+    this.colorizeInput.title = "Color the shown groups by orbit. The belt stays gray on All; the belt presets paint its zones. Turning it off lasts the visit.";
     this.addHint(this.colorize, this.colorizeInput.title, this.colorizeInput);
     this.confineCheckbox(this.colorize);
 
