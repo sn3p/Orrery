@@ -30,9 +30,10 @@ export const BELT_MASK = (1 << CLASS_BELT_INNER) | (1 << CLASS_BELT_MIDDLE) | (1
 const ALL_MASK = (1 << CLASS_COUNT) - 1;
 const MINORITY_MASK = (1 << CLASS_NEA) | (1 << CLASS_TROJAN) | (1 << CLASS_DISTANT);
 const EDGE_MASK = (1 << CLASS_HILDA) | (1 << CLASS_HUNGARIA);
-// Trial switch: with group colors on, All paints the belt zones too. False
-// keeps the belt gray on All and paints the zones only on the belt presets.
-export const PAINT_BELT_ON_ALL = true;
+// Trial switch: true paints the belt zones on All as well. False keeps the
+// belt gray on All and paints the zones only on the belt presets, which also
+// keeps the All legend to five entries so a 320px footer stays two rows.
+export const PAINT_BELT_ON_ALL = false;
 
 export const DEFAULT_POPULATION_PRESET = "all";
 
