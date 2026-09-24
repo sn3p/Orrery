@@ -45,7 +45,7 @@ in `population.js` decides whether All paints the belt zones (true) or leaves
 the belt gray and paints the zones only on the belt presets (false, the
 current setting). Neither choice changes the discovery prefix or
 downloads extra data. Reload returns to All.
-One-line help sits under the control; **What is this?** opens a glossary
+One-line help sits under the control; **About these groups** opens a glossary
 whose titles repeat the legend dots,
 as does the **minor-planet groups** shortcut in the introduction card. The
 bottom-left count is what the group menu shows at the committed date, colored
