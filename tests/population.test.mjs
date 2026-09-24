@@ -158,6 +158,11 @@ test("presets validate, default to All, and do not persist a storage key", () =>
   assert.match(populationHint("belt-inner"), /Kirkwood/);
   assert.match(populationHint("hildas"), /Jupiter/);
   assert.match(populationHint("hungarias"), /3D/);
+  assert.match(populationHint("hungarias"), /0\.18/, "the hint states the enforced eccentricity limit");
+  assert.match(populationHint("belt-outer"), /Jupiter/, "the hint discloses the strays folded into the outer zone");
+  const glossary = fs.readFileSync(new URL("../src/unified/index.html", import.meta.url), "utf8");
+  assert.match(glossary, /tilted 16–34° with eccentricity at most 0\.18/);
+  assert.match(glossary, /strays between the belt edge and Jupiter count as outer/);
   for (const preset of PRESETS) assert.ok(populationHint(preset).length > 20, `${preset} has a hint`);
 });
 
