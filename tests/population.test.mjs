@@ -60,6 +60,7 @@ test("group colors keep the belt visible and reserve green for highlighted arriv
   assert.deepEqual(legendGroups("all", true).map(group => group.name),
     ["Near Earth", "Jupiter Trojans", "Distant"]);
   assert.deepEqual(legendGroups("trojans", true).map(group => group.name), ["Jupiter Trojans"]);
+  assert.deepEqual(legendGroups("all", true).map(group => group.colorName), ["teal", "gold", "violet"]);
   const pixi = fs.readFileSync(new URL("../src/unified/pixi/Asteroids.js", import.meta.url), "utf8");
   const three = fs.readFileSync(new URL("../src/unified/three/Asteroids.js", import.meta.url), "utf8");
   assert.match(pixi, /vec3 arrival = vec3\(0\.0, 1\.0, 0\.0\)/);
@@ -169,6 +170,14 @@ test("group colors update the highlight without changing the group", () => {
   cloud.setColorize(true);
   assert.equal(cloud.uniforms.colorMask.value, (1 << CLASS_NEA) | (1 << CLASS_TROJAN) | (1 << CLASS_DISTANT));
   assert.equal(cloud.highlight.visible, true);
+  // A speculative empty frame hides both passes; rolling it back restores both.
+  const framed = cloud.captureFrame(REFERENCE_JED, 0);
+  cloud.update(sample.disc - 1, 0);
+  assert.equal(cloud.visible, false);
+  assert.equal(cloud.highlight.visible, false);
+  cloud.restoreFrame(framed);
+  assert.equal(cloud.visible, true);
+  assert.equal(cloud.highlight.visible, true, "a rolled-back frame restores the highlight too");
   cloud.setPopulationPreset("nea");
   // The menu owns the drawn set; group colors only paint it.
   assert.equal(cloud.uniforms.classMask.value, 1 << CLASS_NEA);

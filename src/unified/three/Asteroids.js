@@ -255,6 +255,7 @@ export default class Asteroids extends THREE.Points {
     this.uniforms.pulseTime.value = state.pulseTime;
     this.geometry.setDrawRange(0, state.count);
     this.visible = state.visible;
+    this.syncHighlight();
     this.syncTallies(state.count);
   }
 
