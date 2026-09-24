@@ -644,6 +644,7 @@ dialog .orrery-dialog-title:focus { outline: none; }
   margin-right: 0.45em;
   vertical-align: 1px;
 }
+.orrery-glossary-gray dt .orrery-swatch-dots { display: none; }
 .orrery-glossary dd { margin: 0 0 8px; }
 .orrery-glossary dd:last-child { margin-bottom: 0; }
 .orrery-glossary-links { color: var(--color-hud); }

@@ -216,6 +216,15 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     [["nea", 1, "Near Earth"], ["hungarias", 1, "Hungarias"], ["belt", 3, "Main belt"], ["hildas", 1, "Hildas"],
       ["trojans", 1, "Jupiter Trojans"], ["distant", 1, "Distant"]], "Glossary titles carry the legend dots");
     assert.equal(await glossary.evaluate(el => getComputedStyle(el).scrollbarColor), "rgb(71, 123, 84) rgb(17, 17, 17)");
+    assert.equal(await glossary.locator("dt .orrery-swatch-dots:visible").count(), 6, "Dots show while group colors are on");
+    await page.keyboard.press("Escape");
+    await page.getByRole("checkbox", { name: "Group colors" }).uncheck();
+    await glossaryTrigger.click();
+    assert.equal(await glossary.locator("dt .orrery-swatch-dots:visible").count(), 0, "Dots hide while group colors are off");
+    await page.keyboard.press("Escape");
+    await page.getByRole("checkbox", { name: "Group colors" }).check();
+    await glossaryTrigger.click();
+    assert.equal(await glossary.locator("dt .orrery-swatch-dots:visible").count(), 6, "Dots return with group colors");
     assert(await glossary.evaluate(el => el.getBoundingClientRect().width > 600), "Glossary widens on a desktop viewport");
     assert.equal(await page.evaluate(() => document.activeElement?.id), "orrery-glossary-title");
     await page.keyboard.press("Escape");
