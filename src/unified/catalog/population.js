@@ -69,11 +69,11 @@ export const POPULATION_PRESET_OPTIONS = {
 export const POPULATION_PRESET_HINTS = {
   all: "Numbered minor planets with known discovery dates. Most are in the main belt.",
   nea: "Perihelion closer than 1.3 AU. Sparse at 1980; this numbered catalog is a sample.",
-  hungarias: "Inside 2 AU on tilted orbits (16–34°). A ring inside the belt edge; the tilt reads in 3D.",
+  hungarias: "Inside 2 AU, tilted 16–34°, eccentricity at most 0.18. A ring inside the belt edge; the tilt reads in 3D.",
   belt: "The doughnut between Mars and Jupiter: inner, middle and outer zones by orbit size.",
   "belt-inner": "Orbits smaller than 2.5 AU, up to the first Kirkwood gap. The densest zone.",
   "belt-middle": "Orbits between 2.5 and 2.82 AU, between two Kirkwood gaps.",
-  "belt-outer": "Orbits from 2.82 AU out to the belt edge near 3.3 AU, Cybeles included.",
+  "belt-outer": "Orbits from 2.82 AU to the belt edge near 3.3 AU, plus Cybeles and the few strays out to Jupiter.",
   hildas: "Orbits near 4 AU in a 3:2 resonance with Jupiter. A triangle locked to the planet.",
   trojans: "Share Jupiter’s orbit (L4/L5). Thin at 1980; swarms read after the 2000s.",
   distant: "Beyond Jupiter, grouped by orbit shape in this app, not official MPC types.",
@@ -174,7 +174,8 @@ export function populationHint(preset) {
 }
 
 // Inclination is in degrees. Leftovers join the nearest zone: Mars-crossers
-// are inner, Cybeles and the thin stretch up to Jupiter are outer.
+// are inner; Cybeles, the 4.2–4.8 AU stretch and eccentric orbits near
+// Jupiter's distance are outer. The hints and glossary say so.
 export function classifyOrbit(a, e, i = 0) {
   const q = a * (1 - e);
   if (q < NEA_PERIHELION_AU) return CLASS_NEA;

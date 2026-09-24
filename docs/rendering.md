@@ -33,9 +33,11 @@ outward: All, Near Earth, Hungarias, Main belt, Inner belt, Middle belt, Outer
 belt, Hildas, Jupiter Trojans, Distant, or Without the belt. The menu decides
 which objects are drawn: everything, one group alone, or everything but the
 belt. The belt zones are cut by semi-major axis at the Kirkwood gaps (2.5 and
-2.82 AU) and the belt edge (3.28 AU); Cybeles and Mars-crossers join the
-nearest zone. Hildas are 3.7–4.2 AU; Hungarias are inside 2 AU with 16–34°
-inclination and eccentricity at most 0.18. Without the belt hides the three
+2.82 AU) and the belt edge (3.28 AU). Anything left over joins the nearest
+zone: Mars-crossers are inner; Cybeles, the sparse 4.2–4.8 AU stretch and
+eccentric orbits near Jupiter's distance are outer. Hildas are 3.7–4.2 AU;
+Hungarias are inside 2 AU with 16–34° inclination and eccentricity at most
+0.18. Without the belt hides the three
 zones and keeps Hungarias and Hildas. Group colors, on by default and not
 remembered, never changes that set; it paints it. Near Earth is teal, Hungarias
 orange, the belt one rose hue from light inner to dark outer, Hildas blue,
