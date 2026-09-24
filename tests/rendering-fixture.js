@@ -27,12 +27,16 @@ window.initialized = app.init().then(() => {
       probe.image = app.canvas.toDataURL();
       const gl = app.app.renderer.gl, data = new Uint8Array(app.canvas.width * app.canvas.height * 4);
       gl.readPixels(0, 0, app.canvas.width, app.canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, data);
-      let green = 0, gray = 0;
+      // Pure green is the arrival; teal is a Near Earth marker's resting group
+      // color, which has as much blue as green; gray has all three equal.
+      let green = 0, gray = 0, teal = 0;
       for (let i = 0; i < data.length; i += 4) {
-        if (data[i + 1] > 20 && data[i + 1] > data[i] * 2) green++;
-        else if (data[i] > 20 && Math.abs(data[i] - data[i + 1]) < 2) gray++;
+        const [r, g, b] = [data[i], data[i + 1], data[i + 2]];
+        if (g > 20 && g > r * 2 && g > b * 2) green++;
+        else if (r > 20 && Math.abs(r - g) < 2 && Math.abs(g - b) < 2) gray++;
+        else if (g > 20 && g > r * 2 && b > r * 2) teal++;
       }
-      probe.pixels = { green, gray };
+      probe.pixels = { green, gray, teal };
     }
     return result;
   };

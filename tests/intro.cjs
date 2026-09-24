@@ -193,8 +193,14 @@ async function run({ browser, name, output = '.context/intro' }) {
           select.value = 'three';
           select.dispatchEvent(new Event('change', { bubbles: true }));
         });
-        await page.waitForFunction(() => document.querySelector('#orrery-intro-renderers')?.getAttribute('aria-busy') === 'true');
-        assert(await externalTwoD.isDisabled() && await externalThreeD.isDisabled(),
+        // A warm switch can finish within a round trip, so read busy and both
+        // disabled states in one evaluation rather than three.
+        const busyChoices = await page.waitForFunction(() => {
+          const group = document.querySelector('#orrery-intro-renderers');
+          if (group?.getAttribute('aria-busy') !== 'true') return null;
+          return [...group.querySelectorAll('.orrery-intro-renderer')].every(button => button.disabled);
+        });
+        assert(await busyChoices.jsonValue(),
           'A switch started elsewhere immediately disables both intro choices');
         await page.waitForFunction(() => {
           const select = document.querySelector('select[aria-label="Renderer"]');

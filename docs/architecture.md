@@ -53,7 +53,7 @@ Real time defaults off.
 Introduction dismissal is stored separately under `orrery.intro`. Renderer choice and
 date are named only by the URL, not `localStorage`. Renderer-specific view state, DPR,
 planet orbit lines and the minor-planet group preset are not persisted.
-Choosing Jupiter Trojans may ease the active camera out so Jupiter’s orbit fits;
+Choosing a group eases the active camera in or out to that group’s frame;
 switching still restores each renderer’s last stored view.
 
 ## Renderer switching

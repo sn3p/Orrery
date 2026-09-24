@@ -92,6 +92,13 @@ export default class Options {
     this.population.onChange(value => this.setPopulationHint(value));
     this.mountGlossary();
 
+    this.colorize = this.gui.add(this.orrery, "colorizeGroups").name("group colors");
+    this.colorizeInput = this.colorize.domElement.querySelector("input");
+    this.colorizeInput.setAttribute("aria-label", "Group colors");
+    this.colorizeInput.title = "Color the shown groups by orbit: Near Earth teal, Jupiter Trojans gold, Distant violet. The belt stays gray. Turning it off lasts the visit.";
+    this.addHint(this.colorize, this.colorizeInput.title, this.colorizeInput);
+    this.confineCheckbox(this.colorize);
+
     try { this.mountRenderer(); }
     catch (error) { this.destroy(); throw error; }
     this.trigger.addEventListener("click", this.onToggle);
@@ -107,6 +114,7 @@ export default class Options {
     this.rendererSelect.value = this.rendererState.renderer;
     this.speed?.updateDisplay();
     this.population?.updateDisplay();
+    this.colorize?.updateDisplay();
     this.rendererSelect.disabled = !!this.orrery.switching;
     this.panel.setAttribute("aria-busy", String(!!this.orrery.switching));
     if (focused && this.rendererSelect.disabled) {

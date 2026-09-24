@@ -1,9 +1,10 @@
 import { Bounds, Buffer, BufferUsage, Geometry, Mesh, Shader, UniformGroup } from "pixi.js";
 import { DISCOVERY_SECONDS, REBASE_DAYS, REFERENCE_JED, discoveryCount, orbitGLSL, prepareOrbits, validDate, wrap } from "../../js/asteroidOrbits.js";
-import { CLASS_COUNT, DEFAULT_POPULATION_PRESET, advanceClassTallies, classifyCatalogue,
-  isPopulationPreset, populationGLSL, populationMask, visibleFromTallies } from "../catalog/population.js";
+import { CLASS_COUNT, CLASS_DISTANT, CLASS_NEA, CLASS_REST_COLOR, CLASS_TROJAN,
+  DEFAULT_POPULATION_PRESET, advanceClassTallies, classifyCatalogue, colorChannels,
+  highlightMask, isPopulationPreset, populationGLSL, populationMask, visibleFromTallies } from "../catalog/population.js";
 
-const vertex = `
+const vertex = pass => `
 precision highp float;
 attribute vec2 aPosition;
 attribute vec4 aBasis;
@@ -19,20 +20,38 @@ uniform vec4 uColor;
 uniform float uOrbitTime;
 uniform float uMarkerTime;
 uniform float uClassMask;
+uniform float uColorMask;
+uniform vec3 uNeaColor;
+uniform vec3 uTrojanColor;
+uniform vec3 uDistantColor;
 varying vec2 vUV;
 varying vec4 vColor;
 ${orbitGLSL}
 ${populationGLSL}
+vec3 classRestColor(float id) {
+  if (id < 1.5) return uNeaColor;
+  if (id < 2.5) return uTrojanColor;
+  return uDistantColor;
+}
 void main() {
   float age = uMarkerTime - aDiscovery;
   bool fresh = aDiscovery >= 0.0 && age < ${DISCOVERY_SECONDS};
+  float highlighted = populationVisible(aClass, uColorMask);
   float visible = populationVisible(aClass, uClassMask);
-  float size = visible * (fresh ? 3.0 - 3.0 * max(age, 0.0) : 1.0);
+  visible *= ${pass}.0 < 0.5 ? 1.0 - highlighted : highlighted;
+  float emphasis = fresh ? 3.0 - 3.0 * max(age, 0.0) : 1.0;
+  mat3 model = uProjectionMatrix * uWorldTransformMatrix * uTransformMatrix;
+  float clipPerUnit = length((model * vec3(1.0, 0.0, 0.0)).xy);
+  float clipPerPixel = length(uProjectionMatrix[0].xy);
+  float pixelsPerUnit = clipPerPixel > 0.0 ? clipPerUnit / clipPerPixel : 1.0;
+  float size = visible * emphasis * max(1.0, pixelsPerUnit > 0.0 ? 1.0 / pixelsPerUnit : 1.0);
   vec2 center = orbitPosition(aBasis.xy, aBasis.zw, aElements, aMeanAnomaly, uOrbitTime);
-  vec3 position = uProjectionMatrix * uWorldTransformMatrix * uTransformMatrix * vec3(center + aPosition * size, 1.0);
+  vec3 position = model * vec3(center + aPosition * size, 1.0);
   gl_Position = vec4(position.xy, 0.0, 1.0);
   vUV = aPosition + 0.5;
-  vColor = vec4(fresh ? vec3(0.0, 1.0, 0.0) : vec3(0.6666666667), visible) * uColor * uWorldColorAlpha;
+  vec3 resting = highlighted > 0.5 ? classRestColor(aClass) : vec3(0.6666666667);
+  vec3 arrival = vec3(0.0, 1.0, 0.0);
+  vColor = vec4(fresh ? arrival : resting, visible) * uColor * uWorldColorAlpha;
 }`;
 const fragment = `
 precision mediump float;
@@ -67,9 +86,10 @@ export default class Asteroids extends Mesh {
     const markers = buffer(new Float32Array(packed.dates.length).fill(-1), "discovery timestamps");
     const classes = canonical ? data.classes : classifyCatalogue(data);
     const classValues = buffer(new Float32Array(packed.dates.length), "population classes");
+    const quad = buffer(new Float32Array([-0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, 0.5]), "unit quad");
     const geometry = new OrbitGeometry({
       attributes: {
-        aPosition: { buffer: buffer(new Float32Array([-0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, 0.5]), "unit quad"), format: "float32x2" },
+        aPosition: { buffer: quad, format: "float32x2" },
         aBasis: { buffer: bases, format: "float32x4", instance: true },
         aElements: { buffer: elements, format: "float32x2", instance: true },
         aMeanAnomaly: { buffer: meanAnomalies, format: "float32", instance: true },
@@ -78,10 +98,49 @@ export default class Asteroids extends Mesh {
       },
       indexBuffer: new Uint16Array([0, 1, 2, 0, 2, 3]), instanceCount: 0,
     }, packed.radius);
-    const uniforms = new UniformGroup({ uOrbitTime: { value: 0, type: "f32" }, uMarkerTime: { value: 0, type: "f32" },
-      uClassMask: { value: populationMask(DEFAULT_POPULATION_PRESET), type: "f32" } });
-    const shader = Shader.from({ gl: { vertex, fragment, name: "asteroid-orbits" }, resources: { orbitUniforms: uniforms, uTexture: texture.source } });
+    const [neaR, neaG, neaB] = colorChannels(CLASS_REST_COLOR[CLASS_NEA]);
+    const [trojanR, trojanG, trojanB] = colorChannels(CLASS_REST_COLOR[CLASS_TROJAN]);
+    const [distantR, distantG, distantB] = colorChannels(CLASS_REST_COLOR[CLASS_DISTANT]);
+    const uniforms = new UniformGroup({
+      uOrbitTime: { value: 0, type: "f32" }, uMarkerTime: { value: 0, type: "f32" },
+      uClassMask: { value: populationMask(DEFAULT_POPULATION_PRESET), type: "f32" },
+      uColorMask: { value: highlightMask(DEFAULT_POPULATION_PRESET), type: "f32" },
+      uNeaColor: { value: new Float32Array([neaR, neaG, neaB]), type: "vec3<f32>" },
+      uTrojanColor: { value: new Float32Array([trojanR, trojanG, trojanB]), type: "vec3<f32>" },
+      uDistantColor: { value: new Float32Array([distantR, distantG, distantB]), type: "vec3<f32>" },
+    });
+    const shader = Shader.from({
+      gl: { vertex: vertex(0), fragment, name: "asteroid-orbits" },
+      resources: { orbitUniforms: uniforms, uTexture: texture.source },
+    });
     super({ geometry, shader, texture, eventMode: "none", label: "Asteroids" });
+    const highlightGeometry = new OrbitGeometry({
+      attributes: {
+        aPosition: { buffer: quad, format: "float32x2" },
+        aBasis: { buffer: bases, format: "float32x4", instance: true },
+        aElements: { buffer: elements, format: "float32x2", instance: true },
+        aMeanAnomaly: { buffer: meanAnomalies, format: "float32", instance: true },
+        aDiscovery: { buffer: markers, format: "float32", instance: true },
+        aClass: { buffer: classValues, format: "float32", instance: true },
+      },
+      indexBuffer: new Uint16Array([0, 1, 2, 0, 2, 3]), instanceCount: 0,
+    }, packed.radius);
+    const highlightUniforms = new UniformGroup({
+      uOrbitTime: { value: 0, type: "f32" }, uMarkerTime: { value: 0, type: "f32" },
+      uClassMask: { value: populationMask(DEFAULT_POPULATION_PRESET), type: "f32" },
+      uColorMask: { value: highlightMask(DEFAULT_POPULATION_PRESET), type: "f32" },
+      uNeaColor: { value: new Float32Array([neaR, neaG, neaB]), type: "vec3<f32>" },
+      uTrojanColor: { value: new Float32Array([trojanR, trojanG, trojanB]), type: "vec3<f32>" },
+      uDistantColor: { value: new Float32Array([distantR, distantG, distantB]), type: "vec3<f32>" },
+    });
+    const highlightShader = Shader.from({
+      gl: { vertex: vertex(1), fragment, name: "asteroid-orbits-highlight" },
+      resources: { orbitUniforms: highlightUniforms, uTexture: texture.source },
+    });
+    this.highlight = new Mesh({
+      geometry: highlightGeometry, shader: highlightShader, texture,
+      eventMode: "none", label: "Asteroid highlights", visible: false,
+    });
     this.partialUploads = partialUploads;
     this.catalogue = canonical ? data : null;
     this.committedCount = canonical ? 0 : packed.dates.length;
@@ -93,10 +152,12 @@ export default class Asteroids extends Mesh {
     this.tallyCount = 0;
     this.visibleCount = 0;
     this.populationPreset = DEFAULT_POPULATION_PRESET;
+    this.colorize = false;
     this.epoch = packed.epoch;
     this.markerEpoch = elapsed;
     this.elapsed = elapsed;
     this.uniforms = uniforms.uniforms;
+    this.highlightUniforms = highlightUniforms.uniforms;
     if (canonical) this.append(limit);
     else {
       this.copyClasses(0, this.committedCount);
@@ -135,8 +196,22 @@ export default class Asteroids extends Mesh {
   setPopulationPreset(preset) {
     if (!isPopulationPreset(preset) || preset === this.populationPreset) return;
     this.populationPreset = preset;
-    this.uniforms.uClassMask = populationMask(preset);
+    this.applyMasks();
     this.visibleCount = visibleFromTallies(this.classTallies, preset);
+  }
+
+  setColorize(colorize) {
+    if (typeof colorize !== "boolean" || colorize === this.colorize) return;
+    this.colorize = colorize;
+    this.applyMasks();
+  }
+
+  applyMasks() {
+    const drawn = populationMask(this.populationPreset);
+    const mask = highlightMask(this.populationPreset, this.colorize);
+    this.uniforms.uClassMask = this.highlightUniforms.uClassMask = drawn;
+    this.uniforms.uColorMask = this.highlightUniforms.uColorMask = mask;
+    this.syncHighlight();
   }
 
   syncTallies(count) {
@@ -194,11 +269,12 @@ export default class Asteroids extends Mesh {
     this.epoch = state.epoch;
     this.markerEpoch = state.markerEpoch;
     this.elapsed = state.elapsed;
-    this.geometry.instanceCount = state.count;
+    this.geometry.instanceCount = this.highlight.geometry.instanceCount = state.count;
     this.visible = state.visible;
+    this.syncHighlight();
     this.syncTallies(state.count);
-    this.uniforms.uOrbitTime = state.orbitTime;
-    this.uniforms.uMarkerTime = state.markerTime;
+    this.uniforms.uOrbitTime = this.highlightUniforms.uOrbitTime = state.orbitTime;
+    this.uniforms.uMarkerTime = this.highlightUniforms.uMarkerTime = state.markerTime;
   }
 
   update(jed, elapsed = this.elapsed, { baseline = false } = {}) {
@@ -242,21 +318,43 @@ export default class Asteroids extends Mesh {
       }
     }
     if (refreshed) this.queueUpload("aDiscovery", 0, this.committedCount * 4);
-    this.geometry.instanceCount = count;
+    this.geometry.instanceCount = this.highlight.geometry.instanceCount = count;
     this.visible = count > 0;
+    this.syncHighlight();
     this.syncTallies(count);
-    this.uniforms.uOrbitTime = jed - this.epoch;
-    this.uniforms.uMarkerTime = markerTime;
+    this.uniforms.uOrbitTime = this.highlightUniforms.uOrbitTime = jed - this.epoch;
+    this.uniforms.uMarkerTime = this.highlightUniforms.uMarkerTime = markerTime;
     return count;
   }
 
   setTexture(texture) {
-    this.texture = texture;
+    this.texture = this.highlight.texture = texture;
     this.shader.resources.uTexture = texture.source;
+    this.highlight.shader.resources.uTexture = texture.source;
+  }
+
+  // The highlight is a stage sibling. A mesh may not parent it.
+  mountHighlight() {
+    const parent = this.parent;
+    if (!parent || this.highlight.parent === parent) return;
+    parent.addChildAt(this.highlight, parent.getChildIndex(this) + 1);
+    this.syncHighlight();
+  }
+
+  syncHighlight() {
+    this.highlight.visible = this.visible && this.uniforms.uColorMask !== 0;
   }
 
   destroy() {
-    const { geometry, shader } = this;
+    const { geometry, shader, highlight } = this;
+    const highlightGeometry = highlight.geometry, highlightShader = highlight.shader;
+    highlight.destroy();
+    // Same order as the cloud below: unload before destroy so the renderer
+    // drops its VAO, and never destroy the program. Pixi caches programs by
+    // source, so the next cloud's highlight still draws with this one.
+    highlightGeometry.unload();
+    highlightGeometry.destroy(false);
+    highlightShader.destroy();
     super.destroy();
     // Pixi 8.20 removes geometry listeners inside destroy(), before unload.
     // Unload first so the renderer releases its VAO and managed reference.

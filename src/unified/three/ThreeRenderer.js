@@ -7,7 +7,7 @@ import Asteroids from "./Asteroids.js";
 import { DEFAULT_PLANET_LABEL_MODE, isPlanetLabelMode, PlanetLabels } from "../PlanetLabel.js";
 import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "../PlanetOrbitPreference.js";
 import { DEFAULT_POPULATION_PRESET, isPopulationPreset } from "../catalog/population.js";
-import { VIEW_FIT_MS, easeOutCubic, lerp3, threeTrojanTargetPose } from "../viewFit.js";
+import { VIEW_FIT_MS, easeOutCubic, lerp3, threePresetTargetPose } from "../viewFit.js";
 
 function disposePlanets(batch) {
   for (const { planet, orbit } of batch) {
@@ -44,6 +44,7 @@ export default class ThreeRenderer {
     this.planetLabelMode = DEFAULT_PLANET_LABEL_MODE;
     this.planetOrbitsVisible = DEFAULT_PLANET_ORBITS_VISIBLE;
     this.populationPreset = DEFAULT_POPULATION_PRESET;
+    this.colorizeGroups = false;
     this.viewFit = null;
     this.viewFitInternal = false;
     this.planetLabels = new PlanetLabels(container);
@@ -127,7 +128,7 @@ export default class ThreeRenderer {
 
   createCloud(model, frame, committedCount = model.count) {
     const cloud = new Asteroids(model, { jed: frame.jed, elapsed: frame.elapsed ?? 0, committedCount,
-      populationPreset: this.populationPreset });
+      populationPreset: this.populationPreset, colorize: this.colorizeGroups });
     for (const attribute of Object.values(cloud.geometry.attributes)) {
       attribute.onUpload(() => {
         const gl = this.renderer.getContext();
@@ -149,12 +150,16 @@ export default class ThreeRenderer {
     const mode = shared?.planetLabels;
     const orbits = shared?.planetOrbits;
     const population = shared?.populationPreset;
+    const colorize = shared?.colorizeGroups;
     if (mode !== undefined && !isPlanetLabelMode(mode)) throw new RangeError("Invalid planet label mode.");
     if (orbits !== undefined && !isPlanetOrbitVisibility(orbits)) {
       throw new RangeError("Invalid planet orbit visibility.");
     }
     if (population !== undefined && !isPopulationPreset(population)) {
       throw new RangeError("Invalid population preset.");
+    }
+    if (colorize !== undefined && typeof colorize !== "boolean") {
+      throw new RangeError("Invalid group colorize.");
     }
     let changed = false;
     if (mode !== undefined && mode !== this.planetLabelMode) {
@@ -174,6 +179,13 @@ export default class ThreeRenderer {
       this.catalogueTransition?.previous?.setPopulationPreset(population);
       changed = true;
     }
+    if (colorize !== undefined && colorize !== this.colorizeGroups) {
+      this.colorizeGroups = colorize;
+      this.asteroids?.setColorize(colorize);
+      this.stagedAsteroids?.setColorize(colorize);
+      this.catalogueTransition?.previous?.setColorize(colorize);
+      changed = true;
+    }
     if (changed) this.requestRender();
   }
 
@@ -188,8 +200,8 @@ export default class ThreeRenderer {
 
   ensurePopulationView(preset, now = performance.now()) {
     this.cancelViewFit();
-    if (this.destroyed || !this.camera || !this.controls || preset !== "trojans") return false;
-    const pose = threeTrojanTargetPose(this.camera.position.toArray(), this.controls.target.toArray(),
+    if (this.destroyed || !this.camera || !this.controls) return false;
+    const pose = threePresetTargetPose(preset, this.camera.position.toArray(), this.controls.target.toArray(),
       this.camera.fov, this.camera.aspect, this.camera.zoom);
     if (!pose) return false;
     this.viewFit = {

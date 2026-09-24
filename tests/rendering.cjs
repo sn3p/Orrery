@@ -213,7 +213,7 @@ async function markers(browser, url) {
     const waiting = await idleAtControlledTime();
     const waitingPixels = await page.evaluate(() => fixture.probe.pixels);
     assert.equal(waitingPixels.green, 0, 'A future discovery is not highlighted before its date');
-    assert.equal(waitingPixels.gray, 0, 'A future discovery is hidden before its date');
+    assert.equal(waitingPixels.gray + waitingPixels.teal, 0, 'A future discovery is hidden before its date');
     await speed(page, 1.5);
     await page.clock.runFor(160);
     await speed(page, 0);
@@ -242,7 +242,17 @@ async function markers(browser, url) {
     assert(mature.elapsed >= 2 / 3 + 0.02);
     assert.deepEqual(await page.evaluate(n => fixture.probe.frames[n], still.draws), { jed: still.jed, elapsed: still.elapsed });
     const oldPixels = await page.evaluate(() => fixture.probe.pixels);
-    assert.equal(oldPixels.green, 0); assert(oldPixels.gray > 0);
+    assert.equal(oldPixels.green, 0, 'A mature marker is no longer green');
+    // The sample orbits inside 1.3 AU, so it is Near Earth: teal while group
+    // colors are on (the default), gray once they are off.
+    assert(oldPixels.teal > 0 && oldPixels.gray === 0, 'A mature Near Earth marker settles to teal with group colors on');
+    await page.evaluate(() => { fixture.app.colorizeGroups = false; });
+    await idleAtControlledTime();
+    const plainPixels = await page.evaluate(() => fixture.probe.pixels);
+    assert(plainPixels.gray > 0 && plainPixels.teal === 0 && plainPixels.green === 0,
+      'A mature marker is gray with group colors off');
+    await page.evaluate(() => { fixture.app.colorizeGroups = true; });
+    await idleAtControlledTime();
     assert.deepEqual(errors, [], 'No browser, shader or WebGL errors in marker lifecycle');
     return { fresh: { elapsed: fresh.elapsed, green: freshPixels.green }, halfway: { elapsed: halfway.elapsed, green: halfPixels.green }, mature: { elapsed: mature.elapsed, ...oldPixels } };
   } finally { await page.close(); }
