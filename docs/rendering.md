@@ -38,9 +38,9 @@ to its group color, or to gray. Neither choice changes the discovery prefix or
 downloads extra data. Reload returns to All.
 One-line help sits under the control; **What is this?** opens a short glossary,
 as does the **minor-planet groups** shortcut in the introduction card. The
-bottom-left count is the active group at the committed date, not every gray
-point and not a live MPC census. While groups are colored, swatches beside
-that count name the hues. Cuts are by
+bottom-left count is what the group menu shows at the committed date, colored
+or gray, not a live MPC census. While groups are colored, swatches beside that
+count name the hues. Cuts are by
 orbit shape in this app, not official MPC `Orbit_type`. Choosing a group frames it,
 easing the current camera in or out: All, Jupiter Trojans and Without the belt
 frame Jupiter’s orbit, Near Earth frames the inner system out to 2.5 AU, and
