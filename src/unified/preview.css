@@ -83,6 +83,10 @@
   grid-column: 1;
   justify-self: start;
   white-space: nowrap;
+  /* The legend wraps under the date and count when the column is too narrow,
+     so the readouts never push into the centered status. */
+  flex-wrap: wrap;
+  row-gap: 2px;
 }
 
 .orrery-readouts .orrery-date,
@@ -94,9 +98,10 @@
 /* The legend is a different readout from the date and count, so it sits apart. */
 .orrery-swatches {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.75em;
-  margin-left: 1.25em;
+  gap: 2px 0.75em;
+  margin-left: 0.65em;
 }
 
 .orrery-swatches[hidden] { display: none; }
@@ -332,11 +337,7 @@
       "status status"
       "readouts identity";
   }
-  .orrery-readouts {
-    grid-area: readouts;
-    flex-wrap: wrap;
-    row-gap: 2px;
-  }
+  .orrery-readouts { grid-area: readouts; }
   .orrery-swatches {
     flex-basis: 100%;
     margin-left: 0;
