@@ -95,7 +95,7 @@ export default class Options {
     this.colorize = this.gui.add(this.orrery, "colorizeGroups").name("colorize");
     this.colorizeInput = this.colorize.domElement.querySelector("input");
     this.colorizeInput.setAttribute("aria-label", "Colorize groups");
-    this.colorizeInput.title = "Color the shown groups: Near Earth teal, Trojans gold, Distant violet. The belt stays gray. Not remembered.";
+    this.colorizeInput.title = "Color the shown groups: Near Earth teal, Trojans gold, Distant violet. The belt stays gray. Turning it off lasts the visit.";
     this.addHint(this.colorize, this.colorizeInput.title, this.colorizeInput);
     this.confineCheckbox(this.colorize);
 

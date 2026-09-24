@@ -65,7 +65,9 @@ export default class App {
     if (!isPlanetOrbitVisibility(this._planetOrbits)) throw new Error("Invalid planet orbit visibility.");
     this._populationPreset = options.populationPreset ?? DEFAULT_POPULATION_PRESET;
     if (!isPopulationPreset(this._populationPreset)) throw new Error("Invalid population preset.");
-    this._colorizeGroups = false;
+    // On by default; turning it off lasts the visit, like the group choice.
+    this._colorizeGroups = options.colorizeGroups ?? true;
+    if (typeof this._colorizeGroups !== "boolean") throw new Error("Invalid group colorize.");
     // Remembered in this browser. The app entry passes the saved choice; other
     // callers stay off unless they opt in.
     this._holdAtPresent = !!options.holdAtPresent;
