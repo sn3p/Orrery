@@ -4,12 +4,15 @@ import { TROJAN_A_MAX } from "./catalog/population.js";
 export const TROJAN_FIT_PADDING = 1.08;
 export const VIEW_FIT_MS = 500;
 // Every group has a frame, and choosing it eases the camera in or out to fit.
-// Near Earth and Hungarias: Mars and the inner belt edge. The belt and its
-// zones: the belt edge with room for eccentric orbits. All, Hildas, Trojans and
-// Without the belt: Jupiter's orbit. Distant: Neptune's distance, without
-// adding the planet.
-export const NEA_FIT_AU = 2.5;
+// The radius fills half of the shorter viewport side, so a landscape window
+// shows more to the left and right. Hungarias: Mars and the inner belt edge,
+// which holds every Hungaria aphelion. Near Earth, the belt and its zones: the
+// belt edge with room for eccentric orbits; 2.5 AU cut a quarter of the Near
+// Earth positions off. All, Hildas, Trojans and Without the belt: Jupiter's
+// orbit. Distant: Neptune's distance, without adding the planet.
+export const HUNGARIA_FIT_AU = 2.5;
 export const BELT_FIT_AU = 3.5;
+export const NEA_FIT_AU = BELT_FIT_AU;
 export const NEPTUNE_FIT_AU = 30.1;
 const SCALE_SNAP = 1.02;
 const DIST_SNAP = 8;
@@ -34,12 +37,11 @@ export function distantFitRadiusPx(padding = TROJAN_FIT_PADDING) {
   return NEPTUNE_FIT_AU * PIXELS_PER_AU * padding;
 }
 
-const INNER_PRESETS = new Set(["nea", "hungarias"]);
-const BELT_PRESETS = new Set(["belt", "belt-inner", "belt-middle", "belt-outer"]);
+const BELT_PRESETS = new Set(["nea", "belt", "belt-inner", "belt-middle", "belt-outer"]);
 const JUPITER_PRESETS = new Set(["all", "hildas", "trojans", "without-belt"]);
 
 export function presetFitRadiusPx(preset, padding = TROJAN_FIT_PADDING) {
-  if (INNER_PRESETS.has(preset)) return NEA_FIT_AU * PIXELS_PER_AU * padding;
+  if (preset === "hungarias") return HUNGARIA_FIT_AU * PIXELS_PER_AU * padding;
   if (BELT_PRESETS.has(preset)) return BELT_FIT_AU * PIXELS_PER_AU * padding;
   if (preset === "distant") return distantFitRadiusPx(padding);
   if (JUPITER_PRESETS.has(preset)) return trojanFitRadiusPx(padding);

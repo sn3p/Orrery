@@ -4,7 +4,7 @@ import fs from "node:fs";
 import { PIXELS_PER_AU } from "../src/js/constants.js";
 import { TROJAN_A_MAX } from "../src/unified/catalog/population.js";
 import {
-  BELT_FIT_AU, NEA_FIT_AU, TROJAN_FIT_PADDING, VIEW_FIT_MS, easeOutCubic, perspectiveDistanceToFit, pixiDistantTargetScale,
+  BELT_FIT_AU, HUNGARIA_FIT_AU, NEA_FIT_AU, TROJAN_FIT_PADDING, VIEW_FIT_MS, easeOutCubic, perspectiveDistanceToFit, pixiDistantTargetScale,
   pixiPresetTargetScale, pixiTrojanTargetScale, presetFitRadiusPx, threeDistantTargetPose, threePresetTargetPose,
   threeTrojanTargetPose, trojanFitRadiusPx, distantFitRadiusPx,
 } from "../src/unified/viewFit.js";
@@ -69,11 +69,13 @@ test("2D fit frames Jupiter's orbit from either side and leaves a fitted view al
 
 test("every group has a frame; Near Earth is the inner system and All shares Jupiter's", () => {
   assert.equal(presetFitRadiusPx("nea"), NEA_FIT_AU * PIXELS_PER_AU * TROJAN_FIT_PADDING);
-  assert.equal(presetFitRadiusPx("hungarias"), presetFitRadiusPx("nea"));
+  assert.equal(NEA_FIT_AU, 3.5, "Near Earth shares the belt frame; 2.5 AU cut a quarter of its positions off");
+  assert.equal(presetFitRadiusPx("hungarias"), HUNGARIA_FIT_AU * PIXELS_PER_AU * TROJAN_FIT_PADDING);
+  assert.equal(HUNGARIA_FIT_AU, 2.5);
   for (const preset of ["belt", "belt-inner", "belt-middle", "belt-outer"]) {
     assert.equal(presetFitRadiusPx(preset), BELT_FIT_AU * PIXELS_PER_AU * TROJAN_FIT_PADDING, preset);
   }
-  assert.ok(presetFitRadiusPx("belt") > presetFitRadiusPx("nea") && presetFitRadiusPx("belt") < trojanFitRadiusPx());
+  assert.ok(presetFitRadiusPx("belt") > presetFitRadiusPx("hungarias") && presetFitRadiusPx("belt") < trojanFitRadiusPx());
   assert.equal(presetFitRadiusPx("hildas"), trojanFitRadiusPx());
   assert.equal(presetFitRadiusPx("all"), trojanFitRadiusPx());
   assert.equal(presetFitRadiusPx("without-belt"), trojanFitRadiusPx());
