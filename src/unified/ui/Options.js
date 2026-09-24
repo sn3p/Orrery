@@ -1,5 +1,5 @@
 import * as dat from "dat.gui";
-import { DEFAULT_POPULATION_PRESET, POPULATION_PRESET_OPTIONS, populationHint } from "../catalog/population.js";
+import { DEFAULT_POPULATION_PRESET, POPULATION_PRESET_OPTIONS, legendGroups, populationHint } from "../catalog/population.js";
 
 export const SPEED_LIVE_HINT = "Real time: one second per second. 0 pauses; negative reverses.";
 
@@ -218,10 +218,31 @@ export default class Options {
     trigger.setAttribute("aria-haspopup", "dialog");
     trigger.setAttribute("aria-controls", this.glossary.id);
     this.population.domElement.closest("li").appendChild(trigger);
+    this.paintGlossaryTitles();
     trigger.addEventListener("click", this.onOpenGlossary);
     this.glossary.addEventListener("close", this.onGlossaryClose);
     this.glossary.addEventListener("click", this.onGlossaryBackdrop);
     this.glossaryRestoreFocus = trigger;
+  }
+
+  // Each group title carries the legend dots of its preset; the ramp shows
+  // three. Decorative only: the title text already names the group.
+  paintGlossaryTitles() {
+    for (const title of this.glossary.querySelectorAll("dt[data-preset]")) {
+      if (title.querySelector(".orrery-swatch-dots")) continue;
+      const colors = legendGroups(title.dataset.preset, true).flatMap(group => group.colors);
+      if (!colors.length) continue;
+      const dots = document.createElement("span");
+      dots.className = "orrery-swatch-dots";
+      dots.setAttribute("aria-hidden", "true");
+      dots.append(...colors.map(color => {
+        const dot = document.createElement("span");
+        dot.className = "orrery-swatch";
+        dot.style.backgroundColor = `#${color.toString(16).padStart(6, "0")}`;
+        return dot;
+      }));
+      title.prepend(dots);
+    }
   }
 
   openGlossary({ restoreFocus } = {}) {

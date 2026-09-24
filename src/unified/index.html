@@ -56,17 +56,17 @@
         <h1 class="orrery-dialog-title" id="orrery-glossary-title" tabindex="-1" autofocus>Minor-planet groups</h1>
         <p>These presets name numbered objects with a known discovery date. The menu chooses which objects are shown: everything, one group alone, or everything but the belt. Group colors keeps that same set and paints it by orbit: Near Earth teal, Hungarias orange, Hildas blue, Jupiter Trojans gold, Distant violet. The belt stays gray on All; the Main belt preset and its zones paint it in rose, light inner to dark outer. Without group colors everything is gray. A new arrival is green, then settles to its group color or to gray. Asteroids are minor planets; they are not offered as a separate filter. Groups are by orbit shape in this app, not official MPC Orbit_type.</p>
         <dl>
-          <dt>Near Earth</dt>
+          <dt data-preset="nea">Near Earth</dt>
           <dd>Perihelion closer than 1.3 AU. Sparse at the 1980 start; this numbered catalog is only a sample of known NEAs.</dd>
-          <dt>Hungarias</dt>
+          <dt data-preset="hungarias">Hungarias</dt>
           <dd>Inside 2 AU on orbits tilted 16–34°. A thin ring at the belt’s inner edge; the tilt shows in 3D.</dd>
-          <dt>Main belt</dt>
+          <dt data-preset="belt">Main belt</dt>
           <dd>The dense doughnut between Mars and Jupiter. Most of what the orrery shows. Three zones by orbit size: inner up to 2.5 AU, middle to 2.82 AU, outer to the edge near 3.3 AU. The cuts are Kirkwood gaps, empty lanes cleared by Jupiter. Orbits are stretched, so the zones overlap on screen.</dd>
-          <dt>Hildas</dt>
+          <dt data-preset="hildas">Hildas</dt>
           <dd>Near 4 AU, three orbits for every two of Jupiter. Together they trace a triangle that turns with the planet.</dd>
-          <dt>Jupiter Trojans</dt>
+          <dt data-preset="trojans">Jupiter Trojans</dt>
           <dd>Not the main-belt doughnut: two swarms that share Jupiter’s orbit, ahead and behind the planet (L4/L5). They read clearly after playback into the 2000s.</dd>
-          <dt>Distant</dt>
+          <dt data-preset="distant">Distant</dt>
           <dd>Beyond Jupiter: Centaurs between the giants and trans-Neptunian objects beyond Neptune.</dd>
         </dl>
         <p>PHA and dwarf planets are not controls. A PHA is a near-Earth object that can pass close to Earth and is large enough to matter; this catalogue does not carry that flag. Dwarf planets overlap these groups and need names before they can be marked.</p>
