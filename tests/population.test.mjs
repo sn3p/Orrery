@@ -42,7 +42,7 @@ test("group colors keep the belt visible and reserve green for highlighted arriv
   assert.equal(CLASS_REST_COLOR[CLASS_NEA], 0x2ec4b6);
   assert.equal(CLASS_REST_COLOR[CLASS_TROJAN], 0xd4a017);
   assert.equal(CLASS_REST_COLOR[CLASS_DISTANT], 0xa78bfa);
-  // Colorize never changes which points are drawn; the menu owns that.
+  // Group colors never changes which points are drawn; the menu owns that.
   for (const preset of ["all", "nea", "trojans", "distant", "without-belt"]) {
     assert.equal(highlightMask(preset), 0);
     assert.equal(highlightMask(preset, true) & ~populationMask(preset), 0, `${preset} colors only drawn points`);
@@ -155,7 +155,7 @@ test("both renderers apply a population preset without touching other shared opt
   }
 });
 
-test("colorize updates the highlight without changing the group", () => {
+test("group colors update the highlight without changing the group", () => {
   const cloud = new Asteroids(prepareCatalogue([sample]), { jed: REFERENCE_JED, elapsed: 0 });
   assert.equal(cloud.material.depthWrite, false);
   assert.equal(cloud.highlight.material.depthTest, true);
@@ -170,7 +170,7 @@ test("colorize updates the highlight without changing the group", () => {
   assert.equal(cloud.uniforms.colorMask.value, (1 << CLASS_NEA) | (1 << CLASS_TROJAN) | (1 << CLASS_DISTANT));
   assert.equal(cloud.highlight.visible, true);
   cloud.setPopulationPreset("nea");
-  // The menu owns the drawn set; Colorize only paints it.
+  // The menu owns the drawn set; group colors only paint it.
   assert.equal(cloud.uniforms.classMask.value, 1 << CLASS_NEA);
   assert.equal(cloud.uniforms.colorMask.value, 1 << CLASS_NEA);
   cloud.setColorize(false);

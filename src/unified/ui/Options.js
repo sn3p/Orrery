@@ -92,10 +92,10 @@ export default class Options {
     this.population.onChange(value => this.setPopulationHint(value));
     this.mountGlossary();
 
-    this.colorize = this.gui.add(this.orrery, "colorizeGroups").name("colorize");
+    this.colorize = this.gui.add(this.orrery, "colorizeGroups").name("group colors");
     this.colorizeInput = this.colorize.domElement.querySelector("input");
-    this.colorizeInput.setAttribute("aria-label", "Colorize groups");
-    this.colorizeInput.title = "Color the shown groups: Near Earth teal, Trojans gold, Distant violet. The belt stays gray. Turning it off lasts the visit.";
+    this.colorizeInput.setAttribute("aria-label", "Group colors");
+    this.colorizeInput.title = "Color the shown groups by orbit: Near Earth teal, Jupiter Trojans gold, Distant violet. The belt stays gray. Turning it off lasts the visit.";
     this.addHint(this.colorize, this.colorizeInput.title, this.colorizeInput);
     this.confineCheckbox(this.colorize);
 

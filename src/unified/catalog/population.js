@@ -70,7 +70,7 @@ export function populationMask(preset) {
 
 const MINORITY_MASK = (1 << CLASS_NEA) | (1 << CLASS_TROJAN) | (1 << CLASS_DISTANT);
 
-// The menu chooses which points are drawn. Colorize only paints that set:
+// The menu chooses which points are drawn. Group colors only paints that set:
 // the belt stays gray, the other groups take their hue.
 export function highlightMask(preset, colorize = false) {
   if (!colorize) return 0;
