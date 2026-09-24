@@ -42,7 +42,8 @@ orange, the belt one rose hue from light inner to dark outer, Hildas blue,
 Jupiter Trojans gold, Distant violet. Every new arrival is pure green and then
 settles to its group color, or to gray. The trial constant `PAINT_BELT_ON_ALL`
 in `population.js` decides whether All paints the belt zones (true) or leaves
-the belt gray and paints the zones only on the belt presets (false). Neither choice changes the discovery prefix or
+the belt gray and paints the zones only on the belt presets (false, the
+current setting). Neither choice changes the discovery prefix or
 downloads extra data. Reload returns to All.
 One-line help sits under the control; **What is this?** opens a short glossary,
 as does the **minor-planet groups** shortcut in the introduction card. The
