@@ -347,9 +347,14 @@ export default class Asteroids extends Mesh {
 
   destroy() {
     const { geometry, shader, highlight } = this;
-    highlight.removeFromParent();
-    highlight.geometry.destroy(false);
-    highlight.shader.destroy(true);
+    const highlightGeometry = highlight.geometry, highlightShader = highlight.shader;
+    highlight.destroy();
+    // Same order as the cloud below: unload before destroy so the renderer
+    // drops its VAO, and never destroy the program. Pixi caches programs by
+    // source, so the next cloud's highlight still draws with this one.
+    highlightGeometry.unload();
+    highlightGeometry.destroy(false);
+    highlightShader.destroy();
     super.destroy();
     // Pixi 8.20 removes geometry listeners inside destroy(), before unload.
     // Unload first so the renderer releases its VAO and managed reference.
