@@ -112,7 +112,8 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert.equal(await labels.inputValue(), "earth");
     assert(await orbits.isChecked(), "Planet orbits start visible");
     assert.deepEqual(await groups.locator("option").allTextContents(),
-      ["All", "Near Earth", "Jupiter Trojans", "Distant", "Without the belt"]);
+      ["All", "Near Earth", "Hungarias", "Main belt", "Inner belt", "Middle belt", "Outer belt", "Hildas",
+        "Jupiter Trojans", "Distant", "Without the belt"]);
     assert.equal(await groups.inputValue(), "all", "Group filter starts at All");
     assert.equal(await page.getByRole("button", { name: "What is this?" }).count(), 1);
     assert.equal(await page.evaluate(() => localStorage.getItem("orrery.populationPreset")), null,
