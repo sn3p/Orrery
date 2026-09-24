@@ -32,7 +32,8 @@ XYZ orbital bases. Points retain size 1 and fade from green to `0x999999` across
 two-thirds of an active playback second, using the same presentation clock as Pixi.
 Load, seek and renderer switches do not replay that pulse. Group filters hide unmatched points by moving them out
 of clip space and discarding them; WebGL point size cannot go below 1. Pixi still
-snaps arrival colour from green to grey when the pulse ends. Choosing a group dollies in or out to
+snaps arrival colour when the pulse ends, to grey or to the group's resting colour
+when group colors are on; Three fades to that same resting colour. Choosing a group dollies in or out to
 its frame, without resetting the current viewing direction.
 
 `Orbit`, `Planet`, `Sun` and `createSphere` retain source mechanics with local
