@@ -248,6 +248,9 @@ export default class Options {
   openGlossary({ restoreFocus } = {}) {
     if (this.destroyed || !this.glossary || this.glossary.open) return false;
     this.glossaryRestoreFocus = restoreFocus ?? this.glossaryTrigger;
+    // With group colors off the scene is gray, so the title dots would mislead.
+    // The dialog is modal, so the option cannot change while it is open.
+    this.glossary.classList.toggle("orrery-glossary-gray", this.orrery.colorizeGroups === false);
     this.orrery.hold(true);
     this.glossary.showModal();
     this.glossary.scrollTop = 0;
