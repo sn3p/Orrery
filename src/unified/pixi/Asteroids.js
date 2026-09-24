@@ -1,7 +1,6 @@
 import { Bounds, Buffer, BufferUsage, Geometry, Mesh, Shader, UniformGroup } from "pixi.js";
 import { DISCOVERY_SECONDS, REBASE_DAYS, REFERENCE_JED, discoveryCount, orbitGLSL, prepareOrbits, validDate, wrap } from "../../js/asteroidOrbits.js";
-import { CLASS_COUNT, CLASS_DISTANT, CLASS_NEA, CLASS_REST_COLOR, CLASS_TROJAN,
-  DEFAULT_POPULATION_PRESET, advanceClassTallies, classifyCatalogue, colorChannels,
+import { CLASS_COUNT, DEFAULT_POPULATION_PRESET, advanceClassTallies, classColorArray, classifyCatalogue,
   highlightMask, isPopulationPreset, populationGLSL, populationMask, visibleFromTallies } from "../catalog/population.js";
 
 const vertex = pass => `
@@ -21,17 +20,13 @@ uniform float uOrbitTime;
 uniform float uMarkerTime;
 uniform float uClassMask;
 uniform float uColorMask;
-uniform vec3 uNeaColor;
-uniform vec3 uTrojanColor;
-uniform vec3 uDistantColor;
+uniform vec3 uClassColors[${CLASS_COUNT}];
 varying vec2 vUV;
 varying vec4 vColor;
 ${orbitGLSL}
 ${populationGLSL}
 vec3 classRestColor(float id) {
-  if (id < 1.5) return uNeaColor;
-  if (id < 2.5) return uTrojanColor;
-  return uDistantColor;
+  return uClassColors[int(id + 0.5)];
 }
 void main() {
   float age = uMarkerTime - aDiscovery;
@@ -98,16 +93,11 @@ export default class Asteroids extends Mesh {
       },
       indexBuffer: new Uint16Array([0, 1, 2, 0, 2, 3]), instanceCount: 0,
     }, packed.radius);
-    const [neaR, neaG, neaB] = colorChannels(CLASS_REST_COLOR[CLASS_NEA]);
-    const [trojanR, trojanG, trojanB] = colorChannels(CLASS_REST_COLOR[CLASS_TROJAN]);
-    const [distantR, distantG, distantB] = colorChannels(CLASS_REST_COLOR[CLASS_DISTANT]);
     const uniforms = new UniformGroup({
       uOrbitTime: { value: 0, type: "f32" }, uMarkerTime: { value: 0, type: "f32" },
       uClassMask: { value: populationMask(DEFAULT_POPULATION_PRESET), type: "f32" },
       uColorMask: { value: highlightMask(DEFAULT_POPULATION_PRESET), type: "f32" },
-      uNeaColor: { value: new Float32Array([neaR, neaG, neaB]), type: "vec3<f32>" },
-      uTrojanColor: { value: new Float32Array([trojanR, trojanG, trojanB]), type: "vec3<f32>" },
-      uDistantColor: { value: new Float32Array([distantR, distantG, distantB]), type: "vec3<f32>" },
+      uClassColors: { value: classColorArray(), type: "vec3<f32>", size: CLASS_COUNT },
     });
     const shader = Shader.from({
       gl: { vertex: vertex(0), fragment, name: "asteroid-orbits" },
@@ -129,9 +119,7 @@ export default class Asteroids extends Mesh {
       uOrbitTime: { value: 0, type: "f32" }, uMarkerTime: { value: 0, type: "f32" },
       uClassMask: { value: populationMask(DEFAULT_POPULATION_PRESET), type: "f32" },
       uColorMask: { value: highlightMask(DEFAULT_POPULATION_PRESET), type: "f32" },
-      uNeaColor: { value: new Float32Array([neaR, neaG, neaB]), type: "vec3<f32>" },
-      uTrojanColor: { value: new Float32Array([trojanR, trojanG, trojanB]), type: "vec3<f32>" },
-      uDistantColor: { value: new Float32Array([distantR, distantG, distantB]), type: "vec3<f32>" },
+      uClassColors: { value: classColorArray(), type: "vec3<f32>", size: CLASS_COUNT },
     });
     const highlightShader = Shader.from({
       gl: { vertex: vertex(1), fragment, name: "asteroid-orbits-highlight" },

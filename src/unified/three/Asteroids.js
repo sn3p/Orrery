@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { REFERENCE_JED, wrapPhase } from "../catalog/prepareCatalogue.js";
 import { DISCOVERY_SECONDS, validDate, MAX_PHASE_ADVANCE } from "../../js/asteroidOrbits.js";
-import { CLASS_COUNT, CLASS_DISTANT, CLASS_NEA, CLASS_REST_COLOR, CLASS_TROJAN,
+import { CLASS_COUNT, CLASS_REST_COLOR,
   DEFAULT_POPULATION_PRESET, advanceClassTallies, highlightMask,
   isPopulationPreset, populationGLSL, populationMask, visibleFromTallies } from "../catalog/population.js";
 
@@ -60,9 +60,7 @@ export default class Asteroids extends THREE.Points {
       freshColor: { value: discoveryColor }, oldColor: { value: color },
       classMask: { value: populationMask(preset) },
       colorMask: { value: highlightMask(preset, colorize === true) },
-      neaColor: { value: new THREE.Color(CLASS_REST_COLOR[CLASS_NEA]) },
-      trojanColor: { value: new THREE.Color(CLASS_REST_COLOR[CLASS_TROJAN]) },
-      distantColor: { value: new THREE.Color(CLASS_REST_COLOR[CLASS_DISTANT]) },
+      classColors: { value: Array.from({ length: CLASS_COUNT }, (_, id) => new THREE.Color(CLASS_REST_COLOR[id] ?? 0)) },
       pulseTime: { value: 0 },
     };
     const uniforms = { ...shared, pass: { value: 0 } };
@@ -85,17 +83,13 @@ export default class Asteroids extends THREE.Points {
         uniform vec3 oldColor;
         uniform float classMask;
         uniform float colorMask;
-        uniform vec3 neaColor;
-        uniform vec3 trojanColor;
-        uniform vec3 distantColor;
+        uniform vec3 classColors[${CLASS_COUNT}];
         uniform float pass;
         uniform float pulseTime;
         ${orbitGLSL}
         ${populationGLSL}
         vec3 classRestColor(float id) {
-          if (id < 1.5) return neaColor;
-          if (id < 2.5) return trojanColor;
-          return distantColor;
+          return classColors[int(id + 0.5)];
         }
       `).replace("#include <color_vertex>", `
         float highlighted = populationVisible(classId, colorMask);
@@ -128,7 +122,7 @@ export default class Asteroids extends THREE.Points {
     });
     material.onBeforeCompile = shader => compile(shader, uniforms);
     highlightMaterial.onBeforeCompile = shader => compile(shader, highlightUniforms);
-    const programKey = () => "asteroid-orbits-r186-v8";
+    const programKey = () => "asteroid-orbits-r186-v9";
     material.customProgramCacheKey = programKey;
     highlightMaterial.customProgramCacheKey = programKey;
     super(geometry, material);
