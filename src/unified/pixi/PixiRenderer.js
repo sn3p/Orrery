@@ -5,7 +5,7 @@ import Asteroids from "./Asteroids.js";
 import { DEFAULT_PLANET_LABEL_MODE, isPlanetLabelMode, PlanetLabels } from "../PlanetLabel.js";
 import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "../PlanetOrbitPreference.js";
 import { DEFAULT_POPULATION_PRESET, isPopulationPreset } from "../catalog/population.js";
-import { VIEW_FIT_MS, easeOutCubic, lerp, pixiTrojanTargetScale } from "../viewFit.js";
+import { VIEW_FIT_MS, easeOutCubic, lerp, pixiDistantTargetScale, pixiTrojanTargetScale } from "../viewFit.js";
 
 function disposePlanets(batch) {
   for (const { orbit } of batch) orbit?.destroy();
@@ -38,6 +38,7 @@ export default class PixiRenderer {
     this.planetLabelMode = DEFAULT_PLANET_LABEL_MODE;
     this.planetOrbitsVisible = DEFAULT_PLANET_ORBITS_VISIBLE;
     this.populationPreset = DEFAULT_POPULATION_PRESET;
+    this.colorizeGroups = false;
     this.viewFit = null;
     this.planetLabels = new PlanetLabels(container);
     this.destroyed = false;
@@ -193,12 +194,16 @@ export default class PixiRenderer {
     const mode = shared?.planetLabels;
     const orbits = shared?.planetOrbits;
     const population = shared?.populationPreset;
+    const colorize = shared?.colorizeGroups;
     if (mode !== undefined && !isPlanetLabelMode(mode)) throw new RangeError("Invalid planet label mode.");
     if (orbits !== undefined && !isPlanetOrbitVisibility(orbits)) {
       throw new RangeError("Invalid planet orbit visibility.");
     }
     if (population !== undefined && !isPopulationPreset(population)) {
       throw new RangeError("Invalid population preset.");
+    }
+    if (colorize !== undefined && typeof colorize !== "boolean") {
+      throw new RangeError("Invalid group colorize.");
     }
     let changed = false;
     if (mode !== undefined && mode !== this.planetLabelMode) {
@@ -218,6 +223,13 @@ export default class PixiRenderer {
       this.catalogueTransition?.previous?.setPopulationPreset(population);
       changed = true;
     }
+    if (colorize !== undefined && colorize !== this.colorizeGroups) {
+      this.colorizeGroups = colorize;
+      this.asteroids?.setColorize(colorize);
+      this.stagedAsteroids?.setColorize(colorize);
+      this.catalogueTransition?.previous?.setColorize(colorize);
+      changed = true;
+    }
     if (changed) this.requestRender();
   }
 
@@ -227,8 +239,11 @@ export default class PixiRenderer {
 
   ensurePopulationView(preset, now = performance.now()) {
     this.cancelViewFit();
-    if (this.destroyed || !this.stage || preset !== "trojans") return false;
-    const needed = pixiTrojanTargetScale(this.viewWidth, this.viewHeight,
+    if (this.destroyed || !this.stage) return false;
+    const scaleFor = preset === "trojans" ? pixiTrojanTargetScale
+      : preset === "distant" ? pixiDistantTargetScale : null;
+    if (!scaleFor) return false;
+    const needed = scaleFor(this.viewWidth, this.viewHeight,
       this.stage.position.x, this.stage.position.y, this.stage.scale.x);
     if (needed == null) return false;
     this.viewFit = { from: this.stage.scale.x, to: needed, start: now, duration: VIEW_FIT_MS };
@@ -264,6 +279,7 @@ export default class PixiRenderer {
     const next = new Asteroids(data, this.circleTexture, jed, elapsed,
       this.app.renderer.context.webGLVersion === 2);
     next.setPopulationPreset(this.populationPreset);
+    next.setColorize(this.colorizeGroups);
     this.discardStagedCatalogue();
     this.installAsteroids(next, preservePrevious);
     return next.geometry.instanceCount;
@@ -272,10 +288,14 @@ export default class PixiRenderer {
   installAsteroids(next, preservePrevious = false) {
     const previous = this.asteroids;
     this.stage.addChildAt(next, previous ? this.stage.getChildIndex(previous) : 2);
+    next.mountHighlight();
     this.asteroids = next;
     if (preservePrevious) {
       this.catalogueTransition = { previous, visible: previous?.visible };
-      if (previous) previous.visible = false;
+      if (previous) {
+        previous.visible = false;
+        previous.syncHighlight();
+      }
     } else previous?.destroy();
   }
 
@@ -287,6 +307,7 @@ export default class PixiRenderer {
       cloud = this.stagedAsteroids = new Asteroids(model, this.circleTexture, frame.jed, frame.elapsed,
         this.app.renderer.context.webGLVersion === 2, 0);
       cloud.setPopulationPreset(this.populationPreset);
+      cloud.setColorize(this.colorizeGroups);
     }
     // Bound catch-up after late starts and graphics suspension as well as the
     // ordinary chunk path. Each continuation is a new application frame/task.
@@ -323,12 +344,16 @@ export default class PixiRenderer {
   rollbackCatalogue({ retain = false } = {}) {
     if (!this.catalogueTransition) return;
     if (retain) {
+      this.asteroids.highlight.removeFromParent();
       this.stage.removeChild(this.asteroids);
       this.stagedAsteroids = this.asteroids;
     } else this.asteroids.destroy();
     const { previous, visible } = this.catalogueTransition;
     this.asteroids = previous;
-    if (previous) previous.visible = visible;
+    if (previous) {
+      previous.visible = visible;
+      previous.syncHighlight();
+    }
     this.catalogueTransition = null;
   }
 

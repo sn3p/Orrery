@@ -4,8 +4,8 @@ import fs from "node:fs";
 import { PIXELS_PER_AU } from "../src/js/constants.js";
 import { TROJAN_A_MAX } from "../src/unified/catalog/population.js";
 import {
-  TROJAN_FIT_PADDING, VIEW_FIT_MS, easeOutCubic, perspectiveDistanceToFit, pixiTrojanTargetScale,
-  threeTrojanTargetPose, trojanFitRadiusPx,
+  TROJAN_FIT_PADDING, VIEW_FIT_MS, easeOutCubic, perspectiveDistanceToFit, pixiDistantTargetScale,
+  pixiTrojanTargetScale, threeDistantTargetPose, threeTrojanTargetPose, trojanFitRadiusPx, distantFitRadiusPx,
 } from "../src/unified/viewFit.js";
 import PixiRenderer from "../src/unified/pixi/PixiRenderer.js";
 import ThreeRenderer from "../src/unified/three/ThreeRenderer.js";
@@ -79,7 +79,7 @@ test("3D dolly-out keeps the current side of the sun and skips a framed Trojan v
   assert.equal(threeTrojanTargetPose(far, [0, 0, 0], 60, 1.6, 1), null);
 });
 
-test("Pixi and Three animate Trojans out, ignore other presets, and yield to a gesture", () => {
+test("Pixi and Three animate Trojans and Distant out, ignore other presets, and yield to a gesture", () => {
   const pixi = pixiStub(2);
   assert.equal(pixi.ensurePopulationView("nea", 0), false);
   assert.equal(pixi.viewAnimating, false);
@@ -106,7 +106,7 @@ test("Pixi and Three animate Trojans out, ignore other presets, and yield to a g
 
   const three = threeStub();
   const start = three.camera.position.toArray();
-  assert.equal(three.ensurePopulationView("distant", 0), false);
+  assert.equal(three.ensurePopulationView("nea", 0), false);
   assert.equal(three.ensurePopulationView("trojans", 0), true);
   three.advanceViewFit(VIEW_FIT_MS);
   const end = three.camera.position.toArray();
@@ -114,6 +114,26 @@ test("Pixi and Three animate Trojans out, ignore other presets, and yield to a g
   assert.deepEqual(three.controls.target.toArray(), [0, 0, 0]);
   assert.equal(three.controls.updates > 0, true);
   assert.equal(three.viewAnimating, false);
+
+  const distantPixi = pixiStub(2);
+  assert.equal(distantPixi.ensurePopulationView("distant", 0), true);
+  distantPixi.advanceViewFit(VIEW_FIT_MS);
+  const trojanPixi = pixiStub(2);
+  trojanPixi.ensurePopulationView("trojans", 0);
+  trojanPixi.advanceViewFit(VIEW_FIT_MS);
+  assert.ok(distantPixi.stage.scale.x < trojanPixi.stage.scale.x);
+  assert.equal(pixiDistantTargetScale(800, 800, 400, 400, distantPixi.stage.scale.x), null);
+
+  const distantThree = threeStub();
+  assert.equal(distantThree.ensurePopulationView("distant", 0), true);
+  distantThree.advanceViewFit(VIEW_FIT_MS);
+  const trojanThree = threeStub();
+  trojanThree.ensurePopulationView("trojans", 0);
+  trojanThree.advanceViewFit(VIEW_FIT_MS);
+  assert.ok(Math.hypot(...distantThree.camera.position.toArray())
+    > Math.hypot(...trojanThree.camera.position.toArray()));
+  assert.ok(distantFitRadiusPx() > trojanFitRadiusPx());
+  assert.equal(threeDistantTargetPose(distantThree.camera.position.toArray(), [0, 0, 0], 60, 1.6, 1), null);
 });
 
 test("capturing a view finishes an in-flight Trojan fit", () => {

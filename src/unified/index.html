@@ -18,6 +18,7 @@
         <button type="button" class="orrery-date" id="orrery-date" aria-haspopup="dialog" aria-controls="orrery-date-dialog" title="Jump to date (UTC)"></button>
         <span class="orrery-now orrery-realtime-mark" id="orrery-now" title="The date is the current time" hidden>(real time)</span>
         <span class="orrery-separator" aria-hidden="true">/</span>
+        <span class="orrery-swatches" id="orrery-swatches" hidden></span>
         <span class="orrery-count" id="orrery-count"></span>
       </div>
       <div class="orrery-status" id="orrery-status" role="status"></div>
@@ -53,7 +54,7 @@
     <dialog class="orrery-glossary" id="orrery-glossary" aria-labelledby="orrery-glossary-title">
       <form method="dialog" class="orrery-glossary-card">
         <h1 class="orrery-dialog-title" id="orrery-glossary-title" tabindex="-1" autofocus>Minor-planet groups</h1>
-        <p>These presets isolate numbered objects with a known discovery date. Asteroids are minor planets; they are not offered as a separate filter. Groups are by orbit shape in this app, not official MPC Orbit_type.</p>
+        <p>These presets name numbered objects with a known discovery date. The menu chooses which objects are shown: everything, one group alone, or everything but the belt. Colorize keeps that same set and paints it: Near Earth teal, Jupiter Trojans gold, Distant violet. The belt stays gray either way. A new arrival is green, then settles to its group color or to gray. Asteroids are minor planets; they are not offered as a separate filter. Groups are by orbit shape in this app, not official MPC Orbit_type.</p>
         <dl>
           <dt>Main belt</dt>
           <dd>The dense doughnut between Mars and Jupiter. Most of what the orrery shows.</dd>
@@ -63,12 +64,9 @@
           <dd>Not the main-belt doughnut: two swarms that share Jupiter’s orbit, ahead and behind the planet (L4/L5). They read clearly after playback into the 2000s.</dd>
           <dt>Distant</dt>
           <dd>Beyond Jupiter: Centaurs between the giants and trans-Neptunian objects beyond Neptune.</dd>
-          <dt>PHA</dt>
-          <dd>A near-Earth object that can pass near Earth and is large enough to matter. Not a control in this version.</dd>
-          <dt>Dwarf planets</dt>
-          <dd>An IAU class that overlaps these groups. Highlighting them needs identity tags, later.</dd>
         </dl>
-        <p>The count is objects on screen now for the active preset at the committed date. It is not a live MPC census.</p>
+        <p>PHA and dwarf planets are not controls. A PHA is a near-Earth object that can pass close to Earth and is large enough to matter; this catalogue does not carry that flag. Dwarf planets overlap these groups and need names before they can be marked.</p>
+        <p>The count is the active group at the committed date, not every gray point and not a live MPC census.</p>
         <p class="orrery-glossary-links">Data: <a href="https://minorplanetcenter.net/" target="_blank" rel="noopener noreferrer">Minor Planet Center</a>.</p>
         <button type="submit" class="orrery-glossary-close">Close</button>
       </form>

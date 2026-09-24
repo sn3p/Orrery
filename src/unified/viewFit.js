@@ -3,6 +3,8 @@ import { TROJAN_A_MAX } from "./catalog/population.js";
 
 export const TROJAN_FIT_PADDING = 1.08;
 export const VIEW_FIT_MS = 500;
+// Distant objects sit past Jupiter, out to Neptune. Frame that distance; do not add the planet.
+export const NEPTUNE_FIT_AU = 30.1;
 const SCALE_SNAP = 1.02;
 const DIST_SNAP = 8;
 
@@ -22,12 +24,23 @@ export function trojanFitRadiusPx(padding = TROJAN_FIT_PADDING) {
   return TROJAN_A_MAX * PIXELS_PER_AU * padding;
 }
 
-export function pixiTrojanTargetScale(viewWidth, viewHeight, sunX, sunY, currentScale) {
+export function distantFitRadiusPx(padding = TROJAN_FIT_PADDING) {
+  return NEPTUNE_FIT_AU * PIXELS_PER_AU * padding;
+}
+
+function pixiTargetScale(radius, viewWidth, viewHeight, sunX, sunY, currentScale) {
   const room = Math.min(sunX, viewWidth - sunX, sunY, viewHeight - sunY);
-  const radius = trojanFitRadiusPx();
   if (!(room > 0) || !(radius > 0) || !(currentScale > 0)) return null;
   const needed = room / radius;
   return currentScale > needed * SCALE_SNAP ? needed : null;
+}
+
+export function pixiTrojanTargetScale(viewWidth, viewHeight, sunX, sunY, currentScale) {
+  return pixiTargetScale(trojanFitRadiusPx(), viewWidth, viewHeight, sunX, sunY, currentScale);
+}
+
+export function pixiDistantTargetScale(viewWidth, viewHeight, sunX, sunY, currentScale) {
+  return pixiTargetScale(distantFitRadiusPx(), viewWidth, viewHeight, sunX, sunY, currentScale);
 }
 
 export function perspectiveDistanceToFit(radius, fovDeg, aspect, zoom = 1) {
@@ -52,7 +65,14 @@ function minHalfFov(fovDeg, aspect, zoom = 1) {
 }
 
 export function threeTrojanTargetPose(position, target, fovDeg, aspect, zoom = 1) {
-  const radius = trojanFitRadiusPx();
+  return threeFitPose(position, target, fovDeg, aspect, zoom, trojanFitRadiusPx());
+}
+
+export function threeDistantTargetPose(position, target, fovDeg, aspect, zoom = 1) {
+  return threeFitPose(position, target, fovDeg, aspect, zoom, distantFitRadiusPx());
+}
+
+function threeFitPose(position, target, fovDeg, aspect, zoom, radius) {
   const needed = perspectiveDistanceToFit(radius, fovDeg, aspect, zoom);
   if (needed == null) return null;
   const fromSun = normalize3(position);
@@ -73,7 +93,7 @@ export function threeTrojanTargetPose(position, target, fovDeg, aspect, zoom = 1
   const sunAngle = Math.acos(lookDotSun);
   const angRadius = distFromSun > radius ? Math.atan(radius / distFromSun) : Math.PI;
   const half = minHalfFov(fovDeg, aspect, zoom);
-  if (distFromSun >= needed - DIST_SNAP && sunAngle + angRadius <= half) return null;
+  if (distFromSun >= needed - DIST_SNAP && sunAngle + angRadius <= half + 1e-4) return null;
   const distance = Math.max(distFromSun, needed);
   return {
     position: [direction[0] * distance, direction[1] * distance, direction[2] * distance],
