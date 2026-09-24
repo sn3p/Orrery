@@ -146,9 +146,22 @@ const LEGEND_GROUPS = [
   { id: CLASS_DISTANT, name: "Distant", color: CLASS_REST_COLOR[CLASS_DISTANT], colorName: "violet" },
 ];
 
+// When all three zones are painted they read as one ramp entry, so the legend
+// keeps a phone footer to two rows and the options panel above it.
+const BELT_LEGEND = {
+  id: CLASS_BELT_INNER, name: "Main belt", color: CLASS_REST_COLOR[CLASS_BELT_MIDDLE],
+  colors: [CLASS_BELT_INNER, CLASS_BELT_MIDDLE, CLASS_BELT_OUTER].map(id => CLASS_REST_COLOR[id]),
+  colorName: "rose, light inner to dark outer",
+};
+
 export function legendGroups(preset, colorize = false) {
   const mask = highlightMask(preset, colorize);
-  return LEGEND_GROUPS.filter(group => mask & (1 << group.id));
+  const groups = LEGEND_GROUPS.filter(group => mask & (1 << group.id));
+  if ((mask & BELT_MASK) !== BELT_MASK) return groups.map(group => ({ ...group, colors: [group.color] }));
+  return groups.flatMap(group => {
+    if (!(BELT_MASK & (1 << group.id))) return [{ ...group, colors: [group.color] }];
+    return group.id === CLASS_BELT_INNER ? [BELT_LEGEND] : [];
+  });
 }
 
 export function colorChannels(hex) {

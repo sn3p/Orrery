@@ -112,12 +112,23 @@ test("group colors paint only the drawn set and reserve green for arrivals", () 
     "the trial switch decides whether All paints the belt");
   assert.deepEqual(legendGroups("all", false), []);
   assert.deepEqual(legendGroups("all", true).map(group => group.name), PAINT_BELT_ON_ALL
-    ? ["Near Earth", "Hungarias", "Inner belt", "Middle belt", "Outer belt", "Hildas", "Jupiter Trojans", "Distant"]
+    ? ["Near Earth", "Hungarias", "Main belt", "Hildas", "Jupiter Trojans", "Distant"]
     : ["Near Earth", "Hungarias", "Hildas", "Jupiter Trojans", "Distant"]);
   assert.deepEqual(legendGroups("trojans", true).map(group => group.name), ["Jupiter Trojans"]);
-  assert.deepEqual(legendGroups("belt", true).map(group => group.colorName), ["light rose", "rose", "dark rose"]);
+  assert.deepEqual(legendGroups("trojans", true).map(group => group.colors), [[0xd4a017]]);
+  // All three zones together are one ramp entry; a single zone keeps its own name and dot.
+  const belt = legendGroups("belt", true);
+  assert.deepEqual(belt.map(group => group.name), ["Main belt"]);
+  assert.deepEqual(belt[0].colors, [0xffb3c6, 0xf0567a, 0xa3244a]);
+  assert.equal(belt[0].colorName, "rose, light inner to dark outer");
+  assert.deepEqual(legendGroups("belt-inner", true).map(group => [group.name, group.colorName, group.colors]),
+    [["Inner belt", "light rose", [0xffb3c6]]]);
+  assert.deepEqual(legendGroups("belt-outer", true).map(group => group.name), ["Outer belt"]);
   assert.deepEqual(legendGroups("without-belt", true).map(group => group.colorName),
     ["teal", "orange", "blue", "gold", "violet"]);
+  for (const preset of PRESETS) {
+    for (const group of legendGroups(preset, true)) assert.ok(group.colors.length >= 1 && group.color, `${preset} legend entries carry colors`);
+  }
   const pixi = fs.readFileSync(new URL("../src/unified/pixi/Asteroids.js", import.meta.url), "utf8");
   const three = fs.readFileSync(new URL("../src/unified/three/Asteroids.js", import.meta.url), "utf8");
   assert.match(pixi, /vec3 arrival = vec3\(0\.0, 1\.0, 0\.0\)/);
