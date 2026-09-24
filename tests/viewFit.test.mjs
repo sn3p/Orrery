@@ -4,8 +4,9 @@ import fs from "node:fs";
 import { PIXELS_PER_AU } from "../src/js/constants.js";
 import { TROJAN_A_MAX } from "../src/unified/catalog/population.js";
 import {
-  TROJAN_FIT_PADDING, VIEW_FIT_MS, easeOutCubic, perspectiveDistanceToFit, pixiDistantTargetScale,
-  pixiTrojanTargetScale, threeDistantTargetPose, threeTrojanTargetPose, trojanFitRadiusPx, distantFitRadiusPx,
+  NEA_FIT_AU, TROJAN_FIT_PADDING, VIEW_FIT_MS, easeOutCubic, perspectiveDistanceToFit, pixiDistantTargetScale,
+  pixiPresetTargetScale, pixiTrojanTargetScale, presetFitRadiusPx, threeDistantTargetPose, threePresetTargetPose,
+  threeTrojanTargetPose, trojanFitRadiusPx, distantFitRadiusPx,
 } from "../src/unified/viewFit.js";
 import PixiRenderer from "../src/unified/pixi/PixiRenderer.js";
 import ThreeRenderer from "../src/unified/three/ThreeRenderer.js";
@@ -57,15 +58,28 @@ function threeStub({
   return receiver;
 }
 
-test("2D zoom-out fits Jupiter's orbit and ignores views that already include it", () => {
+test("2D fit frames Jupiter's orbit from either side and leaves a fitted view alone", () => {
   const needed = pixiTrojanTargetScale(800, 800, 400, 400, 1);
   assert.ok(needed > 0 && needed < 1);
   assert.equal(pixiTrojanTargetScale(800, 800, 400, 400, needed), null);
-  assert.equal(pixiTrojanTargetScale(800, 800, 400, 400, 0.2), null);
+  assert.equal(pixiTrojanTargetScale(800, 800, 400, 400, needed * 1.01), null);
+  assert.equal(pixiTrojanTargetScale(800, 800, 400, 400, 0.2), needed, "zooms back in");
   assert.ok(pixiTrojanTargetScale(320, 568, 160, 284, 1) < needed);
 });
 
-test("3D dolly-out keeps the current side of the sun and skips a framed Trojan view", () => {
+test("every group has a frame; Near Earth is the inner system and All shares Jupiter's", () => {
+  assert.equal(presetFitRadiusPx("nea"), NEA_FIT_AU * PIXELS_PER_AU * TROJAN_FIT_PADDING);
+  assert.equal(presetFitRadiusPx("all"), trojanFitRadiusPx());
+  assert.equal(presetFitRadiusPx("without-belt"), trojanFitRadiusPx());
+  assert.equal(presetFitRadiusPx("trojans"), trojanFitRadiusPx());
+  assert.equal(presetFitRadiusPx("distant"), distantFitRadiusPx());
+  assert.equal(presetFitRadiusPx("nope"), null);
+  assert.equal(pixiPresetTargetScale("nope", 800, 800, 400, 400, 1), null);
+  assert.equal(threePresetTargetPose("nope", [500, 500, 400], [0, 0, 0], 60, 1.6, 1), null);
+  assert.ok(pixiPresetTargetScale("nea", 800, 800, 400, 400, 1) > pixiTrojanTargetScale(800, 800, 400, 400, 1));
+});
+
+test("3D fit keeps the current side of the sun, dollies both ways, and skips a framed view", () => {
   const radius = trojanFitRadiusPx();
   const needed = perspectiveDistanceToFit(radius, 60, 1.6, 1);
   const start = [500, 500, 400];
@@ -76,13 +90,18 @@ test("3D dolly-out keeps the current side of the sun and skips a framed Trojan v
   assert.ok(Math.abs(mag - needed) < 1e-6);
   assert.ok(Math.abs(pose.position[0] / mag - start[0] / Math.hypot(...start)) < 1e-12);
   const far = start.map(value => value * 4);
-  assert.equal(threeTrojanTargetPose(far, [0, 0, 0], 60, 1.6, 1), null);
+  const back = threeTrojanTargetPose(far, [0, 0, 0], 60, 1.6, 1);
+  assert.ok(Math.abs(Math.hypot(...back.position) - needed) < 1e-6, "dollies back in");
+  assert.equal(threeTrojanTargetPose(pose.position, [0, 0, 0], 60, 1.6, 1), null);
 });
 
-test("Pixi and Three animate Trojans and Distant out, ignore other presets, and yield to a gesture", () => {
+test("Pixi and Three frame each group in both directions and yield to a gesture", () => {
   const pixi = pixiStub(2);
-  assert.equal(pixi.ensurePopulationView("nea", 0), false);
-  assert.equal(pixi.viewAnimating, false);
+  assert.equal(pixi.ensurePopulationView("nea", 0), true);
+  pixi.advanceViewFit(VIEW_FIT_MS);
+  const inner = pixi.stage.scale.x;
+  assert.ok(inner < 2 && inner > 1, "Near Earth frames the inner system");
+  pixi.stage.scale.set(2);
   assert.equal(pixi.ensurePopulationView("trojans", 0), true);
   assert.equal(pixi.viewAnimating, true);
   assert.equal(pixi.stage.scale.x, 2);
@@ -92,8 +111,12 @@ test("Pixi and Three animate Trojans and Distant out, ignore other presets, and 
   assert.equal(pixi.viewAnimating, false);
   assert.ok(pixi.stage.scale.x < 1);
 
-  const already = pixiStub(0.2);
+  const already = pixiStub(pixi.stage.scale.x);
   assert.equal(already.ensurePopulationView("trojans", 0), false);
+  assert.equal(already.ensurePopulationView("all", 0), false, "All shares Jupiter's frame");
+  assert.equal(already.ensurePopulationView("nea", 0), true);
+  already.advanceViewFit(VIEW_FIT_MS);
+  assert.equal(already.stage.scale.x, inner, "zooms back in to the inner system");
 
   const cancelled = pixiStub(3);
   cancelled.ensurePopulationView("trojans", 0);
@@ -102,11 +125,13 @@ test("Pixi and Three animate Trojans and Distant out, ignore other presets, and 
   cancelled.cancelViewFit();
   cancelled.advanceViewFit(VIEW_FIT_MS);
   assert.equal(cancelled.stage.scale.x, mid);
-  assert.equal(cancelled.ensurePopulationView("all", 0), false);
+  assert.equal(cancelled.ensurePopulationView("all", 0), true, "a half-finished fit is not a fitted view");
 
   const three = threeStub();
   const start = three.camera.position.toArray();
-  assert.equal(three.ensurePopulationView("nea", 0), false);
+  assert.equal(three.ensurePopulationView("nea", 0), true);
+  three.advanceViewFit(VIEW_FIT_MS);
+  assert.ok(Math.hypot(...three.camera.position.toArray()) < Math.hypot(...start), "dollies in for Near Earth");
   assert.equal(three.ensurePopulationView("trojans", 0), true);
   three.advanceViewFit(VIEW_FIT_MS);
   const end = three.camera.position.toArray();
@@ -134,6 +159,10 @@ test("Pixi and Three animate Trojans and Distant out, ignore other presets, and 
     > Math.hypot(...trojanThree.camera.position.toArray()));
   assert.ok(distantFitRadiusPx() > trojanFitRadiusPx());
   assert.equal(threeDistantTargetPose(distantThree.camera.position.toArray(), [0, 0, 0], 60, 1.6, 1), null);
+  const atNeptune = Math.hypot(...distantThree.camera.position.toArray());
+  assert.equal(distantThree.ensurePopulationView("trojans", 0), true);
+  distantThree.advanceViewFit(VIEW_FIT_MS);
+  assert.ok(Math.hypot(...distantThree.camera.position.toArray()) < atNeptune, "comes back in to Jupiter");
 });
 
 test("capturing a view finishes an in-flight Trojan fit", () => {
