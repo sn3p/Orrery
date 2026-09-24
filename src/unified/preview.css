@@ -91,10 +91,12 @@
   padding: 0;
 }
 
+/* The legend is a different readout from the date and count, so it sits apart. */
 .orrery-swatches {
   display: inline-flex;
   align-items: center;
-  gap: 0.55em;
+  gap: 0.75em;
+  margin-left: 1.25em;
 }
 
 .orrery-swatches[hidden] { display: none; }
@@ -330,7 +332,15 @@
       "status status"
       "readouts identity";
   }
-  .orrery-readouts { grid-area: readouts; }
+  .orrery-readouts {
+    grid-area: readouts;
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  .orrery-swatches {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
   .orrery-status {
     grid-area: status;
     max-width: 100%;
