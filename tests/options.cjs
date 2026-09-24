@@ -211,6 +211,12 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     const glossaryTrigger = page.getByRole("button", { name: "What is this?" });
     await glossaryTrigger.click();
     assert(await glossary.evaluate(el => el.open), "Glossary opens from the groups control");
+    assert.deepEqual(await glossary.locator("dt[data-preset]").evaluateAll(titles => titles.map(title =>
+      [title.dataset.preset, title.querySelectorAll(".orrery-swatch").length, title.textContent.trim()])),
+    [["nea", 1, "Near Earth"], ["hungarias", 1, "Hungarias"], ["belt", 3, "Main belt"], ["hildas", 1, "Hildas"],
+      ["trojans", 1, "Jupiter Trojans"], ["distant", 1, "Distant"]], "Glossary titles carry the legend dots");
+    assert.equal(await glossary.evaluate(el => getComputedStyle(el).scrollbarColor), "rgb(71, 123, 84) rgb(17, 17, 17)");
+    assert(await glossary.evaluate(el => el.getBoundingClientRect().width > 600), "Glossary widens on a desktop viewport");
     assert.equal(await page.evaluate(() => document.activeElement?.id), "orrery-glossary-title");
     await page.keyboard.press("Escape");
     assert(await glossary.evaluate(el => !el.open), "Escape closes the glossary");

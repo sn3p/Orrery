@@ -45,7 +45,8 @@ in `population.js` decides whether All paints the belt zones (true) or leaves
 the belt gray and paints the zones only on the belt presets (false, the
 current setting). Neither choice changes the discovery prefix or
 downloads extra data. Reload returns to All.
-One-line help sits under the control; **What is this?** opens a short glossary,
+One-line help sits under the control; **What is this?** opens a glossary
+whose titles repeat the legend dots,
 as does the **minor-planet groups** shortcut in the introduction card. The
 bottom-left count is what the group menu shows at the committed date, colored
 or gray, not a live MPC census. While groups are colored, swatches beside that
@@ -53,9 +54,10 @@ count name the hues; when all three belt zones are painted they share one
 Main belt entry with three dots, light inner to dark outer. Cuts are by
 orbit shape in this app, not official MPC `Orbit_type`. Choosing a group frames it,
 easing the current camera in or out: All, Hildas, Jupiter Trojans and Without
-the belt frame Jupiter’s orbit, Near Earth and Hungarias frame the inner system
-out to 2.5 AU, the belt and its zones frame 3.5 AU, and Distant frames
-Neptune’s distance. A view that already fits is left alone.
+the belt frame Jupiter’s orbit, Hungarias frame the inner system out to 2.5 AU,
+Near Earth, the belt and its zones frame 3.5 AU, and Distant frames Neptune’s
+distance. The frame radius fills half of the shorter viewport side, so a wide
+window shows more on either side. A view that already fits is left alone.
 Wheel or drag cancels the motion.
 Switching renderers restores each mode’s last view and does not repeat that
 courtesy.
