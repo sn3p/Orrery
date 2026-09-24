@@ -95,7 +95,7 @@ export default class Options {
     this.colorize = this.gui.add(this.orrery, "colorizeGroups").name("group colors");
     this.colorizeInput = this.colorize.domElement.querySelector("input");
     this.colorizeInput.setAttribute("aria-label", "Group colors");
-    this.colorizeInput.title = "Color the shown groups by orbit. The belt stays gray on All; the belt presets paint its zones. Not remembered: a reload turns it back on.";
+    this.colorizeInput.title = "Color the shown groups by orbit. The belt stays gray on All; the belt presets paint its zones.";
     this.addHint(this.colorize, this.colorizeInput.title, this.colorizeInput);
     this.confineCheckbox(this.colorize);
 
