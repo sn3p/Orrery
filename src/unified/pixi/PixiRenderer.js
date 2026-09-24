@@ -5,7 +5,7 @@ import Asteroids from "./Asteroids.js";
 import { DEFAULT_PLANET_LABEL_MODE, isPlanetLabelMode, PlanetLabels } from "../PlanetLabel.js";
 import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "../PlanetOrbitPreference.js";
 import { DEFAULT_POPULATION_PRESET, isPopulationPreset } from "../catalog/population.js";
-import { VIEW_FIT_MS, easeOutCubic, lerp, pixiDistantTargetScale, pixiTrojanTargetScale } from "../viewFit.js";
+import { VIEW_FIT_MS, easeOutCubic, lerp, pixiPresetTargetScale } from "../viewFit.js";
 
 function disposePlanets(batch) {
   for (const { orbit } of batch) orbit?.destroy();
@@ -240,10 +240,7 @@ export default class PixiRenderer {
   ensurePopulationView(preset, now = performance.now()) {
     this.cancelViewFit();
     if (this.destroyed || !this.stage) return false;
-    const scaleFor = preset === "trojans" ? pixiTrojanTargetScale
-      : preset === "distant" ? pixiDistantTargetScale : null;
-    if (!scaleFor) return false;
-    const needed = scaleFor(this.viewWidth, this.viewHeight,
+    const needed = pixiPresetTargetScale(preset, this.viewWidth, this.viewHeight,
       this.stage.position.x, this.stage.position.y, this.stage.scale.x);
     if (needed == null) return false;
     this.viewFit = { from: this.stage.scale.x, to: needed, start: now, duration: VIEW_FIT_MS };

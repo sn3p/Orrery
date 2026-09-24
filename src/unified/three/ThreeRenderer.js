@@ -7,7 +7,7 @@ import Asteroids from "./Asteroids.js";
 import { DEFAULT_PLANET_LABEL_MODE, isPlanetLabelMode, PlanetLabels } from "../PlanetLabel.js";
 import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "../PlanetOrbitPreference.js";
 import { DEFAULT_POPULATION_PRESET, isPopulationPreset } from "../catalog/population.js";
-import { VIEW_FIT_MS, easeOutCubic, lerp3, threeDistantTargetPose, threeTrojanTargetPose } from "../viewFit.js";
+import { VIEW_FIT_MS, easeOutCubic, lerp3, threePresetTargetPose } from "../viewFit.js";
 
 function disposePlanets(batch) {
   for (const { planet, orbit } of batch) {
@@ -201,10 +201,7 @@ export default class ThreeRenderer {
   ensurePopulationView(preset, now = performance.now()) {
     this.cancelViewFit();
     if (this.destroyed || !this.camera || !this.controls) return false;
-    const poseFor = preset === "trojans" ? threeTrojanTargetPose
-      : preset === "distant" ? threeDistantTargetPose : null;
-    if (!poseFor) return false;
-    const pose = poseFor(this.camera.position.toArray(), this.controls.target.toArray(),
+    const pose = threePresetTargetPose(preset, this.camera.position.toArray(), this.controls.target.toArray(),
       this.camera.fov, this.camera.aspect, this.camera.zoom);
     if (!pose) return false;
     this.viewFit = {
