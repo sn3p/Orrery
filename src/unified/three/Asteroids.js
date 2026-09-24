@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import { REFERENCE_JED, wrapPhase } from "../catalog/prepareCatalogue.js";
 import { DISCOVERY_SECONDS, validDate, MAX_PHASE_ADVANCE } from "../../js/asteroidOrbits.js";
-import { CLASS_COUNT, DEFAULT_POPULATION_PRESET, advanceClassTallies, isPopulationPreset,
-  populationGLSL, populationMask, visibleFromTallies } from "../catalog/population.js";
+import { CLASS_COUNT, CLASS_DISTANT, CLASS_NEA, CLASS_REST_COLOR, CLASS_TROJAN,
+  DEFAULT_POPULATION_PRESET, advanceClassTallies, highlightMask,
+  isPopulationPreset, populationGLSL, populationMask, visibleFromTallies } from "../catalog/population.js";
 
 export { REFERENCE_JED } from "../catalog/prepareCatalogue.js";
 export const REBASE_DAYS = 4096;
@@ -33,7 +34,8 @@ export const orbitGLSL = `
 
 export default class Asteroids extends THREE.Points {
   constructor(model, { jed, elapsed = 0, color = new THREE.Color(0x999999), discoveryColor = new THREE.Color(0x00ff00),
-    discoveryDuration = 200, committedCount = model.count, populationPreset = DEFAULT_POPULATION_PRESET }) {
+    discoveryDuration = 200, committedCount = model.count, populationPreset = DEFAULT_POPULATION_PRESET,
+    colorize = false }) {
     if (!validDate(jed) || !Number.isFinite(elapsed) || elapsed < 0
       || !Number.isFinite(discoveryDuration) || discoveryDuration < 0) {
       throw new Error("Invalid asteroid date or discovery duration.");
@@ -51,17 +53,22 @@ export default class Asteroids extends THREE.Points {
     geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), model.radius * 1.00001 + 1);
     geometry.setDrawRange(0, 0);
     const preset = isPopulationPreset(populationPreset) ? populationPreset : DEFAULT_POPULATION_PRESET;
-    const uniforms = {
+    const shared = {
       orbitTime: { value: 0 }, discoveryTime: { value: jed - REFERENCE_JED },
       discoveryBaseline: { value: jed - REFERENCE_JED },
       fadeDuration: { value: discoveryDuration },
       freshColor: { value: discoveryColor }, oldColor: { value: color },
       classMask: { value: populationMask(preset) },
+      colorMask: { value: highlightMask(preset, colorize === true) },
+      neaColor: { value: new THREE.Color(CLASS_REST_COLOR[CLASS_NEA]) },
+      trojanColor: { value: new THREE.Color(CLASS_REST_COLOR[CLASS_TROJAN]) },
+      distantColor: { value: new THREE.Color(CLASS_REST_COLOR[CLASS_DISTANT]) },
       pulseTime: { value: 0 },
     };
-    const material = new THREE.PointsMaterial({ size: 1, vertexColors: true });
-    material.onBeforeCompile = shader => {
-      Object.assign(shader.uniforms, uniforms);
+    const uniforms = { ...shared, pass: { value: 0 } };
+    const highlightUniforms = { ...shared, pass: { value: 1 } };
+    const compile = (shader, set) => {
+      Object.assign(shader.uniforms, set);
       shader.vertexShader = shader.vertexShader.replace("#include <common>", `
         #include <common>
         attribute vec3 basisQ;
@@ -77,13 +84,26 @@ export default class Asteroids extends THREE.Points {
         uniform vec3 freshColor;
         uniform vec3 oldColor;
         uniform float classMask;
+        uniform float colorMask;
+        uniform vec3 neaColor;
+        uniform vec3 trojanColor;
+        uniform vec3 distantColor;
+        uniform float pass;
         uniform float pulseTime;
         ${orbitGLSL}
         ${populationGLSL}
+        vec3 classRestColor(float id) {
+          if (id < 1.5) return neaColor;
+          if (id < 2.5) return trojanColor;
+          return distantColor;
+        }
       `).replace("#include <color_vertex>", `
-        float visible = populationVisible(classId, classMask);
-        vColor = vec4(discovery <= discoveryBaseline ? oldColor
-          : discoveryColor(discoveryTime, discovery, fadeDuration, freshColor, oldColor), visible);
+        float highlighted = populationVisible(classId, colorMask);
+        float show = populationVisible(classId, classMask);
+        show *= pass < 0.5 ? 1.0 - highlighted : highlighted;
+        vec3 resting = highlighted > 0.5 ? classRestColor(classId) : oldColor;
+        vColor = vec4(discovery <= discoveryBaseline ? resting
+          : discoveryColor(discoveryTime, discovery, fadeDuration, freshColor, resting), show);
       `).replace("#include <begin_vertex>", "vec3 transformed = orbitPosition(position, basisQ, elements, meanAnomaly, orbitTime);")
         .replace("#include <fog_vertex>", `
         // WebGL clamps gl_PointSize to at least 1, so masked points must leave clip space.
@@ -102,8 +122,21 @@ export default class Asteroids extends THREE.Points {
         #include <clipping_planes_fragment>
       `);
     };
-    material.customProgramCacheKey = () => "asteroid-orbits-r186-v7";
+    const material = new THREE.PointsMaterial({ size: 1, vertexColors: true, depthWrite: false });
+    const highlightMaterial = new THREE.PointsMaterial({
+      size: 1, vertexColors: true, depthTest: true, depthWrite: false,
+    });
+    material.onBeforeCompile = shader => compile(shader, uniforms);
+    highlightMaterial.onBeforeCompile = shader => compile(shader, highlightUniforms);
+    const programKey = () => "asteroid-orbits-r186-v8";
+    material.customProgramCacheKey = programKey;
+    highlightMaterial.customProgramCacheKey = programKey;
     super(geometry, material);
+    this.highlight = new THREE.Points(geometry, highlightMaterial);
+    this.highlight.frustumCulled = false;
+    this.highlight.name = "Asteroid highlights";
+    this.highlight.visible = false;
+    this.add(this.highlight);
     this.name = "Asteroids";
     this.catalogue = model;
     this.discoveryDates = model.dates;
@@ -116,7 +149,9 @@ export default class Asteroids extends THREE.Points {
     this.committedCount = 0;
     this.uploadedVersions = new Map();
     this.uniforms = uniforms;
+    this.highlightUniforms = highlightUniforms;
     this.populationPreset = preset;
+    this.colorize = colorize === true;
     this.classTallies = new Uint32Array(CLASS_COUNT);
     this.tallyCount = 0;
     this.visibleCount = 0;
@@ -149,8 +184,24 @@ export default class Asteroids extends THREE.Points {
   setPopulationPreset(preset) {
     if (!isPopulationPreset(preset) || preset === this.populationPreset) return;
     this.populationPreset = preset;
-    this.uniforms.classMask.value = populationMask(preset);
+    this.applyMasks();
     this.visibleCount = visibleFromTallies(this.classTallies, preset);
+  }
+
+  setColorize(colorize) {
+    if (typeof colorize !== "boolean" || colorize === this.colorize) return;
+    this.colorize = colorize;
+    this.applyMasks();
+  }
+
+  applyMasks() {
+    this.uniforms.classMask.value = populationMask(this.populationPreset);
+    this.uniforms.colorMask.value = highlightMask(this.populationPreset, this.colorize);
+    this.syncHighlight();
+  }
+
+  syncHighlight() {
+    this.highlight.visible = this.visible && this.uniforms.colorMask.value !== 0;
   }
 
   syncTallies(count) {
@@ -204,6 +255,7 @@ export default class Asteroids extends THREE.Points {
     this.uniforms.pulseTime.value = state.pulseTime;
     this.geometry.setDrawRange(0, state.count);
     this.visible = state.visible;
+    this.syncHighlight();
     this.syncTallies(state.count);
   }
 
@@ -273,6 +325,7 @@ export default class Asteroids extends THREE.Points {
     this.geometry.setDrawRange(0, lo);
     // Three otherwise uploads every preallocated attribute even for zero draws.
     this.visible = lo > 0;
+    this.syncHighlight();
     this.syncTallies(lo);
     return lo;
   }
@@ -293,6 +346,8 @@ export default class Asteroids extends THREE.Points {
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
+    this.highlight.material.dispose();
+    this.highlight = null;
     this.removeFromParent();
     this.geometry.dispose();
     this.material.dispose();

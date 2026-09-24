@@ -1,5 +1,6 @@
 import { formatIsoDay } from "../../js/utils.js";
 import { UNIX_EPOCH_JULIAN_DATE } from "../../js/constants.js";
+import { legendGroups } from "../catalog/population.js";
 import Options from "./Options.js";
 import Timeline from "./Timeline.js";
 
@@ -12,6 +13,8 @@ export default class Hud {
     this.now = document.getElementById("orrery-now");
     this.fps = document.getElementById("orrery-fps");
     this.count = document.getElementById("orrery-count");
+    this.swatches = document.getElementById("orrery-swatches");
+    this.legendKey = "";
     this.readouts = this.date.closest(".orrery-readouts");
     if (this.readouts) this.readouts.hidden = true;
     this.lastDay = this.lastFps = this.lastCount = null;
@@ -41,6 +44,30 @@ export default class Hud {
       this.count.textContent = countFormat.format(count).replaceAll(",", "\u202f");
       this.lastCount = count;
     }
+  }
+
+  setLegend(preset, colorize) {
+    const groups = legendGroups(preset, colorize);
+    const key = groups.map(group => group.name).join("|");
+    if (key === this.legendKey) return;
+    this.legendKey = key;
+    if (!this.swatches) return;
+    this.swatches.replaceChildren(...groups.map(group => {
+      const item = document.createElement("span");
+      item.className = "orrery-swatch-item";
+      item.setAttribute("role", "listitem");
+      // The dot carries the hue visually; say it for screen readers.
+      item.setAttribute("aria-label", `${group.name}, ${group.colorName}`);
+      const dot = document.createElement("span");
+      dot.className = "orrery-swatch";
+      dot.style.backgroundColor = `#${group.color.toString(16).padStart(6, "0")}`;
+      const name = document.createElement("span");
+      name.className = "orrery-swatch-name";
+      name.textContent = group.name;
+      item.append(dot, name);
+      return item;
+    }));
+    this.swatches.hidden = groups.length === 0;
   }
 
   updatePlayback(speed) { this.timeline.updatePlayback(speed); }

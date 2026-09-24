@@ -92,20 +92,29 @@ async function pixels(page) {
       app.asteroids.update(app.jed, epoch + age); app.app.render();
       const gl = app.app.renderer.gl, w = app.canvas.width, h = app.canvas.height;
       const data = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, data);
-      let green = 0, gray = 0, xTotal = 0, yTotal = 0, lit = 0;
+      // Pure green is the arrival; teal (as much blue as green) is the Near
+      // Earth resting color; gray has all channels equal.
+      let green = 0, gray = 0, teal = 0, xTotal = 0, yTotal = 0, lit = 0;
       for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-        const i = (y * w + x) * 4;
-        if (data[i + 1] > 20) {
+        const i = (y * w + x) * 4, r = data[i], g = data[i + 1], b = data[i + 2];
+        if (g > 20) {
           lit++; xTotal += x + 0.5; yTotal += h - y - 0.5;
-          if (data[i + 1] > data[i] * 2) green++;
-          else if (Math.abs(data[i] - data[i + 1]) < 2) gray++;
+          if (g > r * 2 && g > b * 2) green++;
+          else if (Math.abs(r - g) < 2 && Math.abs(g - b) < 2) gray++;
+          else if (g > r * 2 && b > r * 2) teal++;
         }
       }
-      return { green, gray, x: xTotal / lit, y: yTotal / lit, lit };
+      return { green, gray, teal, x: xTotal / lit, y: yTotal / lit, lit };
     };
-    const fresh = read(0), shrinking = read(1 / 3), old = read(2 / 3 + 0.001);
-    check(fresh.green > shrinking.green * 1.8 && shrinking.green > old.lit * 3, "Green marker shrinks 3x -> 2x -> 1x");
-    check(old.green === 0 && old.gray > 0, "Mature marker is gray, not a color fade");
+    // The sample orbits at 0.1 AU, so it is Near Earth. Group colors are on
+    // by default: a mature marker settles to teal. Off, it settles to gray.
+    check(app.colorizeGroups === true, "Group colors are on by default");
+    const fresh = read(0), shrinking = read(1 / 3), colored = read(2 / 3 + 0.001);
+    check(fresh.green > shrinking.green * 1.8 && shrinking.green > colored.lit * 3, "Green marker shrinks 3x -> 2x -> 1x");
+    check(colored.green === 0 && colored.teal > 0 && colored.gray === 0, "Mature Near Earth marker is teal with group colors on");
+    app.colorizeGroups = false;
+    const old = read(2 / 3 + 0.001);
+    check(old.green === 0 && old.teal === 0 && old.gray > 0, "Mature marker is gray with group colors off, not a color fade");
     const expected = reference(d, app.jed), resolution = app.app.renderer.resolution;
     check(Math.abs(old.x - (app.stage.x + expected[0] * 12) * resolution) < 1, "Negative-x projection and pan/zoom/DPR");
     check(Math.abs(old.y - (app.stage.y + expected[1] * 12) * resolution) < 1, "Positive-y projection and pan/zoom/DPR");
@@ -119,10 +128,11 @@ async function pixels(page) {
     const rebased = read(4096.2);
     check(rebased.green === 0 && rebased.gray > 0, "Old markers stay gray at animation clock rebase");
     app.elapsed = epoch + 4096.2;
+    app.colorizeGroups = true;
     hidden.forEach(c => { c.visible = true; });
     app.stage.scale.set(1); app.stage.position.set(app.viewWidth / 2, app.viewHeight / 2);
     app.setAsteroids(fixture.catalog); app.elapsed += 1; app.tick(); app.app.render();
-    return { fresh, shrinking, old, rebased };
+    return { fresh, shrinking, colored, old, rebased };
   });
 }
 
@@ -131,6 +141,8 @@ async function instancePixels(page) {
     const { app, REFERENCE_JED, reference } = fixture;
     const hidden = app.stage.children.filter(c => c !== app.asteroids);
     hidden.forEach(c => { c.visible = false; });
+    // These samples are Near Earth; read them gray with group colors off.
+    app.colorizeGroups = false;
     const data = [0, 90, 180, 270].map((M, i) => ({ a: 0.1, e: 0, i: 0, W: 0, wbar: 0, M, n: 1, epoch: REFERENCE_JED, disc: REFERENCE_JED - 3 + i }));
     app.jedDelta = 0; app.jed = REFERENCE_JED - 1;
     app.stage.scale.set(12); app.stage.position.set(app.viewWidth / 2, app.viewHeight / 2);
@@ -152,6 +164,7 @@ async function instancePixels(page) {
     app.elapsed += 4096.1; app.tick(); app.app.render();
     const rebased = read();
     if (!rebased.every(([r, g, b]) => r > 100 && r === g && g === b)) throw new Error("Full timestamp refresh after a partial upload failed");
+    app.colorizeGroups = true;
     hidden.forEach(c => { c.visible = true; });
     app.stage.scale.set(1); app.setAsteroids(fixture.catalog); app.elapsed += 1; app.tick(); app.app.render();
     return { colors, rebased };

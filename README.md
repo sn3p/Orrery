@@ -3,7 +3,7 @@
 [Orrery](https://sn3p.github.io/Orrery) is an animated view of the Solar System's
 [minor planets](https://en.wikipedia.org/wiki/Minor_planet), shown in the order they
 were discovered. Each dot is an asteroid on its orbit; new discoveries appear green,
-then fade to grey as the date advances. One app offers a
+then settle to grey, or to their group's color, as the date advances. One app offers a
 [3D](https://sn3p.github.io/Orrery) (Three.js) and a
 [2D](https://sn3p.github.io/Orrery/?renderer=pixi) (Pixi.js) renderer; switch in
 the options panel. Without WebGL2 the app opens the 2D view and says so.

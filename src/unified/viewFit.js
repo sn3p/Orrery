@@ -3,6 +3,11 @@ import { TROJAN_A_MAX } from "./catalog/population.js";
 
 export const TROJAN_FIT_PADDING = 1.08;
 export const VIEW_FIT_MS = 500;
+// Every group has a frame, and choosing it eases the camera in or out to fit.
+// Near Earth: Mars and the inner belt edge. All, Trojans and Without the belt:
+// Jupiter's orbit. Distant: Neptune's distance, without adding the planet.
+export const NEA_FIT_AU = 2.5;
+export const NEPTUNE_FIT_AU = 30.1;
 const SCALE_SNAP = 1.02;
 const DIST_SNAP = 8;
 
@@ -22,12 +27,37 @@ export function trojanFitRadiusPx(padding = TROJAN_FIT_PADDING) {
   return TROJAN_A_MAX * PIXELS_PER_AU * padding;
 }
 
-export function pixiTrojanTargetScale(viewWidth, viewHeight, sunX, sunY, currentScale) {
+export function distantFitRadiusPx(padding = TROJAN_FIT_PADDING) {
+  return NEPTUNE_FIT_AU * PIXELS_PER_AU * padding;
+}
+
+export function presetFitRadiusPx(preset, padding = TROJAN_FIT_PADDING) {
+  if (preset === "nea") return NEA_FIT_AU * PIXELS_PER_AU * padding;
+  if (preset === "distant") return distantFitRadiusPx(padding);
+  if (preset === "all" || preset === "trojans" || preset === "without-belt") return trojanFitRadiusPx(padding);
+  return null;
+}
+
+// A view that already fits within the snap tolerance is left alone; otherwise
+// the fit moves in or out to the exact frame.
+function pixiTargetScale(radius, viewWidth, viewHeight, sunX, sunY, currentScale) {
   const room = Math.min(sunX, viewWidth - sunX, sunY, viewHeight - sunY);
-  const radius = trojanFitRadiusPx();
   if (!(room > 0) || !(radius > 0) || !(currentScale > 0)) return null;
   const needed = room / radius;
-  return currentScale > needed * SCALE_SNAP ? needed : null;
+  return Math.abs(currentScale / needed - 1) > SCALE_SNAP - 1 ? needed : null;
+}
+
+export function pixiPresetTargetScale(preset, viewWidth, viewHeight, sunX, sunY, currentScale) {
+  const radius = presetFitRadiusPx(preset);
+  return radius == null ? null : pixiTargetScale(radius, viewWidth, viewHeight, sunX, sunY, currentScale);
+}
+
+export function pixiTrojanTargetScale(viewWidth, viewHeight, sunX, sunY, currentScale) {
+  return pixiTargetScale(trojanFitRadiusPx(), viewWidth, viewHeight, sunX, sunY, currentScale);
+}
+
+export function pixiDistantTargetScale(viewWidth, viewHeight, sunX, sunY, currentScale) {
+  return pixiTargetScale(distantFitRadiusPx(), viewWidth, viewHeight, sunX, sunY, currentScale);
 }
 
 export function perspectiveDistanceToFit(radius, fovDeg, aspect, zoom = 1) {
@@ -52,7 +82,19 @@ function minHalfFov(fovDeg, aspect, zoom = 1) {
 }
 
 export function threeTrojanTargetPose(position, target, fovDeg, aspect, zoom = 1) {
-  const radius = trojanFitRadiusPx();
+  return threeFitPose(position, target, fovDeg, aspect, zoom, trojanFitRadiusPx());
+}
+
+export function threeDistantTargetPose(position, target, fovDeg, aspect, zoom = 1) {
+  return threeFitPose(position, target, fovDeg, aspect, zoom, distantFitRadiusPx());
+}
+
+export function threePresetTargetPose(preset, position, target, fovDeg, aspect, zoom = 1) {
+  const radius = presetFitRadiusPx(preset);
+  return radius == null ? null : threeFitPose(position, target, fovDeg, aspect, zoom, radius);
+}
+
+function threeFitPose(position, target, fovDeg, aspect, zoom, radius) {
   const needed = perspectiveDistanceToFit(radius, fovDeg, aspect, zoom);
   if (needed == null) return null;
   const fromSun = normalize3(position);
@@ -73,8 +115,9 @@ export function threeTrojanTargetPose(position, target, fovDeg, aspect, zoom = 1
   const sunAngle = Math.acos(lookDotSun);
   const angRadius = distFromSun > radius ? Math.atan(radius / distFromSun) : Math.PI;
   const half = minHalfFov(fovDeg, aspect, zoom);
-  if (distFromSun >= needed - DIST_SNAP && sunAngle + angRadius <= half) return null;
-  const distance = Math.max(distFromSun, needed);
+  const fitted = Math.abs(distFromSun - needed) <= DIST_SNAP;
+  if (fitted && sunAngle + angRadius <= half + 1e-4) return null;
+  const distance = needed;
   return {
     position: [direction[0] * distance, direction[1] * distance, direction[2] * distance],
     target: [0, 0, 0],
