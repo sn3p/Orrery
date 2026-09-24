@@ -55,6 +55,7 @@ export default class Hud {
     this.swatches.replaceChildren(...groups.map(group => {
       const item = document.createElement("span");
       item.className = "orrery-swatch-item";
+      item.setAttribute("role", "listitem");
       const dot = document.createElement("span");
       dot.className = "orrery-swatch";
       dot.style.backgroundColor = `#${group.color.toString(16).padStart(6, "0")}`;
@@ -65,7 +66,6 @@ export default class Hud {
       return item;
     }));
     this.swatches.hidden = groups.length === 0;
-    this.swatches.setAttribute("aria-label", groups.map(group => group.name).join(", "));
   }
 
   updatePlayback(speed) { this.timeline.updatePlayback(speed); }
