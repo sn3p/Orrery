@@ -45,12 +45,52 @@ const PRESET_MASKS = {
   "without-belt": ((1 << CLASS_COUNT) - 1) ^ (1 << CLASS_BELT),
 };
 
+// Resting hues. #00ff00 stays the arrival color and is not a class color.
+export const CLASS_REST_COLOR = {
+  [CLASS_NEA]: 0x2ec4b6,
+  [CLASS_TROJAN]: 0xd4a017,
+  [CLASS_DISTANT]: 0xa78bfa,
+};
+
+const HIGHLIGHT_MASKS = {
+  all: 0,
+  nea: 1 << CLASS_NEA,
+  trojans: 1 << CLASS_TROJAN,
+  distant: 1 << CLASS_DISTANT,
+  "without-belt": (1 << CLASS_NEA) | (1 << CLASS_TROJAN) | (1 << CLASS_DISTANT),
+};
+
 export function isPopulationPreset(value) {
   return Object.hasOwn(PRESET_MASKS, value);
 }
 
 export function populationMask(preset) {
   return PRESET_MASKS[preset] ?? PRESET_MASKS[DEFAULT_POPULATION_PRESET];
+}
+
+const MINORITY_MASK = (1 << CLASS_NEA) | (1 << CLASS_TROJAN) | (1 << CLASS_DISTANT);
+
+// The menu chooses which points are drawn. Colorize only paints that set:
+// the belt stays gray, the other groups take their hue.
+export function highlightMask(preset, colorize = false) {
+  if (!colorize) return 0;
+  if (preset === "all") return MINORITY_MASK;
+  return HIGHLIGHT_MASKS[preset] ?? 0;
+}
+
+const LEGEND_GROUPS = [
+  { id: CLASS_NEA, name: "Near Earth", color: CLASS_REST_COLOR[CLASS_NEA] },
+  { id: CLASS_TROJAN, name: "Jupiter Trojans", color: CLASS_REST_COLOR[CLASS_TROJAN] },
+  { id: CLASS_DISTANT, name: "Distant", color: CLASS_REST_COLOR[CLASS_DISTANT] },
+];
+
+export function legendGroups(preset, colorize = false) {
+  const mask = highlightMask(preset, colorize);
+  return LEGEND_GROUPS.filter(group => mask & (1 << group.id));
+}
+
+export function colorChannels(hex) {
+  return [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
 }
 
 export function populationHint(preset) {

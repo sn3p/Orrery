@@ -91,6 +91,27 @@
   padding: 0;
 }
 
+.orrery-swatches {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55em;
+}
+
+.orrery-swatches[hidden] { display: none; }
+
+.orrery-swatch-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  color: var(--color-hud);
+}
+
+.orrery-swatch {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
 .orrery-playback,
 .orrery-date {
   appearance: none;

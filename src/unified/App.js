@@ -65,6 +65,7 @@ export default class App {
     if (!isPlanetOrbitVisibility(this._planetOrbits)) throw new Error("Invalid planet orbit visibility.");
     this._populationPreset = options.populationPreset ?? DEFAULT_POPULATION_PRESET;
     if (!isPopulationPreset(this._populationPreset)) throw new Error("Invalid population preset.");
+    this._colorizeGroups = false;
     // Remembered in this browser. The app entry passes the saved choice; other
     // callers stay off unless they opt in.
     this._holdAtPresent = !!options.holdAtPresent;
@@ -256,11 +257,19 @@ export default class App {
     this.renderer?.ensurePopulationView?.(value);
     this.requestRender();
   }
+  get colorizeGroups() { return this._colorizeGroups; }
+  set colorizeGroups(value) {
+    if (this.destroyed || typeof value !== "boolean" || value === this._colorizeGroups) return;
+    this._colorizeGroups = value;
+    this.renderer?.setOptions?.(this.rendererSettings());
+    this.requestRender();
+  }
   get frameState() { return { jed: this.jed, elapsed: this.elapsed }; }
   get viewport() { return { width: innerWidth, height: innerHeight, pixelRatio: this.effectivePixelRatio }; }
   rendererSettings(id = this.rendererId, renderer = this.rendererOptions[id]) {
     return { shared: { pixelRatio: this.pixelRatio, planetLabels: this.planetLabels,
-      planetOrbits: this.planetOrbits, populationPreset: this.populationPreset }, renderer };
+      planetOrbits: this.planetOrbits, populationPreset: this.populationPreset,
+      colorizeGroups: this.colorizeGroups }, renderer };
   }
 
   init() {
@@ -651,6 +660,7 @@ export default class App {
     // A loaded empty catalogue is valid too. Retain the last committed readouts
     // while a replacement, renderer switch or graphics recovery is pending.
     this.gui?.update(this.jed, this.stats.fps, this.asteroidsVisible, this.hasCommittedReadouts);
+    this.gui?.setLegend?.(this.populationPreset, this.colorizeGroups);
     this.notePresent();
   }
   resetClock() {

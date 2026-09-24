@@ -28,16 +28,23 @@ button reads `today (real time)`, the jump keeps playback running, and the
 dialog says a chosen date stays paused while Today keeps playing. The date
 readout shows `(real time)` in the same green while that mode is active.
 
-Minor-planet groups isolate numbered objects already in this catalogue: All,
-Near Earth, Jupiter Trojans, Distant, or Without the belt. The filter hides
-non-matching points; it does not change the discovery prefix or download extra
-data. Reload returns to All. One-line help sits under the control; **What is
-this?** opens a short glossary, as does the **minor-planet groups** shortcut in
-the introduction card. The bottom-left count is the objects on screen
-for the active preset at the committed date, not a live MPC census. Cuts are by
+Minor-planet groups name numbered objects already in this catalogue: All,
+Near Earth, Jupiter Trojans, Distant, or Without the belt. The menu decides
+which objects are drawn: everything, one group alone, or everything but the
+belt. Colorize, off by default and not remembered, never changes that set; it
+paints it. Near Earth is teal, Jupiter Trojans gold, Distant violet, and the
+belt stays gray either way. Every new arrival is pure green and then settles
+to its group color, or to gray. Neither choice changes the discovery prefix or
+downloads extra data. Reload returns to All.
+One-line help sits under the control; **What is this?** opens a short glossary,
+as does the **minor-planet groups** shortcut in the introduction card. The
+bottom-left count is the active group at the committed date, not every gray
+point and not a live MPC census. While groups are colored, swatches beside
+that count name the hues. Cuts are by
 orbit shape in this app, not official MPC `Orbit_type`. Choosing Jupiter Trojans
 eases the current camera out until Jupiter’s orbit fits, if it is not already on
-screen; other presets leave the view alone. Wheel or drag cancels the motion.
+screen. Choosing Distant eases it farther, out to Neptune’s distance. Other
+presets leave the view alone. Wheel or drag cancels the motion.
 Switching renderers restores each mode’s last view and does not repeat that
 courtesy.
 

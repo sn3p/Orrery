@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { prepareCatalogue, REFERENCE_JED } from "../src/unified/catalog/prepareCatalogue.js";
 import {
-  CLASS_BELT, CLASS_DISTANT, CLASS_NEA, CLASS_TROJAN, DEFAULT_POPULATION_PRESET,
-  POPULATION_PRESET_OPTIONS, advanceClassTallies, classifyOrbit, isPopulationPreset,
-  populationHint, populationMask, resyncClassTallies, visibleFromTallies,
+  CLASS_BELT, CLASS_DISTANT, CLASS_NEA, CLASS_REST_COLOR, CLASS_TROJAN, DEFAULT_POPULATION_PRESET,
+  POPULATION_PRESET_OPTIONS, advanceClassTallies, classifyOrbit, highlightMask,
+  isPopulationPreset, legendGroups, populationHint, populationMask, resyncClassTallies, visibleFromTallies,
 } from "../src/unified/catalog/population.js";
 import PixiRenderer from "../src/unified/pixi/PixiRenderer.js";
 import Asteroids from "../src/unified/three/Asteroids.js";
@@ -36,6 +36,42 @@ test("Jupiter Trojans are not the main belt and stay visible without it", () => 
   assert.equal(populationMask("all") & (1 << CLASS_TROJAN), 1 << CLASS_TROJAN);
   assert.equal(visibleFromTallies(Uint32Array.from([0, 0, 4, 0, 10]), "without-belt"), 4);
   assert.equal(visibleFromTallies(Uint32Array.from([0, 0, 4, 0, 10]), "all"), 14);
+});
+
+test("group colors keep the belt visible and reserve green for highlighted arrivals", () => {
+  assert.equal(CLASS_REST_COLOR[CLASS_NEA], 0x2ec4b6);
+  assert.equal(CLASS_REST_COLOR[CLASS_TROJAN], 0xd4a017);
+  assert.equal(CLASS_REST_COLOR[CLASS_DISTANT], 0xa78bfa);
+  // Colorize never changes which points are drawn; the menu owns that.
+  for (const preset of ["all", "nea", "trojans", "distant", "without-belt"]) {
+    assert.equal(highlightMask(preset), 0);
+    assert.equal(highlightMask(preset, true) & ~populationMask(preset), 0, `${preset} colors only drawn points`);
+    assert.equal(highlightMask(preset, true) & (1 << CLASS_BELT), 0, `${preset} keeps the belt gray`);
+  }
+  assert.equal(highlightMask("nea", true), 1 << CLASS_NEA);
+  assert.equal(highlightMask("trojans", true), 1 << CLASS_TROJAN);
+  assert.equal(highlightMask("distant", true), 1 << CLASS_DISTANT);
+  assert.equal(highlightMask("without-belt", true) & (1 << CLASS_BELT), 0);
+  assert.equal(highlightMask("without-belt", true) & (1 << CLASS_TROJAN), 1 << CLASS_TROJAN);
+  const minority = (1 << CLASS_NEA) | (1 << CLASS_TROJAN) | (1 << CLASS_DISTANT);
+  assert.equal(highlightMask("all", true), minority);
+  assert.equal(highlightMask("nea", true), 1 << CLASS_NEA);
+  assert.deepEqual(legendGroups("all", false), []);
+  assert.deepEqual(legendGroups("all", true).map(group => group.name),
+    ["Near Earth", "Jupiter Trojans", "Distant"]);
+  assert.deepEqual(legendGroups("trojans", true).map(group => group.name), ["Jupiter Trojans"]);
+  const pixi = fs.readFileSync(new URL("../src/unified/pixi/Asteroids.js", import.meta.url), "utf8");
+  const three = fs.readFileSync(new URL("../src/unified/three/Asteroids.js", import.meta.url), "utf8");
+  assert.match(pixi, /vec3 arrival = vec3\(0\.0, 1\.0, 0\.0\)/);
+  assert.match(pixi, /1\.0 \/ pixelsPerUnit/);
+  assert.doesNotMatch(pixi, /vec3\(1\.0\)/);
+  assert.match(three, /freshColor/);
+  assert.match(three, /0x00ff00/);
+  assert.doesNotMatch(three, /vec3\(1\.0\)/);
+  assert.match(three, /depthWrite: false/);
+  assert.match(three, /depthTest: true/);
+  assert.doesNotMatch(three, /onAfterRender/);
+  assert.match(three, /pass: \{ value: 1 \}/);
 });
 
 test("presets validate, default to All, and do not persist a storage key", () => {
@@ -113,6 +149,57 @@ test("both renderers apply a population preset without touching other shared opt
     assert.throws(() => Renderer.prototype.setOptions.call(receiver,
       { shared: { planetLabels: "all", populationPreset: "nope" } }), RangeError);
     assert.equal(receiver.planetLabelMode, "earth", "Invalid combined settings are rejected atomically");
+    assert.throws(() => Renderer.prototype.setOptions.call(receiver,
+      { shared: { colorizeGroups: "yes" } }), RangeError);
+    assert.equal(receiver.populationPreset, "trojans");
+  }
+});
+
+test("colorize updates the highlight without changing the group", () => {
+  const cloud = new Asteroids(prepareCatalogue([sample]), { jed: REFERENCE_JED, elapsed: 0 });
+  assert.equal(cloud.material.depthWrite, false);
+  assert.equal(cloud.highlight.material.depthTest, true);
+  assert.equal(cloud.highlight.material.depthWrite, false);
+  assert.notEqual(cloud.material, cloud.highlight.material);
+  assert.equal(cloud.uniforms.pass.value, 0);
+  assert.equal(cloud.highlightUniforms.pass.value, 1);
+  assert.equal(cloud.uniforms.colorMask, cloud.highlightUniforms.colorMask);
+  assert.equal(cloud.visible, true);
+  assert.equal(cloud.highlight.visible, false);
+  cloud.setColorize(true);
+  assert.equal(cloud.uniforms.colorMask.value, (1 << CLASS_NEA) | (1 << CLASS_TROJAN) | (1 << CLASS_DISTANT));
+  assert.equal(cloud.highlight.visible, true);
+  cloud.setPopulationPreset("nea");
+  // The menu owns the drawn set; Colorize only paints it.
+  assert.equal(cloud.uniforms.classMask.value, 1 << CLASS_NEA);
+  assert.equal(cloud.uniforms.colorMask.value, 1 << CLASS_NEA);
+  cloud.setColorize(false);
+  assert.equal(cloud.populationPreset, "nea");
+  assert.equal(cloud.uniforms.classMask.value, 1 << CLASS_NEA);
+  assert.equal(cloud.uniforms.colorMask.value, 0);
+  assert.equal(cloud.highlight.visible, false);
+  cloud.destroy();
+
+  for (const Renderer of [PixiRenderer, ThreeRenderer]) {
+    const calls = [];
+    const painted = {
+      setColorize(value) { calls.push(value); },
+    };
+    const receiver = {
+      planetLabelMode: "earth",
+      planetOrbitsVisible: true,
+      populationPreset: "all",
+      colorizeGroups: false,
+      asteroids: painted,
+      stagedAsteroids: null,
+      catalogueTransition: null,
+      requestRender() { calls.push("render"); },
+    };
+    Renderer.prototype.setOptions.call(receiver, { shared: { colorizeGroups: true } });
+    assert.equal(receiver.colorizeGroups, true);
+    assert.deepEqual(calls, [true, "render"]);
+    Renderer.prototype.setOptions.call(receiver, { shared: { colorizeGroups: true } });
+    assert.deepEqual(calls, [true, "render"]);
   }
 });
 
