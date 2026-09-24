@@ -214,7 +214,7 @@ export default class Options {
     const trigger = this.glossaryTrigger = document.createElement("button");
     trigger.type = "button";
     trigger.className = "orrery-glossary-trigger";
-    trigger.textContent = "What is this?";
+    trigger.textContent = "About these groups";
     trigger.setAttribute("aria-haspopup", "dialog");
     trigger.setAttribute("aria-controls", this.glossary.id);
     this.population.domElement.closest("li").appendChild(trigger);

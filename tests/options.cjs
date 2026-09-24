@@ -115,7 +115,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       ["All", "Near Earth", "Hungarias", "Main belt", "Inner belt", "Middle belt", "Outer belt", "Hildas",
         "Jupiter Trojans", "Distant", "Without the belt"]);
     assert.equal(await groups.inputValue(), "all", "Group filter starts at All");
-    assert.equal(await page.getByRole("button", { name: "What is this?" }).count(), 1);
+    assert.equal(await page.getByRole("button", { name: "About these groups" }).count(), 1);
     assert.equal(await page.evaluate(() => localStorage.getItem("orrery.populationPreset")), null,
       "The All default does not invent a saved population preference");
     assert.deepEqual(await orbits.evaluate(element => {
@@ -208,7 +208,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert.equal(await page.evaluate(() => localStorage.getItem("orrery.populationPreset")), null,
       "Changing groups does not persist the preset");
     const glossary = page.locator("#orrery-glossary");
-    const glossaryTrigger = page.getByRole("button", { name: "What is this?" });
+    const glossaryTrigger = page.getByRole("button", { name: "About these groups" });
     await glossaryTrigger.click();
     assert(await glossary.evaluate(el => el.open), "Glossary opens from the groups control");
     assert.deepEqual(await glossary.locator("dt[data-preset]").evaluateAll(titles => titles.map(title =>
@@ -222,7 +222,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert(await glossary.evaluate(el => !el.open), "Escape closes the glossary");
     assert(await panel.isVisible(), "Glossary Escape leaves Options open");
     assert(await glossaryTrigger.evaluate(el => el === document.activeElement),
-      "Closing the glossary returns focus to What is this?");
+      "Closing the glossary returns focus to About these groups");
     await page.waitForFunction(() => document.querySelector("#orrery-fps").textContent === "0 FPS");
     // Choosing a group eases the camera to its frame for half a second; the
     // FPS readout counts playback frames, not that motion. Let it settle.
