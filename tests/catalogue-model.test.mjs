@@ -15,7 +15,7 @@ test('retained 3D catalogue reproduces exact legacy projection/phases and preser
   }
   assert.deepEqual(model.phases, legacy.phases);
   assert.deepEqual(model.elements, legacy.elements);
-  assert.deepEqual([...model.classes], [...model.rows].map(source => classifyOrbit(data[source].a, data[source].e)));
+  assert.deepEqual([...model.classes], [...model.rows].map(source => classifyOrbit(data[source].a, data[source].e, data[source].i)));
   assert(model.p.some((n, i) => i % 3 === 2 && n !== 0), 'Third dimension is retained independently of projection');
   const bad = structuredClone(data); bad[0].n = 1e30;
   assert.throws(() => prepareCatalogue(bad), /entry 1/);

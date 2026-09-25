@@ -28,23 +28,38 @@ button reads `today (real time)`, the jump keeps playback running, and the
 dialog says a chosen date stays paused while Today keeps playing. The date
 readout shows `(real time)` in the same green while that mode is active.
 
-Minor-planet groups name numbered objects already in this catalogue: All,
-Near Earth, Jupiter Trojans, Distant, or Without the belt. The menu decides
+Minor-planet groups name numbered objects already in this catalogue, sun
+outward: All, Near Earth, Hungarias, Main belt, Inner belt, Middle belt, Outer
+belt, Hildas, Jupiter Trojans, Distant, or Without the belt. The menu decides
 which objects are drawn: everything, one group alone, or everything but the
-belt. Group colors, on by default and not remembered, never changes that set;
-it paints it. Near Earth is teal, Jupiter Trojans gold, Distant violet, and the
-belt stays gray either way. Every new arrival is pure green and then settles
-to its group color, or to gray. Neither choice changes the discovery prefix or
+belt. The belt zones are cut by semi-major axis at the Kirkwood gaps (2.5 and
+2.82 AU) and the belt edge (3.28 AU). Anything left over joins the nearest
+zone: Mars-crossers are inner; Cybeles, the sparse 4.2–4.8 AU stretch and
+eccentric orbits near Jupiter's distance are outer. Hildas are 3.7–4.2 AU;
+Hungarias are inside 2 AU with 16–34° inclination and eccentricity at most
+0.18. Without the belt hides the three
+zones and keeps Hungarias and Hildas. Group colors, on by default and not
+remembered, never changes that set; it paints it. Near Earth is teal, Hungarias
+orange, the belt one rose hue from light inner to dark outer, Hildas blue,
+Jupiter Trojans gold, Distant violet. Every new arrival is pure green and then
+settles to its group color, or to gray. The trial constant `PAINT_BELT_ON_ALL`
+in `population.js` decides whether All paints the belt zones (true) or leaves
+the belt gray and paints the zones only on the belt presets (false, the
+current setting). Neither choice changes the discovery prefix or
 downloads extra data. Reload returns to All.
-One-line help sits under the control; **What is this?** opens a short glossary,
+One-line help sits under the control; **About these groups** opens a glossary
+whose titles repeat the legend dots,
 as does the **minor-planet groups** shortcut in the introduction card. The
 bottom-left count is what the group menu shows at the committed date, colored
 or gray, not a live MPC census. While groups are colored, swatches beside that
-count name the hues. Cuts are by
+count name the hues; when all three belt zones are painted they share one
+Main belt entry with three dots, light inner to dark outer. Cuts are by
 orbit shape in this app, not official MPC `Orbit_type`. Choosing a group frames it,
-easing the current camera in or out: All, Jupiter Trojans and Without the belt
-frame Jupiter’s orbit, Near Earth frames the inner system out to 2.5 AU, and
-Distant frames Neptune’s distance. A view that already fits is left alone.
+easing the current camera in or out: All, Hildas, Jupiter Trojans and Without
+the belt frame Jupiter’s orbit, Hungarias frame the inner system out to 2.5 AU,
+Near Earth, the belt and its zones frame 3.5 AU, and Distant frames Neptune’s
+distance. The frame radius fills half of the shorter viewport side, so a wide
+window shows more on either side. A view that already fits is left alone.
 Wheel or drag cancels the motion.
 Switching renderers restores each mode’s last view and does not repeat that
 courtesy.

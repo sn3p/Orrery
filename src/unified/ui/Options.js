@@ -1,5 +1,5 @@
 import * as dat from "dat.gui";
-import { DEFAULT_POPULATION_PRESET, POPULATION_PRESET_OPTIONS, populationHint } from "../catalog/population.js";
+import { DEFAULT_POPULATION_PRESET, POPULATION_PRESET_OPTIONS, legendGroups, populationHint } from "../catalog/population.js";
 
 export const SPEED_LIVE_HINT = "Real time: one second per second. 0 pauses; negative reverses.";
 
@@ -95,7 +95,7 @@ export default class Options {
     this.colorize = this.gui.add(this.orrery, "colorizeGroups").name("group colors");
     this.colorizeInput = this.colorize.domElement.querySelector("input");
     this.colorizeInput.setAttribute("aria-label", "Group colors");
-    this.colorizeInput.title = "Color the shown groups by orbit: Near Earth teal, Jupiter Trojans gold, Distant violet. The belt stays gray. Turning it off lasts the visit.";
+    this.colorizeInput.title = "Color the shown groups by orbit. The belt stays gray on All; the belt presets paint its zones.";
     this.addHint(this.colorize, this.colorizeInput.title, this.colorizeInput);
     this.confineCheckbox(this.colorize);
 
@@ -214,19 +214,43 @@ export default class Options {
     const trigger = this.glossaryTrigger = document.createElement("button");
     trigger.type = "button";
     trigger.className = "orrery-glossary-trigger";
-    trigger.textContent = "What is this?";
+    trigger.textContent = "About these groups";
     trigger.setAttribute("aria-haspopup", "dialog");
     trigger.setAttribute("aria-controls", this.glossary.id);
     this.population.domElement.closest("li").appendChild(trigger);
+    this.paintGlossaryTitles();
     trigger.addEventListener("click", this.onOpenGlossary);
     this.glossary.addEventListener("close", this.onGlossaryClose);
     this.glossary.addEventListener("click", this.onGlossaryBackdrop);
     this.glossaryRestoreFocus = trigger;
   }
 
+  // Each group title carries the legend dots of its preset; the ramp shows
+  // three. Decorative only: the title text already names the group.
+  paintGlossaryTitles() {
+    for (const title of this.glossary.querySelectorAll("dt[data-preset]")) {
+      if (title.querySelector(".orrery-swatch-dots")) continue;
+      const colors = legendGroups(title.dataset.preset, true).flatMap(group => group.colors);
+      if (!colors.length) continue;
+      const dots = document.createElement("span");
+      dots.className = "orrery-swatch-dots";
+      dots.setAttribute("aria-hidden", "true");
+      dots.append(...colors.map(color => {
+        const dot = document.createElement("span");
+        dot.className = "orrery-swatch";
+        dot.style.backgroundColor = `#${color.toString(16).padStart(6, "0")}`;
+        return dot;
+      }));
+      title.prepend(dots);
+    }
+  }
+
   openGlossary({ restoreFocus } = {}) {
     if (this.destroyed || !this.glossary || this.glossary.open) return false;
     this.glossaryRestoreFocus = restoreFocus ?? this.glossaryTrigger;
+    // With group colors off the scene is gray, so the title dots would mislead.
+    // The dialog is modal, so the option cannot change while it is open.
+    this.glossary.classList.toggle("orrery-glossary-gray", this.orrery.colorizeGroups === false);
     this.orrery.hold(true);
     this.glossary.showModal();
     this.glossary.scrollTop = 0;

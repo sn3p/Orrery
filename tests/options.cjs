@@ -112,9 +112,10 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert.equal(await labels.inputValue(), "earth");
     assert(await orbits.isChecked(), "Planet orbits start visible");
     assert.deepEqual(await groups.locator("option").allTextContents(),
-      ["All", "Near Earth", "Jupiter Trojans", "Distant", "Without the belt"]);
+      ["All", "Near Earth", "Hungarias", "Main belt", "Inner belt", "Middle belt", "Outer belt", "Hildas",
+        "Jupiter Trojans", "Distant", "Without the belt"]);
     assert.equal(await groups.inputValue(), "all", "Group filter starts at All");
-    assert.equal(await page.getByRole("button", { name: "What is this?" }).count(), 1);
+    assert.equal(await page.getByRole("button", { name: "About these groups" }).count(), 1);
     assert.equal(await page.evaluate(() => localStorage.getItem("orrery.populationPreset")), null,
       "The All default does not invent a saved population preference");
     assert.deepEqual(await orbits.evaluate(element => {
@@ -207,15 +208,30 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert.equal(await page.evaluate(() => localStorage.getItem("orrery.populationPreset")), null,
       "Changing groups does not persist the preset");
     const glossary = page.locator("#orrery-glossary");
-    const glossaryTrigger = page.getByRole("button", { name: "What is this?" });
+    const glossaryTrigger = page.getByRole("button", { name: "About these groups" });
     await glossaryTrigger.click();
     assert(await glossary.evaluate(el => el.open), "Glossary opens from the groups control");
+    assert.deepEqual(await glossary.locator("dt[data-preset]").evaluateAll(titles => titles.map(title =>
+      [title.dataset.preset, title.querySelectorAll(".orrery-swatch").length, title.textContent.trim()])),
+    [["nea", 1, "Near Earth"], ["hungarias", 1, "Hungarias"], ["belt", 3, "Main belt"], ["hildas", 1, "Hildas"],
+      ["trojans", 1, "Jupiter Trojans"], ["distant", 1, "Distant"]], "Glossary titles carry the legend dots");
+    assert.equal(await glossary.evaluate(el => getComputedStyle(el).scrollbarColor), "rgb(71, 123, 84) rgb(17, 17, 17)");
+    assert.equal(await glossary.locator("dt .orrery-swatch-dots:visible").count(), 6, "Dots show while group colors are on");
+    await page.keyboard.press("Escape");
+    await page.getByRole("checkbox", { name: "Group colors" }).uncheck();
+    await glossaryTrigger.click();
+    assert.equal(await glossary.locator("dt .orrery-swatch-dots:visible").count(), 0, "Dots hide while group colors are off");
+    await page.keyboard.press("Escape");
+    await page.getByRole("checkbox", { name: "Group colors" }).check();
+    await glossaryTrigger.click();
+    assert.equal(await glossary.locator("dt .orrery-swatch-dots:visible").count(), 6, "Dots return with group colors");
+    assert(await glossary.evaluate(el => el.getBoundingClientRect().width > 600), "Glossary widens on a desktop viewport");
     assert.equal(await page.evaluate(() => document.activeElement?.id), "orrery-glossary-title");
     await page.keyboard.press("Escape");
     assert(await glossary.evaluate(el => !el.open), "Escape closes the glossary");
     assert(await panel.isVisible(), "Glossary Escape leaves Options open");
     assert(await glossaryTrigger.evaluate(el => el === document.activeElement),
-      "Closing the glossary returns focus to What is this?");
+      "Closing the glossary returns focus to About these groups");
     await page.waitForFunction(() => document.querySelector("#orrery-fps").textContent === "0 FPS");
     // Choosing a group eases the camera to its frame for half a second; the
     // FPS readout counts playback frames, not that motion. Let it settle.

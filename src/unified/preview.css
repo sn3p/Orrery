@@ -113,6 +113,13 @@
   color: var(--color-hud);
 }
 
+/* A ramp entry shows its zones as adjacent dots, light to dark. */
+.orrery-swatch-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .orrery-swatch {
   width: 7px;
   height: 7px;
@@ -596,7 +603,8 @@ dialog .orrery-dialog-title:focus { outline: none; }
 }
 
 .orrery-glossary {
-  width: 440px;
+  /* The group list grew; take more width where the viewport has it. */
+  width: 720px;
   max-width: calc(100vw - 16px);
   max-height: calc(100dvh - 16px);
   box-sizing: border-box;
@@ -607,7 +615,13 @@ dialog .orrery-dialog-title:focus { outline: none; }
   color: #ccc;
   font-size: var(--font-ui-size);
   line-height: 18px;
+  scrollbar-width: thin;
+  scrollbar-color: #477b54 #111;
 }
+.orrery-glossary::-webkit-scrollbar { width: 8px; }
+.orrery-glossary::-webkit-scrollbar-track { background: #111; }
+.orrery-glossary::-webkit-scrollbar-thumb { background: #477b54; border-radius: 4px; }
+.orrery-glossary::-webkit-scrollbar-thumb:hover { background: var(--color-accent-muted); }
 .orrery-glossary:not([open]) { display: none; }
 .orrery-glossary::backdrop { background: rgba(0, 0, 0, 0.6); }
 .orrery-glossary-card { padding: 16px; }
@@ -625,6 +639,12 @@ dialog .orrery-dialog-title:focus { outline: none; }
   font-weight: 700;
 }
 .orrery-glossary dt:first-of-type { margin-top: 0; }
+/* The legend dots repeat on each title so the glossary and the footer agree. */
+.orrery-glossary dt .orrery-swatch-dots {
+  margin-right: 0.45em;
+  vertical-align: 1px;
+}
+.orrery-glossary-gray dt .orrery-swatch-dots { display: none; }
 .orrery-glossary dd { margin: 0 0 8px; }
 .orrery-glossary dd:last-child { margin-bottom: 0; }
 .orrery-glossary-links { color: var(--color-hud); }

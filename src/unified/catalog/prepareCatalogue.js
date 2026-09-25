@@ -64,7 +64,7 @@ export function prepareCatalogue(data, epoch = REFERENCE_JED, rowOffset = 0) {
     phases.set([mean, n], index * 2);
     dates[index] = d.disc;
     rows[index] = rowOffset + sourceIndex;
-    classes[index] = classifyOrbit(d.a, d.e);
+    classes[index] = classifyOrbit(d.a, d.e, d.i);
     radius = Math.max(radius, a * (1 + d.e));
     let finite = Number.isFinite(Math.fround(radius)) && Math.fround(a) > 0
       && Number.isFinite(Math.fround(wrapPhase(mean + n * (epoch - REFERENCE_JED))))

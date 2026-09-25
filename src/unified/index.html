@@ -44,7 +44,7 @@
     <dialog class="orrery-intro" id="orrery-intro" aria-labelledby="orrery-intro-title">
       <form method="dialog" class="orrery-intro-card">
         <h1 class="orrery-dialog-title" id="orrery-intro-title">Orrery</h1>
-        <p>The Solar System's minor planets, shown in the order they were discovered. Each dot is an asteroid on its orbit. New discoveries appear green, then settle to grey, or to their group's color: Near Earth teal, Jupiter Trojans gold, Distant violet. The date and running count are at the bottom left.</p>
+        <p>The Solar System's minor planets, shown in the order they were discovered. Each dot is an asteroid on its orbit. New discoveries appear green, then settle to grey, or to their group's color: Near Earth teal, Jupiter Trojans gold, Distant violet; the belt shows its zones in rose on the Main belt preset. The date and running count are at the bottom left.</p>
         <p>Use the <code>[⏸︎] / [⏵︎]</code> control or the <button type="button" class="orrery-intro-action" id="orrery-intro-date">date</button> at the bottom left to control the timeline. Open <button type="button" class="orrery-intro-action" id="orrery-intro-options" aria-label="Open options">[+] options</button> (top left) to change the speed, real time, planet labels, orbit lines, <button type="button" class="orrery-intro-action" id="orrery-intro-glossary" aria-haspopup="dialog" aria-controls="orrery-glossary">minor-planet groups</button> or resolution. Choose the <span class="orrery-intro-renderers" id="orrery-intro-renderers" role="group" aria-label="Renderer"><button type="button" class="orrery-intro-action orrery-intro-renderer" data-renderer="three" aria-pressed="false">3D</button> or <button type="button" class="orrery-intro-action orrery-intro-renderer" data-renderer="pixi" aria-pressed="false">2D</button></span> renderer. Negative speed rewinds. Scroll to zoom. On a touch screen, drag down or up in 2D to zoom in or out; in 3D, drag to orbit the camera.</p>
         <p>Orbits are fixed ellipses from Minor Planet Center orbital elements, so positions are approximate. Only numbered minor planets with a known discovery date are included.</p>
         <p class="orrery-intro-links">Code: <a href="https://github.com/sn3p/Orrery" target="_blank" rel="noopener noreferrer">GitHub</a>. Data: <a href="https://minorplanetcenter.net/" target="_blank" rel="noopener noreferrer">Minor Planet Center</a> via <a href="https://github.com/sn3p/orrery-data" target="_blank" rel="noopener noreferrer">orrery-data</a>.</p>
@@ -54,15 +54,19 @@
     <dialog class="orrery-glossary" id="orrery-glossary" aria-labelledby="orrery-glossary-title">
       <form method="dialog" class="orrery-glossary-card">
         <h1 class="orrery-dialog-title" id="orrery-glossary-title" tabindex="-1" autofocus>Minor-planet groups</h1>
-        <p>These presets name numbered objects with a known discovery date. The menu chooses which objects are shown: everything, one group alone, or everything but the belt. Group colors keeps that same set and paints it by orbit: Near Earth teal, Jupiter Trojans gold, Distant violet. The belt stays gray either way. A new arrival is green, then settles to its group color or to gray. Asteroids are minor planets; they are not offered as a separate filter. Groups are by orbit shape in this app, not official MPC Orbit_type.</p>
+        <p>These presets name numbered objects with a known discovery date. The menu chooses which objects are shown: everything, one group alone, or everything but the belt. Group colors keeps that same set and paints it by orbit: Near Earth teal, Hungarias orange, Hildas blue, Jupiter Trojans gold, Distant violet. The belt stays gray on All; the Main belt preset and its zones paint it in rose, light inner to dark outer. Without group colors everything is gray. A new arrival is green, then settles to its group color or to gray. Asteroids are minor planets; they are not offered as a separate filter. Groups are by orbit shape in this app, not official MPC Orbit_type.</p>
         <dl>
-          <dt>Main belt</dt>
-          <dd>The dense doughnut between Mars and Jupiter. Most of what the orrery shows.</dd>
-          <dt>Near Earth</dt>
+          <dt data-preset="nea">Near Earth</dt>
           <dd>Perihelion closer than 1.3 AU. Sparse at the 1980 start; this numbered catalog is only a sample of known NEAs.</dd>
-          <dt>Jupiter Trojans</dt>
+          <dt data-preset="hungarias">Hungarias</dt>
+          <dd>Inside 2 AU on orbits tilted 16–34° with eccentricity at most 0.18. A thin ring at the belt’s inner edge; the tilt shows in 3D.</dd>
+          <dt data-preset="belt">Main belt</dt>
+          <dd>The dense doughnut between Mars and Jupiter. Most of what the orrery shows. Three zones by orbit size: inner up to 2.5 AU, middle to 2.82 AU, outer to the edge near 3.3 AU. The cuts are Kirkwood gaps, empty lanes cleared by Jupiter. Cybeles and the few strays between the belt edge and Jupiter count as outer; Mars-crossers count as inner. Orbits are stretched, so the zones overlap on screen.</dd>
+          <dt data-preset="hildas">Hildas</dt>
+          <dd>Near 4 AU, three orbits for every two of Jupiter. Together they trace a triangle that turns with the planet.</dd>
+          <dt data-preset="trojans">Jupiter Trojans</dt>
           <dd>Not the main-belt doughnut: two swarms that share Jupiter’s orbit, ahead and behind the planet (L4/L5). They read clearly after playback into the 2000s.</dd>
-          <dt>Distant</dt>
+          <dt data-preset="distant">Distant</dt>
           <dd>Beyond Jupiter: Centaurs between the giants and trans-Neptunian objects beyond Neptune.</dd>
         </dl>
         <p>PHA and dwarf planets are not controls. A PHA is a near-Earth object that can pass close to Earth and is large enough to matter; this catalogue does not carry that flag. Dwarf planets overlap these groups and need names before they can be marked.</p>
