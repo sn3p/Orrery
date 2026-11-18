@@ -36,10 +36,14 @@ module.exports = async function testPhaseUploads(page) {
       }
       const checkFrame = (name, jed, refresh) => {
         writes.length = 0;
+        // The App treats a changed explicit date as a seek.
+        const seek = jed !== app.jed;
         app.renderFrame(jed);
-        probes.push({ name, refresh, writes: writes.slice(), orbitTime: cloud.uniforms.orbitTime.value,
+        const discovered = Array.from(cloud.discoveryDates).filter(date => date <= jed).length;
+        probes.push({ name, refresh, seek, discovered, writes: writes.slice(), orbitTime: cloud.uniforms.orbitTime.value,
           expectedTime: jed - cloud.epoch, points: app.renderer.info.render.points,
-          expectedPoints: Array.from(cloud.discoveryDates).filter(date => date <= jed).length });
+          // Group colors repaint the shown set in a second pass over the same range.
+          expectedPoints: discovered * (cloud.highlight.visible ? 2 : 1) });
       };
       checkFrame("ordinary", REFERENCE_JED + 1, false);
       checkFrame("exact forward threshold", REFERENCE_JED + REBASE_DAYS, false);
@@ -60,7 +64,14 @@ module.exports = async function testPhaseUploads(page) {
       app.requestRender();
     }
   });
-  for (const { name, refresh, writes, orbitTime, expectedTime, points, expectedPoints } of result.probes) {
+  for (const { name, refresh, seek, discovered, writes: all, orbitTime, expectedTime, points, expectedPoints } of result.probes) {
+    // The source predates arrival pulses. A seek matures every discovery at its
+    // target: one ranged upload of the drawn arrivals, separate from phases.
+    const arrivals = all.filter(write => write.attribute === "arrival");
+    assert.deepEqual(arrivals.map(({ method, bytes, target }) => ({ method, bytes, target })),
+      seek && discovered > 0 ? [{ method: "bufferSubData", bytes: discovered * 4, target: result.arrayBufferTarget }] : [],
+      `${name}: only a seek re-baselines arrivals, for the drawn range`);
+    const writes = all.filter(write => write.attribute !== "arrival");
     const uploads = refresh && points > 0;
     assert.equal(writes.length, uploads ? 1 : 0, `${name}: only refresh frames upload a buffer`);
     if (uploads) {
