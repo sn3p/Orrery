@@ -7,6 +7,20 @@ exports.openOptions = async page => {
   if (await trigger.getAttribute("aria-expanded") === "false") await trigger.click();
 };
 
+// Tab from the open disclosure to the first control in the panel. Firefox
+// gives an overflowing scroll container without tabindex its own Tab stop,
+// even when it holds controls (Chromium and WebKit skip it). On a short
+// viewport the panel scrolls, so the first Tab lands on the panel itself.
+exports.tabIntoOptions = async page => {
+  await page.keyboard.press("Tab");
+  const onScroller = await page.evaluate(() => {
+    const panel = document.activeElement;
+    return panel?.matches(".orrery-options-panel") && !panel.hasAttribute("tabindex")
+      && panel.scrollHeight > panel.clientHeight;
+  });
+  if (onScroller) await page.keyboard.press("Tab");
+};
+
 exports.testOptions = async (browser, url, output, name, application = "unified") => {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 });
   await require('./default-catalog-route.cjs').routeDefaultCatalog(page);
