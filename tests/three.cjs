@@ -252,8 +252,12 @@ async function graphics(browser, base, output, name) {
       await options.click();
       const speed = target.getByRole('textbox', { name: 'Playback speed' });
       assert(await options.evaluate(el => el === document.activeElement));
-      await target.keyboard.press("Tab");
+      await require('./options.cjs').tabIntoOptions(target);
       assert(await target.getByRole("combobox", { name: "Renderer", exact: true }).evaluate(el => el === document.activeElement));
+      // This 2× context exposes the DPR choice directly after the renderer.
+      await target.keyboard.press("Tab");
+      assert(await target.getByRole("combobox", { name: "Rendering pixel ratio", exact: true }).evaluate(el => el === document.activeElement),
+        'Tab reaches the DPR choice after Renderer');
       await target.keyboard.press("Tab");
       assert(await speed.evaluate(el => el === document.activeElement));
       for (const selector of ['.orrery-identity', '.orrery-date', '.orrery-count', '.orrery-options-panel']) {
