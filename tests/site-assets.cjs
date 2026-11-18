@@ -13,4 +13,8 @@ module.exports = function assertCurrentSite(site) {
   }
   assert.match(html, /assets\/main\.[a-f0-9]+\.js/);
   assert(fs.existsSync(path.join(site, 'fonts/OFL.txt')), 'Font license stays in the deployed site');
+  // Pages serves the app under /Orrery/, so the icon link must stay relative.
+  assert.match(html, /<link rel="icon" href="favicon\.svg">/);
+  assert.deepEqual(fs.readFileSync(path.join(site, 'favicon.svg')),
+    fs.readFileSync(path.join(__dirname, '../src/unified/favicon.svg')), 'Favicon ships with the site');
 };

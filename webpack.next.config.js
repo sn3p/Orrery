@@ -23,7 +23,7 @@ module.exports = {
       filename: "assets/[name].[contenthash:8].css",
       chunkFilename: "assets/[name].[contenthash:8].css",
     }),
-    new HtmlWebpackPlugin({ template: "./src/unified/index.html" }),
+    new HtmlWebpackPlugin({ template: "./src/unified/index.html", favicon: "./src/unified/favicon.svg" }),
   ],
   optimization: {
     splitChunks: { chunks: "async" },
@@ -37,8 +37,7 @@ module.exports = {
     historyApiFallback: false,
     watchFiles: ["src/unified/**/*.html"],
     setupMiddlewares(middlewares, server) {
-      // The static legacy page has no favicon; keep its automatic browser
-      // request quiet when returning from the preview during development.
+      // The page links favicon.svg; keep any automatic /favicon.ico request quiet.
       server.app.get("/favicon.ico", (_req, res) => res.status(204).end());
       return middlewares;
     },

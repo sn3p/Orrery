@@ -40,7 +40,7 @@ async function serve(directory) {
       res.writeHead(301, { Location: pathname + "/" + new URL(req.url, "http://localhost").search });
       res.end(); return;
     }
-    res.setHeader("Content-Type", { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".woff2": "font/woff2" }[path.extname(filename)] || "application/octet-stream");
+    res.setHeader("Content-Type", { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".woff2": "font/woff2", ".svg": "image/svg+xml" }[path.extname(filename)] || "application/octet-stream");
     fs.createReadStream(filename).pipe(res);
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
