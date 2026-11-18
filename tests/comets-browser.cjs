@@ -74,6 +74,44 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       }),6,'DPR2 comet marker remains six CSS pixels');
       await page.getByRole('button',{name:'Fit selected comets'}).click();
       await page.waitForFunction(()=>document.querySelectorAll('.orrery-comet-label:not([hidden])').length===3);
+      for (const viewport of [{width:1460,height:1028},{width:320,height:568},{width:568,height:240}]) {
+        await page.setViewportSize(viewport);
+        await page.waitForFunction(({width,height}) => app.renderer.viewport.width === width
+          && app.renderer.viewport.height === height, viewport);
+        await page.evaluate(()=>{app.jed=2447878.5;app.cancelRender();app.renderFrame();});
+        await page.getByRole('button',{name:'Fit selected comets'}).click();
+        const fitted = await page.evaluate(()=>{
+          app.cancelRender(); app.renderFrame();
+          const r=app.renderer;
+          let extent=0, clipped=false;
+          for (const {body,path} of r.comets.entries) {
+            if (app.rendererId==='three') {
+              const p=body.position.clone();
+              const measure=()=>{
+                p.project(r.camera);
+                extent=Math.max(extent,Math.abs(p.x),Math.abs(p.y));
+                clipped ||= p.z < -1 || p.z > 1;
+              };
+              measure();
+              const positions=path.geometry.attributes.position;
+              for(let i=0;i<positions.count;i++){p.fromBufferAttribute(positions,i);measure();}
+            } else {
+              const measure=(x,y)=>{
+                const p=r.stage.worldTransform.apply({x,y});
+                extent=Math.max(extent,Math.abs(2*p.x/r.viewport.width-1),Math.abs(2*p.y/r.viewport.height-1));
+              };
+              measure(body.x,body.y);
+              const commands=path.context.instructions.find(item=>item.action==='stroke').data.path.instructions;
+              for(const {action,data} of commands) if(action==='moveTo'||action==='lineTo') measure(data[0],data[1]);
+            }
+          }
+          return {extent,clipped};
+        });
+        assert(!fitted.clipped && Math.abs(fitted.extent-1/1.12)<.001,
+          `${renderer}: rendered paths fill the fit margin without clipping at ${viewport.width}×${viewport.height}`);
+      }
+      await page.setViewportSize({width:1280,height:800});
+      await page.getByRole('button',{name:'Fit selected comets'}).click();
       await page.evaluate(()=>document.fonts.ready);
       assert(await page.evaluate(()=>{
         const r=app.renderer, label=r.comets.entries[2].label;

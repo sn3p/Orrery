@@ -39,12 +39,19 @@ export function pathRange(series, jed, periodDays) {
   return [first, first + span];
 }
 
-export function cometRadius(data, ids) {
-  let radius = 1;
-  for (const id of ids) for (const row of data[id].states) {
-    radius = Math.max(radius, Math.hypot(...row.slice(0,3)));
+// Fit the same trajectory window that is drawn, including the interpolated body.
+// Keep fitting trajectories when paths are hidden, so that toggle does not zoom.
+export function cometFitPoints(data, ids, jed) {
+  const points = [];
+  for (const comet of COMETS) {
+    if (!ids.includes(comet.id)) continue;
+    const series = data[comet.id], position = positionAt(series, jed);
+    if (!position) continue;
+    points.push([position.x, position.y, position.z]);
+    const [first, last] = pathRange(series, jed, comet.periodDays);
+    for (let i = first; i <= last; i++) points.push(series.states[i].slice(0, 3));
   }
-  return radius;
+  return points;
 }
 
 export function validateCometData(data) {

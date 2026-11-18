@@ -1,5 +1,5 @@
 import Comets from "./Comets.js";
-import { cometRadius, validateCometOptions } from "../comets/model.js";
+import { cometFitPoints, validateCometOptions } from "../comets/model.js";
 import { PIXELS_PER_AU } from "../../js/constants.js";
 import { Application, ParticleContainer, ParticleShader, Graphics, Texture } from "pixi.js";
 import Controls from "./Controls.js";
@@ -388,10 +388,21 @@ export default class PixiRenderer {
   focusComets() {
     const settings = this.cometSettings;
     if (!settings?.cometData || !settings.cometIds?.length) return;
+    const points = cometFitPoints(settings.cometData, settings.cometIds, this.lastJed);
+    if (!points.length) return;
     this.cancelViewFit();
-    const radius = cometRadius(settings.cometData, settings.cometIds) * PIXELS_PER_AU * 1.12;
+    // The top view has independent horizontal/vertical extents; depth does not
+    // take screen space. Keep the Sun centred, like the normal navigation.
+    let halfWidth = 0, halfHeight = 0;
+    for (const [x, y] of points) {
+      halfWidth = Math.max(halfWidth, Math.abs(x) * PIXELS_PER_AU);
+      halfHeight = Math.max(halfHeight, Math.abs(y) * PIXELS_PER_AU);
+    }
+    const scale = Math.min(this.viewWidth / (2 * halfWidth * 1.12),
+      this.viewHeight / (2 * halfHeight * 1.12));
+    if (!Number.isFinite(scale)) return;
     this.stage.position.set(this.viewWidth/2, this.viewHeight/2);
-    this.stage.scale.set(Math.min(this.viewWidth, this.viewHeight) / (2*radius));
+    this.stage.scale.set(scale);
     this.updateComets();
   }
 

@@ -4,7 +4,9 @@ Options → **comets** enables three individually selectable objects: 1P/Halley,
 2P/Encke and 55P/Tempel–Tuttle. **asteroids** independently controls the existing
 minor-planet population. Both renderers support both populations together or
 separately. **Fit selected comets** frames their trajectories; normal zoom and
-camera controls remain available. **paths** toggles the comet trajectories.
+camera controls remain available. It fits the displayed trajectory windows in
+the current viewing direction with a small margin, keeping the Sun centered.
+**paths** toggles the comet trajectories.
 Selections last for the visit and survive renderer changes. Reload restores the
 asteroid-only default. The footer count remains an asteroid count.
 The About Orrery panel explains the comet data source, date coverage and model

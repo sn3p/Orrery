@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { COMETS, positionAt, lastDate, pathRange, validCometIds, validateCometData, validateCometOptions } from '../src/unified/comets/model.js';
+import { COMETS, positionAt, lastDate, pathRange, cometFitPoints, validCometIds, validateCometData, validateCometOptions } from '../src/unified/comets/model.js';
 const data = JSON.parse(fs.readFileSync(new URL('../src/unified/comets/vectors.json', import.meta.url)));
 const references = JSON.parse(fs.readFileSync(new URL('./fixtures/comet-vectors.json', import.meta.url)));
 
@@ -71,6 +71,18 @@ test('comet paths retain a full period at both boundaries and throughout playbac
 test('a dataset shorter than one period uses all available samples', () => {
   const series = { start: 100, step: 4, states: Array(10) };
   for (const jed of [100, 116, 136]) assert.deepEqual(pathRange(series, jed, 1000), [0, 9]);
+});
+
+test('comet fitting uses only selected current paths and includes the interpolated marker', () => {
+  const series = data['55P'], jed = series.start + 3;
+  const points = cometFitPoints(data, ['55P'], jed);
+  const position = positionAt(series, jed);
+  assert.deepEqual(points[0], [position.x, position.y, position.z]);
+  const [first, last] = pathRange(series, jed, COMETS.find(c => c.id === '55P').periodDays);
+  assert.deepEqual(points.slice(1), series.states.slice(first, last + 1).map(row => row.slice(0, 3)));
+  assert(points.length < series.states.length, 'Undisplayed future samples do not expand the fit');
+  assert.deepEqual(cometFitPoints(data, [], jed), []);
+  assert.deepEqual(cometFitPoints(data, ['55P'], series.start - 1), []);
 });
 
 test('invalid comet assets and settings fail before scene mutation', () => {

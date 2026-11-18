@@ -1,5 +1,5 @@
 import Comets from "./Comets.js";
-import { cometRadius, validateCometOptions } from "../comets/model.js";
+import { cometFitPoints, validateCometOptions } from "../comets/model.js";
 import { PIXELS_PER_AU } from "../../js/constants.js";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -338,12 +338,23 @@ export default class ThreeRenderer {
   focusComets() {
     const settings = this.cometSettings;
     if (!settings?.cometData || !settings.cometIds?.length) return;
+    const points = cometFitPoints(settings.cometData, settings.cometIds, this.lastJed);
+    if (!points.length) return;
     this.cancelViewFit();
-    const radius = cometRadius(settings.cometData, settings.cometIds) * PIXELS_PER_AU * 1.12;
-    const halfV = Math.atan(Math.tan(this.camera.fov * Math.PI / 360) / this.camera.zoom);
-    const halfH = Math.atan(Math.tan(halfV) * this.camera.aspect);
-    const distance = radius / Math.sin(Math.min(halfV, halfH));
-    this.camera.position.sub(this.controls.target).normalize().multiplyScalar(distance);
+    // Fit the actual points in the current viewing direction, not a sphere
+    // around the Sun. Include depth in each perspective frustum constraint.
+    const inverse = this.camera.quaternion.clone().invert();
+    const point = new THREE.Vector3();
+    const tanV = Math.tan(this.camera.fov * Math.PI / 360) / this.camera.zoom;
+    const tanH = tanV * this.camera.aspect;
+    let distance = this.camera.near * 2;
+    for (const row of points) {
+      point.fromArray(row).multiplyScalar(PIXELS_PER_AU).applyQuaternion(inverse);
+      distance = Math.max(distance, point.z + this.camera.near * 2,
+        point.z + Math.abs(point.x) * 1.12 / tanH,
+        point.z + Math.abs(point.y) * 1.12 / tanV);
+    }
+    this.camera.position.set(0, 0, distance).applyQuaternion(this.camera.quaternion);
     this.controls.target.set(0,0,0);
     this.controls.update();
   }
