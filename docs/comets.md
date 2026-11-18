@@ -7,6 +7,9 @@ separately. **Fit selected comets** frames their trajectories; normal zoom and
 camera controls remain available. **paths** toggles the comet trajectories.
 Selections last for the visit and survive renderer changes. Reload restores the
 asteroid-only default. The footer count remains an asteroid count.
+The About Orrery panel explains the comet data source, date coverage and model
+limits, with a link to JPL Horizons. Loading, retry and unavailable-date messages
+remain beside the comet controls in Options.
 
 ## Scientific model and limits
 

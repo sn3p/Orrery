@@ -120,13 +120,6 @@ export default class Options {
     const input = toggle.domElement.querySelector("input");
     input.setAttribute("aria-label", "Show comets");
     this.confineCheckbox(toggle);
-    this.cometHint = this.addHint(toggle, "Three comets from JPL Horizons. Positions and paths cover 1 Jan 1980–30 Dec 2099; markers are enlarged.", input);
-    const source = document.createElement("a");
-    source.href = "https://ssd.jpl.nasa.gov/horizons/";
-    source.textContent = "JPL Horizons";
-    source.target = "_blank";
-    source.rel = "noopener noreferrer";
-    this.cometHint.append(" ", source);
     this.cometStatus = document.createElement("p");
     this.cometStatus.className = "orrery-options-hint";
     this.cometStatus.setAttribute("role", "status");
