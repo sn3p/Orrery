@@ -26,6 +26,15 @@ module.exports = {
         },
       },
       {
+        // Icons required by index.html; hashed so browsers notice a new icon.
+        test: /\.(?:svg|png)$/,
+        include: path.resolve(__dirname, "src/unified"),
+        type: "asset/resource",
+        generator: {
+          filename: "assets/[name].[contenthash:8][ext]",
+        },
+      },
+      {
         test: /\.json$/,
         type: "asset/resource",
         generator: {

@@ -110,15 +110,19 @@ const config = require("./webpack-fixture.cjs");
   promotedWatch.stdout.on("data", data => promotedLog += data);
   promotedWatch.stderr.on("data", data => promotedLog += data);
   const watchExit = new Promise(resolve => promotedWatch.on("exit", resolve));
-  async function waitForWatch(marker) {
+  async function untilWatched(test) {
     const end = Date.now() + 30000;
-    while (true) {
-      const assets = fs.existsSync("dist/assets") ? fs.readdirSync("dist/assets").filter(name => name.endsWith(".js")) : [];
-      if (assets.some(name => fs.readFileSync(path.join("dist/assets", name), "utf8").includes(marker))) return;
+    while (!test()) {
       if (promotedWatch.exitCode !== null || Date.now() > end) throw new Error("Promoted watch failed: " + promotedLog);
       await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
+  const waitForWatch = marker => untilWatched(() => {
+    const assets = fs.existsSync("dist/assets") ? fs.readdirSync("dist/assets").filter(name => name.endsWith(".js")) : [];
+    return assets.some(name => fs.readFileSync(path.join("dist/assets", name), "utf8").includes(marker));
+  });
+  const favicon = path.resolve("src/unified/favicon.svg");
+  let faviconBytes = null;
   try {
     await waitForWatch('promotionWatchFirst');
     assertRetained();
@@ -132,7 +136,17 @@ const config = require("./webpack-fixture.cjs");
     assert.match(fs.readFileSync("dist/index.html", "utf8"), /<title>Orrery<\/title>/);
     assert(!fs.readFileSync("dist/index.html", "utf8").includes("bundle.js"));
     assert(!fs.existsSync("dist/next/index.html"), "Watch does not restore the retired preview entry");
+    // A favicon-only edit must reach the page; the HTML plugin's cache once kept the old icon.
+    faviconBytes = fs.readFileSync(favicon);
+    fs.writeFileSync(favicon, Buffer.concat([faviconBytes, Buffer.from("<!-- watch probe -->\n")]));
+    await untilWatched(() => {
+      const href = fs.readFileSync("dist/index.html", "utf8").match(/href="(assets\/favicon\.[a-f0-9]+\.svg)"/)?.[1];
+      return href && fs.existsSync(path.join("dist", href))
+        && fs.readFileSync(path.join("dist", href), "utf8").includes("watch probe");
+    });
+    assertRetained();
   } finally {
+    if (faviconBytes) fs.writeFileSync(favicon, faviconBytes);
     process.kill(-promotedWatch.pid, "SIGTERM"); await watchExit;
     fs.rmSync(retainedPin, { force: true });
     fs.writeFileSync(path.join(directory, "promoted-watch.log"), promotedLog);

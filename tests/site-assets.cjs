@@ -13,8 +13,16 @@ module.exports = function assertCurrentSite(site) {
   }
   assert.match(html, /assets\/main\.[a-f0-9]+\.js/);
   assert(fs.existsSync(path.join(site, 'fonts/OFL.txt')), 'Font license stays in the deployed site');
-  // Pages serves the app under /Orrery/, so the icon link must stay relative.
-  assert.match(html, /<link rel="icon" href="favicon\.svg">/);
-  assert.deepEqual(fs.readFileSync(path.join(site, 'favicon.svg')),
-    fs.readFileSync(path.join(__dirname, '../src/unified/favicon.svg')), 'Favicon ships with the site');
+  // Pages serves the app under /Orrery/, so icon links stay relative.
+  const icons = [...html.matchAll(/<link\b[^>]*>/g)]
+    .map(([tag]) => Object.fromEntries([...tag.matchAll(/([\w-]+)=(?:"([^"]*)"|'([^']*)'|([^\s"'>/]+))/g)]
+      .map(([, name, ...values]) => [name.toLowerCase(), values.find(value => value !== undefined)])))
+    .filter(attributes => attributes.rel?.split(/\s+/).includes('icon'));
+  const sources = { 'image/svg+xml': 'favicon.svg', 'image/png': 'favicon-32.png' };
+  assert.deepEqual(icons.map(icon => icon.type).sort(), Object.keys(sources).sort(), 'SVG icon with a PNG fallback');
+  for (const icon of icons) {
+    assert.match(icon.href, /^assets\/[^/]+$/, 'Icon link is relative: ' + icon.href);
+    assert.deepEqual(fs.readFileSync(path.join(site, icon.href)),
+      fs.readFileSync(path.join(__dirname, '../src/unified', sources[icon.type])), 'Icon ships unchanged: ' + icon.href);
+  }
 };

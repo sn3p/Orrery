@@ -23,8 +23,7 @@ module.exports = {
       filename: "assets/[name].[contenthash:8].css",
       chunkFilename: "assets/[name].[contenthash:8].css",
     }),
-    // Without cache: false, watch mode re-emits a stale favicon after favicon-only edits.
-    new HtmlWebpackPlugin({ template: "./src/unified/index.html", favicon: "./src/unified/favicon.svg", cache: false }),
+    new HtmlWebpackPlugin({ template: "./src/unified/index.html" }),
   ],
   optimization: {
     splitChunks: { chunks: "async" },
