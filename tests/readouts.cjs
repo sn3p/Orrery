@@ -131,14 +131,26 @@ exports.production = async (page, url) => {
     await page.evaluate(() => {
       const probe = window.readoutProbe = { writes: { date: 0, fps: 0, count: 0 }, redundant: [] };
       const descriptor = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
-      probe.restore = () => Object.defineProperty(Node.prototype, 'textContent', descriptor);
-      Object.defineProperty(Node.prototype, 'textContent', { ...descriptor, set(value) {
-        const name = this.id?.replace('orrery-', '');
+      // The ticking date rewrites its text node in place; count those writes too.
+      const text = Object.getOwnPropertyDescriptor(CharacterData.prototype, 'data');
+      const record = (element, value, current) => {
+        const name = element?.id?.replace('orrery-', '');
         if (Object.hasOwn(probe.writes, name)) {
           probe.writes[name]++;
-          if (this.textContent === String(value)) probe.redundant.push(name);
+          if (current === String(value)) probe.redundant.push(name);
         }
+      };
+      probe.restore = () => {
+        Object.defineProperty(Node.prototype, 'textContent', descriptor);
+        Object.defineProperty(CharacterData.prototype, 'data', text);
+      };
+      Object.defineProperty(Node.prototype, 'textContent', { ...descriptor, set(value) {
+        record(this, value, this.textContent);
         descriptor.set.call(this, value);
+      } });
+      Object.defineProperty(CharacterData.prototype, 'data', { ...text, set(value) {
+        record(this.parentNode, value, text.get.call(this));
+        text.set.call(this, value);
       } });
     });
     const countTransitions = [1];
