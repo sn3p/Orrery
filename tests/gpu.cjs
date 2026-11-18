@@ -316,7 +316,8 @@ async function run({ browser, name, application = "unified", output: artifactDir
     }
     await production.reload();
     await production.waitForFunction(() => Number(document.getElementById("orrery-count").textContent.replaceAll("\u202f", "")) > 0);
-    assert.equal(await production.getByRole("status").textContent(), "");
+    // An empty status is hidden (#85); read it by id rather than by visible role.
+    assert.equal(await production.locator('#orrery-status[role="status"]').textContent(), "");
     assert.deepEqual(productionErrors, [], "Production reload recovers from preparation failures");
     await production.close();
     if (name === "chromium") {
