@@ -44,8 +44,16 @@ async function run({ browser, output, renderer }) {
       extension.loseContext();
     });
     await page.evaluate(() => smokeLost.then(() => true));
+    await page.waitForFunction(() => document.querySelector('#orrery-status').textContent.includes('Graphics connection lost'));
     await page.evaluate(() => smokeExtension.restoreContext());
     await page.evaluate(() => smokeRestored.then(() => true));
+    await page.waitForFunction(() => document.querySelector('#orrery-status').textContent === '');
+    // Recovery feedback closes Options when the panel overlaps it on a small
+    // viewport. Re-enter the controls after recovery, as a user would.
+    if (await button.getAttribute('aria-expanded') === 'false') {
+      await button.focus(); await button.press('Enter');
+    }
+    assert.equal(await button.getAttribute('aria-expanded'), 'true');
     const date = await page.locator('#orrery-date').textContent();
     await speed.fill('-1.5'); await speed.press('Enter');
     await page.waitForFunction(before => document.querySelector('#orrery-date').textContent < before, date);
