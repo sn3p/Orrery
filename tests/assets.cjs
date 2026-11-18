@@ -19,7 +19,9 @@ async function run({ browser, name, application = "unified", output: artifactDir
   const catalog = require("./historical-catalog.cjs").readCatalog();
   assert.equal(JSON.parse(catalog).length, 100000);
   assert.equal(hash(fs.readFileSync(path.join(dist, "data/catalog.json"))), hash(catalog));
-  assert.deepEqual(fs.readdirSync(path.join(dist, "data")), ["catalog.json"]);
+  assert.deepEqual(fs.readdirSync(path.join(dist, "data")).sort(), ["catalog.json", "vectors.json"]);
+  assert.equal(hash(fs.readFileSync(path.join(dist, "data/vectors.json"))),
+    hash(fs.readFileSync("src/unified/comets/vectors.json")), "Fixture preserves the real comet vectors");
   assert.deepEqual(fs.readdirSync(dist).filter(file => file.endsWith(".js")), ["bundle.js"]);
   for (const file of fs.readdirSync("src/fonts").filter(file => /\.(woff2|txt)$/.test(file))) {
     assert.equal(hash(fs.readFileSync(path.join(dist, "fonts", file))), hash(fs.readFileSync(`src/fonts/${file}`)));
@@ -95,6 +97,8 @@ async function run({ browser, name, application = "unified", output: artifactDir
             "Root visitors never fetch preview resources");
           assert.equal(await page.locator('a[href*="next/"]').count(), 0,
             "The public root does not link to the preview");
+          assert(!requests.some(url => url.endsWith('/data/vectors.json')),
+            "Bundled comet vectors remain unfetched during asteroid startup and reload");
           assert.deepEqual(errors, []);
           results.push({ browser: name, path: label, width: viewport.width, catalogSHA256: hash(catalog), asyncFetch: true, reload: true });
         } catch (error) {
