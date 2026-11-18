@@ -48,7 +48,7 @@ async function sample({ count, warmupMs, sampleMs, dpr = 1 }) {
   app.canvas.addEventListener("webglcontextlost", interrupt);
   const dimensions = [innerWidth, innerHeight, devicePixelRatio, app.app.renderer.resolution, app.canvas.width, app.canvas.height];
   const start = performance.now();
-  let previous = null;
+  let previous = null, first = null;
   let animationFrame;
   try {
     app.clock.reset();
@@ -56,11 +56,16 @@ async function sample({ count, warmupMs, sampleMs, dpr = 1 }) {
       rejectSample = reject;
       function frame(now) {
         try {
-          const dt = previous === null ? 0 : now - previous;
+          const firstFrame = previous === null;
+          const dt = firstFrame ? 0 : now - previous;
           previous = now;
+          if (firstFrame) first = now;
           app.jedDelta = 1.5;
-          // Match the dated view even when a slow frame hits the clock cap.
-          app.jed = 2458600.5 + (now - start) * 0.09 - Math.min(dt, 250) * 0.09;
+          // Show 2458600.5 plus 90 days per elapsed second. Ordinary playback
+          // advances the date; assigning `jed` is a seek, which resets the clock
+          // and re-baselines every arrival marker. Seek only to begin and when a
+          // slow frame hits the 250 ms clock cap; that frame's tick adds nothing.
+          if (firstFrame || dt > 250) app.jed = 2458600.5 + (now - first) * 0.09;
           bytes = 0;
           const t = performance.now();
           let r, end;
