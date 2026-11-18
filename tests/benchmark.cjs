@@ -23,12 +23,18 @@ async function run({ browser, name, application = "unified", output: artifactDir
     for (const dpr of [1, 2, 3]) {
       const page = await browser.newPage({ viewport: { width: 800, height: 600 }, deviceScaleFactor: dpr });
       try {
-        await page.addInitScript(() => localStorage.setItem('orrery.pixelRatio', '1'));
         await page.goto(`${server.url}/?resolution=${dpr}`); await page.evaluate(() => window.ready);
+        // DPR choices are page-local and default to 2× on 2×-capable displays.
+        // Choose the other value, then require the fixed benchmark resolution.
+        const selection = await page.evaluate(() => {
+          const { app } = fixture;
+          app.pixelRatio = app.pixelRatio === '2' ? '1' : '2';
+          return app.pixelRatio;
+        });
         const run = await page.evaluate(sample, { count: 1000, warmupMs: 0, sampleMs: 50, dpr });
         assert.deepEqual(run.resolution, { requested: dpr, native: dpr, renderer: dpr,
           canvas: [800 * dpr, 600 * dpr], buffer: [800 * dpr, 600 * dpr] });
-        assert.equal(await page.evaluate(() => fixture.app.pixelRatio), '1', 'Benchmark resolution is independent of the user selection');
+        assert.equal(await page.evaluate(() => fixture.app.pixelRatio), selection, 'Benchmark resolution is independent of the user selection');
         await assert.rejects(page.evaluate(sample, { count: 1000, warmupMs: 0, sampleMs: 50, dpr: dpr + 1 }), /resolution mismatch/);
         assert.equal(await page.evaluate(() => fixture.app.animationFrame), null);
       } finally { await page.close(); }
