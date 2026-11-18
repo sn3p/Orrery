@@ -216,8 +216,18 @@ async function run({ browser, name, application = "unified", output: artifactDir
               await p.bringToFront();
               await p.waitForFunction(() => !document.hidden);
               results.push(await p.evaluate(({ jed, elapsed, scale }) => {
-              app.jed = jed; app.elapsed = 0;
-              app.setAsteroids(catalog); app.elapsed = elapsed;
+              // A new cloud is a mature historical baseline, and a direct `jed`
+              // assignment is a seek that matures every discovery at its target.
+              // Start before the first discovery and reach the scene date in one
+              // clock-capped playback frame (6000 x 60 x 0.25 s = 90000 days,
+              // exact), so every row arrives together and `elapsed` sets its age.
+              const crossing = 90000;
+              app.jedDelta = 0; app.jed = jed - crossing; app.elapsed = 0;
+              app.setAsteroids(catalog);
+              if (catalog.some(row => row.disc <= app.jed)) throw new Error('Scene playback starts before the first discovery');
+              app.jedDelta = crossing / 15; app.resetClock(); app.renderFrame(0); app.renderFrame(250); app.jedDelta = 0;
+              if (app.jed !== jed || app.pendingSeek) throw new Error('Ordinary playback reaches the scene date');
+              app.elapsed += elapsed;
               scene.stage.scale.set(scale);
               app.renderFrame(0);
               const result = { pixels: scene.canvas.toDataURL(), date: app.gui.date.textContent, count: Number(app.gui.count.textContent.replaceAll("\u202f", "")),

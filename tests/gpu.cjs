@@ -48,9 +48,21 @@ async function exercise(page) {
     const oldGeometryUid = cloud.geometry.uid;
     const buffers = cloud.geometry.buffers;
     const versions = buffers.map(b => b._updateID);
-    for (let i = 0; i < 20; i++) { app.jed += 0.1; app.tick(); app.app.render(); }
+    // Advance through ordinary playback. Direct `jed` assignments are
+    // intentional seeks: they re-baseline every revealed arrival marker.
+    const play = (speed, frames, interval) => {
+      app.jedDelta = speed; app.resetClock(); app.tick(0);
+      for (let i = 1; i <= frames; i++) { app.tick(i * interval); app.app.render(); }
+      app.jedDelta = 0;
+      check(!app.pendingSeek && app.requestedJed == null, "Playback frames are not seeks");
+    };
+    const start = app.jed;
+    play(0.1, 20, 1000 / 60);
+    check(app.jed > start, "Ordinary frames advance the date");
     check(buffers.every((b, i) => b._updateID === versions[i]), "Ordinary frames do not modify asteroid buffers");
-    app.jed = cloud.epoch + REBASE_DAYS + 1; app.tick(); app.app.render();
+    // One clock-capped 250 ms frame crosses the phase rebase threshold.
+    play((REBASE_DAYS + 1) / 15, 1, 250);
+    check(app.jed - start > REBASE_DAYS + 1 && cloud.epoch === app.jed, "Playback crosses the rebase threshold");
     check(cloud.uniforms.uOrbitTime === 0, "Time is relative after rebase");
     check(buffers.every((b, i) => b._updateID === versions[i] + (b === cloud.geometry.getBuffer("aMeanAnomaly") ? 1 : 0)), "Only phase buffer changes at rebase");
 
@@ -88,6 +100,10 @@ async function pixels(page) {
     app.stage.position.set(app.viewWidth / 2 + 17, app.viewHeight / 2 - 23);
     app.setAsteroids([d]);
     const epoch = app.elapsed;
+    // A new cloud is a mature historical baseline. Only a chronological
+    // crossing receives arrival emphasis, so reveal the sample through one.
+    check(app.asteroids.geometry.getBuffer("aDiscovery").data[0] === -1, "A new cloud starts as a mature baseline");
+    app.asteroids.update(d.disc - 1, epoch);
     const read = age => {
       app.asteroids.update(app.jed, epoch + age); app.app.render();
       const gl = app.app.renderer.gl, w = app.canvas.width, h = app.canvas.height;
@@ -320,7 +336,11 @@ async function run({ browser, name, application = "unified", output: artifactDir
         // Pixi emits pre-existing texture parameter warnings on WebGL1
         // setup. Drain these before testing the discovery upload itself.
         while (gl.getError() !== gl.NO_ERROR) {}
-        app.jed = catalog[5].disc; app.tick(); app.app.render();
+        // Reveal later rows through playback: an offset discovery range, not
+        // the seek baseline that a direct `jed` assignment would upload.
+        app.jedDelta = (catalog[5].disc - app.jed) / 15; app.resetClock(); app.tick(0); app.tick(250); app.jedDelta = 0;
+        if (app.pendingSeek || app.asteroidsDiscovered < 5) throw new Error("WebGL1 playback did not reveal later discoveries");
+        app.app.render();
         if (gl.getError() !== gl.NO_ERROR) throw new Error("WebGL1 discovery upload overflow");
         return { version: 1, discovered: app.asteroidsDiscovered };
       });
