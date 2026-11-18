@@ -98,12 +98,11 @@ async function run({ browser, name, application = "unified", output: artifactDir
   // Serve the actual production files at the GitHub Pages subpath.
   const server = http.createServer((req, res) => {
     const pathname = new URL(req.url, "http://localhost").pathname;
-    if (pathname.endsWith("/favicon.ico")) { res.writeHead(204); res.end(); return; }
     const filename = path.resolve(dist, "." + pathname.replace(/^\/Orrery/, "") + (pathname.endsWith("/") ? "index.html" : ""));
     if (!pathname.startsWith("/Orrery/") || !filename.startsWith(dist + path.sep) || !fs.existsSync(filename)) {
       res.writeHead(404); res.end(); return;
     }
-    res.setHeader("Content-Type", { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".woff2": "font/woff2", ".txt": "text/plain", ".svg": "image/svg+xml" }[path.extname(filename)] || "application/octet-stream");
+    res.setHeader("Content-Type", { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".woff2": "font/woff2", ".txt": "text/plain", ".svg": "image/svg+xml", ".png": "image/png" }[path.extname(filename)] || "application/octet-stream");
     fs.createReadStream(filename).pipe(res);
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));

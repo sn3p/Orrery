@@ -36,10 +36,5 @@ module.exports = {
     devMiddleware: { publicPath: "/next/" },
     historyApiFallback: false,
     watchFiles: ["src/unified/**/*.html"],
-    setupMiddlewares(middlewares, server) {
-      // The page links favicon.svg; keep any automatic /favicon.ico request quiet.
-      server.app.get("/favicon.ico", (_req, res) => res.status(204).end());
-      return middlewares;
-    },
   },
 };

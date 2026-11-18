@@ -94,7 +94,14 @@ async function run({ browser, name, application = "unified", output: artifactDir
       }
       for (const directory of directories) fs.rmdirSync(directory);
     }
-    assert.equal((await page.request.get(`${base}favicon.ico`)).status(), 204);
+    // The page links its own icons; the dev server no longer stubs /favicon.ico.
+    const icons = await page.$$eval('link[rel="icon"]', links => links.map(link => [link.href, link.type]));
+    assert.deepEqual(icons.map(([, type]) => type).sort(), ["image/png", "image/svg+xml"]);
+    for (const [href, type] of icons) {
+      const response = await page.request.get(href);
+      assert.equal(response.status(), 200, href);
+      assert.equal(response.headers()["content-type"].split(";")[0], type, href);
+    }
     assert.deepEqual(errors, []);
     console.log("Actual development command serves root, rejects old preview entries, applies hot chunks and reloads unaccepted edits.");
   } finally {
