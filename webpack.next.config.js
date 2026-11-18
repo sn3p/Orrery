@@ -36,11 +36,5 @@ module.exports = {
     devMiddleware: { publicPath: "/next/" },
     historyApiFallback: false,
     watchFiles: ["src/unified/**/*.html"],
-    setupMiddlewares(middlewares, server) {
-      // The static legacy page has no favicon; keep its automatic browser
-      // request quiet when returning from the preview during development.
-      server.app.get("/favicon.ico", (_req, res) => res.status(204).end());
-      return middlewares;
-    },
   },
 };

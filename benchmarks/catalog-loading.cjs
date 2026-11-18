@@ -87,7 +87,6 @@ async function serve(directory, port = 0) {
       };
     }
     const url = new URL(req.url, "http://localhost");
-    if (url.pathname.endsWith("/favicon.ico")) { res.writeHead(204); res.end(); return; }
     const relative = decodeURIComponent(url.pathname).replace(/^\/Orrery\//, "/");
     const file = path.resolve(directory, "." + (relative.endsWith("/") ? relative + "index.html" : relative));
     if (!file.startsWith(directory + path.sep)) { res.writeHead(404); res.end(); return; }

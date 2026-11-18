@@ -4,7 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
-    <link rel="icon" href="data:," />
+    <!-- Safari before 26 has no SVG icons; favicon-32.png is rsvg-convert -w 32 -h 32 favicon.svg. -->
+    <link rel="icon" href="<%= require('./favicon-32.png') %>" sizes="32x32" type="image/png" />
+    <link rel="icon" href="<%= require('./favicon.svg') %>" type="image/svg+xml" />
     <title>Orrery</title>
   </head>
   <body>

@@ -37,7 +37,6 @@ module.exports = async (_env, argv = {}) => {
       setupMiddlewares(middlewares, server) {
         // Do not let a previous build's HTML leak through the static fallback.
         server.app.get(/^\/next(?:\/|$)|^\/(?:bundle\.js|main\.css|data\/catalog\.json)$/, (_req, res) => res.sendStatus(404));
-        server.app.get("/favicon.ico", (_req, res) => res.status(204).end());
         return middlewares;
       },
     },
