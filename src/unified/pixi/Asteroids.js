@@ -194,9 +194,15 @@ export default class Asteroids extends Mesh {
     this.applyMasks();
   }
 
+  setShown(shown) {
+    if (this.shown === shown) return;
+    this.shown = shown;
+    this.applyMasks();
+  }
+
   applyMasks() {
-    const drawn = populationMask(this.populationPreset);
-    const mask = highlightMask(this.populationPreset, this.colorize);
+    const drawn = this.shown === false ? 0 : populationMask(this.populationPreset);
+    const mask = this.shown === false ? 0 : highlightMask(this.populationPreset, this.colorize);
     this.uniforms.uClassMask = this.highlightUniforms.uClassMask = drawn;
     this.uniforms.uColorMask = this.highlightUniforms.uColorMask = mask;
     this.syncHighlight();

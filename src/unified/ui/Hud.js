@@ -14,6 +14,7 @@ export default class Hud {
     this.now = document.getElementById("orrery-now");
     this.fps = document.getElementById("orrery-fps");
     this.count = document.getElementById("orrery-count");
+    this.countUnit = document.getElementById("orrery-count-unit");
     this.swatches = document.getElementById("orrery-swatches");
     this.legendKey = "";
     this.readouts = this.date.closest(".orrery-readouts");
@@ -43,6 +44,7 @@ export default class Hud {
     if (count !== this.lastCount) {
       // SI-style digit groups; keep each count on one line.
       this.count.textContent = countFormat.format(count).replaceAll(",", "\u202f");
+      this.count.setAttribute("aria-label", `${countFormat.format(count)} asteroids`);
       this.lastCount = count;
     }
   }

@@ -1,0 +1,181 @@
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const fs = require('node:fs');
+const { expect } = require('@playwright/test');
+
+// Intercept built assets directly: no HTTP server, live profile or screenshots.
+async function routeFiles(page, root) {
+  await page.route('https://orrery.test/**', async route => {
+    const pathname = new URL(route.request().url()).pathname.replace(/^\/Orrery\//, '/');
+    const file = path.resolve(root, '.' + pathname + (pathname.endsWith('/') ? 'index.html' : ''));
+    if (!file.startsWith(path.resolve(root) + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return route.fulfill({ status:404 });
+    const contentType = {'.js':'text/javascript','.json':'application/json','.html':'text/html','.css':'text/css','.woff2':'font/woff2'}[path.extname(file)] || 'application/octet-stream';
+    return route.fulfill({path:file,contentType});
+  });
+}
+
+async function run({browser, name, output = '.context/comet-browser'}) {
+  const root = path.resolve(output, 'site');
+  if (process.env.ORRERY_PREBUILT_FIXTURES) require('./fixture-builds.cjs').copyPrepared('three',root);
+  else await require('./three-build.cjs').build(root);
+  for (const renderer of ['three','pixi']) {
+    const page = await browser.newPage({viewport:{width:1280,height:800},deviceScaleFactor:2});
+    const errors=[];
+    page.on('pageerror', e=>errors.push(e.message));
+    let requests=0;
+    page.on('request',request=>{if(request.url().endsWith('/data/vectors.json')) requests++;});
+    await routeFiles(page,root);
+    try {
+      await page.goto(`https://orrery.test/Orrery/next/?renderer=${renderer}`);
+      await page.evaluate(()=>threeTest.ready);
+      await page.waitForFunction(()=>threeTest.app.catalogue?.firstDraw);
+      await page.evaluate(()=>{window.app=threeTest.app;app.jedDelta=0;app.cancelRender();});
+      assert.equal(requests,0,'Default view never requests comet vectors');
+      await page.getByRole('button',{name:'Options',exact:true}).click();
+      await expect(page.getByRole('checkbox',{name:'Show Halley',exact:true})).toHaveCount(0);
+      await page.getByRole('checkbox',{name:'Show comets',exact:true}).check();
+      await page.waitForFunction(()=>app.cometData && app.renderer.comets?.entries.every(e=>e.body.visible));
+      assert.equal(requests,1);
+      if (renderer === 'three') assert.equal(await page.evaluate(()=> {
+        const r=app.renderer; return r.comets.entries[0].body.material.size*r.viewport.width/r.canvas.width;
+      }),6,'DPR2 comet marker remains six CSS pixels');
+      await page.getByRole('button',{name:'Fit selected comets'}).click();
+      await page.waitForFunction(()=>document.querySelectorAll('.orrery-comet-label:not([hidden])').length===3);
+      await page.evaluate(()=>document.fonts.ready);
+      assert(await page.evaluate(()=>{
+        const r=app.renderer, label=r.comets.entries[2].label;
+        label.place(r.viewport.width-60,r.viewport.height/2,r.viewport);
+        const box=label.element.getBoundingClientRect();
+        r.render();
+        return box.left>=0 && box.right<=r.viewport.width;
+      }),'Long comet label stays within the right edge');
+      await page.getByRole('checkbox',{name:'Show asteroids',exact:true}).uncheck();
+      await page.waitForFunction(()=>document.querySelector('#orrery-count').textContent==='0');
+      assert(await page.evaluate(()=>{
+        const cloud=app.renderer.asteroids;
+        return app.rendererId==='three' ? cloud.uniforms.classMask.value===0 && cloud.uniforms.colorMask.value===0 : cloud.uniforms.uClassMask===0 && cloud.uniforms.uColorMask===0;
+      }));
+      await page.evaluate(()=>{
+        const model=app.catalogue;
+        app.renderer.setAsteroids(model,app.frameState);
+        app.renderFrame();
+      });
+      assert(await page.evaluate(()=>app.renderer.asteroids.shown===false),'Catalogue replacement retains hidden asteroids');
+      await page.getByRole('checkbox',{name:'Show Encke' ,exact:true}).uncheck();
+      await page.getByRole('checkbox',{name:'Comet paths',exact:true}).uncheck();
+      assert(await page.evaluate(()=>app.renderer.comets.entries.every(e=>!e.path.visible) && !app.renderer.comets.entries[1].body.visible));
+      await page.getByRole('checkbox',{name:'Show Halley',exact:true}).focus();
+      await page.keyboard.press('Space');
+      await expect(page.getByRole('checkbox',{name:'Show Halley',exact:true})).not.toBeChecked();
+      await page.getByRole('checkbox',{name:'Show Halley',exact:true}).check();
+      const other=renderer==='three'?'pixi':'three';
+      await page.getByRole('combobox',{name:'Renderer',exact:true}).selectOption(other);
+      await page.waitForFunction(id=>app.rendererId===id&&!app.switching,other);
+      assert(await page.evaluate(()=>app.cometsShown && !app.asteroidsShown && !app.cometPaths && app.cometIds.join(',')==='1P,55P'));
+      await page.evaluate(()=>{app.renderer.setOptions({shared:{planetLabels:'all'}});app.renderFrame();});
+      assert(await page.evaluate(()=>app.renderer.comets.entries[0].body.visible),'Partial options preserve comets');
+      await page.getByRole('checkbox',{name:'Comet paths',exact:true}).check();
+      // Dates, reverse motion and failed frame rollback use the same committed clock.
+      const dates = await page.evaluate(()=>{
+        const start=app.jed;app.jed=start+100;app.renderFrame();
+        const forward={...app.renderer.comets.entries[0].position};
+        app.jed=start;app.renderFrame();
+        const backward={...app.renderer.comets.entries[0].position};
+        app.jed=2444238.5;app.renderFrame();
+        return {different:JSON.stringify(forward)!==JSON.stringify(backward),hidden:app.renderer.comets.entries.every(e=>!e.body.visible)};
+      });
+      assert(dates.different && dates.hidden);
+      await expect(page.getByRole('status').filter({hasText:'Comets are unavailable'})).toBeVisible();
+      await page.evaluate(()=>{app.jed=2444239.5;app.renderFrame();});
+      await page.getByRole('button',{name:'Fit selected comets'}).click();
+      for (const viewport of [{width:320,height:568},{width:568,height:240},{width:1280,height:800}]) {
+        await page.setViewportSize(viewport);
+        const panel=page.locator('.orrery-options-panel');
+        const box=await panel.boundingBox();
+        assert(box.x>=0 && box.x+box.width<=viewport.width+1 && box.y+box.height<=viewport.height+1);
+        await page.getByRole('button',{name:'Fit selected comets'}).scrollIntoViewIfNeeded();
+        assert(await panel.evaluate(el=>el.scrollWidth<=el.clientWidth+1),'No horizontal overflow');
+      }
+      await page.evaluate(()=>{
+        const r=app.renderer, original=r.render, before={...r.comets.entries[0].position};
+        r.render=()=>null;
+        app.jed+=10;app.cancelRender();app.renderFrame();r.render=original;
+        if(JSON.stringify(before)!==JSON.stringify(r.comets.entries[0].position)) throw new Error('Comet frame rollback failed');
+        app.renderFrame();
+      });
+      await page.evaluate(()=>{
+        const r=app.renderer;
+        window.cometContext=r.renderer?.getContext() ?? r.app.renderer.gl;
+        window.cometLoss=cometContext.getExtension('WEBGL_lose_context');
+        if(!cometLoss) throw new Error('Context-loss extension unavailable');
+        cometLoss.loseContext();
+      });
+      await page.waitForFunction(()=>app.contextLost);
+      await page.evaluate(()=>cometLoss.restoreContext());
+      await page.waitForFunction(()=>!app.contextLost && !app.graphicsRecoveryPending);
+      assert(await page.evaluate(()=>app.renderer.comets.entries[0].body.visible),'Comets recover after actual context loss');
+      await page.getByRole('checkbox',{name:'Show comets',exact:true}).uncheck();
+      await expect(page.getByRole('checkbox',{name:'Show Halley',exact:true})).toHaveCount(0);
+      assert(await page.evaluate(()=>[...document.querySelectorAll('.orrery-comet-label')].every(e=>e.hidden)));
+      await page.getByRole('checkbox',{name:'Show asteroids',exact:true}).check();
+      await page.waitForFunction(()=>document.querySelector('#orrery-count').textContent!=='0');
+      await page.evaluate(()=>app.destroy());
+      assert.equal(await page.locator('.orrery-comet-label').count(),0);
+      assert.deepEqual(errors,[]);
+    } finally { await page.close(); }
+  }
+  for (const renderer of ['three','pixi']) {
+    const page=await browser.newPage();
+    await routeFiles(page,root);
+    let catalogRoute, vectorRoute, notifyVector;
+    const vectorRequested=new Promise(resolve=>{notifyVector=resolve;});
+    await page.route('**/data/catalog.json',route=>{catalogRoute=route;});
+    await page.route('**/data/vectors.json',route=>{vectorRoute=route;notifyVector();});
+    try {
+      await page.goto(`https://orrery.test/Orrery/next/?renderer=${renderer}`);
+      await page.waitForFunction(()=>threeTest.app.initialized);
+      await page.evaluate(()=>{window.app=threeTest.app;app.asteroidsShown=false;app.jedDelta=0;});
+      await expect.poll(()=>!!catalogRoute).toBe(true);
+      await catalogRoute.fallback();
+      await page.waitForFunction(()=>app.catalogue?.firstDraw);
+      assert(await page.evaluate(()=>app.renderer.asteroids.shown===false),'Initial delayed installation retains asteroid visibility');
+      await page.getByRole('button',{name:'Options',exact:true}).click();
+      await page.getByRole('checkbox',{name:'Show comets',exact:true}).check();
+      await vectorRequested;
+      await page.evaluate(()=>app.destroy());
+      await vectorRoute.abort().catch(()=>{});
+      await page.waitForFunction(()=>app.cometLoading===null);
+      assert(await page.evaluate(()=>app.cometData===null && document.querySelectorAll('.orrery-comet-label').length===0));
+    } finally { await page.close(); }
+  }
+  // Public entry and indexed catalogue, independent of the instrumented fixture.
+  for (const renderer of ['three','pixi']) {
+    const page=await browser.newPage({viewport:{width:800,height:600}});
+    await routeFiles(page,path.resolve('dist'));
+    await require('./default-catalog-route.cjs').routeDefaultCatalog(page);
+    let failures=1;
+    await page.route('**/data/vectors.json',route=>failures-- > 0
+      ? route.fulfill({status:503,body:'Unavailable'}) : route.fallback());
+    try {
+      await page.goto(`https://orrery.test/Orrery/?renderer=${renderer}&date=2026-11-18`);
+      await page.waitForFunction(()=>document.querySelector('#orrery-count').textContent.length>0);
+      await page.getByRole('button',{name:'Options',exact:true}).click();
+      await page.getByRole('checkbox',{name:'Show comets',exact:true}).check();
+      await expect(page.getByRole('button',{name:'Retry comet data'})).toBeVisible();
+      await page.getByRole('button',{name:'Retry comet data'}).click();
+      await expect(page.getByRole('button',{name:'Fit selected comets'})).toBeEnabled();
+      await page.getByRole('button',{name:'Fit selected comets'}).click();
+      await page.waitForFunction(()=>document.querySelectorAll('.orrery-comet-label:not([hidden])').length===3);
+      await page.getByRole('checkbox',{name:'Show asteroids',exact:true}).uncheck();
+      await expect(page.locator('#orrery-count-unit')).toBeVisible();
+      await expect(page.locator('#orrery-count')).toHaveText('0');
+      await page.reload();
+      await page.getByRole('button',{name:'Options',exact:true}).click();
+      await expect(page.getByRole('checkbox',{name:'Show comets',exact:true})).not.toBeChecked();
+      await expect(page.getByRole('checkbox',{name:'Show asteroids',exact:true})).toBeChecked();
+    } finally { await page.close(); }
+  }
+  console.log(`${name}: comet controls, lazy data, both renderers, dates, switching and responsive layout passed`);
+}
+module.exports={run,routeFiles};
+if(require.main===module) require('./standalone.cjs').run(run);

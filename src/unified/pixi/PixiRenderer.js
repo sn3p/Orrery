@@ -1,3 +1,6 @@
+import Comets from "./Comets.js";
+import { cometRadius, validateCometOptions } from "../comets/model.js";
+import { PIXELS_PER_AU } from "../../js/constants.js";
 import { Application, ParticleContainer, ParticleShader, Graphics, Texture } from "pixi.js";
 import Controls from "./Controls.js";
 import Planet from "./Planet.js";
@@ -48,6 +51,7 @@ export default class PixiRenderer {
       event.preventDefault();
       this.contextLost = true;
       this.planetLabels.hide();
+      this.comets?.hideLabels();
       this.reportGraphicsState(true);
     };
     this.onContextRestored = () => {
@@ -205,7 +209,17 @@ export default class PixiRenderer {
     if (colorize !== undefined && typeof colorize !== "boolean") {
       throw new RangeError("Invalid group colorize.");
     }
-    let changed = false;
+    validateCometOptions(shared);
+    if (shared?.asteroidsShown !== undefined) {
+      this.asteroidsShown = shared.asteroidsShown;
+      for (const cloud of [this.asteroids, this.stagedAsteroids, this.catalogueTransition?.previous]) cloud?.setShown(this.asteroidsShown);
+    }
+    if (shared?.cometData && !this.comets && this.initialized) {
+      this.comets = new Comets(this.stage, this.container, shared.cometData);
+    }
+    if (shared) this.cometSettings = { ...this.cometSettings, ...shared };
+    this.updateComets?.(this.lastJed);
+    let changed = shared && ["asteroidsShown", "cometsShown", "cometPaths", "cometIds", "cometData"].some(key => shared[key] !== undefined);
     if (mode !== undefined && mode !== this.planetLabelMode) {
       this.planetLabelMode = mode;
       this.planetLabels.setMode(this.planets, mode);
@@ -287,6 +301,7 @@ export default class PixiRenderer {
     this.stage.addChildAt(next, previous ? this.stage.getChildIndex(previous) : 2);
     next.mountHighlight();
     this.asteroids = next;
+    next.setShown(this.asteroidsShown !== false);
     if (preservePrevious) {
       this.catalogueTransition = { previous, visible: previous?.visible };
       if (previous) {
@@ -358,9 +373,26 @@ export default class PixiRenderer {
     if (this.app.renderer.resolution !== this.viewport.pixelRatio) this.resize(this.viewport);
     if (this.circleTexture.source.resolution !== this.texturePixelRatio) this.refreshCircleTexture();
     this.advanceViewFit();
+    this.updateComets(jed);
     const count = this.asteroids?.update(jed, elapsed, options) ?? 0;
     for (const planet of this.planets) planet.render(jed);
     return count;
+  }
+
+  updateComets(jed = this.lastJed) {
+    this.lastJed = jed;
+    const settings = this.cometSettings;
+    if (settings) this.comets?.update(jed, settings.cometsShown === true, settings.cometIds ?? [], settings.cometPaths !== false);
+  }
+
+  focusComets() {
+    const settings = this.cometSettings;
+    if (!settings?.cometData || !settings.cometIds?.length) return;
+    this.cancelViewFit();
+    const radius = cometRadius(settings.cometData, settings.cometIds) * PIXELS_PER_AU * 1.12;
+    this.stage.position.set(this.viewWidth/2, this.viewHeight/2);
+    this.stage.scale.set(Math.min(this.viewWidth, this.viewHeight) / (2*radius));
+    this.updateComets();
   }
 
   get frameState() {
@@ -375,6 +407,7 @@ export default class PixiRenderer {
   }
 
   restoreFrame(frame) {
+    this.updateComets(frame.jed);
     if (this.frameSnapshot?.cloud === this.asteroids) this.asteroids.restoreFrame(this.frameSnapshot.state);
     for (const planet of this.planets) planet.render(frame.jed);
     this.frameSnapshot = null;
@@ -397,6 +430,7 @@ export default class PixiRenderer {
     if (this.destroyed || this.contextLost || this.app.renderer.gl.isContextLost()) return null;
     if (this.asteroids?.geometry.instanceCount && this.drawnAsteroids !== this.asteroids) return null;
     this.placePlanetLabels();
+    this.comets?.placeLabels(this.stage, this.viewport);
     return this.asteroids?.acknowledgeDraw(this.app.renderer) ?? (this.asteroids ? null : 0);
   }
 
@@ -460,6 +494,7 @@ export default class PixiRenderer {
     this.canvas?.removeEventListener("webglcontextrestored", this.onContextRestored);
     this.controls?.destroy();
     this.planetLabels.destroy();
+    this.comets?.destroy();
     this.asteroids?.destroy();
     this.stagedAsteroids?.destroy();
     this.catalogueTransition?.previous?.destroy();

@@ -1,3 +1,5 @@
+import { formatIsoDay } from "../../js/utils.js";
+import { COMETS, lastDate } from "../comets/model.js";
 import * as dat from "dat.gui";
 import { DEFAULT_POPULATION_PRESET, POPULATION_PRESET_OPTIONS, legendGroups, populationHint } from "../catalog/population.js";
 
@@ -85,6 +87,10 @@ export default class Options {
     this.addHint(this.planetOrbits, this.planetOrbitsInput.title, this.planetOrbitsInput);
     this.confineCheckbox(this.planetOrbits);
 
+    this.asteroids = this.gui.add(this.orrery, "asteroidsShown").name("asteroids");
+    this.asteroids.domElement.querySelector("input").setAttribute("aria-label", "Show asteroids");
+    this.confineCheckbox(this.asteroids);
+
     this.population = this.gui.add(this.orrery, "populationPreset", POPULATION_PRESET_OPTIONS).name("groups");
     this.populationSelect = this.population.domElement.querySelector("select");
     this.populationSelect.setAttribute("aria-label", "Minor-planet groups");
@@ -99,11 +105,91 @@ export default class Options {
     this.addHint(this.colorize, this.colorizeInput.title, this.colorizeInput);
     this.confineCheckbox(this.colorize);
 
+    this.mountComets();
+
     try { this.mountRenderer(); }
     catch (error) { this.destroy(); throw error; }
     this.trigger.addEventListener("click", this.onToggle);
     document.addEventListener("pointerdown", this.onOutsidePointer, true);
     document.addEventListener("keydown", this.onKeyDown);
+  }
+
+  mountComets() {
+    this.insertRule(this.colorize);
+    const toggle = this.cometToggle = this.gui.add(this.orrery, "cometsShown").name("comets");
+    const input = toggle.domElement.querySelector("input");
+    input.setAttribute("aria-label", "Show comets");
+    this.confineCheckbox(toggle);
+    this.cometHint = this.addHint(toggle, "Three comets from JPL Horizons. Positions and paths cover 1 Jan 1980–30 Dec 2099; markers are enlarged.", input);
+    const source = document.createElement("a");
+    source.href = "https://ssd.jpl.nasa.gov/horizons/";
+    source.textContent = "JPL Horizons";
+    source.target = "_blank";
+    source.rel = "noopener noreferrer";
+    this.cometHint.append(" ", source);
+    this.cometStatus = document.createElement("p");
+    this.cometStatus.className = "orrery-options-hint";
+    this.cometStatus.setAttribute("role", "status");
+    toggle.domElement.closest("li").append(this.cometStatus);
+    this.cometRows = [];
+    this.cometChoices = {};
+    for (const comet of COMETS) {
+      const state = {};
+      Object.defineProperty(state, "selected", {
+        get: () => this.orrery.cometIds.includes(comet.id),
+        set: shown => { this.orrery.cometIds = COMETS.filter(item => item.id === comet.id ? shown : this.orrery.cometIds.includes(item.id)).map(item => item.id); },
+      });
+      const choice = this.gui.add(state, "selected").name(comet.name);
+      const checkbox = choice.domElement.querySelector("input");
+      checkbox.setAttribute("aria-label", `Show ${comet.name}`);
+      this.confineCheckbox(choice);
+      this.cometChoices[comet.id] = choice;
+      this.cometRows.push(choice.domElement.closest("li"));
+    }
+    const paths = this.gui.add(this.orrery, "cometPaths").name("paths");
+    paths.domElement.querySelector("input").setAttribute("aria-label", "Comet paths");
+    this.confineCheckbox(paths);
+    this.cometRows.push(paths.domElement.closest("li"));
+    // Native buttons supply keyboard semantics absent from dat.gui functions.
+    const row = document.createElement("li");
+    row.className = "orrery-comet-actions";
+    this.cometFocus = document.createElement("button");
+    this.cometFocus.type = "button";
+    this.cometFocus.textContent = "Fit selected comets";
+    this.cometFocus.onclick = () => this.orrery.focusComets();
+    this.cometRetry = document.createElement("button");
+    this.cometRetry.type = "button";
+    this.cometRetry.textContent = "Retry comet data";
+    this.cometRetry.onclick = () => { void this.orrery.loadComets(); };
+    row.append(this.cometFocus, this.cometRetry);
+    this.gui.__ul.append(row);
+    this.cometRows.push(row);
+    this.updateComets();
+  }
+
+  updateComets() {
+    if (!this.cometStatus) return;
+    const app = this.orrery, ids = app.cometIds;
+    let status = "";
+    if (app.cometsShown) {
+      if (app.cometError) status = "Could not load comet data. Retry below.";
+      else if (app.cometLoading) status = "Loading comet data…";
+      else if (!ids.length) status = "Select a comet below.";
+      else if (app.cometData) {
+        const series = app.cometData[ids[0]];
+        if (app.jed < series.start || app.jed > lastDate(series)) status = `Comets are unavailable at this date. Choose ${formatIsoDay(series.start)} to ${formatIsoDay(lastDate(series))}.`;
+        else status = `${ids.length} comet${ids.length === 1 ? "" : "s"} selected. Fit the view to see their paths.`;
+      }
+    }
+    const key = [status, app.cometsShown, app.cometError, !!app.cometData, !!app.switching, ...ids].join("|");
+    if (key === this.cometDisplayKey) return;
+    this.cometDisplayKey = key;
+    for (const row of this.cometRows) row.hidden = !app.cometsShown;
+    if (this.cometStatus.textContent !== status) this.cometStatus.textContent = status;
+    this.cometStatus.hidden = !status;
+    this.cometRetry.hidden = !app.cometError;
+    this.cometFocus.disabled = !app.cometsShown || !app.cometData || !ids.length || !!app.switching;
+    for (const choice of Object.values(this.cometChoices)) choice.updateDisplay();
   }
 
   updateRenderer() {
