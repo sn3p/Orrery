@@ -23,6 +23,9 @@ test('path policy preserves risky changes, unions groups and defaults unknown fi
     }
   }
   assert(plan(['src/unified/index.html']).buildTests);
+  for (const file of ['src/unified/favicon.svg', 'src/unified/favicon-32.png']) {
+    assert.equal(plan([file]).groups, 'core,ui,build,dev', file); assert(plan([file]).buildTests, file);
+  }
   assert.equal(plan(['src/unified/App.js']).groups, 'core,ui,graphics,data');
   const data = plan(['src/unified/catalog/CatalogLoader.js']);
   assert.equal(data.groups, 'core,data,build'); assert(data.buildTests);
