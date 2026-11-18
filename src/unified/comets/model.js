@@ -31,7 +31,12 @@ export function positionAt(series, jed, target = {}) {
 export function pathRange(series, jed, periodDays) {
   const center = Math.round((jed - series.start) / series.step / 8) * 8;
   const half = Math.ceil(periodDays / series.step / 2);
-  return [Math.max(0, center-half), Math.min(series.states.length-1, center+half)];
+  const end = series.states.length - 1;
+  const span = Math.min(2 * half, end);
+  // Shift the whole window at either boundary instead of clipping half of it.
+  // Every vertex still comes from the supplied trajectory; never join its ends.
+  const first = Math.max(0, Math.min(center - half, end - span));
+  return [first, first + span];
 }
 
 export function cometRadius(data, ids) {

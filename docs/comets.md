@@ -25,10 +25,13 @@ orbit solutions and their assumptions, not direct observations at every date.
 Uncertainty grows away from observations. This is an educational visualization,
 not an observing ephemeris or meteor-shower prediction tool.
 
-Paths show approximately one orbital period centered near the displayed date,
-clipped at the sample boundaries. They follow the integrated trajectory rather
-than an artificially closed ellipse. Path windows advance in 32-day increments;
-markers interpolate continuously. The period is used only to choose the window.
+Paths show approximately one orbital period centered near the displayed date.
+Near either data boundary, the entire window shifts into the available interval
+so the path keeps its full length. They follow the integrated trajectory rather
+than an artificially closed ellipse; the endpoints need not meet. Path windows
+advance in 32-day increments; markers interpolate continuously. The period is
+used only to choose the window. If a dataset is shorter than one period, the
+path uses all available samples without extrapolating.
 Planets and asteroids retain the application's existing approximate fixed-element
 model; enabling comets does not increase their positional accuracy.
 

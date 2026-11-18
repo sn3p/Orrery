@@ -36,6 +36,39 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.getByRole('checkbox',{name:'Show comets',exact:true}).check();
       await page.waitForFunction(()=>app.cometData && app.renderer.comets?.entries.every(e=>e.body.visible));
       assert.equal(requests,1);
+      await page.evaluate(() => {
+        const check = (ok, message) => { if (!ok) throw new Error(message); };
+        const series = app.cometData['55P'];
+        const end = series.start + (series.states.length - 1) * series.step;
+        for (const jed of [series.start, series.start + 32, end - 32, end, (series.start + end) / 2, series.start]) {
+          app.jed = jed; app.cancelRender(); app.renderFrame();
+          for (const { comet, path, range } of app.renderer.comets.entries) {
+            const source = app.cometData[comet.id];
+            const [first, last] = range.split(':').map(Number);
+            const duration = (last - first) * source.step;
+            check(duration >= comet.periodDays && duration < comet.periodDays + 2 * source.step,
+              `${comet.id}: full trajectory at ${jed}`);
+            if (app.rendererId === 'three') {
+              const points = path.geometry.attributes.position;
+              check(points.count === last - first + 1, 'Three uses exactly the source slice');
+              for (const [vertex, sample] of [[0, first], [points.count - 1, last]]) {
+                for (let axis = 0; axis < 3; axis++) check(points.array[vertex * 3 + axis] === Math.fround(source.states[sample][axis] * 100),
+                  'Three endpoints are JPL samples without an invented closing segment');
+              }
+            } else {
+              const commands = path.context.instructions.find(item => item.action === 'stroke').data.path.instructions;
+              const lines = commands.filter(item => item.action === 'lineTo');
+              check(lines.length === last - first && !commands.some(item => item.action === 'closePath'),
+                'Pixi draws only the source slice without closing it');
+              const beginning = commands.filter(item => item.action === 'moveTo').at(-1).data;
+              for (const [point, sample] of [[beginning, first], [lines.at(-1).data, last]]) {
+                check(point[0] === -source.states[sample][0] * 100 && point[1] === source.states[sample][1] * 100,
+                  'Pixi endpoints are projected JPL samples');
+              }
+            }
+          }
+        }
+      });
       if (renderer === 'three') assert.equal(await page.evaluate(()=> {
         const r=app.renderer; return r.comets.entries[0].body.material.size*r.viewport.width/r.canvas.width;
       }),6,'DPR2 comet marker remains six CSS pixels');

@@ -47,6 +47,32 @@ test('comet paths are bounded data slices, not synthetic closed ellipses', () =>
   for(const ids of [null,['fake'],['1P','1P']]) assert(!validCometIds(ids));
 });
 
+test('comet paths retain a full period at both boundaries and throughout playback', () => {
+  for (const comet of COMETS) {
+    const series = data[comet.id];
+    const initial = pathRange(series, series.start, comet.periodDays);
+    const final = pathRange(series, lastDate(series), comet.periodDays);
+    assert.equal(initial[0], 0);
+    assert.equal(final[1], series.states.length - 1);
+    const duration = (initial[1] - initial[0]) * series.step;
+    assert(duration >= comet.periodDays && duration < comet.periodDays + 2 * series.step);
+    for (let i = 0; i < series.states.length; i++) {
+      const [first, last] = pathRange(series, series.start + i * series.step, comet.periodDays);
+      assert.equal((last - first) * series.step, duration, `${comet.id} at sample ${i}`);
+      assert(first >= 0 && last < series.states.length && first <= i && last >= i);
+    }
+    assert.deepEqual(pathRange(series, series.start + 32, comet.periodDays), initial,
+      'Early playback does not grow the displayed path');
+    assert.deepEqual(pathRange(series, lastDate(series) - 32, comet.periodDays), final,
+      'Late playback does not shrink the displayed path');
+  }
+});
+
+test('a dataset shorter than one period uses all available samples', () => {
+  const series = { start: 100, step: 4, states: Array(10) };
+  for (const jed of [100, 116, 136]) assert.deepEqual(pathRange(series, jed, 1000), [0, 9]);
+});
+
 test('invalid comet assets and settings fail before scene mutation', () => {
   assert.equal(validateCometData(data), data);
   for (const value of [null, {}, {...data, '1P': {...data['1P'], step:0}}, {...data, '2P': {start:1,step:1,states:[[0,0,0,0,0,0],[0,0,NaN,0,0,0]]}}]) {
