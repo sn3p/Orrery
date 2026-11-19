@@ -9,7 +9,13 @@ window.threeTest = { app, ready, prepareCatalogue,
   validate: async () => {
     const { validateShader } = await import("./fixtures/three-reference/shader.js");
     const data = await (await fetch(new URL("data/catalog.json", document.baseURI))).json();
-    app.jedDelta = 0; app.jed = 2458600.5; app.renderFrame();
-    return validateShader({ ...app.renderer, jed: app.jed }, data);
+    // The independent reference keeps the source colour model: discoveries fade
+    // from green to grey. Group colors, on by default since #98, repaint groups.
+    const colorize = app.colorizeGroups;
+    app.colorizeGroups = false;
+    try {
+      app.jedDelta = 0; app.jed = 2458600.5; app.renderFrame();
+      return await validateShader({ ...app.renderer, jed: app.jed }, data);
+    } finally { app.colorizeGroups = colorize; }
   },
 };

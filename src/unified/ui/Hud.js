@@ -5,6 +5,7 @@ import Options from "./Options.js";
 import Timeline from "./Timeline.js";
 
 const countFormat = new Intl.NumberFormat("en-US");
+const TEXT_NODE = 3;
 
 export default class Hud {
   constructor(app) {
@@ -32,7 +33,7 @@ export default class Hud {
     const milliseconds = Math.trunc((jed - UNIX_EPOCH_JULIAN_DATE) * 86400000);
     const day = Math.floor(milliseconds / 86400000);
     if (day !== this.lastDay) {
-      this.date.textContent = formatIsoDay(jed);
+      this.writeDate(formatIsoDay(jed));
       this.lastDay = day;
     }
     if (fps !== this.lastFps) {
@@ -44,6 +45,16 @@ export default class Hud {
       this.count.textContent = countFormat.format(count).replaceAll(",", "\u202f");
       this.lastCount = count;
     }
+  }
+
+  // The date is a button whose text changes on nearly every frame of playback.
+  // Rewrite its one text node in place: WebKit drops the click when the node
+  // under the press leaves the document before the release, so replacing it
+  // (as textContent does) kept Safari from opening the date editor mid-play.
+  writeDate(text) {
+    const label = this.date.firstChild;
+    if (label && label.nodeType === TEXT_NODE && label === this.date.lastChild) label.data = text;
+    else this.date.textContent = text;
   }
 
   setLegend(preset, colorize) {

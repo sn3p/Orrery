@@ -94,8 +94,9 @@ async function run({ browser, name, application = "unified", output: artifactDir
           await options.click();
           const input = page.getByRole("textbox", { name: "Playback speed" });
           assert(await options.evaluate(el => el === document.activeElement));
-          await page.keyboard.press("Tab");
-          assert(await page.getByRole("combobox", { name: "Renderer", exact: true }).evaluate(el => el === document.activeElement));
+          await require("./options.cjs").tabIntoOptions(page);
+          assert(await page.getByRole("combobox", { name: "Renderer", exact: true }).evaluate(el => el === document.activeElement),
+            "Tab reaches Renderer first");
           await page.keyboard.press("Tab");
           const pixelRatio = page.getByRole("combobox", { name: "Rendering pixel ratio" });
           if (await pixelRatio.isVisible()) {

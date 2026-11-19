@@ -143,6 +143,17 @@ jobs:
           node-version-file: .tool-versions
           cache: npm
 
+      # Some hosted runners point apt at an EC2 regional Ubuntu mirror that has
+      # served the browsers' system packages at 10-120 kB/s: up to 20 minutes for
+      # what the Azure mirror on other runners serves in seconds. Use the latter.
+      - name: Use the Azure Ubuntu mirror
+        run: |
+          files=$(grep -lsE '://[a-z0-9-]+\.ec2\.archive\.ubuntu\.com' /etc/apt/sources.list /etc/apt/sources.list.d/* || true)
+          if [ -n "$files" ]; then
+            echo "Replacing the EC2 Ubuntu mirror in: $files"
+            sudo sed -i -E 's#://[a-z0-9-]+\.ec2\.archive\.ubuntu\.com#://azure.archive.ubuntu.com#g' $files
+          fi
+
       - name: Install dependencies and browsers
         run: |
           npm ci
@@ -223,6 +234,17 @@ jobs:
         with:
           node-version-file: .tool-versions
           cache: npm
+      # Some hosted runners point apt at an EC2 regional Ubuntu mirror that has
+      # served the browsers' system packages at 10-120 kB/s: up to 20 minutes for
+      # what the Azure mirror on other runners serves in seconds. Use the latter.
+      - name: Use the Azure Ubuntu mirror
+        run: |
+          files=$(grep -lsE '://[a-z0-9-]+\.ec2\.archive\.ubuntu\.com' /etc/apt/sources.list /etc/apt/sources.list.d/* || true)
+          if [ -n "$files" ]; then
+            echo "Replacing the EC2 Ubuntu mirror in: $files"
+            sudo sed -i -E 's#://[a-z0-9-]+\.ec2\.archive\.ubuntu\.com#://azure.archive.ubuntu.com#g' $files
+          fi
+
       - name: Install dependencies and browser
         run: |
           npm ci

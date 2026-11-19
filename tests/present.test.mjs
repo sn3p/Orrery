@@ -314,6 +314,29 @@ test("the present indicator is written only when its state changes", async () =>
   Hud.prototype.updateNow.call({ now: null }, true);
 });
 
+test("the ticking date keeps its text node so WebKit still delivers the click", () => withAppDocument(async () => {
+  const { default: Hud } = await import("../src/unified/ui/Hud.js");
+  let replacements = 0;
+  const date = {
+    childNodes: [],
+    get firstChild() { return this.childNodes[0] ?? null; },
+    get lastChild() { return this.childNodes.at(-1) ?? null; },
+    set textContent(value) { replacements += 1; this.childNodes = [{ nodeType: 3, data: String(value) }]; },
+  };
+  const hud = Object.assign(Object.create(Hud.prototype), {
+    date, readouts: null, fps: {}, count: {}, lastDay: null, lastFps: null, lastCount: null,
+  });
+  const start = toJED(new Date(Date.UTC(2000, 0, 1)));
+  hud.update(start, 60, 6, true);
+  const label = date.firstChild;
+  assert.equal(label.data, "2000-01-01");
+  for (let day = 1; day <= 3; day++) hud.update(start + day, 60, 6, true);
+  assert.equal(replacements, 1, "Playback rewrites the date without replacing its node");
+  assert.equal(date.firstChild, label);
+  assert.equal(date.childNodes.length, 1);
+  assert.equal(label.data, "2000-01-04");
+}));
+
 test("the speed row dims only while the wall clock drives the date", async () => {
   const { default: Options, SPEED_LIVE_HINT } = await import("../src/unified/ui/Options.js");
   const title = "Time scale: 1 = 60 days/s; 0 pauses; negative reverses.";

@@ -83,15 +83,23 @@ async function exercisePhaseUploads(page) {
       check(!current.visible && current.geometry.instanceCount === 0, "Hidden cloud remains undrawn");
       check(current.geometry.getBuffer("aMeanAnomaly").data.every((value, i) => value === packed.meanAnomalies[i]), "Hidden refresh includes undiscovered rows");
       const hiddenEpoch = current.epoch;
-      app.jed = data[0].disc; app.tick(); app.app.render();
+      // Reveal discoveries through ordinary playback, landing midway into the
+      // discovery day. A direct `jed` assignment is a seek: it re-baselines
+      // every revealed marker instead of uploading only the new range.
+      const reveal = date => {
+        app.jedDelta = date + 0.5 - app.jed; app.resetClock(); app.tick(0); app.tick(1000 / 60); app.jedDelta = 0;
+        check(!app.pendingSeek && app.jed > date && app.jed < date + 1, "Playback reaches the discovery day");
+        app.app.render();
+      };
+      reveal(data[0].disc);
       const revealed = writes.splice(0);
       check(current.epoch === hiddenEpoch && current.geometry.instanceCount === 1, "Discovery consumes the hidden epoch without rebasing again");
-      app.jed = data[2].disc; app.tick(); app.app.render();
+      reveal(data[2].disc);
       const partialMarkers = writes.splice(0);
       app.elapsed += 4096.1; app.tick(); app.app.render();
       const markerRebase = writes.splice(0);
       check(current.geometry.getBuffer("aDiscovery").data.every(value => value === -1), "Old markers are retired after their independent clock rebase");
-      app.jed = data[3].disc; app.tick(); app.app.render();
+      reveal(data[3].disc);
       const finalDiscovery = writes.splice(0);
       app.setAsteroids([]); app.jed += 1000; app.tick(); app.app.render();
       const empty = writes.splice(0);

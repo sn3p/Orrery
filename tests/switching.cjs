@@ -205,7 +205,7 @@ async function reviewRegressions(browser, base, output, name) {
       if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
       assert(await trigger.evaluate(el => el === document.activeElement),
         'Pending switch keeps focus on the disclosure');
-      await trigger.press('Tab');
+      await require('./options.cjs').tabIntoOptions(page);
       assert(await page.getByRole('combobox', { name: 'Rendering pixel ratio' }).evaluate(el => el === document.activeElement && !el.disabled),
         'Pending switch opens at an enabled control');
       await page.evaluate(() => rejectSwitch());

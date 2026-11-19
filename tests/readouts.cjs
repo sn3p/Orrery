@@ -19,7 +19,9 @@ exports.boundaries = async page => page.evaluate(async () => {
     const mutations = observer.takeRecords();
     elements.forEach((element, index) => {
       check(element.textContent === expected[index], `${label}: incorrect ${element.id}`);
-      const count = mutations.filter(mutation => mutation.target === element).length;
+      // A write either replaces the readout's text (childList) or rewrites its
+      // text node in place (characterData), as the ticking date does.
+      const count = mutations.filter(mutation => element.contains(mutation.target)).length;
       check(count === Number(before[index] !== expected[index]), `${label}: redundant or missing ${element.id} write`);
     });
     check(formats - previousFormats === Number(before[0] !== expected[0]), `${label}: redundant or missing date formatting`);
@@ -28,7 +30,7 @@ exports.boundaries = async page => page.evaluate(async () => {
   const frame = label => verify(label, () => app.render());
   try {
     app.autoRender = false; app.cancelRender(); app.jedDelta = 0; app.render();
-    elements.forEach(element => observer.observe(element, { childList: true }));
+    elements.forEach(element => observer.observe(element, { childList: true, characterData: true, subtree: true }));
     Date.prototype.toISOString = function() { formats++; return toISO.call(this); };
     for (let i = 0; i < 100; i++) frame('Unchanged paused frame');
     const unchanged = { frames, writes, formats };
@@ -76,14 +78,16 @@ exports.lifetimes = async page => page.evaluate(async () => {
   let app;
   const observe = () => {
     observer.disconnect(); delivered.length = 0;
-    for (const name of ['date', 'fps', 'count']) observer.observe(document.getElementById(`orrery-${name}`), { childList: true });
+    for (const name of ['date', 'fps', 'count']) {
+      observer.observe(document.getElementById(`orrery-${name}`), { childList: true, characterData: true, subtree: true });
+    }
   };
   const verify = label => {
     const mutations = [...delivered.splice(0), ...observer.takeRecords()];
     for (const [name, value] of [['date', '2000-01-01'], ['fps', '0 FPS'], ['count', '0']]) {
       const element = document.getElementById(`orrery-${name}`);
       check(element.textContent === value, `${label}: initial ${name}, including zero`);
-      check(mutations.filter(m => m.target === element).length === 1, `${label}: exactly one initial ${name} write`);
+      check(mutations.filter(m => element.contains(m.target)).length === 1, `${label}: exactly one initial ${name} write`);
     }
     app.updateGui();
     check(observer.takeRecords().length === 0, `${label}: repeat update remains cached`);
@@ -127,14 +131,26 @@ exports.production = async (page, url) => {
     await page.evaluate(() => {
       const probe = window.readoutProbe = { writes: { date: 0, fps: 0, count: 0 }, redundant: [] };
       const descriptor = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
-      probe.restore = () => Object.defineProperty(Node.prototype, 'textContent', descriptor);
-      Object.defineProperty(Node.prototype, 'textContent', { ...descriptor, set(value) {
-        const name = this.id?.replace('orrery-', '');
+      // The ticking date rewrites its text node in place; count those writes too.
+      const text = Object.getOwnPropertyDescriptor(CharacterData.prototype, 'data');
+      const record = (element, value, current) => {
+        const name = element?.id?.replace('orrery-', '');
         if (Object.hasOwn(probe.writes, name)) {
           probe.writes[name]++;
-          if (this.textContent === String(value)) probe.redundant.push(name);
+          if (current === String(value)) probe.redundant.push(name);
         }
+      };
+      probe.restore = () => {
+        Object.defineProperty(Node.prototype, 'textContent', descriptor);
+        Object.defineProperty(CharacterData.prototype, 'data', text);
+      };
+      Object.defineProperty(Node.prototype, 'textContent', { ...descriptor, set(value) {
+        record(this, value, this.textContent);
         descriptor.set.call(this, value);
+      } });
+      Object.defineProperty(CharacterData.prototype, 'data', { ...text, set(value) {
+        record(this.parentNode, value, text.get.call(this));
+        text.set.call(this, value);
       } });
     });
     const countTransitions = [1];

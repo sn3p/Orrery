@@ -47,15 +47,17 @@ independent orbital calculations and the original GPU/pixel assertions.
 
 Three references canonical `p`, `q` and `elements` arrays read-only. Its own
 Float32 phase, discovery and arrival arrays add 12 bytes per row to the shared model's
-60 bytes per row. Nominal asteroid GPU attributes use 44 bytes per row; this
+61 bytes per row (60 canonical bytes plus a 1-byte group class). Nominal asteroid
+GPU attributes use 45 bytes per row, including that class; this
 excludes driver overhead, scene bodies and render targets. Parsed source objects
 are not retained. Final disposal releases CPU references and GPU resources;
 context loss retains CPU state for restoration.
 
 Streamed catalogue catch-up packs at most 8,192 rows per app task, with contiguous ordered commitment.
 Full-capacity allocation still occurs on the first nonempty draw. Subsequent
-uploads use changed ranges. Ordinary frames change uniforms and draw range;
-rebases update only one scalar phase per committed asteroid. The normal source
+uploads use changed ranges. Ordinary frames change uniforms and draw range, plus
+the arrival range of newly revealed rows; a date seek re-baselines the drawn
+arrivals once. Rebases update only one scalar phase per committed asteroid. The normal source
 4096-day interval remains, shortened for unusually fast valid orbits so phase
 advance cannot exceed the shared precision budget. Empty populations defer
 uploads until a nonempty draw; this intentionally differs from the source's
