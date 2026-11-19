@@ -57,7 +57,8 @@ runs:
       shell: bash
       run: |
         cached="$HOME/.cache/orrery-apt-archives"
-        count=$(( $(find "$cached" -maxdepth 1 -name '*.deb' 2>/dev/null | wc -l) ))
+        mkdir -p "$cached"  # absent after a cache miss
+        count=$(( $(find "$cached" -maxdepth 1 -name '*.deb' | wc -l) ))
         if [ "$count" -gt 0 ]; then
           sudo cp "$cached"/*.deb /var/cache/apt/archives/
         fi
