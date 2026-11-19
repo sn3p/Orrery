@@ -1,7 +1,7 @@
 name: Install a test browser with software graphics
 description: >-
   Installs a Playwright browser, its system packages, Xvfb and Mesa from the
-  Azure Ubuntu mirror. Run after npm ci.
+  Azure Ubuntu mirror. Run npm ci first: the action uses the pinned Playwright.
 inputs:
   browser:
     description: chromium, firefox or webkit. Chromium is installed as Google Chrome stable.
@@ -26,12 +26,23 @@ runs:
       env:
         BROWSER: ${{ inputs.browser }}
       run: |
+        # npx would silently fetch the latest Playwright when npm ci has not
+        # run; its browsers and system packages would not match the pinned one.
+        playwright=node_modules/.bin/playwright
+        if [ ! -x "$playwright" ]; then
+          echo "::error::Pinned Playwright is missing. Run npm ci before browser-setup."
+          exit 1
+        fi
         case "$BROWSER" in
-          chromium) npx playwright install --with-deps chrome ;;
-          firefox|webkit) npx playwright install --with-deps "$BROWSER" ;;
+          chromium) "$playwright" install --with-deps chrome ;;
+          firefox|webkit) "$playwright" install --with-deps "$BROWSER" ;;
           *) echo "Unknown browser: $BROWSER" >&2; exit 1 ;;
         esac
 
+    # Refresh the indexes here rather than rely on Playwright having done so;
+    # straight after its update this only revalidates them.
     - name: Install virtual display and software graphics
       shell: bash
-      run: sudo apt-get install -y xvfb xauth libgl1-mesa-dri libglx-mesa0
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xvfb xauth libgl1-mesa-dri libglx-mesa0
