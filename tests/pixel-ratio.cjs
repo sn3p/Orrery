@@ -160,11 +160,17 @@ module.exports = async (browser, url, output, name, application = "unified") => 
       window.optionContext.loseContext();
     });
     await page.evaluate(() => window.optionLost.then(() => true));
+    await page.waitForFunction(() => document.querySelector('#orrery-status').textContent.includes('Graphics connection lost'));
+    // Recovery feedback can close an overlapping Options panel. Keep testing
+    // a real DPR selection while the context is lost by reopening its controls.
+    await require('./options.cjs').openOptions(page);
     await control.selectOption("2");
     await page.waitForTimeout(100);
     await page.evaluate(() => window.optionContext.restoreContext());
     await page.evaluate(() => window.optionRestored.then(() => true));
     await settle(page); await checkBuffer(page, 2); await idle();
+    await page.waitForFunction(() => document.querySelector('#orrery-status').textContent === '');
+    await require('./options.cjs').openOptions(page);
 
     for (const [speedValue, ratio] of [["1.5", "1"], ["-1.5", "2"]]) {
       await speed.fill(speedValue); await speed.press("Enter");

@@ -138,7 +138,7 @@ async function run({ browser, name, output = '.context/intro' }) {
         const reopened = await holds(page, dialog, 'About');
         assert.equal(await dialog.getByRole('link', { name: 'GitHub' }).getAttribute('href'), 'https://github.com/sn3p/Orrery', 'The card links the repository');
         assert.deepEqual(await dialog.locator('a').evaluateAll(links => links.map(link => link.textContent.trim())),
-          ['GitHub', 'Minor Planet Center', 'orrery-data'], 'Code precedes data in the About card');
+          ['GitHub', 'Minor Planet Center', 'orrery-data', 'JPL Horizons'], 'Code precedes asteroid and comet data in the About card');
         await capture('about');
         await page.mouse.click(2, 2);
         await resumes(page, dialog, reopened, 'backdrop click');

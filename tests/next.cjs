@@ -68,7 +68,8 @@ async function run({ browser, name, application = "unified", output: artifactDir
           assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), "rgb(0, 0, 0)");
           assert(await page.evaluate(() => [...document.fonts].some(font => font.family === "JetBrains Mono Variable" && font.status === "loaded")));
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), viewport.width);
-          for (const selector of [".orrery-identity", ".orrery-playback", ".orrery-date", ".orrery-count", ".orrery-options-trigger"]) {
+          assert(await page.locator('#orrery-count-unit').isHidden(), 'Asteroid-only view keeps the extra unit label hidden');
+          for (const selector of [".orrery-identity", ".orrery-playback", ".orrery-date", "#orrery-count", ".orrery-options-trigger"]) {
             for (const element of await page.locator(selector).all()) {
               const box = await element.boundingBox();
               assert(box && box.x >= 0 && box.x + box.width <= viewport.width && box.y >= 0
@@ -91,23 +92,25 @@ async function run({ browser, name, application = "unified", output: artifactDir
           await require("./next-layout.cjs").check(page);
           await page.screenshot({ path: path.join(directory, `${name}-${label}-${viewport.width}.png`) });
           const options = page.getByRole("button", { name: "Options", exact: true });
-          await options.click();
+          // Enter the keyboard sequence explicitly: Safari does not focus a
+          // button on pointer activation.
+          await options.focus(); await options.press('Enter');
           const input = page.getByRole("textbox", { name: "Playback speed" });
           assert(await options.evaluate(el => el === document.activeElement));
           await require("./options.cjs").tabIntoOptions(page);
           assert(await page.getByRole("combobox", { name: "Renderer", exact: true }).evaluate(el => el === document.activeElement),
             "Tab reaches Renderer first");
-          await page.keyboard.press("Tab");
+          await page.keyboard.press(forward);
           const pixelRatio = page.getByRole("combobox", { name: "Rendering pixel ratio" });
           if (await pixelRatio.isVisible()) {
             assert(await pixelRatio.evaluate(el => el === document.activeElement), "Tab reaches pixel ratio after Renderer");
-            await page.keyboard.press("Tab");
+            await page.keyboard.press(forward);
           }
           assert(await input.evaluate(el => el === document.activeElement), "Tab reaches speed after Renderer");
-          await page.keyboard.press("Tab");
+          await page.keyboard.press(forward);
           assert(await page.getByRole("checkbox", { name: "Real time" }).evaluate(el => el === document.activeElement),
             "Tab reaches real time after speed");
-          await page.keyboard.press("Tab");
+          await page.keyboard.press(forward);
           assert(await page.getByRole("combobox", { name: "Planet labels" }).evaluate(el => el === document.activeElement),
             "Tab reaches planet labels after real time");
           await input.fill("0"); await input.press("Enter");

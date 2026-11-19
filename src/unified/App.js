@@ -3,6 +3,7 @@ import { validDate } from "../js/asteroidOrbits.js";
 import { replaceShareUrl, shareDateValue } from "./shareUrl.js";
 import PlaybackClock from "../js/PlaybackClock.js";
 import Stats from "../js/Stats.js";
+import { DEFAULT_COMET_IDS, validCometIds, validateCometData } from "./comets/model.js";
 import Hud from "./ui/Hud.js";
 import CatalogSource from "./catalog/CatalogSource.js";
 import CatalogLoader from "./catalog/CatalogLoader.js";
@@ -63,6 +64,13 @@ export default class App {
     this._planetOrbits = options.planetOrbits ?? DEFAULT_PLANET_ORBITS_VISIBLE;
     try { localStorage.removeItem("orrery.planetOrbits"); } catch { /* Drop a retired preference. */ }
     if (!isPlanetOrbitVisibility(this._planetOrbits)) throw new Error("Invalid planet orbit visibility.");
+    this._asteroidsShown = true;
+    this._cometsShown = false;
+    this._cometPaths = true;
+    this._cometIds = [...DEFAULT_COMET_IDS];
+    this.cometData = null;
+    this.cometLoading = null;
+    this.cometError = false;
     this._populationPreset = options.populationPreset ?? DEFAULT_POPULATION_PRESET;
     if (!isPopulationPreset(this._populationPreset)) throw new Error("Invalid population preset.");
     // On by default; turning it off lasts the visit, like the group choice.
@@ -266,12 +274,68 @@ export default class App {
     this.renderer?.setOptions?.(this.rendererSettings());
     this.requestRender();
   }
+  get asteroidsShown() { return this._asteroidsShown; }
+  set asteroidsShown(value) {
+    if (this.destroyed || typeof value !== "boolean" || value === this._asteroidsShown) return;
+    this._asteroidsShown = value;
+    this.applyCometOptions();
+  }
+  get cometsShown() { return this._cometsShown; }
+  set cometsShown(value) {
+    if (this.destroyed || typeof value !== "boolean" || value === this._cometsShown) return;
+    this._cometsShown = value;
+    this.applyCometOptions();
+    if (value) void this.loadComets();
+  }
+  get cometPaths() { return this._cometPaths; }
+  set cometPaths(value) {
+    if (this.destroyed || typeof value !== "boolean" || value === this._cometPaths) return;
+    this._cometPaths = value;
+    this.applyCometOptions();
+  }
+  get cometIds() { return [...this._cometIds]; }
+  set cometIds(ids) {
+    if (this.destroyed || !validCometIds(ids)) return;
+    this._cometIds = [...ids];
+    this.applyCometOptions();
+  }
+  applyCometOptions() {
+    this.renderer?.setOptions?.(this.rendererSettings());
+    this.gui?.controls.updateComets?.();
+    this.requestRender();
+  }
+  async loadComets() {
+    if (this.cometData || this.cometLoading || this.destroyed) return;
+    this.cometError = false;
+    const controller = this.cometController = new AbortController();
+    this.cometLoading = import(/* webpackChunkName: "comet-vectors" */ "./comets/vectors.json");
+    this.gui?.controls.updateComets?.();
+    try {
+      const { default: url } = await this.cometLoading;
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) throw new Error("Could not load comet data.");
+      const data = await response.json();
+      validateCometData(data);
+      if (!this.destroyed) this.cometData = data;
+    } catch { this.cometError = true; }
+    finally {
+      this.cometLoading = null;
+      if (!this.destroyed) this.applyCometOptions();
+    }
+  }
+  focusComets() {
+    if (!this._cometsShown || !this.cometData || !this._cometIds.length) return;
+    this.renderer?.focusComets?.();
+    this.requestRender();
+  }
   get frameState() { return { jed: this.jed, elapsed: this.elapsed }; }
   get viewport() { return { width: innerWidth, height: innerHeight, pixelRatio: this.effectivePixelRatio }; }
   rendererSettings(id = this.rendererId, renderer = this.rendererOptions[id]) {
     return { shared: { pixelRatio: this.pixelRatio, planetLabels: this.planetLabels,
       planetOrbits: this.planetOrbits, populationPreset: this.populationPreset,
-      colorizeGroups: this.colorizeGroups }, renderer };
+      colorizeGroups: this.colorizeGroups, asteroidsShown: this.asteroidsShown,
+      cometsShown: this.cometsShown, cometIds: this.cometIds, cometPaths: this.cometPaths,
+      cometData: this.cometData }, renderer };
   }
 
   init() {
@@ -661,8 +725,12 @@ export default class App {
     if (this.destroyed) return;
     // A loaded empty catalogue is valid too. Retain the last committed readouts
     // while a replacement, renderer switch or graphics recovery is pending.
-    this.gui?.update(this.jed, this.stats.fps, this.asteroidsVisible, this.hasCommittedReadouts);
+    this.gui?.update(this.jed, this.stats.fps, this.asteroidsShown ? this.asteroidsVisible : 0, this.hasCommittedReadouts);
+    if (this.gui?.countUnit) this.gui.countUnit.hidden = !this.cometsShown && this.asteroidsShown;
     this.gui?.setLegend?.(this.populationPreset, this.colorizeGroups);
+    if (this.gui?.swatches && !this.asteroidsShown) this.gui.swatches.hidden = true;
+    else if (this.gui?.swatches) this.gui.swatches.hidden = !this.gui.swatches.childElementCount;
+    this.gui?.controls.updateComets?.();
     this.notePresent();
   }
   resetClock() {
@@ -901,6 +969,7 @@ export default class App {
     this.statusNode = null;
     if (this.destroyed) return;
     this.destroyed = true;
+    this.cometController?.abort();
     this.notifyRendererState();
     this.rendererStateObservers.clear();
     this.switchController?.abort();

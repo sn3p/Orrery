@@ -323,8 +323,9 @@ test("the ticking date keeps its text node so WebKit still delivers the click", 
     get lastChild() { return this.childNodes.at(-1) ?? null; },
     set textContent(value) { replacements += 1; this.childNodes = [{ nodeType: 3, data: String(value) }]; },
   };
+  const count = timelineFixture().document.createElement();
   const hud = Object.assign(Object.create(Hud.prototype), {
-    date, readouts: null, fps: {}, count: {}, lastDay: null, lastFps: null, lastCount: null,
+    date, readouts: null, fps: {}, count, lastDay: null, lastFps: null, lastCount: null,
   });
   const start = toJED(new Date(Date.UTC(2000, 0, 1)));
   hud.update(start, 60, 6, true);
@@ -335,6 +336,10 @@ test("the ticking date keeps its text node so WebKit still delivers the click", 
   assert.equal(date.firstChild, label);
   assert.equal(date.childNodes.length, 1);
   assert.equal(label.data, "2000-01-04");
+  hud.update(start + 3, 60, 1234, true);
+  assert.equal(count.textContent, "1\u202f234");
+  assert.equal(count.getAttribute("aria-label"), "1,234 asteroids");
+  assert.equal(date.firstChild, label, "Count updates also preserve the date's click target");
 }));
 
 test("the speed row dims only while the wall clock drives the date", async () => {

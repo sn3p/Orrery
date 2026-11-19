@@ -1,3 +1,6 @@
+import Comets from "./Comets.js";
+import { cometFitPoints, validateCometOptions } from "../comets/model.js";
+import { PIXELS_PER_AU } from "../../js/constants.js";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import Sun from "./Sun.js";
@@ -54,6 +57,7 @@ export default class ThreeRenderer {
       if (this.destroyed) return;
       this.contextLost = true;
       this.planetLabels.hide();
+      this.comets?.hideLabels();
       this.releaseSceneResources();
       this.reportGraphicsState(true);
     };
@@ -161,7 +165,17 @@ export default class ThreeRenderer {
     if (colorize !== undefined && typeof colorize !== "boolean") {
       throw new RangeError("Invalid group colorize.");
     }
-    let changed = false;
+    validateCometOptions(shared);
+    if (shared?.asteroidsShown !== undefined) {
+      this.asteroidsShown = shared.asteroidsShown;
+      for (const cloud of [this.asteroids, this.stagedAsteroids, this.catalogueTransition?.previous]) cloud?.setShown(this.asteroidsShown);
+    }
+    if (shared?.cometData && !this.comets && this.initialized) {
+      this.comets = new Comets(this.scene, this.container, shared.cometData);
+    }
+    if (shared) this.cometSettings = { ...this.cometSettings, ...shared };
+    this.updateComets?.(this.lastJed);
+    let changed = shared && ["asteroidsShown", "cometsShown", "cometPaths", "cometIds", "cometData"].some(key => shared[key] !== undefined);
     if (mode !== undefined && mode !== this.planetLabelMode) {
       this.planetLabelMode = mode;
       this.planetLabels.setMode(this.planets, mode);
@@ -254,6 +268,7 @@ export default class ThreeRenderer {
     const previous = this.asteroids;
     this.scene.add(cloud);
     this.asteroids = cloud;
+    cloud.setShown(this.asteroidsShown !== false);
     if (preservePrevious) {
       this.catalogueTransition = { previous, visible: previous?.visible };
       if (previous) previous.visible = false;
@@ -309,10 +324,41 @@ export default class ThreeRenderer {
 
   update({ jed, elapsed }, options) {
     this.advanceViewFit();
+    this.updateComets(jed);
     const count = this.asteroids?.update(jed, elapsed, options) ?? 0;
     for (const planet of this.planets) planet.render(jed);
     return count;
   }
+  updateComets(jed = this.lastJed) {
+    this.lastJed = jed;
+    const settings = this.cometSettings;
+    if (settings) this.comets?.update(jed, settings.cometsShown === true, settings.cometIds ?? [], settings.cometPaths !== false);
+  }
+
+  focusComets() {
+    const settings = this.cometSettings;
+    if (!settings?.cometData || !settings.cometIds?.length) return;
+    const points = cometFitPoints(settings.cometData, settings.cometIds, this.lastJed);
+    if (!points.length) return;
+    this.cancelViewFit();
+    // Fit the actual points in the current viewing direction, not a sphere
+    // around the Sun. Include depth in each perspective frustum constraint.
+    const inverse = this.camera.quaternion.clone().invert();
+    const point = new THREE.Vector3();
+    const tanV = Math.tan(this.camera.fov * Math.PI / 360) / this.camera.zoom;
+    const tanH = tanV * this.camera.aspect;
+    let distance = this.camera.near * 2;
+    for (const row of points) {
+      point.fromArray(row).multiplyScalar(PIXELS_PER_AU).applyQuaternion(inverse);
+      distance = Math.max(distance, point.z + this.camera.near * 2,
+        point.z + Math.abs(point.x) * 1.12 / tanH,
+        point.z + Math.abs(point.y) * 1.12 / tanV);
+    }
+    this.camera.position.set(0, 0, distance).applyQuaternion(this.camera.quaternion);
+    this.controls.target.set(0,0,0);
+    this.controls.update();
+  }
+
   get frameState() {
     const cloud = this.asteroids;
     return cloud ? { jed: cloud.epoch + cloud.uniforms.orbitTime.value,
@@ -323,6 +369,7 @@ export default class ThreeRenderer {
       && { cloud: this.asteroids, state: this.asteroids.captureFrame(frame.jed, frame.elapsed, options) };
   }
   restoreFrame({ jed }) {
+    this.updateComets(jed);
     if (this.frameSnapshot && this.frameSnapshot.cloud === this.asteroids) this.asteroids.restoreFrame(this.frameSnapshot.state);
     for (const planet of this.planets) planet.render(jed);
     this.frameSnapshot = null;
@@ -348,6 +395,7 @@ export default class ThreeRenderer {
     if (gl.isContextLost()) return null;
     this.drawnAsteroids = null;
     this.gpuError = gl.getError() === gl.NO_ERROR ? null : new Error("Unable to render the visualization.");
+    this.comets?.resize(this.viewport, this.canvas.width);
     this.inFrame = true;
     try { this.renderer.render(this.scene, this.camera); }
     finally { this.inFrame = false; }
@@ -358,6 +406,7 @@ export default class ThreeRenderer {
     }
     if (this.asteroids?.geometry.drawRange.count && this.drawnAsteroids !== this.asteroids) return null;
     this.placePlanetLabels();
+    this.comets?.placeLabels(this.camera, this.viewport);
     return this.asteroids?.acknowledgeDraw() ?? (this.asteroids ? null : 0);
   }
 
@@ -425,6 +474,7 @@ export default class ThreeRenderer {
     this.controls?.removeEventListener("change", this.onControlsChange);
     this.controls?.dispose();
     this.planetLabels.destroy();
+    this.comets?.destroy();
     this.releaseSceneResources();
     for (const cloud of new Set([this.asteroids, this.stagedAsteroids, this.catalogueTransition?.previous])) cloud?.destroy();
     if (this.renderer) {

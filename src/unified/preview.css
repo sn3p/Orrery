@@ -673,3 +673,13 @@ dialog .orrery-dialog-title:focus { outline: none; }
   cursor: pointer;
 }
 .orrery-glossary-close:hover { color: #fff; border-color: var(--color-accent-muted); }
+
+/* Comet markers keep the same label placement as planets, with stronger contrast. */
+.orrery-comet-label { opacity: .85; }
+.orrery-comet-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px !important; height: auto !important; }
+.orrery-comet-actions button { font: inherit; color: var(--color-options-label); background: transparent; border: 1px solid var(--color-border); padding: 4px 6px; cursor: pointer; }
+.orrery-comet-actions button:disabled { opacity: .4; cursor: default; }
+.orrery-comet-actions button[hidden] { display: none; }
+.orrery-options-hint a { color: var(--color-link); }
+
+.orrery-options-panel .dg li[hidden] { display: none !important; }

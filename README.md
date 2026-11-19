@@ -26,6 +26,10 @@ Copy the address bar to share the current renderer and a jumped or paused UTC da
 1980 beginning are omitted, so `/` stays the default visit. Playing does not rewrite
 the date every frame.
 
+Comets are an optional layer in Options: select Halley, Encke or Tempel–Tuttle,
+show them alongside asteroids or alone, and fit the view to their paths. See
+[comet data and scientific limits](docs/comets.md).
+
 ## Development
 
 Use Node.js 24.15 or later in the 24.x line (see `.tool-versions`), then:

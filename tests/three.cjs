@@ -249,7 +249,7 @@ async function graphics(browser, base, output, name) {
       }
       await require('./next-layout.cjs').check(target);
       const options = target.getByRole('button', { name: 'Options', exact: true });
-      await options.click();
+      await options.focus(); await options.press('Enter');
       const speed = target.getByRole('textbox', { name: 'Playback speed' });
       assert(await options.evaluate(el => el === document.activeElement));
       await require('./options.cjs').tabIntoOptions(target);
@@ -260,7 +260,7 @@ async function graphics(browser, base, output, name) {
         'Tab reaches the DPR choice after Renderer');
       await target.keyboard.press("Tab");
       assert(await speed.evaluate(el => el === document.activeElement));
-      for (const selector of ['.orrery-identity', '.orrery-date', '.orrery-count', '.orrery-options-panel']) {
+      for (const selector of ['.orrery-identity', '.orrery-date', '#orrery-count', '.orrery-options-panel']) {
         const box = await target.locator(selector).boundingBox();
         assert(box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width && box.y + box.height <= viewport.height, selector);
       }

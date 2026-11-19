@@ -9,8 +9,8 @@ exports.openOptions = async page => {
 
 // Tab from the open disclosure to the first control in the panel. Firefox
 // gives an overflowing scroll container without tabindex its own Tab stop,
-// even when it holds controls (Chromium and WebKit skip it). On a short
-// viewport the panel scrolls, so the first Tab lands on the panel itself.
+// even when it holds controls (Chromium and WebKit skip it). When the panel
+// overflows the viewport, the first Tab lands on the panel itself.
 exports.tabIntoOptions = async page => {
   await page.keyboard.press("Tab");
   const onScroller = await page.evaluate(() => {
@@ -113,7 +113,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       "Marker and word have a compact positive gap");
     assert(await trigger.evaluate(el => el === document.activeElement),
       "Opening keeps focus on the disclosure without invoking a native picker");
-    await trigger.press("Tab");
+    await exports.tabIntoOptions(page);
     assert(await panel.evaluate(el => el.querySelector("select[aria-label='Renderer']") === document.activeElement
       || (!el.querySelector("select[aria-label='Renderer']") && el.querySelector("input") === document.activeElement)),
     "Tab reaches the first revealed control");

@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { PerspectiveCamera, Vector3 } from "three";
+import { cometFitPoints } from "../src/unified/comets/model.js";
 import { PIXELS_PER_AU } from "../src/js/constants.js";
 import { TROJAN_A_MAX } from "../src/unified/catalog/population.js";
 import {
@@ -18,7 +20,7 @@ function pixiStub(scale = 1, width = 800, height = 800) {
     viewWidth: width,
     viewHeight: height,
     stage: {
-      position: { x: width / 2, y: height / 2 },
+      position: { x: width / 2, y: height / 2, set(x, y) { this.x = x; this.y = y; } },
       get x() { return this.position.x; },
       get y() { return this.position.y; },
       scale: { x: scale, y: scale, set(value) { this.x = this.y = value; } },
@@ -209,4 +211,58 @@ test("ease-out starts slow to leave and settles on the fitted view", () => {
   assert.equal(easeOutCubic(0), 0);
   assert.equal(easeOutCubic(1), 1);
   assert.ok(easeOutCubic(0.5) > 0.5);
+});
+
+const cometData = JSON.parse(fs.readFileSync(new URL('../src/unified/comets/vectors.json', import.meta.url)));
+const cometDates = [2444239.5, 2447878.5, 2488067.5];
+const cometSelections = [['1P', '2P', '55P'], ['1P'], ['2P'], ['55P']];
+const cometViewports = [[1460, 1028], [320, 568], [568, 240]];
+
+test('comet fit fills the available projected view without clipping in either renderer', () => {
+  for (const [width, height] of cometViewports) for (const jed of cometDates) for (const ids of cometSelections) {
+    const points = cometFitPoints(cometData, ids, jed);
+    const pixi = pixiStub(4, width, height);
+    pixi.cometSettings = {cometData, cometIds: ids};
+    pixi.lastJed = jed;
+    pixi.focusComets();
+    let extent = 0;
+    for (const [x, y] of points) extent = Math.max(extent,
+      Math.abs(x * PIXELS_PER_AU * pixi.stage.scale.x / (width / 2)),
+      Math.abs(y * PIXELS_PER_AU * pixi.stage.scale.y / (height / 2)));
+    assert(Math.abs(extent - 1 / 1.12) < 1e-10, '2D reaches the fit margin instead of reserving unused depth');
+    assert.equal(pixi.stage.position.x, width / 2);
+    assert.equal(pixi.stage.position.y, height / 2);
+
+    for (const direction of [[500, 500, 400], [-200, 50, 800], [20, -600, 10]]) {
+      const camera = new PerspectiveCamera(60, width / height, .001, 2000000);
+      camera.up.set(0, 0, 1);
+      camera.zoom = 1.6;
+      camera.updateProjectionMatrix();
+      const target = new Vector3(100, -20, 50);
+      camera.position.fromArray(direction).add(target);
+      camera.lookAt(target);
+      const rotation = camera.quaternion.clone();
+      const renderer = Object.assign(Object.create(ThreeRenderer.prototype), {
+        camera, lastJed: jed, cometSettings: {cometData, cometIds: ids},
+        controls: {target, update() { camera.lookAt(target); camera.updateMatrixWorld(); }},
+      });
+      renderer.focusComets();
+      assert(1 - Math.abs(camera.quaternion.dot(rotation)) < 1e-10, '3D preserves the viewing angle');
+      assert.deepEqual(target.toArray(), [0, 0, 0]);
+      let projectedExtent = 0;
+      const p = new Vector3();
+      for (const point of points) {
+        p.fromArray(point).multiplyScalar(PIXELS_PER_AU).project(camera);
+        assert(p.z >= -1 && p.z <= 1, 'No fitted point crosses the near/far plane');
+        projectedExtent = Math.max(projectedExtent, Math.abs(p.x), Math.abs(p.y));
+      }
+      assert(Math.abs(projectedExtent - 1 / 1.12) < 1e-9, '3D reaches the fit margin with no clipping');
+      const fitted = camera.position.clone();
+      renderer.focusComets();
+      assert(camera.position.distanceTo(fitted) < 1e-8, 'Repeated Fit does not drift');
+      renderer.lastJed = 0;
+      renderer.focusComets();
+      assert(camera.position.distanceTo(fitted) < 1e-8, 'Unsupported dates leave the view alone');
+    }
+  }
 });

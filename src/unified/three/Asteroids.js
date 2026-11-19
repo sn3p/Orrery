@@ -188,9 +188,15 @@ export default class Asteroids extends THREE.Points {
     this.applyMasks();
   }
 
+  setShown(shown) {
+    if (this.shown === shown) return;
+    this.shown = shown;
+    this.applyMasks();
+  }
+
   applyMasks() {
-    this.uniforms.classMask.value = populationMask(this.populationPreset);
-    this.uniforms.colorMask.value = highlightMask(this.populationPreset, this.colorize);
+    this.uniforms.classMask.value = this.shown === false ? 0 : populationMask(this.populationPreset);
+    this.uniforms.colorMask.value = this.shown === false ? 0 : highlightMask(this.populationPreset, this.colorize);
     this.syncHighlight();
   }
 

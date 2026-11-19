@@ -53,3 +53,7 @@ test('promoted root, retired preview route, missing chunks and recovery', { tag:
 test('configured promotion, root catalogue pins and chronological loading', { tag: ['@build'] }, async ({ check }) => {
   await check('promotion', { method: 'configured' });
 });
+
+test('comet selection, scientific positions and independent populations', { tag: ['@core', '@ui', '@graphics', '@data'] }, async ({ check }) => {
+  await check('comets-browser');
+});

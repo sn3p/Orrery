@@ -80,10 +80,10 @@ async function state(browser, base, output, name) {
       return { coldSwitchMs: cold, modelCount: model.count, views: true, speeds: true, coalescing: true };
     });
     const options = page.getByRole('button', { name: 'Options', exact: true });
-    await options.click();
+    await options.focus(); await options.press('Enter');
     const selector = page.getByRole('combobox', { name: 'Renderer', exact: true });
     assert(await options.evaluate(el => el === document.activeElement));
-    await options.press('Tab');
+    await require('./options.cjs').tabIntoOptions(page);
     assert(await selector.evaluate(el => el === document.activeElement));
     await selector.selectOption('pixi');
     await page.waitForFunction(() => !app.switching && app.rendererId === 'pixi');
