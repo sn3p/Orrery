@@ -160,11 +160,20 @@ helped: their parts stay together at the start of the first shard. The
 clean-checkout job independently builds the public site and runs its two smoke
 cases without global fixture setup or a download.
 
-Both browser jobs install through `.github/actions/browser-setup`. Some hosted
-runners point apt at an EC2 Ubuntu mirror that served packages at tens of kB/s;
-five of 77 runs had a job killed by its 20-minute timeout mid-download. The
-action switches those runners to the Azure mirror, which serves the same
-packages in seconds.
+Both browser jobs install through `.github/actions/browser-setup`. Hosted
+runners take their Ubuntu mirror from `/etc/apt/apt-mirrors.txt`, and both the
+EC2 and Azure mirrors have served packages at about 100 kB/s; five of 77 runs
+had a job killed by its 20-minute timeout mid-download. The action caches the
+downloaded `.deb` files per runner image, browser and Playwright version, and
+copies them into apt's own archive directory before installing. apt still
+picks every version from freshly updated indexes and downloads only what is
+missing, so the installed system, Chrome and Mesa are unchanged.
+
+The cache helps only on a hit; a miss downloads from the mirror as before. The
+first shard of each browser saves a new entry when there is no exact one, which
+happens when the runner image or Playwright version changes. Entries saved by
+master pushes, the nightly and manual runs on master serve every branch and PR,
+and the nightly keeps them from expiring. A PR run's entry serves only that PR.
 
 The aggregate `CI` check requires every selected job to succeed. A missing,
 failed, cancelled or unexpectedly skipped job fails that gate. Deployment waits

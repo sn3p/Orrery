@@ -150,6 +150,8 @@ jobs:
         uses: ./.github/actions/browser-setup
         with:
           browser: ${{ matrix.browser }}
+          # One saver per browser; the other jobs only restore.
+          save-cache: ${{ startsWith(matrix.shard, '1/') && matrix.project == matrix.browser }}
 
       - name: Download the assembled Pages artifact
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
