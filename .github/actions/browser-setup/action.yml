@@ -1,0 +1,37 @@
+name: Install a test browser with software graphics
+description: >-
+  Installs a Playwright browser, its system packages, Xvfb and Mesa from the
+  Azure Ubuntu mirror. Run after npm ci.
+inputs:
+  browser:
+    description: chromium, firefox or webkit. Chromium is installed as Google Chrome stable.
+    required: true
+runs:
+  using: composite
+  steps:
+    # Some hosted runners point apt at an EC2 regional Ubuntu mirror that has
+    # served the browsers' system packages at 10-120 kB/s: up to 20 minutes for
+    # what the Azure mirror on other runners serves in seconds. Use the latter.
+    - name: Use the Azure Ubuntu mirror
+      shell: bash
+      run: |
+        files=$(grep -lsE '://[a-z0-9-]+\.ec2\.archive\.ubuntu\.com' /etc/apt/sources.list /etc/apt/sources.list.d/* || true)
+        if [ -n "$files" ]; then
+          echo "Replacing the EC2 Ubuntu mirror in: $files"
+          sudo sed -i -E 's#://[a-z0-9-]+\.ec2\.archive\.ubuntu\.com#://azure.archive.ubuntu.com#g' $files
+        fi
+
+    - name: Install browser and its system packages
+      shell: bash
+      env:
+        BROWSER: ${{ inputs.browser }}
+      run: |
+        case "$BROWSER" in
+          chromium) npx playwright install --with-deps chrome ;;
+          firefox|webkit) npx playwright install --with-deps "$BROWSER" ;;
+          *) echo "Unknown browser: $BROWSER" >&2; exit 1 ;;
+        esac
+
+    - name: Install virtual display and software graphics
+      shell: bash
+      run: sudo apt-get install -y xvfb xauth libgl1-mesa-dri libglx-mesa0

@@ -155,6 +155,12 @@ in file order, and the heaviest unified cases come first, so the first Chromium
 shard sets the pace. The clean-checkout job independently builds the public site
 and runs its two smoke cases without global fixture setup or a download.
 
+Both browser jobs install through `.github/actions/browser-setup`. Some hosted
+runners point apt at an EC2 Ubuntu mirror that served packages at tens of kB/s;
+five of 77 runs had a job killed by its 20-minute timeout mid-download. The
+action switches those runners to the Azure mirror, which serves the same
+packages in seconds.
+
 The aggregate `CI` check requires every selected job to succeed. A missing,
 failed, cancelled or unexpectedly skipped job fails that gate. Deployment waits
 for it and the site artifact. Pushes to master and explicit manual deployment
