@@ -152,8 +152,13 @@ WebKit smoke job and one Chromium-only job: six browser jobs even for changes
 to tests or CI itself. Nightly/manual full runs use three Chromium/two Firefox/
 four WebKit shards plus Chromium-only. Playwright splits a project by case count
 in file order, and the heaviest unified cases come first, so the first Chromium
-shard sets the pace. The clean-checkout job independently builds the public site
-and runs its two smoke cases without global fixture setup or a download.
+shard sets the pace. Measured on routine runs in November 2026: with two shards,
+shard 1 ran 264–269 s of tests against 119–156 s; with three, 203–206 s against
+128 s and 80–111 s. The third job adds about a minute of runner setup and saves
+about a minute on the critical path. Splitting the heavy cases would not have
+helped: their parts stay together at the start of the first shard. The
+clean-checkout job independently builds the public site and runs its two smoke
+cases without global fixture setup or a download.
 
 Both browser jobs install through `.github/actions/browser-setup`. Some hosted
 runners point apt at an EC2 Ubuntu mirror that served packages at tens of kB/s;
