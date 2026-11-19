@@ -28,7 +28,11 @@ function fixtureKeys(selected = selection(), runMode = mode()) {
   if (selected.includes('full') || selected.includes('ui') || selected.includes('graphics')) keys.push('unified/initialization');
   return new Set(keys);
 }
-function plan(files, { full = false } = {}) {
+// Budgets: `draft` runs Chromium core only; `routine` adds path-selected groups
+// and Firefox/WebKit smoke; `full` is the nightly matrix across every engine.
+function plan(files, { full = false, draft = false } = {}) {
+  if (full && draft) throw new Error('A run cannot be both full and draft');
+  const budget = full ? 'full' : draft ? 'draft' : 'routine';
   const runMode = full ? 'full' : 'pr';
   let allGroups = full;
   const selected = new Set(['core']);
@@ -55,16 +59,22 @@ function plan(files, { full = false } = {}) {
     } else allGroups = true;
   }
   if (allGroups) { code = true; buildTests = true; }
-  const value = allGroups ? 'full' : groups.filter(group => selected.has(group)).join(',');
+  // Drafts check only the core, whatever the paths select; marking the PR
+  // ready runs the full matrix once before review.
+  const value = draft ? 'core' : allGroups ? 'full' : groups.filter(group => selected.has(group)).join(',');
   // Broad path selections still use the routine PR budget. Only explicit
   // nightly/manual full runs repeat all checks across every engine.
-  const broad = runMode === 'full';
   const include = [];
-  for (const [browser, count] of [['chromium', 2], ['firefox', broad ? 2 : 1], ['webkit', broad ? 4 : 1]]) {
+  // Chromium carries the core, so it gets the most shards. Playwright splits
+  // by case count in file order, and the heaviest unified cases come first:
+  // a third shard shortens the slowest Chromium job in every budget.
+  const engines = { draft: [['chromium', 3]], routine: [['chromium', 3], ['firefox', 1], ['webkit', 1]],
+    full: [['chromium', 3], ['firefox', 2], ['webkit', 4]] }[budget];
+  for (const [browser, count] of engines) {
     for (let shard = 1; shard <= count; shard++) include.push({ browser, project: browser,
       shard: `${shard}/${count}`, id: `${browser}-${shard}`, name: `Browser tests (${browser}, shard ${shard}/${count})` });
   }
   include.push({ browser: 'chromium', project: 'chromium-only', shard: '1/1', id: 'chromium-only', name: 'Chromium-only integration tests' });
-  return { code, buildTests, mode: runMode, groups: value, matrix: { include } };
+  return { code, buildTests, budget, mode: runMode, groups: value, matrix: { include } };
 }
 module.exports = { mode, selection, grep, grepInvert, fixtureKeys, plan };

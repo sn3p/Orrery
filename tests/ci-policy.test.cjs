@@ -3,7 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
-const { execFileSync } = require('node:child_process');
+const { execFile, execFileSync } = require('node:child_process');
+const { promisify } = require('node:util');
 const { plan, selection, fixtureKeys, mode } = require('./ci-policy.cjs');
 const { fromEvent } = require('../scripts/ci-plan.cjs');
 const { verify } = require('../scripts/ci-gate.cjs');
@@ -52,10 +53,19 @@ test('path policy preserves risky changes, unions groups and defaults unknown fi
   for (const files of [['src/css/main.css'], ['src/unified/App.js'], ['tests/runtime-diagnostics.cjs'], ['package-lock.json']]) {
     const result = plan(files);
     assert.equal(result.mode, 'pr');
-    assert.equal(result.matrix.include.length, 5, files.join(','));
+    assert.equal(result.matrix.include.length, 6, files.join(','));
   }
   assert.equal(plan([], { full: true }).mode, 'full');
-  assert.equal(plan([], { full: true }).matrix.include.length, 9);
+  assert.equal(plan([], { full: true }).matrix.include.length, 10);
+  // Drafts run Chromium core only, whatever the paths select.
+  for (const files of [['src/css/main.css'], ['src/unified/App.js'], ['package-lock.json']]) {
+    const draft = plan(files, { draft: true });
+    assert.equal(draft.budget, 'draft'); assert.equal(draft.mode, 'pr'); assert.equal(draft.groups, 'core');
+    assert(draft.code);
+    assert.deepEqual(draft.matrix.include.map(job => job.id), ['chromium-1', 'chromium-2', 'chromium-3', 'chromium-only']);
+  }
+  assert.equal(plan(['docs/browser-tests.md'], { draft: true }).code, false);
+  assert.throws(() => plan([], { full: true, draft: true }));
 });
 
 test('reduced prepared manifest reaches the real public-assets browser boundary', async t => {
@@ -114,7 +124,7 @@ test('planner CLI handles real PR divergence, rename/delete, push, missing histo
   const pr = run('pull_request', { pull_request: { base: { sha: movedBase }, head: { sha: head } } });
   assert.equal(pr.groups, 'core,ui', 'Rename retains removed code; unrelated base commits do not inflate selection');
   assert.equal(pr.code, 'true'); assert.equal(pr.mode, 'pr');
-  assert.equal(JSON.parse(pr.matrix).include.length, 5);
+  assert.equal(JSON.parse(pr.matrix).include.length, 6);
   assert.equal(run('push', { before: base, after: head }).groups, 'core,ui');
   assert.equal(run('push', { before: '0'.repeat(40), after: head }).groups, 'full');
   assert.equal(run('push', { before: 'a'.repeat(40), after: head }).groups, 'full');
@@ -124,6 +134,27 @@ test('planner CLI handles real PR divergence, rename/delete, push, missing histo
   }
   assert.equal(run('push', { before: '0'.repeat(40), after: head }).mode, 'pr');
   assert.equal(fromEvent('push', { before: base, after: head }, () => '').code, false);
+
+  // Draft PRs run the draft budget; becoming ready runs the full matrix once;
+  // later pushes to a ready PR run the routine budget.
+  const range = { base: { sha: movedBase }, head: { sha: head } };
+  for (const action of ['opened', 'synchronize', 'reopened']) {
+    const draft = run('pull_request', { action, pull_request: { ...range, draft: true } });
+    assert.equal(draft.budget, 'draft', action); assert.equal(draft.groups, 'core'); assert.equal(draft.mode, 'pr');
+    assert(JSON.parse(draft.matrix).include.every(job => job.browser === 'chromium'), action);
+  }
+  for (const action of ['ready_for_review', 'opened']) {
+    const ready = run('pull_request', { action, pull_request: { ...range, draft: false } });
+    assert.equal(ready.budget, 'full', action); assert.equal(ready.mode, 'full'); assert.equal(ready.groups, 'full');
+    assert.equal(JSON.parse(ready.matrix).include.length, 10, action);
+  }
+  for (const action of ['synchronize', 'reopened']) {
+    const routine = run('pull_request', { action, pull_request: { ...range, draft: false } });
+    assert.equal(routine.budget, 'routine', action); assert.equal(routine.groups, 'core,ui');
+  }
+  const shas = { base: { sha: 'a'.repeat(40) }, head: { sha: 'b'.repeat(40) } };
+  const docsReady = fromEvent('pull_request', { action: 'ready_for_review', pull_request: shas }, () => 'docs/browser-tests.md\0');
+  assert.equal(docsReady.code, false, 'Documentation-only PRs skip browser jobs even when marked ready');
 
   // Exercise the workflow's real Git diff and output boundary, not only the
   // pure classifier: entry-like additions and their deletions must run full.
@@ -145,20 +176,24 @@ test('planner CLI handles real PR divergence, rename/delete, push, missing histo
   }
 });
 
-test('native selection retains core in Chromium, smoke in other engines and two independent standalone cases', () => {
+test('native selection retains core in Chromium, smoke in other engines and two independent standalone cases', async () => {
   const cli = require.resolve('@playwright/test/cli');
-  const discover = (groups, runMode = 'full', ...args) => {
-    const report = JSON.parse(execFileSync(process.execPath, [cli, 'test', '--list', '--reporter=json', ...args], {
-      encoding: 'utf8', maxBuffer: 10 * 1024 * 1024,
-      env: { ...process.env, BROWSERS: 'chromium,firefox,webkit', ORRERY_TEST_GROUPS: groups, ORRERY_TEST_MODE: runMode },
-    }));
+  const list = (groups, runMode, args) => [process.execPath, [cli, 'test', '--list', '--reporter=json', ...args], {
+    encoding: 'utf8', maxBuffer: 10 * 1024 * 1024,
+    env: { ...process.env, BROWSERS: 'chromium,firefox,webkit', ORRERY_TEST_GROUPS: groups, ORRERY_TEST_MODE: runMode },
+  }];
+  const parse = stdout => {
     const rows = [];
     function visit(suite) {
       for (const spec of suite.specs || []) for (const item of spec.tests) rows.push({ title: spec.title, project: item.projectName, tags: spec.tags });
       for (const child of suite.suites || []) visit(child);
     }
-    visit(report); return rows;
+    visit(JSON.parse(stdout)); return rows;
   };
+  const discover = (groups, runMode = 'full', ...args) => parse(execFileSync(...list(groups, runMode, args)));
+  // One listing per workflow job; they are independent processes, so run them together.
+  const discoverJobs = (groups, runMode, jobs) => Promise.all(jobs.map(async job =>
+    parse((await promisify(execFile)(...list(groups, runMode, [`--project=${job.project}`, `--shard=${job.shard}`]))).stdout)));
   const core = discover('core');
   assert.equal(core.length, 27);
   for (const browser of ['firefox', 'webkit']) {
@@ -189,10 +224,23 @@ test('native selection retains core in Chromium, smoke in other engines and two 
     assert.equal(cases.length, 2); assert(cases.every(row => row.tags.includes('smoke')));
   }
   const identity = row => `${row.project}: ${row.title}`;
-  const sharded = routine.matrix.include.flatMap(job => discover(routine.groups, routine.mode,
-    `--project=${job.project}`, `--shard=${job.shard}`));
+  const [routineJobs, smallestJobs] = await Promise.all([
+    discoverJobs(routine.groups, routine.mode, routine.matrix.include),
+    discoverJobs('core', 'pr', routine.matrix.include),
+  ]);
+  const sharded = routineJobs.flat();
   assert.deepEqual(sharded.map(identity).sort(), expected.map(identity).sort());
   assert.equal(new Set(sharded.map(identity)).size, expected.length);
+  // Even the smallest selection gives every routine browser job work. Full-mode
+  // shards are checked the same way in harness.test.cjs.
+  routine.matrix.include.forEach((job, i) => assert(smallestJobs[i].length > 0, job.name));
+  // A draft's jobs are routine jobs, and together they run every Chromium core case.
+  const draft = plan(['tests/runtime-diagnostics.cjs'], { draft: true });
+  const draftRows = routine.matrix.include.flatMap((job, i) =>
+    draft.matrix.include.some(other => other.id === job.id) ? smallestJobs[i] : []);
+  assert.equal(draftRows.length > 0 && draft.matrix.include.every(job => routine.matrix.include.some(other => other.id === job.id)), true);
+  assert.deepEqual(draftRows.map(identity).sort(),
+    discover('core', 'pr').filter(row => row.project.startsWith('chromium')).map(identity).sort());
   const data = discover(plan(['src/unified/catalog/CatalogLoader.js']).groups, 'pr');
   assert(data.some(row => row.title.includes('catalogue frame commits')));
   assert(!data.some(row => /benchmark|development|HMR/.test(row.title) && !row.title.includes('speed-eight')));

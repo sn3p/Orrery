@@ -1,0 +1,111 @@
+name: Install a test browser with software graphics
+description: >-
+  Installs a Playwright browser, its system packages, Xvfb and Mesa. Ubuntu
+  mirrors have served these packages at about 100 kB/s, so downloaded .deb
+  files are cached between runs and copied into apt's own archive directory.
+  apt still picks every version from freshly updated indexes and downloads only
+  what is missing. Run npm ci first: the action uses the pinned Playwright.
+inputs:
+  browser:
+    description: chromium, firefox or webkit. Chromium is installed as Google Chrome stable.
+    required: true
+  save-cache:
+    description: >-
+      Save the downloaded packages when the cache had no exact entry. Let one
+      job per browser save, so parallel jobs do not race for the same key.
+    required: false
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Select the package cache key
+      id: key
+      shell: bash
+      env:
+        BROWSER: ${{ inputs.browser }}
+      run: |
+        case "$BROWSER" in chromium|firefox|webkit) ;; *) echo "Unknown browser: $BROWSER" >&2; exit 1 ;; esac
+        : "${ImageOS:?GitHub-hosted runner image required}" "${ImageVersion:?GitHub-hosted runner image required}"
+        # npx would silently fetch the latest Playwright when npm ci has not
+        # run; its browsers and system packages would not match the pinned one.
+        if [ ! -x node_modules/.bin/playwright ]; then
+          echo "::error::Pinned Playwright is missing. Run npm ci before browser-setup."
+          exit 1
+        fi
+        # The package set follows the runner image and Playwright's dependency
+        # table. Without an exact entry, restore the nearest older set: apt
+        # reuses whatever still matches and downloads the rest.
+        playwright=$(node -p "require('playwright-core/package.json').version")
+        prefix="apt-$ImageOS-$BROWSER-"
+        {
+          echo "key=$prefix$playwright-$ImageVersion"
+          echo "same-playwright=$prefix$playwright-"
+          echo "same-browser=$prefix"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Restore downloaded system packages
+      id: restore
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/orrery-apt-archives
+        key: ${{ steps.key.outputs.key }}
+        restore-keys: |
+          ${{ steps.key.outputs.same-playwright }}
+          ${{ steps.key.outputs.same-browser }}
+
+    - name: Hand cached packages to apt
+      shell: bash
+      run: |
+        cached="$HOME/.cache/orrery-apt-archives"
+        mkdir -p "$cached"  # absent after a cache miss
+        count=$(( $(find "$cached" -maxdepth 1 -name '*.deb' | wc -l) ))
+        if [ "$count" -gt 0 ]; then
+          sudo cp "$cached"/*.deb /var/cache/apt/archives/
+        fi
+        echo "Copied $count cached package files into /var/cache/apt/archives"
+
+    - name: Install browser and its system packages
+      shell: bash
+      env:
+        BROWSER: ${{ inputs.browser }}
+      run: |
+        if [ "$BROWSER" = chromium ]; then
+          node_modules/.bin/playwright install --with-deps chrome
+        else
+          node_modules/.bin/playwright install --with-deps "$BROWSER"
+        fi
+
+    # Refresh the indexes here rather than rely on Playwright having done so;
+    # straight after its update this only revalidates them.
+    - name: Install virtual display and software graphics
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xvfb xauth libgl1-mesa-dri libglx-mesa0
+
+    - name: Collect downloaded packages for the cache
+      id: collect
+      if: inputs.save-cache == 'true' && steps.restore.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        cached="$HOME/.cache/orrery-apt-archives"
+        # Drop packages the current indexes no longer offer, then copy out
+        # exactly what apt kept. The .deb files are world-readable.
+        sudo apt-get autoclean
+        rm -rf "$cached"
+        mkdir -p "$cached"
+        count=$(( $(find /var/cache/apt/archives -maxdepth 1 -name '*.deb' | wc -l) ))
+        echo "count=$count" >> "$GITHUB_OUTPUT"
+        if [ "$count" -eq 0 ]; then
+          echo "::warning::apt kept no downloaded packages, so there is nothing to cache."
+          exit 0
+        fi
+        cp /var/cache/apt/archives/*.deb "$cached"/
+        echo "Caching $count package files ($(du -sh "$cached" | cut -f1))"
+
+    - name: Save downloaded system packages
+      if: steps.collect.outputs.count > 0
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/orrery-apt-archives
+        key: ${{ steps.key.outputs.key }}

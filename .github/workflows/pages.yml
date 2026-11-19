@@ -5,6 +5,8 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+    # Drafts run Chromium core only; marking a PR ready runs the full suite.
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
   schedule:
     - cron: '17 3 * * *'
@@ -13,8 +15,10 @@ permissions:
   contents: read
 
 # PR updates supersede obsolete checks; production deployments keep their queue.
+# The full run a PR gets on becoming ready has its own group, so a quick
+# follow-up push cannot cancel it.
 concurrency:
-  group: pages-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  group: pages-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}${{ github.event_name == 'pull_request' && (github.event.action == 'ready_for_review' || (github.event.action == 'opened' && !github.event.pull_request.draft)) && '-ready' || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
   queue: ${{ github.event_name == 'pull_request' && 'single' || 'max' }}
 
@@ -143,28 +147,15 @@ jobs:
           node-version-file: .tool-versions
           cache: npm
 
-      # Some hosted runners point apt at an EC2 regional Ubuntu mirror that has
-      # served the browsers' system packages at 10-120 kB/s: up to 20 minutes for
-      # what the Azure mirror on other runners serves in seconds. Use the latter.
-      - name: Use the Azure Ubuntu mirror
-        run: |
-          files=$(grep -lsE '://[a-z0-9-]+\.ec2\.archive\.ubuntu\.com' /etc/apt/sources.list /etc/apt/sources.list.d/* || true)
-          if [ -n "$files" ]; then
-            echo "Replacing the EC2 Ubuntu mirror in: $files"
-            sudo sed -i -E 's#://[a-z0-9-]+\.ec2\.archive\.ubuntu\.com#://azure.archive.ubuntu.com#g' $files
-          fi
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Install dependencies and browsers
-        run: |
-          npm ci
-          if [ "${{ matrix.browser }}" = chromium ]; then
-            npx playwright install --with-deps chrome
-          else
-            npx playwright install --with-deps "${{ matrix.browser }}"
-          fi
-
-      - name: Install virtual display and software graphics
-        run: sudo apt-get install -y xvfb xauth libgl1-mesa-dri libglx-mesa0
+      - name: Install browser and software graphics
+        uses: ./.github/actions/browser-setup
+        with:
+          browser: ${{ matrix.browser }}
+          # One saver per browser; the other jobs only restore.
+          save-cache: ${{ startsWith(matrix.shard, '1/') && matrix.project == matrix.browser }}
 
       - name: Download the assembled Pages artifact
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
@@ -234,23 +225,12 @@ jobs:
         with:
           node-version-file: .tool-versions
           cache: npm
-      # Some hosted runners point apt at an EC2 regional Ubuntu mirror that has
-      # served the browsers' system packages at 10-120 kB/s: up to 20 minutes for
-      # what the Azure mirror on other runners serves in seconds. Use the latter.
-      - name: Use the Azure Ubuntu mirror
-        run: |
-          files=$(grep -lsE '://[a-z0-9-]+\.ec2\.archive\.ubuntu\.com' /etc/apt/sources.list /etc/apt/sources.list.d/* || true)
-          if [ -n "$files" ]; then
-            echo "Replacing the EC2 Ubuntu mirror in: $files"
-            sudo sed -i -E 's#://[a-z0-9-]+\.ec2\.archive\.ubuntu\.com#://azure.archive.ubuntu.com#g' $files
-          fi
-
-      - name: Install dependencies and browser
-        run: |
-          npm ci
-          npx playwright install --with-deps chrome
-      - name: Install virtual display and software graphics
-        run: sudo apt-get install -y xvfb xauth libgl1-mesa-dri libglx-mesa0
+      - name: Install dependencies
+        run: npm ci
+      - name: Install browser and software graphics
+        uses: ./.github/actions/browser-setup
+        with:
+          browser: chromium
       - name: Build and verify standalone unified app
         run: |
           test ! -e dist/next
