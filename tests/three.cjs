@@ -249,7 +249,7 @@ async function graphics(browser, base, output, name) {
       }
       await require('./next-layout.cjs').check(target);
       const options = target.getByRole('button', { name: 'Options', exact: true });
-      await options.click();
+      await options.focus(); await options.press('Enter');
       const speed = target.getByRole('textbox', { name: 'Playback speed' });
       assert(await options.evaluate(el => el === document.activeElement));
       await require('./options.cjs').tabIntoOptions(target);
