@@ -9,6 +9,7 @@ const execute = promisify(execFile);
 const cli = require.resolve('@playwright/test/cli');
 const { build } = require('./support.cjs');
 const { copyPrepared, inventory, sourceFingerprint } = require('./fixture-builds.cjs');
+const { plan } = require('./ci-policy.cjs');
 fs.mkdirSync('.context', { recursive: true });
 
 test('an unavailable WebGL probe is retried before the legacy requirement fails', async () => {
@@ -190,7 +191,9 @@ test('native discovery preserves coverage and each browser shard partitions it e
     assert.equal(cases.filter(row => row.title.includes('Three ')).length, 5);
     assert.equal(cases.filter(row => row.title.includes('Renderer switching ')).length, 6);
     for (const title of [...required, ...catalogue]) assert.equal(cases.filter(row => row.title.includes(title)).length, 1, `${browser}: ${title}`);
-    const count = browser === 'webkit' ? 4 : 2;
+    // Partition exactly as the nightly/manual workflow matrix shards it.
+    const count = plan([], { full: true }).matrix.include.filter(job => job.project === browser).length;
+    assert(count > 1, `${browser}: full mode must shard`);
     const shards = await Promise.all(Array.from({ length: count }, (_, i) => discover(`--project=${browser}`, `--shard=${i + 1}/${count}`)));
     assert(shards.every(shard => shard.length > 0));
     assert.deepEqual(shards.flat().map(row => row.id).sort(), cases.map(row => row.id).sort());

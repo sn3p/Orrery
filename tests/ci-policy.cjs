@@ -60,7 +60,10 @@ function plan(files, { full = false } = {}) {
   // nightly/manual full runs repeat all checks across every engine.
   const broad = runMode === 'full';
   const include = [];
-  for (const [browser, count] of [['chromium', 2], ['firefox', broad ? 2 : 1], ['webkit', broad ? 4 : 1]]) {
+  // Chromium carries the routine core, so it gets the most shards. Playwright
+  // splits by case count in file order, and the heaviest unified cases come
+  // first: a third shard shortens the slowest Chromium job in both modes.
+  for (const [browser, count] of [['chromium', 3], ['firefox', broad ? 2 : 1], ['webkit', broad ? 4 : 1]]) {
     for (let shard = 1; shard <= count; shard++) include.push({ browser, project: browser,
       shard: `${shard}/${count}`, id: `${browser}-${shard}`, name: `Browser tests (${browser}, shard ${shard}/${count})` });
   }

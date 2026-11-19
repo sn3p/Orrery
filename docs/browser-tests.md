@@ -147,12 +147,13 @@ Playwright reports are ignored by Git in ordinary clones too.
 
 ## Workflow gates and runtime budget
 
-Every routine code run uses two Chromium shards, one Firefox smoke job, one
-WebKit smoke job and one Chromium-only job: five browser jobs even for changes
-to tests or CI itself. Nightly/manual full runs retain two Chromium/two Firefox/
-four WebKit shards plus Chromium-only. The clean-checkout job independently
-builds the public site and
-runs its two smoke cases without global fixture setup or a download.
+Every routine code run uses three Chromium shards, one Firefox smoke job, one
+WebKit smoke job and one Chromium-only job: six browser jobs even for changes
+to tests or CI itself. Nightly/manual full runs use three Chromium/two Firefox/
+four WebKit shards plus Chromium-only. Playwright splits a project by case count
+in file order, and the heaviest unified cases come first, so the first Chromium
+shard sets the pace. The clean-checkout job independently builds the public site
+and runs its two smoke cases without global fixture setup or a download.
 
 The aggregate `CI` check requires every selected job to succeed. A missing,
 failed, cancelled or unexpectedly skipped job fails that gate. Deployment waits

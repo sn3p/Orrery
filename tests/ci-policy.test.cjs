@@ -52,10 +52,10 @@ test('path policy preserves risky changes, unions groups and defaults unknown fi
   for (const files of [['src/css/main.css'], ['src/unified/App.js'], ['tests/runtime-diagnostics.cjs'], ['package-lock.json']]) {
     const result = plan(files);
     assert.equal(result.mode, 'pr');
-    assert.equal(result.matrix.include.length, 5, files.join(','));
+    assert.equal(result.matrix.include.length, 6, files.join(','));
   }
   assert.equal(plan([], { full: true }).mode, 'full');
-  assert.equal(plan([], { full: true }).matrix.include.length, 9);
+  assert.equal(plan([], { full: true }).matrix.include.length, 10);
 });
 
 test('reduced prepared manifest reaches the real public-assets browser boundary', async t => {
@@ -114,7 +114,7 @@ test('planner CLI handles real PR divergence, rename/delete, push, missing histo
   const pr = run('pull_request', { pull_request: { base: { sha: movedBase }, head: { sha: head } } });
   assert.equal(pr.groups, 'core,ui', 'Rename retains removed code; unrelated base commits do not inflate selection');
   assert.equal(pr.code, 'true'); assert.equal(pr.mode, 'pr');
-  assert.equal(JSON.parse(pr.matrix).include.length, 5);
+  assert.equal(JSON.parse(pr.matrix).include.length, 6);
   assert.equal(run('push', { before: base, after: head }).groups, 'core,ui');
   assert.equal(run('push', { before: '0'.repeat(40), after: head }).groups, 'full');
   assert.equal(run('push', { before: 'a'.repeat(40), after: head }).groups, 'full');
@@ -193,6 +193,10 @@ test('native selection retains core in Chromium, smoke in other engines and two 
     `--project=${job.project}`, `--shard=${job.shard}`));
   assert.deepEqual(sharded.map(identity).sort(), expected.map(identity).sort());
   assert.equal(new Set(sharded.map(identity)).size, expected.length);
+  // Even the smallest selection gives every routine browser job work.
+  for (const job of routine.matrix.include) {
+    assert(discover('core', 'pr', `--project=${job.project}`, `--shard=${job.shard}`).length > 0, job.name);
+  }
   const data = discover(plan(['src/unified/catalog/CatalogLoader.js']).groups, 'pr');
   assert(data.some(row => row.title.includes('catalogue frame commits')));
   assert(!data.some(row => /benchmark|development|HMR/.test(row.title) && !row.title.includes('speed-eight')));
