@@ -185,7 +185,10 @@ exports.production = async (browser, url, output, name) => {
     assert.equal(await page.locator('#orrery-status').textContent(), '');
     await page.screenshot({ path: path.join(output, `${name}-production-desktop.png`) });
     const canvas = page.locator('canvas');
-    // A canvas screenshot includes overlaid UI; clear trigger hover before comparing.
+    // Canvas screenshots include overlapping DOM. Close the scrollable panel
+    // so scrollbar/hover changes cannot masquerade as a framebuffer change.
+    await input.press('Escape');
+    assert(await page.locator('.orrery-options-panel').isHidden());
     await page.mouse.move(600, 400);
     const previous = await canvas.screenshot();
     const draws = await page.evaluate(() => window.draws);
@@ -203,6 +206,7 @@ exports.production = async (browser, url, output, name) => {
     await page.waitForFunction(n => window.draws > n, draws);
     await idle();
     assert(!previous.equals(await canvas.screenshot()), 'Paused wheel zoom changes the production framebuffer');
+    await require('./options.cjs').openOptions(page);
     await speed(1.5);
     await page.waitForFunction(date => document.querySelector('#orrery-date').textContent > date, pausedDate);
     await page.waitForFunction(() => parseInt(document.querySelector('#orrery-fps').textContent) > 0);
