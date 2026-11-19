@@ -5,6 +5,8 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+    # Drafts run Chromium core only; marking a PR ready runs the full suite.
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
   schedule:
     - cron: '17 3 * * *'
@@ -13,8 +15,10 @@ permissions:
   contents: read
 
 # PR updates supersede obsolete checks; production deployments keep their queue.
+# The full run a PR gets on becoming ready has its own group, so a quick
+# follow-up push cannot cancel it.
 concurrency:
-  group: pages-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  group: pages-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}${{ github.event_name == 'pull_request' && (github.event.action == 'ready_for_review' || (github.event.action == 'opened' && !github.event.pull_request.draft)) && '-ready' || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
   queue: ${{ github.event_name == 'pull_request' && 'single' || 'max' }}
 

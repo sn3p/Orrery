@@ -114,8 +114,11 @@ sides of renames and deleted paths. It never relies on a remembered label:
   untrustworthy Git range. They do not turn a PR into a nightly run.
 - Explicit documentation-only changes skip expensive jobs; the aggregate `CI`
   check still verifies that only planned jobs were skipped.
-- PRs and pushes use routine mode; scheduled nightly and manually dispatched
-  runs always select full mode and all groups.
+- Draft PRs use the draft budget: Chromium core only, whatever the paths
+  select. A PR that is marked ready for review, or opened ready, runs the full
+  nightly matrix once; later pushes to it and pushes to master use the routine
+  budget. Scheduled nightly and manually dispatched runs always select full
+  mode and all groups.
 
 Configured catalogue HMR belongs to `dev`, not the browser `data` group. Entry,
 build/configuration and unknown changes still select it; catalogue-only changes
@@ -147,10 +150,14 @@ Playwright reports are ignored by Git in ordinary clones too.
 
 ## Workflow gates and runtime budget
 
-Every routine code run uses three Chromium shards, one Firefox smoke job, one
-WebKit smoke job and one Chromium-only job: six browser jobs even for changes
-to tests or CI itself. Nightly/manual full runs use three Chromium/two Firefox/
-four WebKit shards plus Chromium-only. Playwright splits a project by case count
+A draft PR's code run uses three Chromium shards and one Chromium-only job for
+the core selection, with fewer fixtures to build; Firefox and WebKit wait until
+the PR is ready. Every routine code run uses three Chromium shards, one Firefox
+smoke job, one WebKit smoke job and one Chromium-only job: six browser jobs even
+for changes to tests or CI itself. Full runs (on becoming ready, nightly and
+manual) use three Chromium/two Firefox/four WebKit shards plus Chromium-only.
+The full run on becoming ready has its own concurrency group, so a follow-up
+push starts a routine run without cancelling it. Playwright splits a project by case count
 in file order, and the heaviest unified cases come first, so the first Chromium
 shard sets the pace. Measured on routine runs in November 2026: with two shards,
 shard 1 ran 264–269 s of tests against 119–156 s; with three, 203–206 s against
@@ -192,8 +199,9 @@ guarantee**. The prior PR78 full run took about nine minutes and 46 combined
 runner-minutes; these are baseline observations, not savings from this policy.
 Changes to shared renderer or infrastructure code select more Chromium checks
 within the routine budget.
-Selection reduces repeated execution; it does not establish that every browser
-combination was tested before every merge. Nightly failures need prompt triage.
+Selection reduces repeated execution. The full run on becoming ready tests
+every browser combination once before review, but later pushes run only the
+routine budget, so nightly failures still need prompt triage.
 New tests should identify the unique regression boundary they cover; large
 parameter matrices belong in the relevant extended group. Inspect native step
 and job durations when any new case exceeds roughly 30 seconds. Keep stateful

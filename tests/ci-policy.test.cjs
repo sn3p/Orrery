@@ -57,6 +57,15 @@ test('path policy preserves risky changes, unions groups and defaults unknown fi
   }
   assert.equal(plan([], { full: true }).mode, 'full');
   assert.equal(plan([], { full: true }).matrix.include.length, 10);
+  // Drafts run Chromium core only, whatever the paths select.
+  for (const files of [['src/css/main.css'], ['src/unified/App.js'], ['package-lock.json']]) {
+    const draft = plan(files, { draft: true });
+    assert.equal(draft.budget, 'draft'); assert.equal(draft.mode, 'pr'); assert.equal(draft.groups, 'core');
+    assert(draft.code);
+    assert.deepEqual(draft.matrix.include.map(job => job.id), ['chromium-1', 'chromium-2', 'chromium-3', 'chromium-only']);
+  }
+  assert.equal(plan(['docs/browser-tests.md'], { draft: true }).code, false);
+  assert.throws(() => plan([], { full: true, draft: true }));
 });
 
 test('reduced prepared manifest reaches the real public-assets browser boundary', async t => {
@@ -125,6 +134,27 @@ test('planner CLI handles real PR divergence, rename/delete, push, missing histo
   }
   assert.equal(run('push', { before: '0'.repeat(40), after: head }).mode, 'pr');
   assert.equal(fromEvent('push', { before: base, after: head }, () => '').code, false);
+
+  // Draft PRs run the draft budget; becoming ready runs the full matrix once;
+  // later pushes to a ready PR run the routine budget.
+  const range = { base: { sha: movedBase }, head: { sha: head } };
+  for (const action of ['opened', 'synchronize', 'reopened']) {
+    const draft = run('pull_request', { action, pull_request: { ...range, draft: true } });
+    assert.equal(draft.budget, 'draft', action); assert.equal(draft.groups, 'core'); assert.equal(draft.mode, 'pr');
+    assert(JSON.parse(draft.matrix).include.every(job => job.browser === 'chromium'), action);
+  }
+  for (const action of ['ready_for_review', 'opened']) {
+    const ready = run('pull_request', { action, pull_request: { ...range, draft: false } });
+    assert.equal(ready.budget, 'full', action); assert.equal(ready.mode, 'full'); assert.equal(ready.groups, 'full');
+    assert.equal(JSON.parse(ready.matrix).include.length, 10, action);
+  }
+  for (const action of ['synchronize', 'reopened']) {
+    const routine = run('pull_request', { action, pull_request: { ...range, draft: false } });
+    assert.equal(routine.budget, 'routine', action); assert.equal(routine.groups, 'core,ui');
+  }
+  const shas = { base: { sha: 'a'.repeat(40) }, head: { sha: 'b'.repeat(40) } };
+  const docsReady = fromEvent('pull_request', { action: 'ready_for_review', pull_request: shas }, () => 'docs/browser-tests.md\0');
+  assert.equal(docsReady.code, false, 'Documentation-only PRs skip browser jobs even when marked ready');
 
   // Exercise the workflow's real Git diff and output boundary, not only the
   // pure classifier: entry-like additions and their deletions must run full.
@@ -204,6 +234,13 @@ test('native selection retains core in Chromium, smoke in other engines and two 
   // Even the smallest selection gives every routine browser job work. Full-mode
   // shards are checked the same way in harness.test.cjs.
   routine.matrix.include.forEach((job, i) => assert(smallestJobs[i].length > 0, job.name));
+  // A draft's jobs are routine jobs, and together they run every Chromium core case.
+  const draft = plan(['tests/runtime-diagnostics.cjs'], { draft: true });
+  const draftRows = routine.matrix.include.flatMap((job, i) =>
+    draft.matrix.include.some(other => other.id === job.id) ? smallestJobs[i] : []);
+  assert.equal(draftRows.length > 0 && draft.matrix.include.every(job => routine.matrix.include.some(other => other.id === job.id)), true);
+  assert.deepEqual(draftRows.map(identity).sort(),
+    discover('core', 'pr').filter(row => row.project.startsWith('chromium')).map(identity).sort());
   const data = discover(plan(['src/unified/catalog/CatalogLoader.js']).groups, 'pr');
   assert(data.some(row => row.title.includes('catalogue frame commits')));
   assert(!data.some(row => /benchmark|development|HMR/.test(row.title) && !row.title.includes('speed-eight')));
