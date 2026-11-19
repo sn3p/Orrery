@@ -3,7 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
-const { execFileSync } = require('node:child_process');
+const { execFile, execFileSync } = require('node:child_process');
+const { promisify } = require('node:util');
 const { plan, selection, fixtureKeys, mode } = require('./ci-policy.cjs');
 const { fromEvent } = require('../scripts/ci-plan.cjs');
 const { verify } = require('../scripts/ci-gate.cjs');
@@ -145,20 +146,24 @@ test('planner CLI handles real PR divergence, rename/delete, push, missing histo
   }
 });
 
-test('native selection retains core in Chromium, smoke in other engines and two independent standalone cases', () => {
+test('native selection retains core in Chromium, smoke in other engines and two independent standalone cases', async () => {
   const cli = require.resolve('@playwright/test/cli');
-  const discover = (groups, runMode = 'full', ...args) => {
-    const report = JSON.parse(execFileSync(process.execPath, [cli, 'test', '--list', '--reporter=json', ...args], {
-      encoding: 'utf8', maxBuffer: 10 * 1024 * 1024,
-      env: { ...process.env, BROWSERS: 'chromium,firefox,webkit', ORRERY_TEST_GROUPS: groups, ORRERY_TEST_MODE: runMode },
-    }));
+  const list = (groups, runMode, args) => [process.execPath, [cli, 'test', '--list', '--reporter=json', ...args], {
+    encoding: 'utf8', maxBuffer: 10 * 1024 * 1024,
+    env: { ...process.env, BROWSERS: 'chromium,firefox,webkit', ORRERY_TEST_GROUPS: groups, ORRERY_TEST_MODE: runMode },
+  }];
+  const parse = stdout => {
     const rows = [];
     function visit(suite) {
       for (const spec of suite.specs || []) for (const item of spec.tests) rows.push({ title: spec.title, project: item.projectName, tags: spec.tags });
       for (const child of suite.suites || []) visit(child);
     }
-    visit(report); return rows;
+    visit(JSON.parse(stdout)); return rows;
   };
+  const discover = (groups, runMode = 'full', ...args) => parse(execFileSync(...list(groups, runMode, args)));
+  // One listing per workflow job; they are independent processes, so run them together.
+  const discoverJobs = (groups, runMode, jobs) => Promise.all(jobs.map(async job =>
+    parse((await promisify(execFile)(...list(groups, runMode, [`--project=${job.project}`, `--shard=${job.shard}`]))).stdout)));
   const core = discover('core');
   assert.equal(core.length, 27);
   for (const browser of ['firefox', 'webkit']) {
@@ -189,14 +194,16 @@ test('native selection retains core in Chromium, smoke in other engines and two 
     assert.equal(cases.length, 2); assert(cases.every(row => row.tags.includes('smoke')));
   }
   const identity = row => `${row.project}: ${row.title}`;
-  const sharded = routine.matrix.include.flatMap(job => discover(routine.groups, routine.mode,
-    `--project=${job.project}`, `--shard=${job.shard}`));
+  const [routineJobs, smallestJobs] = await Promise.all([
+    discoverJobs(routine.groups, routine.mode, routine.matrix.include),
+    discoverJobs('core', 'pr', routine.matrix.include),
+  ]);
+  const sharded = routineJobs.flat();
   assert.deepEqual(sharded.map(identity).sort(), expected.map(identity).sort());
   assert.equal(new Set(sharded.map(identity)).size, expected.length);
-  // Even the smallest selection gives every routine browser job work.
-  for (const job of routine.matrix.include) {
-    assert(discover('core', 'pr', `--project=${job.project}`, `--shard=${job.shard}`).length > 0, job.name);
-  }
+  // Even the smallest selection gives every routine browser job work. Full-mode
+  // shards are checked the same way in harness.test.cjs.
+  routine.matrix.include.forEach((job, i) => assert(smallestJobs[i].length > 0, job.name));
   const data = discover(plan(['src/unified/catalog/CatalogLoader.js']).groups, 'pr');
   assert(data.some(row => row.title.includes('catalogue frame commits')));
   assert(!data.some(row => /benchmark|development|HMR/.test(row.title) && !row.title.includes('speed-eight')));
