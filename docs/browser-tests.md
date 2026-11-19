@@ -152,7 +152,7 @@ Playwright reports are ignored by Git in ordinary clones too.
 
 A draft PR's code run uses three Chromium shards and one Chromium-only job for
 the core selection, with fewer fixtures to build; Firefox and WebKit wait until
-the PR is ready. Every routine code run uses three Chromium shards, one Firefox
+the PR is ready. A measured draft run took 4.5 minutes end to end. Every routine code run uses three Chromium shards, one Firefox
 smoke job, one WebKit smoke job and one Chromium-only job: six browser jobs even
 for changes to tests or CI itself. Full runs (on becoming ready, nightly and
 manual) use three Chromium/two Firefox/four WebKit shards plus Chromium-only.
@@ -160,9 +160,10 @@ The full run on becoming ready has its own concurrency group, so a follow-up
 push starts a routine run without cancelling it. Playwright splits a project by case count
 in file order, and the heaviest unified cases come first, so the first Chromium
 shard sets the pace. Measured on routine runs in November 2026: with two shards,
-shard 1 ran 264–269 s of tests against 119–156 s; with three, 203–206 s against
-128 s and 80–111 s. The third job adds about a minute of runner setup and saves
-about a minute on the critical path. Splitting the heavy cases would not have
+shard 1 ran 264–269 s of tests against 119–156 s; with three (three runs),
+203–263 s against 88–129 s and 80–111 s. The third job adds about a minute of
+runner setup and saves anywhere from nothing to about a minute on the critical
+path. Splitting the heavy cases would not have
 helped: their parts stay together at the start of the first shard. The
 clean-checkout job independently builds the public site and runs its two smoke
 cases without global fixture setup or a download.
@@ -180,7 +181,8 @@ The cache helps only on a hit; a miss downloads from the mirror as before. The
 first shard of each browser saves a new entry when there is no exact one, which
 happens when the runner image or Playwright version changes. Entries saved by
 master pushes, the nightly and manual runs on master serve every branch and PR,
-and the nightly keeps them from expiring. A PR run's entry serves only that PR.
+and the nightly keeps them from expiring. A PR run's entry serves only that PR
+and never carries over to master, so master starts empty after a key change.
 
 The aggregate `CI` check requires every selected job to succeed. A missing,
 failed, cancelled or unexpectedly skipped job fails that gate. Deployment waits
