@@ -55,9 +55,26 @@ Offline tests retain the worst midpoint for each object and a spread of dates.
 
 ## Data and updates
 
-The 3.12 MiB vector asset is loaded on first enabling comets. Failure leaves the
-existing scene usable and offers a retry. Builds and normal visits make no JPL
-requests. The shared asteroid producer is unchanged.
+Comets are distributed by [OrreryData](https://github.com/sn3p/orrery-data).
+On first enable, the app discovers `https://sn3p.github.io/orrery-data/comets/latest.json`
+and pins its verified index for this visit. Each selected object loads separately,
+with bounded decoded length, SHA-256, schema, identity, conventions and reference
+interpolation checks. All three are selected by default, so normal first enable
+requests all three. Asteroid-only startup makes no comet requests.
+
+Ready selections render and can be fitted while others load or fail. Retry loads
+missing selected objects under the same pin; deselection cancels outstanding reads.
+Reselection reuses verified cached data. Reload starts a new pin. An old pin whose
+objects have been pruned requires a reload; it never silently changes solutions.
+Builds, tests and visits make no JPL requests. OrreryData owns future refreshes;
+comet scheduling remains inactive. The asteroid adapter is unchanged.
+
+The bundled vector asset remains packaged as an explicit developer rollback:
+`app.replaceCometSource('bundled')` on an App instance. Use `'hosted'` to reopen
+latest. Replacement clears the entire old generation before loading, including
+paths; no mixed sources or automatic fallback. `cometSourceId` and
+`cometSourceInfo` expose the active provenance; bundled identity is explicitly
+labeled. These are developer APIs, not persistent preferences or public controls.
 
 - [Horizons](https://ssd.jpl.nasa.gov/horizons/) and its
   [API documentation](https://ssd-api.jpl.nasa.gov/doc/horizons.html).
@@ -69,8 +86,7 @@ requests. The shared asteroid producer is unchanged.
 - [`comet-vectors.json`](../tests/fixtures/comet-vectors.json): independent
   midpoint requests, sample references and maximum differences.
 
-To refresh deliberately, run `python3 scripts/fetch-comets.py`. Review the
-solution identifiers, date coverage and error measurements, then run the
-numerical and browser regressions. The script requires network access; it does
-not run during installation, build or tests. Source response hashes identify
-retrieved bytes; they are not hashes of the transformed assets.
+The historical `scripts/fetch-comets.py` and bundled provenance are retained for
+rollback reproducibility only. Ordinary refreshes belong to OrreryData; do not run
+this script as part of installation, builds or tests. Source response hashes
+identify retrieved bytes, not hashes of transformed assets.

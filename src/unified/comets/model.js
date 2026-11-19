@@ -16,7 +16,7 @@ export const lastDate = series => series.start + (series.states.length - 1) * se
 // Input dates are UT Julian days, matching the app's UTC calendar to its existing
 // precision. Outside the supplied interval there is deliberately no extrapolation.
 export function positionAt(series, jed, target = {}) {
-  if (!Number.isFinite(jed) || jed < series.start || jed > lastDate(series)) return null;
+  if (!series || !Number.isFinite(jed) || jed < series.start || jed > lastDate(series)) return null;
   const offset = (jed - series.start) / series.step;
   const i = Math.min(Math.floor(offset), series.states.length - 2), t = offset - i;
   const a = series.states[i], b = series.states[i + 1], t2 = t * t, t3 = t2 * t;

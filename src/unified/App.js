@@ -3,6 +3,7 @@ import { validDate } from "../js/asteroidOrbits.js";
 import { replaceShareUrl, shareDateValue } from "./shareUrl.js";
 import PlaybackClock from "../js/PlaybackClock.js";
 import Stats from "../js/Stats.js";
+import Acquisition from "./comets/Acquisition.js";
 import { DEFAULT_COMET_IDS, validCometIds, validateCometData } from "./comets/model.js";
 import Hud from "./ui/Hud.js";
 import CatalogSource from "./catalog/CatalogSource.js";
@@ -71,6 +72,7 @@ export default class App {
     this.cometData = null;
     this.cometLoading = null;
     this.cometError = false;
+    this.cometAcquisition = new Acquisition(() => this.syncComets());
     this._populationPreset = options.populationPreset ?? DEFAULT_POPULATION_PRESET;
     if (!isPopulationPreset(this._populationPreset)) throw new Error("Invalid population preset.");
     // On by default; turning it off lasts the visit, like the group choice.
@@ -285,7 +287,7 @@ export default class App {
     if (this.destroyed || typeof value !== "boolean" || value === this._cometsShown) return;
     this._cometsShown = value;
     this.applyCometOptions();
-    if (value) void this.loadComets();
+    void this.acquireComets();
   }
   get cometPaths() { return this._cometPaths; }
   set cometPaths(value) {
@@ -298,30 +300,46 @@ export default class App {
     if (this.destroyed || !validCometIds(ids)) return;
     this._cometIds = [...ids];
     this.applyCometOptions();
+    void this.acquireComets();
   }
   applyCometOptions() {
     this.renderer?.setOptions?.(this.rendererSettings());
     this.gui?.controls.updateComets?.();
     this.requestRender();
   }
-  async loadComets() {
-    if (this.cometData || this.cometLoading || this.destroyed) return;
-    this.cometError = false;
-    const controller = this.cometController = new AbortController();
-    this.cometLoading = import(/* webpackChunkName: "comet-vectors" */ "./comets/vectors.json");
-    this.gui?.controls.updateComets?.();
-    try {
-      const { default: url } = await this.cometLoading;
-      const response = await fetch(url, { signal: controller.signal });
-      if (!response.ok) throw new Error("Could not load comet data.");
-      const data = await response.json();
-      validateCometData(data);
-      if (!this.destroyed) this.cometData = data;
-    } catch { this.cometError = true; }
-    finally {
-      this.cometLoading = null;
-      if (!this.destroyed) this.applyCometOptions();
-    }
+  syncComets() {
+    if (this.destroyed) return;
+    const acquisition = this.cometAcquisition;
+    this.cometData = acquisition.data;
+    this.cometStates = acquisition.states;
+    this.cometSourceId = acquisition.current?.sourceId ?? null;
+    this.cometSourceInfo = acquisition.current?.info ?? null;
+    this.cometLoading = this._cometIds.some(id => acquisition.states[id] === 'loading');
+    this.cometError = this._cometIds.some(id => acquisition.states[id] === 'error');
+    this.applyCometOptions();
+  }
+  acquireComets(retry = false) {
+    return this.cometAcquisition.select(this.cometsShown ? this._cometIds : [], retry);
+  }
+  loadComets() { return this.acquireComets(true); }
+  // Explicit rollback/reload transaction. Never blend bundled and hosted pins.
+  async replaceCometSource(mode = 'hosted') {
+    if (this.destroyed) return;
+    if (!['hosted', 'bundled'].includes(mode)) throw new RangeError('Invalid comet source.');
+    const open = mode === 'hosted' ? undefined : async signal => {
+      const { default: url } = await import(/* webpackChunkName: "comet-vectors" */ "./comets/vectors.json");
+      const response = await fetch(url, { signal });
+      if (!response.ok) throw new Error('Could not load bundled comet data.');
+      const data = validateCometData(await response.json());
+      return { sourceId: 'bundled-horizons-2026-11-18', info: { distributor: 'Orrery bundled fallback' },
+        load: async id => ({ series: data[id] }), close() {} };
+    };
+    if (mode === 'hosted') {
+      this.cometAcquisition.close();
+      this.cometAcquisition = new Acquisition(() => this.syncComets());
+      this.syncComets();
+    } else this.cometAcquisition.replace(open);
+    return this.acquireComets();
   }
   focusComets() {
     if (!this._cometsShown || !this.cometData || !this._cometIds.length) return;
@@ -969,7 +987,7 @@ export default class App {
     this.statusNode = null;
     if (this.destroyed) return;
     this.destroyed = true;
-    this.cometController?.abort();
+    this.cometAcquisition.close();
     this.notifyRendererState();
     this.rendererStateObservers.clear();
     this.switchController?.abort();

@@ -24,6 +24,12 @@ export default class Comets {
     this.group.visible = false;
   }
 
+  setData(data) {
+    for (const entry of this.entries) {
+      if (this.data[entry.comet.id] !== data[entry.comet.id]) entry.range = "";
+    }
+    this.data = data;
+  }
   update(jed, visible, ids, paths) {
     this.group.visible = visible;
     for (const entry of this.entries) {
