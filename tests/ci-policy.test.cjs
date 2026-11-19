@@ -86,6 +86,7 @@ test('reduced prepared manifest reaches the real public-assets browser boundary'
     const directory = path.join(root, key);
     fs.mkdirSync(path.join(directory, 'data'), { recursive: true });
     fs.writeFileSync(path.join(directory, 'data/catalog.json'), catalog);
+    fs.copyFileSync('src/unified/comets/vectors.json', path.join(directory, 'data/vectors.json'));
     fs.cpSync('src/fonts', path.join(directory, 'fonts'), { recursive: true });
     fs.writeFileSync(path.join(directory, 'bundle.js'), '// prepared test fixture');
     manifest.fixtures[key] = inventory(directory);
