@@ -1,5 +1,5 @@
 import { formatIsoDay } from "../../js/utils.js";
-import { COMETS, lastDate } from "../comets/model.js";
+import { COMETS, lastDate, hasCoverage } from "../comets/model.js";
 import * as dat from "dat.gui";
 import { DEFAULT_POPULATION_PRESET, POPULATION_PRESET_OPTIONS, legendGroups, populationHint } from "../catalog/population.js";
 
@@ -163,34 +163,39 @@ export default class Options {
   updateComets() {
     if (!this.cometStatus) return;
     const app = this.orrery, ids = app.cometIds;
-    const ready = ids.filter(id => app.cometData?.[id]);
-    const loading = ids.filter(id => app.cometStates?.[id] === 'loading');
-    const failed = ids.filter(id => app.cometStates?.[id] === 'error');
-    const usable = ready.filter(id => app.jed >= app.cometData[id].start && app.jed <= lastDate(app.cometData[id]));
+    let ready = 0, loading = 0, failed = 0, usable = 0, firstSeries;
+    for (const id of ids) {
+      const series = app.cometData?.[id];
+      if (series) { ready++; firstSeries ??= series; }
+      if (hasCoverage(series, app.jed)) usable++;
+      if (app.cometStates?.[id] === 'loading') loading++;
+      if (app.cometStates?.[id] === 'error') failed++;
+    }
+    const key = [ready, loading, failed, usable, firstSeries?.start, firstSeries && lastDate(firstSeries),
+      app.cometsShown, !!app.switching, ...ids].join("|");
+    if (key === this.cometDisplayKey) return;
+    this.cometDisplayKey = key;
     let status = "";
     if (app.cometsShown) {
       if (!ids.length) status = "Select a comet below.";
-      else if (loading.length || failed.length) status = `${ready.length} of ${ids.length} comets ready.`
-        + (loading.length ? ` Loading ${loading.length}…` : '')
-        + (failed.length ? ` Could not load ${failed.length}. Retry below.` : '');
-      else if (ready.length) {
-        const series = app.cometData[ready[0]];
-        if (!usable.length) status = `Comets are unavailable at this date. Choose ${formatIsoDay(series.start)} to ${formatIsoDay(lastDate(series))}.`;
-        else status = `${ready.length} comet${ready.length === 1 ? "" : "s"} selected. Fit the view to see their paths.`;
+      else if (loading || failed) status = `${ready} of ${ids.length} comets ready.`
+        + (loading ? ` Loading ${loading}…` : '')
+        + (failed ? ` Could not load ${failed}. Retry below. If it still fails, reload the page to check for updated comet data.` : '');
+      else if (ready) {
+        const series = firstSeries;
+        if (!usable) status = `Comets are unavailable at this date. Choose ${formatIsoDay(series.start)} to ${formatIsoDay(lastDate(series))}.`;
+        else status = `${ready} comet${ready === 1 ? "" : "s"} selected. Fit the view to see their paths.`;
       }
     }
-    if (app.cometsShown && ready.length && !usable.length && (loading.length || failed.length)) {
-      const series = app.cometData[ready[0]];
+    if (app.cometsShown && ready && !usable && (loading || failed)) {
+      const series = firstSeries;
       status += ` Loaded comets are unavailable at this date. Choose ${formatIsoDay(series.start)} to ${formatIsoDay(lastDate(series))}.`;
     }
-    const key = [usable.length, status, app.cometsShown, app.cometError, !!app.cometData, !!app.switching, ...ids].join("|");
-    if (key === this.cometDisplayKey) return;
-    this.cometDisplayKey = key;
     for (const row of this.cometRows) row.hidden = !app.cometsShown;
     if (this.cometStatus.textContent !== status) this.cometStatus.textContent = status;
     this.cometStatus.hidden = !status;
-    this.cometRetry.hidden = !app.cometError;
-    this.cometFocus.disabled = !app.cometsShown || !usable.length || !!app.switching;
+    this.cometRetry.hidden = !failed;
+    this.cometFocus.disabled = !app.cometsShown || !usable || !!app.switching;
     for (const choice of Object.values(this.cometChoices)) choice.updateDisplay();
   }
 

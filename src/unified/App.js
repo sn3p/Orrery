@@ -3,8 +3,8 @@ import { validDate } from "../js/asteroidOrbits.js";
 import { replaceShareUrl, shareDateValue } from "./shareUrl.js";
 import PlaybackClock from "../js/PlaybackClock.js";
 import Stats from "../js/Stats.js";
-import Acquisition from "./comets/Acquisition.js";
-import { DEFAULT_COMET_IDS, validCometIds, validateCometData } from "./comets/model.js";
+import Acquisition, { openHostedSource } from "./comets/Acquisition.js";
+import { DEFAULT_COMET_IDS, validCometIds, validateCometData, hasUsableComets } from "./comets/model.js";
 import Hud from "./ui/Hud.js";
 import CatalogSource from "./catalog/CatalogSource.js";
 import CatalogLoader from "./catalog/CatalogLoader.js";
@@ -286,7 +286,6 @@ export default class App {
   set cometsShown(value) {
     if (this.destroyed || typeof value !== "boolean" || value === this._cometsShown) return;
     this._cometsShown = value;
-    this.applyCometOptions();
     void this.acquireComets();
   }
   get cometPaths() { return this._cometPaths; }
@@ -299,7 +298,6 @@ export default class App {
   set cometIds(ids) {
     if (this.destroyed || !validCometIds(ids)) return;
     this._cometIds = [...ids];
-    this.applyCometOptions();
     void this.acquireComets();
   }
   applyCometOptions() {
@@ -326,7 +324,7 @@ export default class App {
   async replaceCometSource(mode = 'hosted') {
     if (this.destroyed) return;
     if (!['hosted', 'bundled'].includes(mode)) throw new RangeError('Invalid comet source.');
-    const open = mode === 'hosted' ? undefined : async signal => {
+    const open = mode === 'hosted' ? openHostedSource : async signal => {
       const { default: url } = await import(/* webpackChunkName: "comet-vectors" */ "./comets/vectors.json");
       const response = await fetch(url, { signal });
       if (!response.ok) throw new Error('Could not load bundled comet data.');
@@ -334,15 +332,12 @@ export default class App {
       return { sourceId: 'bundled-horizons-2026-11-18', info: { distributor: 'Orrery bundled fallback' },
         load: async id => ({ series: data[id] }), close() {} };
     };
-    if (mode === 'hosted') {
-      this.cometAcquisition.close();
-      this.cometAcquisition = new Acquisition(() => this.syncComets());
-      this.syncComets();
-    } else this.cometAcquisition.replace(open);
+    this.cometAcquisition.replace(open);
     return this.acquireComets();
   }
   focusComets() {
-    if (!this._cometsShown || !this.cometData || !this._cometIds.length) return;
+    if (this.destroyed || this.switching || !this._cometsShown
+      || !hasUsableComets(this.cometData, this._cometIds, this.jed)) return;
     this.renderer?.focusComets?.();
     this.requestRender();
   }

@@ -190,6 +190,44 @@ test('bounded transport rejects null bodies, oversized descriptors and wrong has
   corrupt=true;await assert.rejects(source.load('55P'));corrupt=false;await source.load('55P');source.close();
 });
 
+test('failed selection retries after deselection while ready objects stay cached', async () => {
+  const calls = [];
+  let fail = true;
+  const acquisition = new Acquisition(() => {}, async () => ({
+    load: async id => {
+      calls.push(id);
+      if (id === '2P' && fail) throw new Error('503');
+      return { series: data[id] };
+    }, close() {},
+  }));
+  await acquisition.select(['1P', '2P']);
+  await acquisition.select(['1P']);
+  assert.equal(acquisition.states['2P'], undefined);
+  fail = false;
+  await acquisition.select(['1P', '2P']);
+  assert.equal(acquisition.states['2P'], 'ready');
+  await acquisition.select([]);
+  await acquisition.select(['1P', '2P']);
+  assert.deepEqual(calls, ['1P', '2P', '2P']);
+  acquisition.close();
+});
+
+test('unexpected AbortError becomes retryable rather than stuck loading', async () => {
+  let fail = true;
+  const acquisition = new Acquisition(() => {}, async () => ({
+    load: async () => {
+      if (fail) throw new DOMException('Browser cancelled read', 'AbortError');
+      return { series: data['1P'] };
+    }, close() {},
+  }));
+  await acquisition.select(['1P']);
+  assert.equal(acquisition.states['1P'], 'error');
+  fail = false;
+  await acquisition.select(['1P'], true);
+  assert.equal(acquisition.states['1P'], 'ready');
+  acquisition.close();
+});
+
 test('comet discovery rejects fragments before requesting data', async t => {
   let requests = 0;
   t.mock.method(globalThis, 'fetch', url => { requests++; return fixtureFetch(url); });
@@ -197,3 +235,12 @@ test('comet discovery rejects fragments before requesting data', async t => {
   assert.equal(requests, 0);
 });
 
+test('comet fit eligibility requires a loaded series at a supported date', async () => {
+  const { hasUsableComets } = await import('../src/unified/comets/model.js');
+  assert.equal(hasUsableComets({}, ['1P'], 2450000), false);
+  assert.equal(hasUsableComets(data, [], 2450000), false);
+  assert.equal(hasUsableComets(data, ['1P'], NaN), false);
+  assert.equal(hasUsableComets(data, ['1P'], data['1P'].start - 1), false);
+  assert.equal(hasUsableComets(data, ['1P'], data['1P'].start), true);
+  assert.equal(hasUsableComets({'1P':data['1P']}, ['2P', '1P'], lastDate(data['1P'])), true);
+});

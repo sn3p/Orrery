@@ -64,8 +64,10 @@ requests all three. Asteroid-only startup makes no comet requests.
 
 Ready selections render and can be fitted while others load or fail. Retry loads
 missing selected objects under the same pin; deselection cancels outstanding reads.
-Reselection reuses verified cached data. Reload starts a new pin. An old pin whose
-objects have been pruned requires a reload; it never silently changes solutions.
+Reselection reuses verified cached data and retries previously failed objects.
+Unexpected read cancellation shows a retryable failure. Reload starts a new pin. An old pin whose
+objects have been pruned requires a reload; failure feedback explicitly explains
+this recovery path. Retry never silently changes solutions.
 Builds, tests and visits make no JPL requests. OrreryData owns future refreshes;
 comet scheduling remains inactive. The asteroid adapter is unchanged.
 

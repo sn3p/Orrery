@@ -1,11 +1,12 @@
 import CometSource from './source/CometSource.js';
 
 export const COMET_LATEST_URL = 'https://sn3p.github.io/orrery-data/comets/latest.json';
+export const openHostedSource = signal => CometSource.openLatest(COMET_LATEST_URL, { signal });
 
 // One generation owns one source and its verified cache. Selection is independent
 // of acquisition: completing a request never changes visibility or selection.
 export default class Acquisition {
-  constructor(changed, open = signal => CometSource.openLatest(COMET_LATEST_URL, { signal })) {
+  constructor(changed, open = openHostedSource) {
     this.changed = changed;
     this.open = open;
     this.generation = 0;
@@ -35,6 +36,11 @@ export default class Acquisition {
       request.abort();
       delete this.states[id];
     }
+    // Settled failures have no request left to cancel. Deselecting them must
+    // still reset the attempt so reselect/show behaves like a new request.
+    for (const id of Object.keys(this.states)) {
+      if (!ids.includes(id) && this.states[id] === 'error') delete this.states[id];
+    }
     const work = ids.map(id => {
       if (this.data[id] || this.requests.has(id) || (this.states[id] === 'error' && !retry)) return;
       const request = new AbortController(), generation = this.generation;
@@ -49,8 +55,10 @@ export default class Acquisition {
           if (!valid()) return;
           this.data = { ...this.data, [id]: comet.series };
           this.states[id] = 'ready';
-        } catch (error) {
-          if (valid() && error.name !== 'AbortError') this.states[id] = 'error';
+        } catch {
+          // Own cancellations invalidate the request before rejecting. Any error
+          // from a still-current read (including AbortError) needs recovery UI.
+          if (valid()) this.states[id] = 'error';
         } finally {
           if (valid()) { this.requests.delete(id); this.changed(); }
         }
