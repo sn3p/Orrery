@@ -94,3 +94,153 @@ test('invalid comet assets and settings fail before scene mutation', () => {
     assert.throws(()=>validateCometOptions(value), RangeError);
   }
 });
+
+// Real producer bytes exercise the same integrity and provenance boundary as visits.
+import CometSource, { validateComet } from '../src/unified/comets/source/CometSource.js';
+import Acquisition from '../src/unified/comets/Acquisition.js';
+const fixtureRoot = new URL('./fixtures/comets/', import.meta.url);
+const descriptor = JSON.parse(fs.readFileSync(new URL('latest.json', fixtureRoot)));
+const index = JSON.parse(fs.readFileSync(new URL(descriptor.index.url, fixtureRoot)));
+function fixtureFetch(url) {
+  const name = new URL(url).pathname.split('/comets/')[1];
+  return Promise.resolve(new Response(fs.readFileSync(new URL(name, fixtureRoot))));
+}
+test('hosted contract fixture verifies all bytes, provenance, references and baseline series', async t => {
+  const calls=[];
+  t.mock.method(globalThis,'fetch',(url,options)=>{calls.push([url,options]);return fixtureFetch(url);});
+  const source=await CometSource.openLatest('https://fixture.test/nested/comets/latest.json');
+  assert.equal(source.sourceId,descriptor.index.sha256);
+  for(const id of DEFAULT_IDS()) {
+    const [a,b]=await Promise.all([source.load(id),source.load(id)]);
+    assert.equal(a,b);assert.deepEqual(a.series,data[id]);
+    assert.equal(await source.load(id),a);
+  }
+  assert.equal(calls.length,5);
+  assert(calls.every(([,options])=>options.redirect==='error'));
+  source.close();await assert.rejects(source.load('1P'),{name:'AbortError'});
+});
+function DEFAULT_IDS(){return COMETS.map(c=>c.id);}
+test('partial data has no guessed positions or fit points',()=>{
+  assert.equal(positionAt(undefined,2450000),null);
+  assert.deepEqual(cometFitPoints({},DEFAULT_IDS(),2450000),[]);
+});
+test('invalid product fields and corrupt/truncated transport never enter cache',async t=>{
+  const object=JSON.parse(fs.readFileSync(new URL(index.objects[0].data.url,fixtureRoot)));
+  for(const modify of [o=>o.id='2P',o=>o.comet_contract_version=2,o=>o.conventions.time='TDB',o=>o.series.start++,o=>o.series.states.pop()]){
+    const copy=structuredClone(object);modify(copy);assert.throws(()=>validateComet(copy,'1P'));
+  }
+  let bad=false;
+  t.mock.method(globalThis,'fetch',async url=>{
+    if(bad&&url.includes('/objects/'))return new Response('bad');
+    return fixtureFetch(url);
+  });
+  const source=await CometSource.openLatest('https://fixture.test/comets/latest.json');
+  bad=true;await assert.rejects(source.load('1P'));bad=false;
+  assert.deepEqual((await source.load('1P')).series,data['1P']);source.close();
+});
+const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
+test('acquisition guards deselection, partial failure, retry, replacement and destroy',async()=>{
+  let pending={},closed=0;
+  const open=async()=>({sourceId:'first',load:id=>(pending[id]=deferred()).promise,close:()=>closed++});
+  const a=new Acquisition(()=>{},open);
+  const first=a.select(['1P','2P']);await new Promise(resolve=>setImmediate(resolve));
+  pending['1P'].resolve({series:data['1P']});pending['2P'].reject(Error('503'));await first;
+  assert.deepEqual(Object.keys(a.data),['1P']);assert.equal(a.states['2P'],'error');
+  const retry=a.select(['1P','2P'],true);await new Promise(resolve=>setImmediate(resolve));
+  const old=pending['2P'];a.select([]);old.resolve({series:data['2P']});await retry;
+  assert(!a.data['2P']);
+  const stale=a.select(['55P']);await new Promise(resolve=>setImmediate(resolve));
+  const old55=pending['55P'];a.replace(async()=>({sourceId:'new',load:async()=>({series:data['2P']}),close(){}}));
+  await a.select(['2P']);old55.resolve({series:data['55P']});await stale;
+  assert.deepEqual(Object.keys(a.data),['2P']);assert.equal(a.current.sourceId,'new');assert.equal(closed,1);
+  a.close();assert.deepEqual(a.data,{});await a.select(['1P']);assert.deepEqual(a.data,{});
+});
+
+test('source subscribers cancel independently, all-cancel retries and pre-aborted calls do no work',async t=>{
+  let gate,objectCalls=0;
+  t.mock.method(globalThis,'fetch',async (url,{signal})=>{
+    if(!url.includes('/objects/'))return fixtureFetch(url);
+    objectCalls++;gate=deferred();
+    signal.addEventListener('abort',()=>gate.reject(new DOMException('Cancelled','AbortError')),{once:true});
+    await gate.promise;return fixtureFetch(url);
+  });
+  const source=await CometSource.openLatest('https://fixture.test/comets/latest.json');
+  const one=new AbortController(),two=new AbortController();
+  const a=source.load('1P',{signal:one.signal}),b=source.load('1P',{signal:two.signal});
+  const rejected=assert.rejects(a,{name:'AbortError'});one.abort();gate.resolve();
+  await rejected;assert.deepEqual((await b).series,data['1P']);assert.equal(objectCalls,1);
+  const all=new AbortController(),c=source.load('2P',{signal:all.signal});
+  const cancelled=assert.rejects(c,{name:'AbortError'});all.abort();await cancelled;
+  const retry=source.load('2P');gate.resolve();await retry;assert.equal(objectCalls,3);
+  const before=objectCalls;await assert.rejects(source.load('55P',{signal:all.signal}),{name:'AbortError'});
+  assert.equal(objectCalls,before);source.close();
+});
+test('bounded transport rejects null bodies, oversized descriptors and wrong hashes',async t=>{
+  let response;
+  t.mock.method(globalThis,'fetch',async()=>response);
+  for(const body of [null,' '.repeat(4097),'{']){
+    response=new Response(body);await assert.rejects(CometSource.openLatest('https://fixture.test/comets/latest.json'));
+  }
+  let corrupt=false;
+  globalThis.fetch=async url=>{
+    const r=await fixtureFetch(url);if(!corrupt||!url.includes('/objects/'))return r;
+    const bytes=new Uint8Array(await r.arrayBuffer());bytes[bytes.length-2]^=1;return new Response(bytes);
+  };
+  const source=await CometSource.openLatest('https://fixture.test/comets/latest.json');
+  corrupt=true;await assert.rejects(source.load('55P'));corrupt=false;await source.load('55P');source.close();
+});
+
+test('failed selection retries after deselection while ready objects stay cached', async () => {
+  const calls = [];
+  let fail = true;
+  const acquisition = new Acquisition(() => {}, async () => ({
+    load: async id => {
+      calls.push(id);
+      if (id === '2P' && fail) throw new Error('503');
+      return { series: data[id] };
+    }, close() {},
+  }));
+  await acquisition.select(['1P', '2P']);
+  await acquisition.select(['1P']);
+  assert.equal(acquisition.states['2P'], undefined);
+  fail = false;
+  await acquisition.select(['1P', '2P']);
+  assert.equal(acquisition.states['2P'], 'ready');
+  await acquisition.select([]);
+  await acquisition.select(['1P', '2P']);
+  assert.deepEqual(calls, ['1P', '2P', '2P']);
+  acquisition.close();
+});
+
+test('unexpected AbortError becomes retryable rather than stuck loading', async () => {
+  let fail = true;
+  const acquisition = new Acquisition(() => {}, async () => ({
+    load: async () => {
+      if (fail) throw new DOMException('Browser cancelled read', 'AbortError');
+      return { series: data['1P'] };
+    }, close() {},
+  }));
+  await acquisition.select(['1P']);
+  assert.equal(acquisition.states['1P'], 'error');
+  fail = false;
+  await acquisition.select(['1P'], true);
+  assert.equal(acquisition.states['1P'], 'ready');
+  acquisition.close();
+});
+
+test('comet discovery rejects fragments before requesting data', async t => {
+  let requests = 0;
+  t.mock.method(globalThis, 'fetch', url => { requests++; return fixtureFetch(url); });
+  await assert.rejects(CometSource.openLatest('https://fixture.test/comets/latest.json#ambiguous'));
+  assert.equal(requests, 0);
+});
+
+test('comet fit eligibility requires a loaded series at a supported date', async () => {
+  const { hasUsableComets } = await import('../src/unified/comets/model.js');
+  assert.equal(hasUsableComets({}, ['1P'], 2450000), false);
+  assert.equal(hasUsableComets(data, [], 2450000), false);
+  assert.equal(hasUsableComets(data, ['1P'], NaN), false);
+  assert.equal(hasUsableComets(data, ['1P'], data['1P'].start - 1), false);
+  assert.equal(hasUsableComets(data, ['1P'], data['1P'].start), true);
+  assert.equal(hasUsableComets({'1P':data['1P']}, ['2P', '1P'], lastDate(data['1P'])), true);
+});

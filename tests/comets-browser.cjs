@@ -5,6 +5,7 @@ const { expect } = require('@playwright/test');
 
 // Intercept built assets directly: no HTTP server, live profile or screenshots.
 async function routeFiles(page, root) {
+  await require('./comet-fixture.cjs').routeComets(page);
   await page.route('https://orrery.test/**', async route => {
     const pathname = new URL(route.request().url()).pathname.replace(/^\/Orrery\//, '/');
     const file = path.resolve(root, '.' + pathname + (pathname.endsWith('/') ? 'index.html' : ''));
@@ -23,7 +24,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     const errors=[];
     page.on('pageerror', e=>errors.push(e.message));
     let requests=0;
-    page.on('request',request=>{if(request.url().endsWith('/data/vectors.json')) requests++;});
+    page.on('request',request=>{if(request.url().includes('/comets/objects/')) requests++;});
     await routeFiles(page,root);
     try {
       await page.goto(`https://orrery.test/Orrery/next/?renderer=${renderer}`);
@@ -35,7 +36,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await expect(page.getByRole('checkbox',{name:'Show Halley',exact:true})).toHaveCount(0);
       await page.getByRole('checkbox',{name:'Show comets',exact:true}).check();
       await page.waitForFunction(()=>app.cometData && app.renderer.comets?.entries.every(e=>e.body.visible));
-      assert.equal(requests,1);
+      assert.equal(requests,3);
       await page.evaluate(() => {
         const check = (ok, message) => { if (!ok) throw new Error(message); };
         const series = app.cometData['55P'];
@@ -201,7 +202,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     let catalogRoute, vectorRoute, notifyVector;
     const vectorRequested=new Promise(resolve=>{notifyVector=resolve;});
     await page.route('**/data/catalog.json',route=>{catalogRoute=route;});
-    await page.route('**/data/vectors.json',route=>{vectorRoute=route;notifyVector();});
+    await page.route('**/comets/latest.json',route=>{vectorRoute=route;notifyVector();});
     try {
       await page.goto(`https://orrery.test/Orrery/next/?renderer=${renderer}`);
       await page.waitForFunction(()=>threeTest.app.initialized);
@@ -215,8 +216,105 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await vectorRequested;
       await page.evaluate(()=>app.destroy());
       await vectorRoute.abort().catch(()=>{});
-      await page.waitForFunction(()=>app.cometLoading===null);
-      assert(await page.evaluate(()=>app.cometData===null && document.querySelectorAll('.orrery-comet-label').length===0));
+      await page.waitForFunction(()=>app.destroyed);
+      assert(await page.evaluate(()=>!Object.keys(app.cometData || {}).length && document.querySelectorAll('.orrery-comet-label').length===0));
+    } finally { await page.close(); }
+  }
+  // Partial object acquisition and generation replacement through the real app.
+  for (const renderer of ['three', 'pixi']) {
+    const page = await browser.newPage({viewport:{width:390,height:844}});
+    await routeFiles(page, root);
+    const fixture = JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/comets/latest.json')));
+    const index = JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/comets',fixture.index.url)));
+    const encke = index.objects.find(entry=>entry.id==='2P').data.url;
+    let fail = true, downloads = 0, status = 503, discoveries = 0;
+    page.on('request', r=>{if(r.url().includes('/comets/objects/'))downloads++;
+      if(r.url().endsWith('/comets/latest.json')) discoveries++;});
+    await page.route('**/'+encke, r=>fail ? r.fulfill({status,body:'Unavailable'}) : r.fallback());
+    try {
+      await page.goto(`https://orrery.test/next/?renderer=${renderer}`);
+      await page.evaluate(()=>threeTest.ready);
+      await page.waitForFunction(()=>threeTest.app.catalogue?.firstDraw);
+      await page.evaluate(()=>{window.app=threeTest.app;app.jedDelta=0;app.cometIds=['1P','2P'];});
+      await page.getByRole('button',{name:'Options',exact:true}).click();
+      await page.getByRole('checkbox',{name:'Show comets',exact:true}).check();
+      await page.waitForFunction(()=>app.cometStates?.['1P']==='ready' && app.cometStates?.['2P']==='error');
+      const fit = page.getByRole('button',{name:'Fit selected comets'});
+      await expect(fit).toBeEnabled();
+      assert.equal(await page.evaluate(()=>app.renderer.comets.entries.filter(e=>e.body.visible).length),1);
+      await page.evaluate(()=>{app.jed=2444238.5;app.cancelRender();app.renderFrame();});
+      await expect(fit).toBeDisabled();
+      await page.evaluate(()=>{app.jed=2450000;app.cancelRender();app.renderFrame();});
+      await expect(fit).toBeEnabled();
+      // Hiding clears failed attempts, while keeping the verified Halley series.
+      const sourceId = await page.evaluate(()=>app.cometSourceId);
+      status=404;
+      await page.getByRole('checkbox',{name:'Show comets',exact:true}).uncheck();
+      await page.getByRole('checkbox',{name:'Show comets',exact:true}).check();
+      await page.waitForFunction(()=>app.cometStates['2P']==='error');
+      assert.equal(downloads,3,'Re-show retries the failed object only');
+      await expect(page.getByRole('status').filter({hasText:'reload the page'})).toBeVisible();
+      await page.getByRole('button',{name:'Retry comet data'}).click();
+      await page.waitForFunction(()=>app.cometStates['2P']==='error');
+      assert.equal(downloads,4,'Pinned missing object can retry without silently changing sources');
+      assert.equal(discoveries,1);
+      assert.equal(await page.evaluate(()=>app.cometSourceId),sourceId);
+      await page.getByRole('checkbox',{name:'Show Encke',exact:true}).uncheck();
+      fail=false;
+      await page.getByRole('checkbox',{name:'Show Encke',exact:true}).check();
+      await page.waitForFunction(()=>app.cometStates['2P']==='ready');
+      assert.equal(downloads,5,'Reselect retries the failed object');
+      await page.evaluate(()=>{app.cometsShown=false;app.cometsShown=true;});
+      assert.equal(downloads,5,'Showing verified selections reuses the cache');
+
+      await page.evaluate(()=>{app.cometIds=[];app.cometIds=['1P'];});
+      assert.equal(downloads,5,'Verified reselect does not download');
+      let delayed;
+      const tempel = index.objects.find(entry=>entry.id==='55P').data.url;
+      await page.route('**/'+tempel, route=>{delayed=route;});
+      await page.evaluate(()=>{app.cometIds=['55P'];});
+      await expect.poll(()=>!!delayed).toBe(true);
+      const other = renderer==='three' ? 'pixi' : 'three';
+      await page.getByRole('combobox',{name:'Renderer',exact:true}).selectOption(other);
+      await page.waitForFunction(id=>app.rendererId===id&&!app.switching,other);
+      await delayed.fallback();
+      await page.waitForFunction(()=>app.cometStates['55P']==='ready');
+      assert.equal(downloads,6,'New selection acquires its object');
+      await page.evaluate(async()=>{
+        app.cometIds=['1P'];
+        const layer=app.renderer.comets;
+        const path=layer.entries[0].path;
+        // A same-date new series must rebuild geometry, not reuse the range key.
+        const series=structuredClone(app.cometData['1P']);
+        series.states[0][0]+=1;
+        const before=layer.entries[0].range;
+        layer.setData({'1P':series});
+        if(layer.entries[0].range!=='')throw Error('Replacement retained cached path');
+        app.applyCometOptions();
+        await app.replaceCometSource('bundled');
+        if(app.cometSourceId!=='bundled-horizons-2026-11-18')throw Error('Incorrect fallback identity');
+        await app.replaceCometSource('hosted');
+        if(!/^[a-f0-9]{64}$/.test(app.cometSourceId))throw Error('Incorrect hosted identity');
+      });
+      await page.evaluate(()=>{
+        const renderer=app.renderer, focus=renderer.focusComets, options=renderer.setOptions;
+        let fits=0, updates=0;
+        renderer.focusComets=()=>{fits++;};
+        renderer.setOptions=function(...args){updates++;return options.apply(this,args);};
+        try {
+          app.cometsShown=false;
+          if(updates!==1)throw Error('Visibility sends duplicate options');
+          app.focusComets();
+          app.cometIds=[];app.cometsShown=true;app.focusComets();
+          app.cometIds=['1P'];
+          const date=app.jed;app.jed=2444238.5;app.focusComets();
+          app.jed=date;
+          if(fits!==0)throw Error('Invalid selection reached renderer fit');
+          app.focusComets();if(fits!==1)throw Error('Usable selection did not reach fit');
+        } finally {renderer.focusComets=focus;renderer.setOptions=options;}
+      });
+      await page.evaluate(()=>app.destroy());
+      assert.equal(await page.locator('.orrery-comet-label').count(),0);
     } finally { await page.close(); }
   }
   // Public entry and indexed catalogue, independent of the instrumented fixture.
@@ -224,8 +322,9 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     const page=await browser.newPage({viewport:{width:800,height:600}});
     await routeFiles(page,path.resolve('dist'));
     await require('./default-catalog-route.cjs').routeDefaultCatalog(page);
+    await require('./comet-fixture.cjs').routeComets(page);
     let failures=1;
-    await page.route('**/data/vectors.json',route=>failures-- > 0
+    await page.route('**/comets/latest.json',route=>failures-- > 0
       ? route.fulfill({status:503,body:'Unavailable'}) : route.fallback());
     try {
       await page.goto(`https://orrery.test/Orrery/?renderer=${renderer}&date=2026-11-18`);

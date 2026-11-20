@@ -217,6 +217,7 @@ export default class PixiRenderer {
     if (shared?.cometData && !this.comets && this.initialized) {
       this.comets = new Comets(this.stage, this.container, shared.cometData);
     }
+    if (shared?.cometData && this.comets) this.comets.setData(shared.cometData);
     if (shared) this.cometSettings = { ...this.cometSettings, ...shared };
     this.updateComets?.(this.lastJed);
     let changed = shared && ["asteroidsShown", "cometsShown", "cometPaths", "cometIds", "cometData"].some(key => shared[key] !== undefined);
