@@ -189,3 +189,11 @@ test('bounded transport rejects null bodies, oversized descriptors and wrong has
   const source=await CometSource.openLatest('https://fixture.test/comets/latest.json');
   corrupt=true;await assert.rejects(source.load('55P'));corrupt=false;await source.load('55P');source.close();
 });
+
+test('comet discovery rejects fragments before requesting data', async t => {
+  let requests = 0;
+  t.mock.method(globalThis, 'fetch', url => { requests++; return fixtureFetch(url); });
+  await assert.rejects(CometSource.openLatest('https://fixture.test/comets/latest.json#ambiguous'));
+  assert.equal(requests, 0);
+});
+

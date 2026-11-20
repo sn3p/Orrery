@@ -6,13 +6,6 @@ export const aborted = (product = 'catalogue') => new DOMException(`${title(prod
 export const check = (signal, product = 'catalogue') => { if (signal?.aborted) throw aborted(product); };
 export const decodeJSON = (bytes, product = 'catalogue') => parseJSON(new TextDecoder('utf-8', { fatal: true }).decode(bytes), product);
 
-export function linkCancellation(controller, signals) {
-  if (signals.some(signal => signal.aborted)) { controller.abort(); return () => {}; }
-  const cancel = () => controller.abort();
-  for (const signal of signals) signal.addEventListener('abort', cancel, { once: true });
-  return () => { for (const signal of signals) signal.removeEventListener('abort', cancel); };
-}
-
 async function readBounded(response, max, label, signal, product, exact = false) {
   check(signal, product);
   requireValue(response.body !== null && response.body !== undefined, `${label} (missing response body)`, product);
@@ -58,7 +51,7 @@ export async function fetchLatest(url, signal, product = 'catalogue') {
     const loopback = ['localhost', 'localhost.', '[::1]'].includes(location.hostname)
       || /^127(?:\.\d{1,3}){3}$/.test(location.hostname);
     requireValue((location.protocol === 'https:' || (location.protocol === 'http:' && loopback))
-      && !location.username && !location.password, 'latest URL (HTTPS required outside loopback)', product);
+      && !location.username && !location.password && !location.hash, 'latest URL (HTTPS required outside loopback)', product);
     check(signal, product);
     const response = await fetch(location.href, { signal, cache: 'no-cache', redirect: 'error' });
     check(signal, product);

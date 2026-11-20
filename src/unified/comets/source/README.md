@@ -2,8 +2,11 @@
 
 Vendored from sn3p/orrery-data commit `9cee185caba34a79994b8e30716f94133bdf85bf`
 (MIT, see LICENSE). CometSource.js, contract.js and transport.js are kept separate
-from the existing asteroid adapter. Local change: fetchVerified rejects redirects
-as well as descriptor discovery. Update all three together after conformance tests.
+from the existing asteroid adapter. Local adaptations: fetchVerified rejects
+redirects as well as descriptor discovery; discovery rejects URL fragments; unused
+asteroid validators and the cancellation-link helper are omitted. Compare all three modules on upstream
+updates and run comet conformance tests. The asteroid adapter has a different
+contract and transport API; sharing it requires a separate compatibility audit.
 
 The deterministic fixture in tests/fixtures/comets is the hosted v1 product,
 retrieved 2026-11-19. Index SHA-256:
