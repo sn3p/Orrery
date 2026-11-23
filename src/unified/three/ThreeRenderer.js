@@ -1,3 +1,4 @@
+import { syncCometLayer } from '../comets/layer.js';
 import Comets from "./Comets.js";
 import { cometFitPoints, validateCometOptions } from "../comets/model.js";
 import { PIXELS_PER_AU } from "../../js/constants.js";
@@ -170,13 +171,9 @@ export default class ThreeRenderer {
       this.asteroidsShown = shared.asteroidsShown;
       for (const cloud of [this.asteroids, this.stagedAsteroids, this.catalogueTransition?.previous]) cloud?.setShown(this.asteroidsShown);
     }
-    if (shared?.cometData && !this.comets && this.initialized) {
-      this.comets = new Comets(this.scene, this.container, shared.cometData);
-    }
-    if (shared?.cometData && this.comets) this.comets.setData(shared.cometData);
-    if (shared) this.cometSettings = { ...this.cometSettings, ...shared };
-    this.updateComets?.(this.lastJed);
-    let changed = shared && ["asteroidsShown", "cometsShown", "cometPaths", "cometIds", "cometData"].some(key => shared[key] !== undefined);
+    const cometsChanged = syncCometLayer(this, shared,
+      (data, catalogue) => new Comets(this.scene, this.container, data, catalogue));
+    let changed = cometsChanged || shared?.asteroidsShown !== undefined;
     if (mode !== undefined && mode !== this.planetLabelMode) {
       this.planetLabelMode = mode;
       this.planetLabels.setMode(this.planets, mode);
@@ -339,7 +336,7 @@ export default class ThreeRenderer {
   focusComets() {
     const settings = this.cometSettings;
     if (!settings?.cometData || !settings.cometIds?.length) return;
-    const points = cometFitPoints(settings.cometData, settings.cometIds, this.lastJed);
+    const points = cometFitPoints(settings.cometData, settings.cometIds, this.lastJed, settings.cometCatalogue);
     if (!points.length) return;
     this.cancelViewFit();
     // Fit the actual points in the current viewing direction, not a sphere

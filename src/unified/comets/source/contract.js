@@ -1,5 +1,4 @@
-// Comet adapter helpers adapted from the pinned MIT OrreryData reference.
-// Only product-neutral validation used by this reader is retained; see README.md.
+// Comet-used helpers from OrreryData; MIT lineage and local adaptations in README.md.
 export const requireValue = (ok, label, product = "catalogue") => { if (!ok) throw new Error(`Invalid ${product} ${label}.`); };
 export function keys(value, expected, optional = [], product = "catalogue") {
   requireValue(value !== null && typeof value === "object" && !Array.isArray(value)

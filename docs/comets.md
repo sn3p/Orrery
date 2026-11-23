@@ -1,7 +1,9 @@
 # Comets
 
-Options → **comets** enables three individually selectable objects: 1P/Halley,
-2P/Encke and 55P/Tempel–Tuttle. **asteroids** independently controls the existing
+Options → **comets** discovers individually selectable objects from the pinned catalogue,
+using its names and order. The initial v2 catalogue contains 1P/Halley, 2P/Encke,
+55P/Tempel–Tuttle, 9P/Tempel 1, 10P/Tempel 2 and 67P/Churyumov–Gerasimenko.
+Membership is not restricted to these six objects. **asteroids** independently controls the existing
 minor-planet population. Both renderers support both populations together or
 separately. **Fit selected comets** frames their trajectories; normal zoom and
 camera controls remain available. It fits the displayed trajectory windows in
@@ -30,17 +32,40 @@ orbit solutions and their assumptions, not direct observations at every date.
 Uncertainty grows away from observations. This is an educational visualization,
 not an observing ephemeris or meteor-shower prediction tool.
 
-Paths show approximately one orbital period centered near the displayed date.
+Known comets show approximately one orbital period centered near the displayed date.
+Entries without an app display period use a fixed **10-Julian-year window**
+(3652.5 days), identified in Options when selected. This presentation fallback is
+not an estimate of their orbital period: it may show part of a long orbit or
+several short ones. Scientific date coverage remains independent of this window.
 Near either data boundary, the entire window shifts into the available interval
 so the path keeps its full length. They follow the integrated trajectory rather
 than an artificially closed ellipse; the endpoints need not meet. Path windows
 advance in 32-day increments; markers interpolate continuously. The period is
 used only to choose the window. If a dataset is shorter than one period, the
 path uses all available samples without extrapolating.
+Drawing and Fit use the same window, even when paths are hidden.
+The original three display periods remain unchanged. The curated additions use
+these approximate app-owned durations, rounded from the published Horizons
+`PER` values in Julian years using 365.25 days/year:
+
+| Comet | Display days | Published PER (years) | Source epoch (TDB) | Solution |
+|---|---:|---:|---|---|
+| 9P | 2038 | 5.58040281918145 | 2016-03-28 | JPL#K284/3 |
+| 10P | 1958 | 5.35997037988402 | 2017-12-21 | JPL#K265/65 |
+| 67P | 2353 | 6.44237116469175 | 2015-10-10 | JPL#K284/1 |
+
+Source: each entry's `provenance.vectors.header` in the
+[pinned catalogue fixture](../tests/fixtures/comets-v2/index-b1b10e6d1fba1cb94cd1e03c2e39ea7ec93b584a89f74ece193dcdf8ba379567.json),
+from OrreryData revision `24cdc802e83f4a73f5bd2c33ea0a5246b83a66b4`.
+These epoch-specific periods only choose the display duration; they do not
+calculate positions, infer orbital elements, or promise an exact revolution
+at every date. Runtime code does not parse provenance headers. Catalogue
+membership remains unrestricted by this presentation lookup.
+
 Planets and asteroids retain the application's existing approximate fixed-element
 model; enabling comets does not increase their positional accuracy.
 
-All 32,871 available interval midpoints were compared with separately requested
+For the original bundled three, all 32,871 available interval midpoints were compared with separately requested
 Horizons vectors. Maximum interpolation differences in the retrieved sample:
 
 | Comet | Maximum midpoint difference (AU) |
@@ -56,11 +81,14 @@ Offline tests retain the worst midpoint for each object and a spread of dates.
 ## Data and updates
 
 Comets are distributed by [OrreryData](https://github.com/sn3p/orrery-data).
-On first enable, the app discovers `https://sn3p.github.io/orrery-data/comets/latest.json`
+On first enable, the app discovers `https://sn3p.github.io/orrery-data/comets-v2/latest.json`
 and pins its verified index for this visit. Each selected object loads separately,
 with bounded decoded length, SHA-256, schema, identity, conventions and reference
-interpolation checks. All three are selected by default, so normal first enable
-requests all three. Asteroid-only startup makes no comet requests.
+interpolation checks. The first six catalogue entries (or all entries when fewer) are selected on first enable.
+This bounds automatic object loading to six assets (at most 12 MiB decoded by the
+reader contract); every other entry stays available for explicit selection. Subsequent source replacements
+preserve selected IDs that remain available; removed selections are explained in
+Options, and new entries remain available for explicit selection. Asteroid-only startup makes no comet requests.
 
 Ready selections render and can be fitted while others load or fail. Retry loads
 missing selected objects under the same pin; deselection cancels outstanding reads.
@@ -92,3 +120,5 @@ The historical `scripts/fetch-comets.py` and bundled provenance are retained for
 rollback reproducibility only. Ordinary refreshes belong to OrreryData; do not run
 this script as part of installation, builds or tests. Source response hashes
 identify retrieved bytes, not hashes of transformed assets.
+
+The v2 reader verifies each catalogue entry against its own independent midpoint references and provenance. Reader source, dependencies, MIT license and lineage are retained in `src/unified/comets/source`.

@@ -4,7 +4,7 @@ import { replaceShareUrl, shareDateValue } from "./shareUrl.js";
 import PlaybackClock from "../js/PlaybackClock.js";
 import Stats from "../js/Stats.js";
 import Acquisition, { openHostedSource } from "./comets/Acquisition.js";
-import { DEFAULT_COMET_IDS, validCometIds, validateCometData, hasUsableComets } from "./comets/model.js";
+import { COMETS, DEFAULT_COMET_SELECTION_LIMIT, cataloguePresentation, validCometIds, validateCometData, hasUsableComets } from "./comets/model.js";
 import Hud from "./ui/Hud.js";
 import CatalogSource from "./catalog/CatalogSource.js";
 import CatalogLoader from "./catalog/CatalogLoader.js";
@@ -68,7 +68,10 @@ export default class App {
     this._asteroidsShown = true;
     this._cometsShown = false;
     this._cometPaths = true;
-    this._cometIds = [...DEFAULT_COMET_IDS];
+    this._cometIds = [];
+    this.cometCatalogue = [];
+    this.cometSelectionInitialized = false;
+    this.cometSelectionRevision = 0;
     this.cometData = null;
     this.cometLoading = null;
     this.cometError = false;
@@ -296,8 +299,10 @@ export default class App {
   }
   get cometIds() { return [...this._cometIds]; }
   set cometIds(ids) {
-    if (this.destroyed || !validCometIds(ids)) return;
+    if (this.destroyed || !validCometIds(ids, this.cometCatalogueSource ? this.cometCatalogue : undefined)) return;
     this._cometIds = [...ids];
+    this.cometSelectionNotice = '';
+    this.cometSelectionInitialized = true;
     void this.acquireComets();
   }
   applyCometOptions() {
@@ -316,8 +321,37 @@ export default class App {
     this.cometError = this._cometIds.some(id => acquisition.states[id] === 'error');
     this.applyCometOptions();
   }
-  acquireComets(retry = false) {
-    return this.cometAcquisition.select(this.cometsShown ? this._cometIds : [], retry);
+  async acquireComets(retry = false) {
+    if (this.destroyed || this.cometAcquisition.closed) return;
+    const revision = ++this.cometSelectionRevision;
+    const acquisition = this.cometAcquisition;
+    if (!this.cometsShown) return acquisition.select([]);
+    const generation = acquisition.generation;
+    if (!acquisition.current) {
+      this.cometDiscoveryState = 'loading';
+      this.applyCometOptions();
+    }
+    try {
+      const source = acquisition.current ?? await acquisition.source();
+      if (this.destroyed || revision !== this.cometSelectionRevision || generation !== acquisition.generation) return;
+      if (this.cometCatalogueSource !== source) {
+        this.cometCatalogueSource = source;
+        this.cometCatalogue = cataloguePresentation(source.info.objects);
+        const previous = this._cometIds;
+        this._cometIds = this.cometSelectionInitialized
+          ? previous.filter(id => this.cometCatalogue.some(entry => entry.id === id))
+          : this.cometCatalogue.slice(0, DEFAULT_COMET_SELECTION_LIMIT).map(entry => entry.id);
+        this.cometSelectionNotice = previous.some(id => !this._cometIds.includes(id))
+          ? 'Some selected comets are absent from this catalogue. Select available comets below.' : '';
+        this.cometSelectionInitialized = true;
+      }
+      this.cometDiscoveryState = 'ready';
+      return acquisition.select(this._cometIds, retry);
+    } catch {
+      if (this.destroyed || revision !== this.cometSelectionRevision || generation !== acquisition.generation) return;
+      this.cometDiscoveryState = 'error';
+      this.applyCometOptions();
+    }
   }
   loadComets() { return this.acquireComets(true); }
   // Explicit rollback/reload transaction. Never blend bundled and hosted pins.
@@ -329,9 +363,13 @@ export default class App {
       const response = await fetch(url, { signal });
       if (!response.ok) throw new Error('Could not load bundled comet data.');
       const data = validateCometData(await response.json());
-      return { sourceId: 'bundled-horizons-2026-11-18', info: { distributor: 'Orrery bundled fallback' },
+      return { sourceId: 'bundled-horizons-2026-11-18', info: { distributor: 'Orrery bundled fallback', objects: COMETS },
         load: async id => ({ series: data[id] }), close() {} };
     };
+    this.cometCatalogue = [];
+    this.cometSelectionNotice = '';
+    this.cometCatalogueSource = null;
+    this.cometDiscoveryState = null;
     this.cometAcquisition.replace(open);
     return this.acquireComets();
   }
@@ -348,7 +386,7 @@ export default class App {
       planetOrbits: this.planetOrbits, populationPreset: this.populationPreset,
       colorizeGroups: this.colorizeGroups, asteroidsShown: this.asteroidsShown,
       cometsShown: this.cometsShown, cometIds: this.cometIds, cometPaths: this.cometPaths,
-      cometData: this.cometData }, renderer };
+      cometData: this.cometData, cometCatalogue: this.cometCatalogue }, renderer };
   }
 
   init() {
