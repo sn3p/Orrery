@@ -79,7 +79,7 @@ test('firefox launch forces WebGL on', () => {
 
 test('every runner entry imports without starting a standalone process', () => {
   for (const suite of ['assets', 'next', 'unified', 'gpu', 'rendering', 'options-browser',
-    'benchmark', 'scheduling', 'ui', 'next-dev', 'benchmark-clone', 'browser-environment', 'catalog-suite', 'three', 'three-benchmark', 'switching', 'default-catalog']) {
+    'benchmark', 'scheduling', 'ui', 'next-dev', 'benchmark-clone', 'browser-environment', 'catalog-suite', 'three', 'three-benchmark', 'switching', 'startup-switching', 'default-catalog']) {
     assert.equal(typeof require(`./${suite}.cjs`).run, 'function', suite);
   }
 });
@@ -187,9 +187,9 @@ test('native discovery preserves coverage and each browser shard partitions it e
   const catalogueChromium = ['catalogue benchmark completion', 'catalogue configured preview development'];
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     const cases = all.filter(row => row.project === browser);
-    assert.equal(cases.length, 35);
+    assert.equal(cases.length, 36);
     assert.equal(cases.filter(row => row.title.includes('Three ')).length, 5);
-    assert.equal(cases.filter(row => row.title.includes('Renderer switching ')).length, 6);
+    assert.equal(cases.filter(row => row.title.includes('Renderer switching ')).length, 7);
     for (const title of [...required, ...catalogue]) assert.equal(cases.filter(row => row.title.includes(title)).length, 1, `${browser}: ${title}`);
     // Partition exactly as the nightly/manual workflow matrix shards it.
     const count = plan([], { full: true }).matrix.include.filter(job => job.project === browser).length;

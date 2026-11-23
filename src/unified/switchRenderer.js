@@ -76,7 +76,8 @@ async function rebuild(app, create, id, signal) {
         session.adapterFailure = null;
       }
     }
-    if (app.activeSession?.model === model) app.activeSession.loader.rendered(receipt);
+    // Before the first catalogue commit, both model values can be undefined.
+    if (app.activeSession && app.activeSession.model === model) app.activeSession.loader.rendered(receipt);
     app.contextLost = false;
     app.renderFailure = null;
     app.graphicsRecoveryPending = app.rendererRecovery = false;
