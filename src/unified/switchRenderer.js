@@ -76,7 +76,8 @@ async function rebuild(app, create, id, signal) {
         session.adapterFailure = null;
       }
     }
-    if (app.activeSession?.model === model) app.activeSession.loader.rendered(receipt);
+    // During startup, no catalogue has committed and there is no active session yet.
+    if (app.activeSession && app.activeSession.model === model) app.activeSession.loader.rendered(receipt);
     app.contextLost = false;
     app.renderFailure = null;
     app.graphicsRecoveryPending = app.rendererRecovery = false;

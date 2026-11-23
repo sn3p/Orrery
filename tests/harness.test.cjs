@@ -79,8 +79,36 @@ test('firefox launch forces WebGL on', () => {
 
 test('every runner entry imports without starting a standalone process', () => {
   for (const suite of ['assets', 'next', 'unified', 'gpu', 'rendering', 'options-browser',
-    'benchmark', 'scheduling', 'ui', 'next-dev', 'benchmark-clone', 'browser-environment', 'catalog-suite', 'three', 'three-benchmark', 'switching', 'default-catalog']) {
+    'benchmark', 'scheduling', 'ui', 'next-dev', 'benchmark-clone', 'browser-environment', 'catalog-suite', 'three', 'three-benchmark', 'switching', 'startup-switching', 'default-catalog']) {
     assert.equal(typeof require(`./${suite}.cjs`).run, 'function', suite);
+  }
+});
+
+test('in-process app routes serve files and reject directory or missing paths', async t => {
+  const root = fs.mkdtempSync(path.resolve('.context/route-files-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, 'assets'));
+  fs.writeFileSync(path.join(root, 'index.html'), '<title>Fixture</title>');
+  fs.writeFileSync(path.join(root, 'assets', 'main.js'), 'fixture');
+  let handler;
+  await require('./route-files.cjs').routeFiles({
+    route: async (pattern, callback) => { assert.equal(pattern, 'https://orrery.test/**'); handler = callback; },
+  }, root);
+  const request = async pathname => {
+    let response;
+    await handler({ request: () => ({ url: () => 'https://orrery.test' + pathname }),
+      fulfill: async options => { response = options; if (options.path) fs.readFileSync(options.path); },
+    });
+    return response;
+  };
+  for (const prefix of ['', '/Orrery']) {
+    assert.equal((await request(prefix + '/')).path, path.join(root, 'index.html'));
+    const script = await request(prefix + '/assets/main.js');
+    assert.equal(script.path, path.join(root, 'assets/main.js'));
+    assert.equal(script.contentType, 'text/javascript');
+    for (const pathname of ['/assets', '/assets/', '/missing.js']) {
+      assert.deepEqual(await request(prefix + pathname), { status: 404 });
+    }
   }
 });
 
@@ -187,9 +215,9 @@ test('native discovery preserves coverage and each browser shard partitions it e
   const catalogueChromium = ['catalogue benchmark completion', 'catalogue configured preview development'];
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     const cases = all.filter(row => row.project === browser);
-    assert.equal(cases.length, 35);
+    assert.equal(cases.length, 51);
     assert.equal(cases.filter(row => row.title.includes('Three ')).length, 5);
-    assert.equal(cases.filter(row => row.title.includes('Renderer switching ')).length, 6);
+    assert.equal(cases.filter(row => row.title.includes('Renderer switching ')).length, 22);
     for (const title of [...required, ...catalogue]) assert.equal(cases.filter(row => row.title.includes(title)).length, 1, `${browser}: ${title}`);
     // Partition exactly as the nightly/manual workflow matrix shards it.
     const count = plan([], { full: true }).matrix.include.filter(job => job.project === browser).length;

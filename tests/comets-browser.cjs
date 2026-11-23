@@ -3,16 +3,11 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { expect } = require('@playwright/test');
 
-// Intercept built assets directly: no HTTP server, live profile or screenshots.
+const { routeFiles: routeAppFiles } = require('./route-files.cjs');
+
 async function routeFiles(page, root) {
   await require('./comet-fixture.cjs').routeComets(page);
-  await page.route('https://orrery.test/**', async route => {
-    const pathname = new URL(route.request().url()).pathname.replace(/^\/Orrery\//, '/');
-    const file = path.resolve(root, '.' + pathname + (pathname.endsWith('/') ? 'index.html' : ''));
-    if (!file.startsWith(path.resolve(root) + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return route.fulfill({ status:404 });
-    const contentType = {'.js':'text/javascript','.json':'application/json','.html':'text/html','.css':'text/css','.woff2':'font/woff2'}[path.extname(file)] || 'application/octet-stream';
-    return route.fulfill({path:file,contentType});
-  });
+  await routeAppFiles(page, root);
 }
 
 async function run({browser, name, output = '.context/comet-browser'}) {
