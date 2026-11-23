@@ -81,7 +81,7 @@ Offline tests retain the worst midpoint for each object and a spread of dates.
 ## Data and updates
 
 Comets are distributed by [OrreryData](https://github.com/sn3p/orrery-data).
-On first enable, the app discovers `https://sn3p.github.io/orrery-data/comets-v2/latest.json`
+On first enable, the app discovers `https://sn3p.github.io/orrery-data/comets/latest.json`
 and pins its verified index for this visit. Each selected object loads separately,
 with bounded decoded length, SHA-256, schema, identity, conventions and reference
 interpolation checks. The first six catalogue entries (or all entries when fewer) are selected on first enable.

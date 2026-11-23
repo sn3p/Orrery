@@ -97,18 +97,30 @@ test('invalid comet assets and settings fail before scene mutation', () => {
 
 // Real producer bytes exercise the same integrity and provenance boundary as visits.
 import CometSource, { validateComet } from '../src/unified/comets/source/CometCatalogSource.js';
-import Acquisition from '../src/unified/comets/Acquisition.js';
+import Acquisition, { openHostedSource } from '../src/unified/comets/Acquisition.js';
 const fixtureRoot = new URL('./fixtures/comets-v2/', import.meta.url);
 const descriptor = JSON.parse(fs.readFileSync(new URL('latest.json', fixtureRoot)));
 const index = JSON.parse(fs.readFileSync(new URL(descriptor.index.url, fixtureRoot)));
 function fixtureFetch(url) {
-  const name = new URL(url).pathname.split('/comets-v2/')[1];
+  const name = new URL(url).pathname.split('/comets/').at(-1);
   return Promise.resolve(new Response(fs.readFileSync(new URL(name, fixtureRoot))));
 }
+test('default hosted acquisition uses the unversioned catalogue and relative assets', async t => {
+  const calls = [];
+  t.mock.method(globalThis, 'fetch', (url) => { calls.push(String(url)); return fixtureFetch(url); });
+  const source = await openHostedSource(new AbortController().signal);
+  try {
+    for (const entry of index.objects) await source.load(entry.id);
+    assert.equal(calls[0], 'https://sn3p.github.io/orrery-data/comets/latest.json');
+    assert.deepEqual(calls.slice(1), [descriptor.index.url, ...index.objects.map(entry => entry.data.url)]
+      .map(file => 'https://sn3p.github.io/orrery-data/comets/' + file));
+    assert.equal(source.sourceId, descriptor.index.sha256);
+  } finally { source.close(); }
+});
 test('hosted contract fixture verifies all bytes, provenance, references and baseline series', async t => {
   const calls=[];
   t.mock.method(globalThis,'fetch',(url,options)=>{calls.push([url,options]);return fixtureFetch(url);});
-  const source=await CometSource.openLatest('https://fixture.test/nested/comets-v2/latest.json');
+  const source=await CometSource.openLatest('https://fixture.test/nested/comets/archive/comets/latest.json');
   assert.equal(source.sourceId,descriptor.index.sha256);
   for(const id of DEFAULT_IDS()) {
     const [a,b]=await Promise.all([source.load(id),source.load(id)]);
@@ -134,7 +146,7 @@ test('invalid product fields and corrupt/truncated transport never enter cache',
     if(bad&&url.includes('/objects/'))return new Response('bad');
     return fixtureFetch(url);
   });
-  const source=await CometSource.openLatest('https://fixture.test/comets-v2/latest.json');
+  const source=await CometSource.openLatest('https://fixture.test/comets/latest.json');
   bad=true;await assert.rejects(source.load('1P'));bad=false;
   assert.deepEqual((await source.load('1P')).series,data['1P']);source.close();
 });
@@ -164,7 +176,7 @@ test('source subscribers cancel independently, all-cancel retries and pre-aborte
     signal.addEventListener('abort',()=>gate.reject(new DOMException('Cancelled','AbortError')),{once:true});
     await gate.promise;return fixtureFetch(url);
   });
-  const source=await CometSource.openLatest('https://fixture.test/comets-v2/latest.json');
+  const source=await CometSource.openLatest('https://fixture.test/comets/latest.json');
   const one=new AbortController(),two=new AbortController();
   const a=source.load('1P',{signal:one.signal}),b=source.load('1P',{signal:two.signal});
   const rejected=assert.rejects(a,{name:'AbortError'});one.abort();gate.resolve();
@@ -179,14 +191,14 @@ test('bounded transport rejects null bodies, oversized descriptors and wrong has
   let response;
   t.mock.method(globalThis,'fetch',async()=>response);
   for(const body of [null,' '.repeat(4097),'{']){
-    response=new Response(body);await assert.rejects(CometSource.openLatest('https://fixture.test/comets-v2/latest.json'));
+    response=new Response(body);await assert.rejects(CometSource.openLatest('https://fixture.test/comets/latest.json'));
   }
   let corrupt=false;
   globalThis.fetch=async url=>{
     const r=await fixtureFetch(url);if(!corrupt||!url.includes('/objects/'))return r;
     const bytes=new Uint8Array(await r.arrayBuffer());bytes[bytes.length-2]^=1;return new Response(bytes);
   };
-  const source=await CometSource.openLatest('https://fixture.test/comets-v2/latest.json');
+  const source=await CometSource.openLatest('https://fixture.test/comets/latest.json');
   corrupt=true;await assert.rejects(source.load('55P'));corrupt=false;await source.load('55P');source.close();
 });
 
@@ -231,7 +243,7 @@ test('unexpected AbortError becomes retryable rather than stuck loading', async 
 test('comet discovery rejects fragments before requesting data', async t => {
   let requests = 0;
   t.mock.method(globalThis, 'fetch', url => { requests++; return fixtureFetch(url); });
-  await assert.rejects(CometSource.openLatest('https://fixture.test/comets-v2/latest.json#ambiguous'));
+  await assert.rejects(CometSource.openLatest('https://fixture.test/comets/latest.json#ambiguous'));
   assert.equal(requests, 0);
 });
 

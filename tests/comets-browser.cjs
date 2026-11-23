@@ -19,7 +19,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     const errors=[];
     page.on('pageerror', e=>errors.push(e.message));
     let requests=0;
-    page.on('request',request=>{if(request.url().includes('/comets-v2/objects/')) requests++;});
+    page.on('request',request=>{if(request.url().includes('/comets/objects/')) requests++;});
     await routeFiles(page,root);
     try {
       await page.goto(`https://orrery.test/Orrery/next/?renderer=${renderer}`);
@@ -199,7 +199,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     let catalogRoute, vectorRoute, notifyVector;
     const vectorRequested=new Promise(resolve=>{notifyVector=resolve;});
     await page.route('**/data/catalog.json',route=>{catalogRoute=route;});
-    await page.route('**/comets-v2/latest.json',route=>{vectorRoute=route;notifyVector();});
+    await page.route('**/comets/latest.json',route=>{vectorRoute=route;notifyVector();});
     try {
       await page.goto(`https://orrery.test/Orrery/next/?renderer=${renderer}`);
       await page.waitForFunction(()=>threeTest.app.initialized);
@@ -225,8 +225,8 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     const index = JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/comets-v2',fixture.index.url)));
     const encke = index.objects.find(entry=>entry.id==='2P').data.url;
     let fail = true, downloads = 0, status = 503, discoveries = 0;
-    page.on('request', r=>{if(r.url().includes('/comets-v2/objects/'))downloads++;
-      if(r.url().endsWith('/comets-v2/latest.json')) discoveries++;});
+    page.on('request', r=>{if(r.url().includes('/comets/objects/'))downloads++;
+      if(r.url().endsWith('/comets/latest.json')) discoveries++;});
     await page.route('**/'+encke, r=>fail ? r.fulfill({status,body:'Unavailable'}) : r.fallback());
     try {
       await page.goto(`https://orrery.test/next/?renderer=${renderer}`);
@@ -321,13 +321,17 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     await routeFiles(page,root);
     let product = require('./comet-catalogue-fixture.cjs').product(['67P','123P','1P']);
     let requests = 0;
-    await page.route('**/comets-v2/**', route => {
+    await page.route('**/comets/**', route => {
       requests++;
-      const file = new URL(route.request().url()).pathname.split('/comets-v2/')[1];
+      const file = new URL(route.request().url()).pathname.split('/comets/')[1];
+      if (!product.files.has(file)) return route.fulfill({status:404});
       return route.fulfill({body:product.files.get(file),contentType:'application/json'});
     });
     try {
       await page.goto(`https://orrery.test/next/?renderer=${renderer}`);
+      assert.equal(await page.evaluate(async () =>
+        (await fetch('https://sn3p.github.io/orrery-data/comets/missing.json')).status), 404,
+        'Missing synthetic catalogue assets return 404');
       await page.evaluate(()=>threeTest.ready);
       await page.waitForFunction(()=>threeTest.app.catalogue?.firstDraw);
       await page.evaluate(()=>{window.app=threeTest.app;app.jedDelta=0;});
@@ -396,13 +400,17 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     const ids=['1P','2P','55P','9P','10P','67P','123P','124P'];
     const product=require('./comet-catalogue-fixture.cjs').product(ids);
     let downloads=0;
-    await page.route('**/comets-v2/**',route=>{
-      const file=new URL(route.request().url()).pathname.split('/comets-v2/')[1];
+    await page.route('**/comets/**',route=>{
+      const file=new URL(route.request().url()).pathname.split('/comets/')[1];
       if(file.startsWith('objects/'))downloads++;
+      if (!product.files.has(file)) return route.fulfill({status:404});
       return route.fulfill({body:product.files.get(file),contentType:'application/json'});
     });
     try {
       await page.goto(`https://orrery.test/next/?renderer=${renderer}`);
+      assert.equal(await page.evaluate(async () =>
+        (await fetch('https://sn3p.github.io/orrery-data/comets/missing.json')).status), 404,
+        'Missing synthetic catalogue assets return 404');
       await page.evaluate(()=>threeTest.ready);
       await page.waitForFunction(()=>threeTest.app.catalogue?.firstDraw);
       await page.evaluate(()=>{window.app=threeTest.app;app.jedDelta=0;app.cometsShown=true;});
@@ -432,7 +440,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     await require('./default-catalog-route.cjs').routeDefaultCatalog(page);
     await require('./comet-fixture.cjs').routeComets(page);
     let failures=1;
-    await page.route('**/comets-v2/latest.json',route=>failures-- > 0
+    await page.route('**/comets/latest.json',route=>failures-- > 0
       ? route.fulfill({status:503,body:'Unavailable'}) : route.fallback());
     try {
       await page.goto(`https://orrery.test/Orrery/?renderer=${renderer}&date=2026-11-18`);
