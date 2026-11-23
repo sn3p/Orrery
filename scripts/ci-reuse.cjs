@@ -8,7 +8,8 @@ const { selection, plan } = require('../tests/ci-policy.cjs');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function validPlan(p) {
-  if (p?.code !== true || typeof p.buildTests !== 'boolean' || !['draft', 'routine', 'full'].includes(p.budget)) return false;
+  if (p?.code !== true || typeof p.buildTests !== 'boolean' || typeof p.groups !== 'string'
+    || !['draft', 'routine', 'full'].includes(p.budget)) return false;
   try { selection(p.groups); } catch { return false; }
   const expected = plan(['package.json'], { draft: p.budget === 'draft', full: p.budget === 'full' });
   return p.mode === expected.mode && isDeepStrictEqual(p.matrix, expected.matrix)

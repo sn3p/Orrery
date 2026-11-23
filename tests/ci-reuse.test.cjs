@@ -49,6 +49,10 @@ test('readiness finds completed or running coverage and handles a late receipt w
 });
 
 test('malformed coverage receipts cannot suppress required work', () => {
+  const routine = { ...record(), plan: plan(['src/css/main.css']) };
+  assert(compatible(routine, run, current));
+  delete routine.plan.groups;
+  assert(!compatible(routine, run, current), 'Missing groups must not inherit full selection from the process environment');
   for (const change of [{ matrix: { include: [] } }, { budget: 'unknown' }, { mode: 'full' },
     { matrix: { include: record().plan.matrix.include.slice(0, 1) } }, { groups: 'full' }, { code: 'true' }]) {
     assert(!compatible({ ...record(), plan: { ...record().plan, ...change } }, run, current), JSON.stringify(change));

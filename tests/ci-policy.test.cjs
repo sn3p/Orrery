@@ -149,6 +149,7 @@ test('planner CLI handles real PR divergence, rename/delete, push, missing histo
     const eventPath = path.join(directory, 'event.json'), output = path.join(directory, 'output'), summary = path.join(directory, 'summary');
     fs.writeFileSync(eventPath, JSON.stringify(event)); fs.writeFileSync(output, ''); fs.writeFileSync(summary, '');
     execFileSync(process.execPath, [cli], { cwd: directory, env: { ...process.env,
+      GITHUB_SHA: git('rev-parse', 'HEAD').trim(),
       GITHUB_EVENT_NAME: name, GITHUB_EVENT_PATH: eventPath, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary }, stdio: 'pipe' });
     return Object.fromEntries(fs.readFileSync(output, 'utf8').trim().split('\n').map(line => {
       const i = line.indexOf('='); return [line.slice(0, i), line.slice(i + 1)];
