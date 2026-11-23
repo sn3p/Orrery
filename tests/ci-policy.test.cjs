@@ -231,7 +231,7 @@ test('native selection retains core in Chromium, smoke in other engines and two 
   const cli = require.resolve('@playwright/test/cli');
   const list = (groups, runMode, args) => [process.execPath, [cli, 'test', '--list', '--reporter=json', ...args], {
     encoding: 'utf8', maxBuffer: 10 * 1024 * 1024,
-    env: { ...process.env, BROWSERS: 'chromium,firefox,webkit', ORRERY_TEST_GROUPS: groups, ORRERY_TEST_MODE: runMode },
+    env: { ...process.env, BROWSERS: 'chromium,firefox,webkit', ORRERY_TEST_GROUPS: groups, ORRERY_TEST_MODE: runMode, ORRERY_PREVIOUS_COVERAGE: '' },
   }];
   const parse = stdout => {
     const rows = [];
@@ -313,7 +313,9 @@ test('native selection retains core in Chromium, smoke in other engines and two 
 test('aggregate gate rejects failing, cancelled, missing or unexpectedly skipped selected jobs', () => {
   const baseline = { plan: { result: 'success', outputs: { code: 'true', 'build-tests': 'false' } },
     node: { result: 'success' }, build: { result: 'success' }, 'build-tests': { result: 'skipped' },
-    'browser-tests': { result: 'success' }, standalone: { result: 'success' } };
+    'browser-tests': { result: 'success' }, standalone: { result: 'success' }, baseline: { result: 'skipped' } };
+  const requirements = { node: true, build: true, 'build-tests': false, 'browser-tests': true, standalone: true, baseline: false };
+  baseline.plan.outputs.execution = JSON.stringify(requirements);
   verify(baseline);
   const malformed = structuredClone(baseline); delete malformed.plan.outputs.code;
   assert.throws(() => verify(malformed));
@@ -324,8 +326,10 @@ test('aggregate gate rejects failing, cancelled, missing or unexpectedly skipped
     }
   }
   const full = structuredClone(baseline); full.plan.outputs['build-tests'] = 'true';
+  full.plan.outputs.execution = JSON.stringify({ ...requirements, 'build-tests': true });
   assert.throws(() => verify(full)); full['build-tests'].result = 'success'; verify(full);
   const docs = structuredClone(baseline); docs.plan.outputs.code = 'false';
+  docs.plan.outputs.execution = JSON.stringify(Object.fromEntries(Object.keys(requirements).map(job => [job, false])));
   for (const job of ['node', 'build', 'browser-tests', 'standalone']) docs[job].result = 'skipped';
   verify(docs);
 });

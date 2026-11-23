@@ -5,8 +5,15 @@ function verify(needs) {
   }
   const code = needs.plan.outputs.code === 'true';
   const build = needs.plan.outputs['build-tests'] === 'true';
-  for (const [job, required] of Object.entries({ node: code, build: code, 'build-tests': build, 'browser-tests': code, standalone: code })) {
-    const expected = required ? 'success' : 'skipped';
+  const execution = JSON.parse(needs.plan.outputs.execution);
+  if (execution['build-tests'] !== build || execution.build !== execution['browser-tests']
+    || (!code && Object.values(execution).some(Boolean))
+    || (code && !execution.baseline && ['node', 'build', 'browser-tests', 'standalone'].some(job => execution[job] !== true))) {
+    throw new Error('Inconsistent execution requirements');
+  }
+  for (const job of ['node', 'build', 'build-tests', 'browser-tests', 'standalone', 'baseline']) {
+    if (typeof execution[job] !== 'boolean') throw new Error(`Invalid execution requirement: ${job}`);
+    const expected = execution[job] ? 'success' : 'skipped';
     if (needs[job]?.result !== expected) throw new Error(`${job}: expected ${expected}, got ${needs[job]?.result}`);
   }
 }

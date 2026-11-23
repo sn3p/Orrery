@@ -25,12 +25,36 @@ function fromEvent(eventName, event, git) {
   if (readyEvent(eventName, event) && plan(files).code) return plan(files, { full: true });
   return plan(files);
 }
-if (require.main === module) {
+async function main() {
   const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
   const result = fromEvent(process.env.GITHUB_EVENT_NAME, event);
-  const values = { code: result.code, 'build-tests': result.buildTests, budget: result.budget, mode: result.mode, groups: result.groups, matrix: JSON.stringify(result.matrix) };
+  const { apiClient, findSource, execution } = require('./ci-reuse.cjs');
+  const testedSha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  if (process.env.GITHUB_SHA && testedSha !== process.env.GITHUB_SHA) throw new Error('Checkout does not match the event revision');
+  const current = { version: 1, repository: process.env.GITHUB_REPOSITORY, pr: event.pull_request?.number || event.number,
+    sha: testedSha, head: event.pull_request?.head?.sha, base: event.pull_request?.base?.sha,
+    run: Number(process.env.GITHUB_RUN_ID), attempt: Number(process.env.GITHUB_RUN_ATTEMPT) };
+  let source = null;
+  if (readyEvent(process.env.GITHUB_EVENT_NAME, event) && result.code && process.env.GH_TOKEN) {
+    const api = apiClient(current.repository);
+    current.workflow = api.run(current.run).workflow_id;
+    source = await findSource(current, api);
+  }
+  const jobs = execution(result, source);
+  const previous = source ? { mode: source.plan.mode, groups: source.plan.groups,
+    projects: [...new Set(source.plan.matrix.include.map(job => job.project))] } : null;
+  const values = { code: result.code, groups: result.groups, mode: result.mode, budget: result.budget,
+    matrix: JSON.stringify(result.matrix), execution: JSON.stringify(jobs),
+    'source-run': source?.run || '', 'source-attempt': source?.attempt || '',
+    previous: previous ? JSON.stringify(previous) : '', ...jobs };
+  // Preserve the plan's integration requirement for consumers of the receipt.
   fs.appendFileSync(process.env.GITHUB_OUTPUT, Object.entries(values).map(([key, value]) => `${key}=${value}\n`).join(''));
-  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Test plan\n\nBudget: **${result.budget}**. Mode: **${result.mode}**. Groups: **${result.groups}**. Code checks: **${result.code}**. Build integrations: **${result.buildTests}**.\n\nDraft PRs run Chromium core only. Marking a PR ready (or opening it ready) runs the full suite once; later pushes run the routine budget. The full suite also runs nightly and with workflow_dispatch. See docs/browser-tests.md.\n`);
+  fs.mkdirSync('.context', { recursive: true });
+  fs.writeFileSync('.context/ci-plan.json', JSON.stringify({ ...current, plan: result, source }, null, 2));
+  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Test plan\n\nBudget: **${result.budget}**. Groups: **${result.groups}**.\n\n`
+    + (source ? `Reusing [run ${source.run}](https://github.com/${current.repository}/actions/runs/${source.run}) attempt ${source.attempt} for the exact merge revision ${current.sha}. Only missing checks run here; CI also requires the source CI gate to pass.\n`
+      : 'No reusable evidence selected. All checks in this budget run here.\n'));
   console.log(JSON.stringify(result));
 }
-module.exports = { changedFiles, fromEvent, readyEvent };
+if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1; });
+module.exports = { changedFiles, fromEvent, readyEvent, main };
