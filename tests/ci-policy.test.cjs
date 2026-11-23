@@ -6,8 +6,41 @@ const os = require('node:os');
 const { execFile, execFileSync } = require('node:child_process');
 const { promisify } = require('node:util');
 const { plan, selection, fixtureKeys, mode } = require('./ci-policy.cjs');
-const { fromEvent } = require('../scripts/ci-plan.cjs');
+const { fromEvent, changedFiles } = require('../scripts/ci-plan.cjs');
 const { verify } = require('../scripts/ci-gate.cjs');
+
+test('workflow protects readiness coverage while superseding routine PR updates', () => {
+  const workflow = require('js-yaml').load(fs.readFileSync('.github/workflows/pages.yml', 'utf8'));
+  assert.deepEqual([...workflow.on.pull_request.types].sort(),
+    ['opened', 'synchronize', 'reopened', 'ready_for_review'].sort());
+  // These expressions use the JS-compatible subset of Actions syntax: property
+  // access, equality and boolean operators with lowercase string constants.
+  // Evaluate the parsed scalar values, independently of YAML formatting.
+  const evaluate = (expression, github) => Function('github', `return (${expression});`)(github);
+  const render = (value, github) => value.replace(/\$\{\{([\s\S]*?)\}\}/g,
+    (_, expression) => String(evaluate(expression, github)));
+  const context = (action, draft = false, number = 123) => ({ event_name: 'pull_request',
+    ref: `refs/pull/${number}/merge`, event: { action, pull_request: { draft, number } } });
+  const group = github => render(workflow.concurrency.group, github);
+  const update = context('synchronize');
+  const ready = context('ready_for_review');
+  assert.notEqual(group(ready), group(update), 'Routine pushes must not cancel readiness coverage');
+  assert.equal(group(ready), group(context('opened')), 'Opening ready and marking ready share the full-run group');
+  for (const event of [update, context('reopened'), context('opened', true), context('synchronize', true)]) {
+    assert.equal(group(event), group(update), 'Draft/routine updates supersede one another');
+    assert.equal(render(workflow.concurrency['cancel-in-progress'], event), 'true');
+    assert.equal(render(workflow.concurrency.queue, event), 'single');
+  }
+  assert.equal(render(workflow.concurrency['cancel-in-progress'], ready), 'true');
+  for (const action of ['synchronize', 'ready_for_review']) {
+    assert.notEqual(group(context(action, false, 123)), group(context(action, false, 456)), 'PR groups are isolated');
+  }
+  const master = { event_name: 'push', ref: 'refs/heads/master', event: {} };
+  assert.notEqual(group(master), group(update));
+  assert.notEqual(group(master), group(ready));
+  assert.equal(render(workflow.concurrency['cancel-in-progress'], master), 'false');
+  assert.equal(render(workflow.concurrency.queue, master), 'max');
+});
 
 test('path policy preserves risky changes, unions groups and defaults unknown files to full', () => {
   assert.equal(plan(['docs/browser-tests.md', 'README.md']).code, false);
@@ -56,8 +89,7 @@ test('path policy preserves risky changes, unions groups and defaults unknown fi
     assert.equal(result.matrix.include.length, 6, files.join(','));
   }
   assert.equal(plan([], { full: true }).mode, 'full');
-  assert.equal(plan([], { full: true }).matrix.include.length, 10);
-  // Drafts run Chromium core only, whatever the paths select.
+  assert.equal(plan([], { full: true }).matrix.include.length, 13);
   for (const files of [['src/css/main.css'], ['src/unified/App.js'], ['package-lock.json']]) {
     const draft = plan(files, { draft: true });
     assert.equal(draft.budget, 'draft'); assert.equal(draft.mode, 'pr'); assert.equal(draft.groups, 'core');
@@ -122,8 +154,10 @@ test('planner CLI handles real PR divergence, rename/delete, push, missing histo
       const i = line.indexOf('='); return [line.slice(0, i), line.slice(i + 1)];
     }));
   }
-  const pr = run('pull_request', { pull_request: { base: { sha: movedBase }, head: { sha: head } } });
-  assert.equal(pr.groups, 'core,ui', 'Rename retains removed code; unrelated base commits do not inflate selection');
+  assert.deepEqual(changedFiles('pull_request', { pull_request: { base: { sha: movedBase }, head: { sha: head } } }, git),
+    ['docs/moved.md', 'src/css/main.css'], 'Rename keeps removed code; unrelated base work stays outside the PR diff');
+  const pr = run('pull_request', { action: 'synchronize', pull_request: { base: { sha: movedBase }, head: { sha: head } } });
+  assert.equal(pr.groups, 'core,ui', 'Routine PRs retain actual path selection across a divergent base and rename');
   assert.equal(pr.code, 'true'); assert.equal(pr.mode, 'pr');
   assert.equal(JSON.parse(pr.matrix).include.length, 6);
   assert.equal(run('push', { before: base, after: head }).groups, 'core,ui');
@@ -136,26 +170,42 @@ test('planner CLI handles real PR divergence, rename/delete, push, missing histo
   assert.equal(run('push', { before: '0'.repeat(40), after: head }).mode, 'pr');
   assert.equal(fromEvent('push', { before: base, after: head }, () => '').code, false);
 
-  // Draft PRs run the draft budget; becoming ready runs the full matrix once;
-  // later pushes to a ready PR run the routine budget.
+  // Real CLI + Git range: draft, full readiness and routine fixup events.
   const range = { base: { sha: movedBase }, head: { sha: head } };
-  for (const action of ['opened', 'synchronize', 'reopened']) {
-    const draft = run('pull_request', { action, pull_request: { ...range, draft: true } });
-    assert.equal(draft.budget, 'draft', action); assert.equal(draft.groups, 'core'); assert.equal(draft.mode, 'pr');
-    assert(JSON.parse(draft.matrix).include.every(job => job.browser === 'chromium'), action);
+  for (const action of ['opened', 'synchronize', 'reopened', 'ready_for_review']) {
+    for (const draft of [true, false]) {
+      const full = !draft && ['opened', 'ready_for_review'].includes(action);
+      const result = run('pull_request', { action, pull_request: { ...range, draft } });
+      assert.equal(result.budget, draft ? 'draft' : full ? 'full' : 'routine');
+      assert.equal(result.mode, full ? 'full' : 'pr');
+      assert.equal(result.groups, draft ? 'core' : full ? 'full' : 'core,ui');
+      assert.equal(result['build-tests'], String(full));
+      assert.equal(JSON.parse(result.matrix).include.length, draft ? 4 : full ? 13 : 6);
+    }
   }
-  for (const action of ['ready_for_review', 'opened']) {
-    const ready = run('pull_request', { action, pull_request: { ...range, draft: false } });
-    assert.equal(ready.budget, 'full', action); assert.equal(ready.mode, 'full'); assert.equal(ready.groups, 'full');
-    assert.equal(JSON.parse(ready.matrix).include.length, 10, action);
+  // An actual documentation-only commit reaches the CLI output boundary for
+  // both readiness events and later PR updates, rather than stubbing git.
+  git('checkout', '-qb', 'docs-only', base);
+  fs.mkdirSync(path.join(directory, 'docs'), { recursive: true });
+  fs.writeFileSync(path.join(directory, 'docs/notes.md'), 'Documentation only');
+  git('add', 'docs/notes.md'); git('commit', '-qm', 'docs only');
+  const docsRange = { base: { sha: movedBase }, head: { sha: git('rev-parse', 'HEAD').trim() } };
+  for (const action of ['opened', 'ready_for_review', 'synchronize', 'reopened']) {
+    for (const draft of [true, false]) {
+      const result = run('pull_request', { action, pull_request: { ...docsRange, draft } });
+      assert.equal(result.code, 'false'); assert.equal(result['build-tests'], 'false');
+    }
   }
-  for (const action of ['synchronize', 'reopened']) {
-    const routine = run('pull_request', { action, pull_request: { ...range, draft: false } });
-    assert.equal(routine.budget, 'routine', action); assert.equal(routine.groups, 'core,ui');
+  // Missing history selects all routine groups and build integrations; drafts
+  // retain their browser budget and readiness still selects exhaustive mode.
+  for (const action of ['synchronize', 'ready_for_review']) {
+    for (const draft of [true, false]) {
+      const unknown = run('pull_request', { action, pull_request: { draft } });
+      assert.equal(unknown.mode, !draft && action === 'ready_for_review' ? 'full' : 'pr');
+      assert.equal(unknown.groups, draft ? 'core' : 'full');
+      assert.equal(unknown['build-tests'], 'true');
+    }
   }
-  const shas = { base: { sha: 'a'.repeat(40) }, head: { sha: 'b'.repeat(40) } };
-  const docsReady = fromEvent('pull_request', { action: 'ready_for_review', pull_request: shas }, () => 'docs/browser-tests.md\0');
-  assert.equal(docsReady.code, false, 'Documentation-only PRs skip browser jobs even when marked ready');
 
   // Exercise the workflow's real Git diff and output boundary, not only the
   // pure classifier: entry-like additions and their deletions must run full.
@@ -214,7 +264,8 @@ test('native selection retains core in Chromium, smoke in other engines and two 
   assert(full.some(row => row.title.includes('configured promotion')));
   assert(full.some(row => row.title.includes('benchmark CLI provenance')));
   // Follow actual workflow outputs through native discovery and its shards.
-  // A change to the test suite itself selects all groups, not the nightly mode.
+  // Routine follow-up pushes select all groups for test changes, but only
+  // readiness/nightly/manual events request exhaustive execution mode.
   const routine = plan(['tests/runtime-diagnostics.cjs']);
   const expected = discover(routine.groups, routine.mode);
   assert(expected.length < full.length / 2);
@@ -236,13 +287,18 @@ test('native selection retains core in Chromium, smoke in other engines and two 
   // Even the smallest selection gives every routine browser job work. Full-mode
   // shards are checked the same way in harness.test.cjs.
   routine.matrix.include.forEach((job, i) => assert(smallestJobs[i].length > 0, job.name));
-  // A draft's jobs are routine jobs, and together they run every Chromium core case.
+  // Draft jobs must remain an exact subset of the routine jobs. Reuse the
+  // existing native core listings instead of spawning more discovery processes.
   const draft = plan(['tests/runtime-diagnostics.cjs'], { draft: true });
-  const draftRows = routine.matrix.include.flatMap((job, i) =>
-    draft.matrix.include.some(other => other.id === job.id) ? smallestJobs[i] : []);
-  assert.equal(draftRows.length > 0 && draft.matrix.include.every(job => routine.matrix.include.some(other => other.id === job.id)), true);
-  assert.deepEqual(draftRows.map(identity).sort(),
-    discover('core', 'pr').filter(row => row.project.startsWith('chromium')).map(identity).sort());
+  const draftJobs = draft.matrix.include.map(job => {
+    const index = routine.matrix.include.findIndex(other => other.id === job.id);
+    assert(index >= 0, `Draft job is absent from routine matrix: ${job.id}`);
+    assert.deepEqual(job, routine.matrix.include[index]);
+    return smallestJobs[index];
+  });
+  assert(draftJobs.every(rows => rows.length > 0));
+  assert.deepEqual(draftJobs.flat().map(identity).sort(),
+    core.filter(row => row.project.startsWith('chromium')).map(identity).sort());
   const data = discover(plan(['src/unified/catalog/CatalogLoader.js']).groups, 'pr');
   assert(data.some(row => row.title.includes('catalogue frame commits')));
   assert(!data.some(row => /benchmark|development|HMR/.test(row.title) && !row.title.includes('speed-eight')));
