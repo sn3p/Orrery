@@ -102,7 +102,7 @@ const fixtureRoot = new URL('./fixtures/comets-v2/', import.meta.url);
 const descriptor = JSON.parse(fs.readFileSync(new URL('latest.json', fixtureRoot)));
 const index = JSON.parse(fs.readFileSync(new URL(descriptor.index.url, fixtureRoot)));
 function fixtureFetch(url) {
-  const name = new URL(url).pathname.split('/comets/')[1];
+  const name = new URL(url).pathname.split('/comets/').at(-1);
   return Promise.resolve(new Response(fs.readFileSync(new URL(name, fixtureRoot))));
 }
 test('default hosted acquisition uses the unversioned catalogue and relative assets', async t => {
@@ -120,7 +120,7 @@ test('default hosted acquisition uses the unversioned catalogue and relative ass
 test('hosted contract fixture verifies all bytes, provenance, references and baseline series', async t => {
   const calls=[];
   t.mock.method(globalThis,'fetch',(url,options)=>{calls.push([url,options]);return fixtureFetch(url);});
-  const source=await CometSource.openLatest('https://fixture.test/nested/comets/latest.json');
+  const source=await CometSource.openLatest('https://fixture.test/nested/comets/archive/comets/latest.json');
   assert.equal(source.sourceId,descriptor.index.sha256);
   for(const id of DEFAULT_IDS()) {
     const [a,b]=await Promise.all([source.load(id),source.load(id)]);

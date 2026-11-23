@@ -324,10 +324,14 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     await page.route('**/comets/**', route => {
       requests++;
       const file = new URL(route.request().url()).pathname.split('/comets/')[1];
+      if (!product.files.has(file)) return route.fulfill({status:404});
       return route.fulfill({body:product.files.get(file),contentType:'application/json'});
     });
     try {
       await page.goto(`https://orrery.test/next/?renderer=${renderer}`);
+      assert.equal(await page.evaluate(async () =>
+        (await fetch('https://sn3p.github.io/orrery-data/comets/missing.json')).status), 404,
+        'Missing synthetic catalogue assets return 404');
       await page.evaluate(()=>threeTest.ready);
       await page.waitForFunction(()=>threeTest.app.catalogue?.firstDraw);
       await page.evaluate(()=>{window.app=threeTest.app;app.jedDelta=0;});
@@ -399,10 +403,14 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     await page.route('**/comets/**',route=>{
       const file=new URL(route.request().url()).pathname.split('/comets/')[1];
       if(file.startsWith('objects/'))downloads++;
+      if (!product.files.has(file)) return route.fulfill({status:404});
       return route.fulfill({body:product.files.get(file),contentType:'application/json'});
     });
     try {
       await page.goto(`https://orrery.test/next/?renderer=${renderer}`);
+      assert.equal(await page.evaluate(async () =>
+        (await fetch('https://sn3p.github.io/orrery-data/comets/missing.json')).status), 404,
+        'Missing synthetic catalogue assets return 404');
       await page.evaluate(()=>threeTest.ready);
       await page.waitForFunction(()=>threeTest.app.catalogue?.firstDraw);
       await page.evaluate(()=>{window.app=threeTest.app;app.jedDelta=0;app.cometsShown=true;});
