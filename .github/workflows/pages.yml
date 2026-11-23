@@ -41,7 +41,6 @@ jobs:
       build: ${{ steps.plan.outputs.build }}
       browser-tests: ${{ steps.plan.outputs.browser-tests }}
       standalone: ${{ steps.plan.outputs.standalone }}
-      baseline: ${{ steps.plan.outputs.baseline }}
       source-run: ${{ steps.plan.outputs.source-run }}
       source-attempt: ${{ steps.plan.outputs.source-attempt }}
       source-reports: ${{ steps.plan.outputs.source-reports }}
@@ -374,29 +373,11 @@ jobs:
           include-hidden-files: true
           path: .context/playwright-report
 
-  baseline:
-    name: Reused checks
-    needs: plan
-    if: needs.plan.outputs.baseline == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Require the exact source run to pass
-        id: source
-        run: node scripts/ci-reuse.cjs CI --gate-only
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CI_SOURCE_RUN: ${{ needs.plan.outputs.source-run }}
-          CI_SOURCE_ATTEMPT: ${{ needs.plan.outputs.source-attempt }}
-
   ci:
     name: CI
     timeout-minutes: 5
     if: always()
-    needs: [plan, node, build, build-tests, browser-tests, standalone, baseline]
+    needs: [plan, node, build, build-tests, browser-tests, standalone]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -407,7 +388,7 @@ jobs:
         env:
           CI_NEEDS: ${{ toJSON(needs) }}
       - name: Recheck source attempt at the final gate
-        if: needs.plan.outputs.baseline == 'true'
+        if: needs.plan.outputs.source-run != ''
         run: node scripts/ci-reuse.cjs CI --gate-only
         env:
           GH_TOKEN: ${{ github.token }}

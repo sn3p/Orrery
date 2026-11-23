@@ -314,8 +314,8 @@ test('native selection retains core in Chromium, smoke in other engines and two 
 test('aggregate gate rejects failing, cancelled, missing or unexpectedly skipped selected jobs', () => {
   const baseline = { plan: { result: 'success', outputs: { code: 'true', 'build-required': 'false', 'build-reused': 'false' } },
     node: { result: 'success' }, build: { result: 'success' }, 'build-tests': { result: 'skipped' },
-    'browser-tests': { result: 'success' }, standalone: { result: 'success' }, baseline: { result: 'skipped' } };
-  const requirements = { node: true, build: true, 'build-tests': false, 'browser-tests': true, standalone: true, baseline: false };
+    'browser-tests': { result: 'success' }, standalone: { result: 'success' } };
+  const requirements = { node: true, build: true, 'build-tests': false, 'browser-tests': true, standalone: true };
   baseline.plan.outputs.execution = JSON.stringify(requirements);
   verify(baseline);
   const malformed = structuredClone(baseline); delete malformed.plan.outputs.code;

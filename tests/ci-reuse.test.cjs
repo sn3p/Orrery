@@ -71,6 +71,14 @@ test('candidate selection skips corrupt receipts and reuses one validated artifa
   assert.equal(findSource(current, api).run, run.id);
   assert.deepEqual(calls, ['artifacts:150', 'record:150', 'artifacts:100', 'record:100', 'run:100']);
   assert.equal(findSource(current, { ...sourceApi, record: () => { throw new Error('Invalid zip'); } }), null);
+  const full = { ...record(), plan: plan([], { full: true }) };
+  assert.equal(findSource(current, { ...sourceApi, record: () => full,
+    artifacts: () => sourceArtifacts(full).filter(a => a.name.startsWith('playwright-blob-')) }).run, run.id,
+  'Complete coverage does not need build artifacts that no job will download');
+  assert.equal(findSource(current, { ...sourceApi, runs: () => [newer, run],
+    record: candidate => ({ ...record(), run: candidate.id }),
+    artifacts: id => sourceArtifacts().filter(a => id !== newer.id || a.name !== 'github-pages') }).run, run.id,
+  'An expired newer build must not hide an older usable candidate');
   assert.equal(findSource(current, { ...sourceApi, run: () => ({ ...run, run_attempt: 2 }) }), null);
 });
 
@@ -134,10 +142,13 @@ test('source checks and final gate reject pending, failed, cancelled or rerun ev
   for (const buildReused of [true, false]) {
     const jobs = execution(full, { ...source, plan: { ...source.plan, buildTests: buildReused } });
     assert.equal(jobs.node, false); assert.equal(jobs.standalone, false);
-    const needs = { plan: { result: 'success', outputs: { code: 'true', 'build-required': 'true', 'build-reused': String(buildReused), execution: JSON.stringify(jobs) } } };
+    const needs = { plan: { result: 'success', outputs: { code: 'true', 'build-required': 'true', 'build-reused': String(buildReused), 'source-run': '100', 'source-attempt': '1', execution: JSON.stringify(jobs) } } };
     for (const [job, required] of Object.entries(jobs)) needs[job] = { result: required ? 'success' : 'skipped' };
     verify(needs);
-    for (const result of ['failure', 'skipped', 'cancelled']) assert.throws(() => verify({ ...needs, baseline: { result } }));
+    const noSource = structuredClone(needs); delete noSource.plan.outputs['source-run'];
+    assert.throws(() => verify(noSource), /Inconsistent execution/);
+    const noAttempt = structuredClone(needs); delete noAttempt.plan.outputs['source-attempt'];
+    assert.throws(() => verify(noAttempt), /Invalid source run identity/);
     const missingExecution = structuredClone(needs); delete missingExecution.plan.outputs.execution;
     assert.throws(() => verify(missingExecution));
     // A required integration cannot disappear just because the execution map says skip.
@@ -146,7 +157,7 @@ test('source checks and final gate reject pending, failed, cancelled or rerun ev
     assert.throws(() => verify(needs), /Inconsistent execution/);
   }
   assert.deepEqual(execution(full, { ...source, plan: full }),
-    { node: false, build: false, 'build-tests': false, 'browser-tests': false, standalone: false, baseline: true });
+    { node: false, build: false, 'build-tests': false, 'browser-tests': false, standalone: false });
 });
 
 test('artifact downloads require every expected artifact from the exact attempt', () => {
@@ -169,10 +180,11 @@ test('workflow connects reuse outputs, source gates, artifacts and remaining bro
   const { jobs, permissions } = require('js-yaml').load(fs.readFileSync('.github/workflows/pages.yml', 'utf8'));
   assert.equal(permissions.actions, 'read');
   assert.equal(jobs.build['timeout-minutes'], 10);
-  for (const name of ['plan', 'baseline', 'ci']) assert.equal(jobs[name]['timeout-minutes'], 5);
-  assert(jobs.ci.needs.includes('baseline'));
+  for (const name of ['plan', 'ci']) assert.equal(jobs[name]['timeout-minutes'], 5);
+  assert(!jobs.ci.needs.includes('baseline'));
+  assert.equal(jobs.baseline, undefined);
   assert(!jobs.report.needs.includes('baseline'));
-  assert.equal(jobs.baseline.needs, 'plan');
+  assert.equal(jobs.ci.steps.find(step => step.run === 'node scripts/ci-reuse.cjs CI --gate-only').if, "needs.plan.outputs.source-run != ''");
   assert(jobs.plan.outputs['source-reports']);
   assert(jobs.plan.outputs['source-report-manifest']);
   const sourceReports = jobs.report.steps.find(step => step.name === 'Include the reused source reports');
@@ -183,14 +195,14 @@ test('workflow connects reuse outputs, source gates, artifacts and remaining bro
   assert(jobs.report.steps.indexOf(combine) < jobs.report.steps.findIndex(step => step.name === 'Merge reports'));
   assert.equal(sourceReports.if, "needs.plan.outputs.source-run != ''");
   const needs = { plan: { outputs: { 'browser-tests': 'true', 'source-run': '100' } },
-    'browser-tests': { result: 'failure' }, standalone: { result: 'skipped' }, baseline: { result: 'failure' } };
+    'browser-tests': { result: 'failure' }, standalone: { result: 'skipped' } };
   // Actions permits hyphens in property names; JS needs bracket notation.
   const expression = value => value.replace(/^\$\{\{|\}\}$/g, '').replace(/\.([a-z]+(?:-[a-z]+)+)/g, "['$1']");
   assert(Function('needs', 'cancelled', `return (${expression(jobs.report.if)});`)(needs, () => false), 'Current failures must not suppress reports');
-  assert(Function('needs', `return (${expression(sourceReports.if)});`)(needs), 'Source reports remain included after baseline failure');
+  assert(Function('needs', `return (${expression(sourceReports.if)});`)(needs), 'Source reports remain included after current failures');
   assert(jobs.ci.steps.findIndex(step => step.run === 'node scripts/ci-gate.cjs') < jobs.ci.steps.findIndex(step => step.run === 'node scripts/ci-reuse.cjs CI --gate-only'));
   assert.equal(jobs['browser-tests'].env.ORRERY_PREVIOUS_COVERAGE, '${{ needs.plan.outputs.previous }}');
-  for (const name of ['node', 'build', 'build-tests', 'browser-tests', 'standalone', 'baseline']) {
+  for (const name of ['node', 'build', 'build-tests', 'browser-tests', 'standalone']) {
     assert(jobs.plan.outputs[name], name);
     assert(jobs[name].if.includes(`needs.plan.outputs.${name}`), name);
   }
@@ -250,7 +262,6 @@ process.stdout.write(JSON.stringify(result));}
   assert.equal(values['source-run'], '41'); assert.equal(values['source-attempt'], '1');
   assert.equal(values.node, 'false'); assert.equal(values.standalone, 'false');
   assert.equal(values['browser-tests'], 'true'); assert.equal(values['build-tests'], 'true');
-  assert.equal(values.baseline, 'true');
   assert.equal(values['build-required'], 'true'); assert.equal(values['build-reused'], 'false');
   assert.equal(values['source-reports'], artifacts.slice(1, -2).map(a => a.id).join(','));
   assert.deepEqual(JSON.parse(values['source-report-manifest']), Object.fromEntries(artifacts.slice(1, -2).map(a => [a.name, a.id])));

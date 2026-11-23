@@ -111,7 +111,6 @@ function execution(plan, source) {
     'build-tests': plan.buildTests && !source?.plan.buildTests,
     'browser-tests': plan.code && !complete,
     standalone: plan.code && !source,
-    baseline: !!source,
   };
 }
 
