@@ -143,8 +143,13 @@ test('workflow connects reuse outputs, source gates, artifacts and remaining bro
   assert(!jobs.report.needs.includes('baseline'));
   assert.equal(jobs.baseline.needs, 'plan');
   assert(jobs.plan.outputs['source-reports']);
+  assert(jobs.plan.outputs['source-report-manifest']);
   const sourceReports = jobs.report.steps.find(step => step.name === 'Include the reused source reports');
   assert.equal(sourceReports.with['artifact-ids'], '${{ needs.plan.outputs.source-reports }}');
+  assert.equal(sourceReports.with['merge-multiple'], false);
+  const combine = jobs.report.steps.find(step => step.name === 'Combine disjoint reports');
+  assert.equal(combine.env.CI_SOURCE_REPORTS, '${{ needs.plan.outputs.source-report-manifest }}');
+  assert(jobs.report.steps.indexOf(combine) < jobs.report.steps.findIndex(step => step.name === 'Merge reports'));
   assert.equal(sourceReports.if, "needs.plan.outputs.source-run != ''");
   const needs = { plan: { outputs: { 'browser-tests': 'true', 'source-run': '100' } },
     'browser-tests': { result: 'failure' }, standalone: { result: 'skipped' }, baseline: { result: 'failure' } };
@@ -217,6 +222,7 @@ process.stdout.write(JSON.stringify(result));}
   assert.equal(values.baseline, 'true');
   assert.equal(values['build-required'], 'true'); assert.equal(values['build-reused'], 'false');
   assert.equal(values['source-reports'], artifacts.slice(1).map(a => a.id).join(','));
+  assert.deepEqual(JSON.parse(values['source-report-manifest']), Object.fromEntries(artifacts.slice(1).map(a => [a.name, a.id])));
   const summary = fs.readFileSync(options.env.GITHUB_STEP_SUMMARY, 'utf8');
   for (const text of ['Mode: **full**', 'Code checks: **true**', 'Build integrations required: **true**', 'Draft PRs run Chromium core', 'Artifacts → browser-test-report']) assert(summary.includes(text), text);
   assert.deepEqual(JSON.parse(values.previous), { mode: 'pr', groups: 'core', projects: ['chromium', 'chromium-only'] });
@@ -235,6 +241,37 @@ process.stdout.write(JSON.stringify(result));}
   assert.throws(() => invoke(), /JSON/);
 });
 
+test('report assembly rejects incomplete downloads before merging', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'orrery-incomplete-reports-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.cpSync('scripts', path.join(root, 'scripts'), { recursive: true });
+  const workflow = require('js-yaml').load(fs.readFileSync('.github/workflows/pages.yml', 'utf8'));
+  const step = workflow.jobs.report.steps.find(step => step.name === 'Combine disjoint reports');
+  const manifest = { 'playwright-blob-chromium-1': 101, 'playwright-blob-chromium-2': 102, 'playwright-blob-standalone': 103 };
+  const sources = path.join(root, '.context/source-reports');
+  const combine = () => execFileSync('bash', ['-eu', '-c', step.run], {
+    cwd: root, stdio: 'pipe', env: { ...process.env, CI_SOURCE_REPORTS: JSON.stringify(manifest) },
+  });
+  // The pinned downloader flattens its output when only one requested artifact remains.
+  fs.mkdirSync(sources, { recursive: true });
+  fs.writeFileSync(path.join(sources, 'report.zip'), 'surviving blob');
+  assert.throws(combine, /Missing source report/, 'One surviving artifact must not pass');
+  fs.rmSync(sources, { recursive: true });
+  for (const name of Object.keys(manifest)) {
+    fs.mkdirSync(path.join(sources, name), { recursive: true });
+    fs.writeFileSync(path.join(sources, name, 'report.zip'), 'blob');
+  }
+  for (const name of Object.keys(manifest)) {
+    const blob = path.join(sources, name, 'report.zip');
+    fs.unlinkSync(blob);
+    assert.throws(combine, /Expected one source report blob/, name);
+    fs.writeFileSync(blob, 'blob');
+  }
+  fs.rmSync(path.join(sources, 'playwright-blob-standalone'), { recursive: true });
+  assert.throws(combine, /Missing source report/, 'Two surviving artifacts must not pass');
+  assert(!fs.existsSync(path.join(root, '.context/playwright-blob')), 'Validate the whole set before copying');
+});
+
 test('workflow report assembly retains source-only diagnostics and disjoint readiness results', t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'orrery-merge-reports-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -243,22 +280,30 @@ test('workflow report assembly retains source-only diagnostics and disjoint read
   fs.writeFileSync(config, `module.exports = { testDir: ${JSON.stringify(root)}, reporter: 'blob' };`);
   fs.writeFileSync(path.join(root, 'coverage.spec.cjs'), `const { test, expect } = require(${JSON.stringify(require.resolve('@playwright/test'))});
     test('covered in draft', () => expect(1).toBe(1));
+    test('standalone in draft', () => expect(3).toBe(3));
     test('added when ready', () => expect(2).toBe(2));`);
   const combined = path.join(root, '.context/playwright-blob');
   const sources = path.join(root, '.context/source-reports'); fs.mkdirSync(sources, { recursive: true });
-  for (const [part, grep] of [['source', 'covered in draft'], ['current', 'added when ready']]) {
+  const manifest = { 'playwright-blob-chromium-1': 101, 'playwright-blob-standalone': 102 };
+  fs.cpSync('scripts', path.join(root, 'scripts'), { recursive: true });
+  for (const [part, grep] of [['playwright-blob-chromium-1', 'covered in draft'], ['playwright-blob-standalone', 'standalone in draft'], ['current', 'added when ready']]) {
     const blobs = path.join(root, part);
     execFileSync(process.execPath, [cli, 'test', '--config', config, '--grep', grep], {
       cwd: root, stdio: 'pipe', env: { ...process.env, PLAYWRIGHT_BLOB_OUTPUT_DIR: blobs, PLAYWRIGHT_BLOB_OUTPUT_NAME: 'report-chromium-1.zip' },
     });
-    if (part === 'source') fs.copyFileSync(path.join(blobs, 'report-chromium-1.zip'), path.join(sources, 'report-chromium-1.zip'));
+    if (part !== 'current') {
+      fs.mkdirSync(path.join(sources, part));
+      fs.copyFileSync(path.join(blobs, 'report-chromium-1.zip'), path.join(sources, part, 'report-chromium-1.zip'));
+    }
   }
   const workflow = require('js-yaml').load(fs.readFileSync('.github/workflows/pages.yml', 'utf8'));
-  execFileSync('bash', ['-eu', '-c', workflow.jobs.report.steps.find(step => step.name === 'Combine disjoint reports').run], { cwd: root });
+  execFileSync('bash', ['-eu', '-c', workflow.jobs.report.steps.find(step => step.name === 'Combine disjoint reports').run], {
+    cwd: root, env: { ...process.env, CI_SOURCE_REPORTS: JSON.stringify(manifest) },
+  });
   const merge = () => JSON.parse(execFileSync(process.execPath, [cli, 'merge-reports', '--reporter=json', combined], { cwd: root, encoding: 'utf8' }));
-  assert.equal(merge().stats.expected, 1, 'Source evidence remains when the current build/browser job produced no blobs');
+  assert.equal(merge().stats.expected, 2, 'Source evidence remains when the current build/browser job produced no blobs');
   fs.copyFileSync(path.join(root, 'current/report-chromium-1.zip'), path.join(combined, 'report-chromium-1.zip'));
   const report = merge();
-  assert.equal(report.stats.expected, 2); assert.equal(report.stats.unexpected, 0);
-  assert.deepEqual(report.suites.flatMap(suite => suite.specs.map(spec => spec.title)).sort(), ['added when ready', 'covered in draft']);
+  assert.equal(report.stats.expected, 3); assert.equal(report.stats.unexpected, 0);
+  assert.deepEqual(report.suites.flatMap(suite => suite.specs.map(spec => spec.title)).sort(), ['added when ready', 'covered in draft', 'standalone in draft']);
 });

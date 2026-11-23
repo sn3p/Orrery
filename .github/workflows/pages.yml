@@ -45,6 +45,7 @@ jobs:
       source-run: ${{ steps.plan.outputs.source-run }}
       source-attempt: ${{ steps.plan.outputs.source-attempt }}
       source-reports: ${{ steps.plan.outputs.source-reports }}
+      source-report-manifest: ${{ steps.plan.outputs.source-report-manifest }}
       previous: ${{ steps.plan.outputs.previous }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -354,16 +355,14 @@ jobs:
         with:
           artifact-ids: ${{ needs.plan.outputs.source-reports }}
           path: .context/source-reports
-          merge-multiple: true
+          merge-multiple: false
           github-token: ${{ github.token }}
           run-id: ${{ needs.plan.outputs.source-run }}
       - name: Combine disjoint reports
         if: needs.plan.outputs.source-run != ''
-        run: |
-          mkdir -p .context/playwright-blob
-          for report in .context/source-reports/*.zip; do
-            cp "$report" ".context/playwright-blob/source-$(basename "$report")"
-          done
+        run: node scripts/ci-combine-reports.cjs
+        env:
+          CI_SOURCE_REPORTS: ${{ needs.plan.outputs.source-report-manifest }}
       - name: Merge reports
         run: npx playwright merge-reports --reporter html .context/playwright-blob
         env:

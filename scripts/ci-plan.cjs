@@ -35,12 +35,12 @@ async function main() {
     sha: testedSha, head: event.pull_request?.head?.sha, base: event.pull_request?.base?.sha,
     run: Number(process.env.GITHUB_RUN_ID), attempt: Number(process.env.GITHUB_RUN_ATTEMPT) };
   let source = null;
-  let reports = '';
+  let reports = {};
   if (readyEvent(process.env.GITHUB_EVENT_NAME, event) && result.code && process.env.GH_TOKEN) {
     const api = apiClient(current.repository);
     current.workflow = api.run(current.run).workflow_id;
     source = findSource(current, api);
-    if (source) reports = Object.values(artifactIds(api, source, 'CI')).join(',');
+    if (source) reports = artifactIds(api, source, 'CI');
   }
   const jobs = execution(result, source);
   const previous = source ? { mode: source.plan.mode, groups: source.plan.groups,
@@ -48,7 +48,8 @@ async function main() {
   const values = { code: result.code, groups: result.groups, mode: result.mode, budget: result.budget,
     matrix: JSON.stringify(result.matrix), execution: JSON.stringify(jobs),
     'source-run': source?.run || '', 'source-attempt': source?.attempt || '',
-    'source-reports': reports, 'build-required': result.buildTests, 'build-reused': !!source?.plan.buildTests,
+    'source-reports': Object.values(reports).join(','), 'source-report-manifest': JSON.stringify(reports),
+    'build-required': result.buildTests, 'build-reused': !!source?.plan.buildTests,
     previous: previous ? JSON.stringify(previous) : '', ...jobs };
   fs.appendFileSync(process.env.GITHUB_OUTPUT, Object.entries(values).map(([key, value]) => `${key}=${value}\n`).join(''));
   fs.mkdirSync('.context', { recursive: true });
