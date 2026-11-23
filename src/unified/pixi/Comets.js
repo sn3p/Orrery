@@ -4,10 +4,10 @@ import { cometLabel } from '../comets/labels.js';
 import { PIXELS_PER_AU } from '../../js/constants.js';
 
 export default class Comets {
-  constructor(stage, container, data) {
+  constructor(stage, container, data, catalogue = COMETS) {
     this.data = data;
     this.group = new Container();
-    this.entries = COMETS.map(comet => {
+    this.entries = catalogue.map(comet => {
       const body = new Graphics().circle(0,0,3).fill(comet.color);
       const path = new Graphics();
       this.group.addChild(path, body);

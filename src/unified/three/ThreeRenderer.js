@@ -170,8 +170,10 @@ export default class ThreeRenderer {
       this.asteroidsShown = shared.asteroidsShown;
       for (const cloud of [this.asteroids, this.stagedAsteroids, this.catalogueTransition?.previous]) cloud?.setShown(this.asteroidsShown);
     }
+    if (this.comets && shared?.cometCatalogue !== undefined && shared.cometCatalogue !== this.cometCatalogue) { this.comets.destroy(); this.comets = null; }
+    if (shared?.cometCatalogue !== undefined) this.cometCatalogue = shared.cometCatalogue;
     if (shared?.cometData && !this.comets && this.initialized) {
-      this.comets = new Comets(this.scene, this.container, shared.cometData);
+      this.comets = new Comets(this.scene, this.container, shared.cometData, shared.cometCatalogue);
     }
     if (shared?.cometData && this.comets) this.comets.setData(shared.cometData);
     if (shared) this.cometSettings = { ...this.cometSettings, ...shared };
@@ -339,7 +341,7 @@ export default class ThreeRenderer {
   focusComets() {
     const settings = this.cometSettings;
     if (!settings?.cometData || !settings.cometIds?.length) return;
-    const points = cometFitPoints(settings.cometData, settings.cometIds, this.lastJed);
+    const points = cometFitPoints(settings.cometData, settings.cometIds, this.lastJed, settings.cometCatalogue);
     if (!points.length) return;
     this.cancelViewFit();
     // Fit the actual points in the current viewing direction, not a sphere

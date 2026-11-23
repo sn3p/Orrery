@@ -1,6 +1,6 @@
-import CometSource from './source/CometSource.js';
+import CometSource from './source/CometCatalogSource.js';
 
-export const COMET_LATEST_URL = 'https://sn3p.github.io/orrery-data/comets/latest.json';
+export const COMET_LATEST_URL = 'https://sn3p.github.io/orrery-data/comets-v2/latest.json';
 export const openHostedSource = signal => CometSource.openLatest(COMET_LATEST_URL, { signal });
 
 // One generation owns one source and its verified cache. Selection is independent

@@ -1,5 +1,5 @@
 import { formatIsoDay } from "../../js/utils.js";
-import { COMETS, lastDate, hasCoverage } from "../comets/model.js";
+import { lastDate, hasCoverage } from "../comets/model.js";
 import * as dat from "dat.gui";
 import { DEFAULT_POPULATION_PRESET, POPULATION_PRESET_OPTIONS, legendGroups, populationHint } from "../catalog/population.js";
 
@@ -126,19 +126,6 @@ export default class Options {
     toggle.domElement.closest("li").append(this.cometStatus);
     this.cometRows = [];
     this.cometChoices = {};
-    for (const comet of COMETS) {
-      const state = {};
-      Object.defineProperty(state, "selected", {
-        get: () => this.orrery.cometIds.includes(comet.id),
-        set: shown => { this.orrery.cometIds = COMETS.filter(item => item.id === comet.id ? shown : this.orrery.cometIds.includes(item.id)).map(item => item.id); },
-      });
-      const choice = this.gui.add(state, "selected").name(comet.name);
-      const checkbox = choice.domElement.querySelector("input");
-      checkbox.setAttribute("aria-label", `Show ${comet.name}`);
-      this.confineCheckbox(choice);
-      this.cometChoices[comet.id] = choice;
-      this.cometRows.push(choice.domElement.closest("li"));
-    }
     const paths = this.gui.add(this.orrery, "cometPaths").name("paths");
     paths.domElement.querySelector("input").setAttribute("aria-label", "Comet paths");
     this.confineCheckbox(paths);
@@ -160,9 +147,38 @@ export default class Options {
     this.updateComets();
   }
 
+  rebuildCometChoices() {
+    for (const choice of Object.values(this.cometChoices)) {
+      this.cometRows = this.cometRows.filter(row => row !== choice.domElement.closest('li'));
+      this.gui.remove(choice);
+    }
+    this.cometChoices = {};
+    for (const comet of this.orrery.cometCatalogue) {
+      const state = {};
+      Object.defineProperty(state, "selected", {
+        get: () => this.orrery.cometIds.includes(comet.id),
+        set: shown => { this.orrery.cometIds = this.orrery.cometCatalogue.filter(item => item.id === comet.id ? shown : this.orrery.cometIds.includes(item.id)).map(item => item.id); },
+      });
+      const choice = this.gui.add(state, "selected");
+      choice.domElement.closest("li").querySelector(".property-name").textContent = comet.name;
+      const checkbox = choice.domElement.querySelector("input");
+      checkbox.setAttribute("aria-label", `Show ${comet.name}`);
+      this.confineCheckbox(choice);
+      this.cometChoices[comet.id] = choice;
+      const row = choice.domElement.closest("li");
+      this.gui.__ul.insertBefore(row, this.cometRows[0]);
+      this.cometRows.push(row);
+    }
+  }
+
   updateComets() {
     if (!this.cometStatus) return;
     const app = this.orrery, ids = app.cometIds;
+    if (this.cometCatalogue !== app.cometCatalogue) {
+      this.cometCatalogue = app.cometCatalogue;
+      this.rebuildCometChoices();
+      this.cometDisplayKey = null;
+    }
     let ready = 0, loading = 0, failed = 0, usable = 0, firstSeries;
     for (const id of ids) {
       const series = app.cometData?.[id];
@@ -172,12 +188,14 @@ export default class Options {
       if (app.cometStates?.[id] === 'error') failed++;
     }
     const key = [ready, loading, failed, usable, firstSeries?.start, firstSeries && lastDate(firstSeries),
-      app.cometsShown, !!app.switching, ...ids].join("|");
+      app.cometDiscoveryState, app.cometSelectionNotice, app.cometsShown, !!app.switching, ...ids].join("|");
     if (key === this.cometDisplayKey) return;
     this.cometDisplayKey = key;
     let status = "";
     if (app.cometsShown) {
-      if (!ids.length) status = "Select a comet below.";
+      if (app.cometDiscoveryState === 'loading') status = 'Loading comet catalogue…';
+      else if (app.cometDiscoveryState === 'error') status = 'Could not load comet catalogue. Retry below or reload the page.';
+      else if (!ids.length) status = "Select a comet below.";
       else if (loading || failed) status = `${ready} of ${ids.length} comets ready.`
         + (loading ? ` Loading ${loading}…` : '')
         + (failed ? ` Could not load ${failed}. Retry below. If it still fails, reload the page to check for updated comet data.` : '');
@@ -191,10 +209,11 @@ export default class Options {
       const series = firstSeries;
       status += ` Loaded comets are unavailable at this date. Choose ${formatIsoDay(series.start)} to ${formatIsoDay(lastDate(series))}.`;
     }
+    if (app.cometsShown && app.cometSelectionNotice) status += ` ${app.cometSelectionNotice}`;
     for (const row of this.cometRows) row.hidden = !app.cometsShown;
     if (this.cometStatus.textContent !== status) this.cometStatus.textContent = status;
     this.cometStatus.hidden = !status;
-    this.cometRetry.hidden = !failed;
+    this.cometRetry.hidden = !failed && app.cometDiscoveryState !== 'error';
     this.cometFocus.disabled = !app.cometsShown || !usable || !!app.switching;
     for (const choice of Object.values(this.cometChoices)) choice.updateDisplay();
   }

@@ -24,7 +24,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     const errors=[];
     page.on('pageerror', e=>errors.push(e.message));
     let requests=0;
-    page.on('request',request=>{if(request.url().includes('/comets/objects/')) requests++;});
+    page.on('request',request=>{if(request.url().includes('/comets-v2/objects/')) requests++;});
     await routeFiles(page,root);
     try {
       await page.goto(`https://orrery.test/Orrery/next/?renderer=${renderer}`);
@@ -33,10 +33,10 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.evaluate(()=>{window.app=threeTest.app;app.jedDelta=0;app.cancelRender();});
       assert.equal(requests,0,'Default view never requests comet vectors');
       await page.getByRole('button',{name:'Options',exact:true}).click();
-      await expect(page.getByRole('checkbox',{name:'Show Halley',exact:true})).toHaveCount(0);
+      await expect(page.getByRole('checkbox',{name:'Show 1P/Halley',exact:true})).toHaveCount(0);
       await page.getByRole('checkbox',{name:'Show comets',exact:true}).check();
       await page.waitForFunction(()=>app.cometData && app.renderer.comets?.entries.every(e=>e.body.visible));
-      assert.equal(requests,3);
+      assert.equal(requests,6);
       await page.evaluate(() => {
         const check = (ok, message) => { if (!ok) throw new Error(message); };
         const series = app.cometData['55P'];
@@ -47,7 +47,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
             const source = app.cometData[comet.id];
             const [first, last] = range.split(':').map(Number);
             const duration = (last - first) * source.step;
-            check(duration >= comet.periodDays && duration < comet.periodDays + 2 * source.step,
+            check(Number.isFinite(comet.periodDays) ? duration >= comet.periodDays && duration < comet.periodDays + 2 * source.step : duration === (source.states.length - 1) * source.step,
               `${comet.id}: full trajectory at ${jed}`);
             if (app.rendererId === 'three') {
               const points = path.geometry.attributes.position;
@@ -74,7 +74,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
         const r=app.renderer; return r.comets.entries[0].body.material.size*r.viewport.width/r.canvas.width;
       }),6,'DPR2 comet marker remains six CSS pixels');
       await page.getByRole('button',{name:'Fit selected comets'}).click();
-      await page.waitForFunction(()=>document.querySelectorAll('.orrery-comet-label:not([hidden])').length===3);
+      await page.waitForFunction(()=>document.querySelectorAll('.orrery-comet-label:not([hidden])').length===6);
       for (const viewport of [{width:1460,height:1028},{width:320,height:568},{width:568,height:240}]) {
         await page.setViewportSize(viewport);
         await page.waitForFunction(({width,height}) => app.renderer.viewport.width === width
@@ -133,17 +133,17 @@ async function run({browser, name, output = '.context/comet-browser'}) {
         app.renderFrame();
       });
       assert(await page.evaluate(()=>app.renderer.asteroids.shown===false),'Catalogue replacement retains hidden asteroids');
-      await page.getByRole('checkbox',{name:'Show Encke' ,exact:true}).uncheck();
+      await page.getByRole('checkbox',{name:'Show 2P/Encke' ,exact:true}).uncheck();
       await page.getByRole('checkbox',{name:'Comet paths',exact:true}).uncheck();
       assert(await page.evaluate(()=>app.renderer.comets.entries.every(e=>!e.path.visible) && !app.renderer.comets.entries[1].body.visible));
-      await page.getByRole('checkbox',{name:'Show Halley',exact:true}).focus();
+      await page.getByRole('checkbox',{name:'Show 1P/Halley',exact:true}).focus();
       await page.keyboard.press('Space');
-      await expect(page.getByRole('checkbox',{name:'Show Halley',exact:true})).not.toBeChecked();
-      await page.getByRole('checkbox',{name:'Show Halley',exact:true}).check();
+      await expect(page.getByRole('checkbox',{name:'Show 1P/Halley',exact:true})).not.toBeChecked();
+      await page.getByRole('checkbox',{name:'Show 1P/Halley',exact:true}).check();
       const other=renderer==='three'?'pixi':'three';
       await page.getByRole('combobox',{name:'Renderer',exact:true}).selectOption(other);
       await page.waitForFunction(id=>app.rendererId===id&&!app.switching,other);
-      assert(await page.evaluate(()=>app.cometsShown && !app.asteroidsShown && !app.cometPaths && app.cometIds.join(',')==='1P,55P'));
+      assert(await page.evaluate(()=>app.cometsShown && !app.asteroidsShown && !app.cometPaths && app.cometIds.join(',')==='1P,55P,9P,10P,67P'));
       await page.evaluate(()=>{app.renderer.setOptions({shared:{planetLabels:'all'}});app.renderFrame();});
       assert(await page.evaluate(()=>app.renderer.comets.entries[0].body.visible),'Partial options preserve comets');
       await page.getByRole('checkbox',{name:'Comet paths',exact:true}).check();
@@ -187,7 +187,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.waitForFunction(()=>!app.contextLost && !app.graphicsRecoveryPending);
       assert(await page.evaluate(()=>app.renderer.comets.entries[0].body.visible),'Comets recover after actual context loss');
       await page.getByRole('checkbox',{name:'Show comets',exact:true}).uncheck();
-      await expect(page.getByRole('checkbox',{name:'Show Halley',exact:true})).toHaveCount(0);
+      await expect(page.getByRole('checkbox',{name:'Show 1P/Halley',exact:true})).toHaveCount(0);
       assert(await page.evaluate(()=>[...document.querySelectorAll('.orrery-comet-label')].every(e=>e.hidden)));
       await page.getByRole('checkbox',{name:'Show asteroids',exact:true}).check();
       await page.waitForFunction(()=>document.querySelector('#orrery-count').textContent!=='0');
@@ -202,7 +202,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     let catalogRoute, vectorRoute, notifyVector;
     const vectorRequested=new Promise(resolve=>{notifyVector=resolve;});
     await page.route('**/data/catalog.json',route=>{catalogRoute=route;});
-    await page.route('**/comets/latest.json',route=>{vectorRoute=route;notifyVector();});
+    await page.route('**/comets-v2/latest.json',route=>{vectorRoute=route;notifyVector();});
     try {
       await page.goto(`https://orrery.test/Orrery/next/?renderer=${renderer}`);
       await page.waitForFunction(()=>threeTest.app.initialized);
@@ -224,12 +224,12 @@ async function run({browser, name, output = '.context/comet-browser'}) {
   for (const renderer of ['three', 'pixi']) {
     const page = await browser.newPage({viewport:{width:390,height:844}});
     await routeFiles(page, root);
-    const fixture = JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/comets/latest.json')));
-    const index = JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/comets',fixture.index.url)));
+    const fixture = JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/comets-v2/latest.json')));
+    const index = JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/comets-v2',fixture.index.url)));
     const encke = index.objects.find(entry=>entry.id==='2P').data.url;
     let fail = true, downloads = 0, status = 503, discoveries = 0;
-    page.on('request', r=>{if(r.url().includes('/comets/objects/'))downloads++;
-      if(r.url().endsWith('/comets/latest.json')) discoveries++;});
+    page.on('request', r=>{if(r.url().includes('/comets-v2/objects/'))downloads++;
+      if(r.url().endsWith('/comets-v2/latest.json')) discoveries++;});
     await page.route('**/'+encke, r=>fail ? r.fulfill({status,body:'Unavailable'}) : r.fallback());
     try {
       await page.goto(`https://orrery.test/next/?renderer=${renderer}`);
@@ -259,9 +259,9 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       assert.equal(downloads,4,'Pinned missing object can retry without silently changing sources');
       assert.equal(discoveries,1);
       assert.equal(await page.evaluate(()=>app.cometSourceId),sourceId);
-      await page.getByRole('checkbox',{name:'Show Encke',exact:true}).uncheck();
+      await page.getByRole('checkbox',{name:'Show 2P/Encke',exact:true}).uncheck();
       fail=false;
-      await page.getByRole('checkbox',{name:'Show Encke',exact:true}).check();
+      await page.getByRole('checkbox',{name:'Show 2P/Encke',exact:true}).check();
       await page.waitForFunction(()=>app.cometStates['2P']==='ready');
       assert.equal(downloads,5,'Reselect retries the failed object');
       await page.evaluate(()=>{app.cometsShown=false;app.cometsShown=true;});
@@ -317,6 +317,58 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       assert.equal(await page.locator('.orrery-comet-label').count(),0);
     } finally { await page.close(); }
   }
+  // Catalogue growth, reordering, removal and literal metadata through the real app.
+  for (const renderer of ['three', 'pixi']) {
+    const page = await browser.newPage({viewport:{width:320,height:568}});
+    await routeFiles(page,root);
+    let product = require('./comet-catalogue-fixture.cjs').product(['67P','123P','1P']);
+    let requests = 0;
+    await page.route('**/comets-v2/**', route => {
+      requests++;
+      const file = new URL(route.request().url()).pathname.split('/comets-v2/')[1];
+      return route.fulfill({body:product.files.get(file),contentType:'application/json'});
+    });
+    try {
+      await page.goto(`https://orrery.test/next/?renderer=${renderer}`);
+      await page.evaluate(()=>threeTest.ready);
+      await page.waitForFunction(()=>threeTest.app.catalogue?.firstDraw);
+      await page.evaluate(()=>{window.app=threeTest.app;app.jedDelta=0;});
+      await page.getByRole('button',{name:'Options',exact:true}).click();
+      await page.getByRole('checkbox',{name:'Show comets',exact:true}).check();
+      await page.waitForFunction(()=>Object.keys(app.cometData??{}).length===3);
+      assert.deepEqual(await page.evaluate(()=>app.renderer.comets.entries.map(e=>e.comet.id)),['67P','123P','1P']);
+      assert.deepEqual(await page.locator('.property-name').allTextContents().then(names=>names.filter(n=>n.includes('/'))),product.objects.map(e=>e.name));
+      assert.equal(await page.locator('.property-name b').count(),0,'Names are literal text');
+      await page.getByRole('checkbox',{name:'Show 123P/<b>Literal test comet</b>',exact:true}).focus();
+      await page.keyboard.press('Space');
+      assert.deepEqual(await page.evaluate(()=>app.cometIds),['67P','1P']);
+      const before=requests;
+      await page.evaluate(()=>{app.cometsShown=false;app.cometsShown=true;});
+      assert.equal(requests,before,'Hide/show reuses verified pin');
+      product=require('./comet-catalogue-fixture.cjs').product(['2P','123P']);
+      await page.evaluate(()=>app.replaceCometSource('hosted'));
+      assert.deepEqual(await page.evaluate(()=>app.cometIds),[]);
+      await expect(page.getByRole('status').filter({hasText:'absent from this catalogue'})).toBeVisible();
+      assert.deepEqual(await page.evaluate(()=>app.renderer.comets.entries.map(e=>e.comet.id)),['2P','123P']);
+      assert.equal(await page.locator('.orrery-comet-label').count(),2,'Old resources removed');
+      await page.getByRole('checkbox',{name:'Show 123P/<b>Literal test comet</b>',exact:true}).check();
+      await page.waitForFunction(()=>app.cometStates['123P']==='ready');
+      await page.getByRole('button',{name:'Fit selected comets'}).click();
+      assert(await page.locator('.orrery-options-panel').evaluate(el=>el.scrollWidth<=el.clientWidth+1));
+      product=require('./comet-catalogue-fixture.cjs').product([]);
+      await page.evaluate(()=>app.replaceCometSource('hosted'));
+      await expect(page.getByRole('button',{name:'Retry comet data'})).toBeVisible();
+      assert.equal(await page.locator('.orrery-comet-label').count(),0);
+      product=require('./comet-catalogue-fixture.cjs').product(['123P','67P']);
+      await page.getByRole('button',{name:'Retry comet data'}).click();
+      await page.waitForFunction(()=>app.cometStates['123P']==='ready');
+      assert.deepEqual(await page.evaluate(()=>app.cometIds),['123P']);
+      await page.evaluate(async()=>{app.destroy();await app.loadComets();});
+      const disposed=requests;
+      await page.evaluate(()=>app.loadComets());
+      assert.equal(requests,disposed,'Disposed app never reopens discovery');
+    } finally {await page.close();}
+  }
   // Public entry and indexed catalogue, independent of the instrumented fixture.
   for (const renderer of ['three','pixi']) {
     const page=await browser.newPage({viewport:{width:800,height:600}});
@@ -324,7 +376,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     await require('./default-catalog-route.cjs').routeDefaultCatalog(page);
     await require('./comet-fixture.cjs').routeComets(page);
     let failures=1;
-    await page.route('**/comets/latest.json',route=>failures-- > 0
+    await page.route('**/comets-v2/latest.json',route=>failures-- > 0
       ? route.fulfill({status:503,body:'Unavailable'}) : route.fallback());
     try {
       await page.goto(`https://orrery.test/Orrery/?renderer=${renderer}&date=2026-11-18`);
@@ -335,7 +387,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.getByRole('button',{name:'Retry comet data'}).click();
       await expect(page.getByRole('button',{name:'Fit selected comets'})).toBeEnabled();
       await page.getByRole('button',{name:'Fit selected comets'}).click();
-      await page.waitForFunction(()=>document.querySelectorAll('.orrery-comet-label:not([hidden])').length===3);
+      await page.waitForFunction(()=>document.querySelectorAll('.orrery-comet-label:not([hidden])').length===6);
       await page.getByRole('checkbox',{name:'Show asteroids',exact:true}).uncheck();
       await expect(page.locator('#orrery-count-unit')).toBeVisible();
       await expect(page.locator('#orrery-count')).toHaveText('0');

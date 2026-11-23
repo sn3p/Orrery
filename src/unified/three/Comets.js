@@ -4,11 +4,11 @@ import { cometLabel } from '../comets/labels.js';
 import { PIXELS_PER_AU } from '../../js/constants.js';
 
 export default class Comets {
-  constructor(scene, container, data) {
+  constructor(scene, container, data, catalogue = COMETS) {
     this.data = data;
     this.group = new THREE.Group();
     this.projected = new THREE.Vector3();
-    this.entries = COMETS.map(comet => {
+    this.entries = catalogue.map(comet => {
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0], 3));
       const body = new THREE.Points(geometry, new THREE.PointsMaterial({
