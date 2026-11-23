@@ -76,7 +76,7 @@ async function rebuild(app, create, id, signal) {
         session.adapterFailure = null;
       }
     }
-    // Before the first catalogue commit, both model values can be undefined.
+    // During startup, no catalogue has committed and there is no active session yet.
     if (app.activeSession && app.activeSession.model === model) app.activeSession.loader.rendered(receipt);
     app.contextLost = false;
     app.renderFailure = null;
