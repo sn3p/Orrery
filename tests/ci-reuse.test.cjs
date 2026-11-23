@@ -10,7 +10,12 @@ const { verify } = require('../scripts/ci-gate.cjs');
 
 const current = { repository: 'owner/repo', pr: 12, sha: 'a'.repeat(40), head: 'b'.repeat(40), base: 'c'.repeat(40), run: 200, workflow: 1 };
 const run = { id: 100, run_attempt: 1, workflow_id: 1, event: 'pull_request', head_sha: current.head, status: 'completed', conclusion: 'success' };
-const record = () => ({ ...current, version: 1, run: run.id, attempt: 1, plan: plan(['src/unified/App.js'], { draft: true }) });
+const record = () => ({ ...current, version: 1, run: run.id, attempt: 1, uploadedAt: '2026-11-23T12:00:00Z', plan: plan(['src/unified/App.js'], { draft: true }) });
+
+const sourceArtifacts = (receipt = record()) => ['github-pages', 'browser-fixtures',
+  ...receipt.plan.matrix.include.map(job => `playwright-blob-${job.id}`), 'playwright-blob-standalone']
+  .map((name, i) => ({ name, id: i + 7, created_at: '2026-11-23T12:01:00Z' }));
+const sourceApi = { runs: () => [run], run: () => run, artifacts: () => sourceArtifacts(), record };
 
 test('reuse requires the exact PR, tested merge revision, workflow and run attempt', () => {
   assert(compatible(record(), run, current));
@@ -36,13 +41,13 @@ test('readiness selects completed successful coverage once, ignoring pending and
     }
   }
   let reads = 0;
-  assert.equal(findSource(current, { runs: () => [run], record: () => { reads++; return null; } }), null);
+  assert.equal(findSource(current, { ...sourceApi, record: () => { reads++; return null; } }), null);
   assert.equal(reads, 1, 'A missing partial-rerun receipt is inspected once');
-  assert.equal(findSource(current, { runs: () => [run], record }).run, 100);
+  assert.equal(findSource(current, sourceApi).run, 100);
   assert.equal(findSource(current, { runs: () => [], record }), null);
   const full = { ...record(), plan: plan([], { full: true }) };
   const reused = { ...run, id: 150 };
-  const sources = { runs: () => [reused, run], record: r => r.id === reused.id
+  const sources = { ...sourceApi, artifacts: () => sourceArtifacts(full), runs: () => [reused, run], record: r => r.id === reused.id
     ? { ...full, run: reused.id, source: { run: run.id, attempt: 1 } } : full };
   assert.equal(findSource(current, sources).run, run.id, 'Repeated readiness goes back to self-contained full coverage');
   assert.equal(findSource(current, { ...sources, runs: () => [reused] }), null);
@@ -50,6 +55,32 @@ test('readiness selects completed successful coverage once, ignoring pending and
     assert.equal(findSource(current, { runs: () => [{ ...run, conclusion }], record: () => { throw new Error('Ineligible run must not be queried'); } }), null);
   }
   assert.throws(() => findSource(current, { runs: () => { throw new Error('API denied'); } }), /API denied/);
+});
+
+test('candidate selection skips corrupt receipts and reuses one validated artifact snapshot', () => {
+  const newer = { ...run, id: 150 };
+  const calls = [];
+  const artifacts = sourceArtifacts();
+  const api = { ...sourceApi, runs: () => [newer, run],
+    artifacts: id => { calls.push(`artifacts:${id}`); return artifacts; },
+    record: (candidate, listed) => {
+      assert.equal(listed, artifacts); calls.push(`record:${candidate.id}`);
+      if (candidate.id === newer.id) throw new SyntaxError('Corrupt JSON');
+      return record();
+    }, run: id => { calls.push(`run:${id}`); return run; } };
+  assert.equal(findSource(current, api).run, run.id);
+  assert.deepEqual(calls, ['artifacts:150', 'record:150', 'artifacts:100', 'record:100', 'run:100']);
+  assert.equal(findSource(current, { ...sourceApi, record: () => { throw new Error('Invalid zip'); } }), null);
+  assert.equal(findSource(current, { ...sourceApi, run: () => ({ ...run, run_attempt: 2 }) }), null);
+});
+
+test('unexpected API list responses identify the endpoint and expected collection', () => {
+  for (const response of [null, {}, { artifacts: {} }, { artifacts: null }, { artifacts: 'bad' }]) {
+    const api = apiClient('owner/repo', { execute: () => JSON.stringify(response) });
+    assert.throws(() => api.artifacts(100), /Unexpected Actions API response for runs\/100\/artifacts: expected artifacts array/);
+  }
+  const api = apiClient('owner/repo', { execute: () => '{broken' });
+  assert.throws(() => api.runs(1, current.head), /JSON/);
 });
 
 test('API pagination and downloads share a wall-clock deadline', () => {
@@ -187,7 +218,7 @@ test('real planner CLI discovers and validates an earlier run through the gh art
     run: 41, attempt: 1, plan: plan(['src/css/main.css'], { draft: true }) };
   fs.writeFileSync(path.join(root, 'ci-plan.json'), JSON.stringify(receipt));
   execFileSync('zip', ['-q', 'receipt.zip', 'ci-plan.json'], { cwd: root });
-  const artifacts = ['ci-plan-1', ...receipt.plan.matrix.include.map(job => `playwright-blob-${job.id}`), 'playwright-blob-standalone'].map((name, i) => ({ name, id: i + 7, size_in_bytes: 400, created_at: '2026-11-23T12:00:00Z' }));
+  const artifacts = ['ci-plan-1', ...receipt.plan.matrix.include.map(job => `playwright-blob-${job.id}`), 'playwright-blob-standalone', 'github-pages', 'browser-fixtures'].map((name, i) => ({ name, id: i + 7, size_in_bytes: 400, created_at: '2026-11-23T12:00:00Z' }));
   const gh = path.join(root, 'gh');
   fs.writeFileSync(gh, `#!${process.execPath}
 const fs=require('node:fs');const url=process.argv[3];
@@ -198,7 +229,7 @@ else {let result;
 if(url.endsWith('/runs/42'))result={workflow_id:1};
 else if(url.endsWith('/runs/41'))result=source;
 else if(url.includes('/workflows/1/runs?'))result={workflow_runs:url.endsWith('page=1')?Array.from({length:100},(_,i)=>({...source,id:1000+i})):[source]};
-else if(url.includes('/runs/41/artifacts?'))result={artifacts:url.endsWith('page=1')?Array.from({length:100},(_,i)=>({id:1000+i,name:'old',expired:true})):${JSON.stringify(artifacts)}};
+else if(url.includes('/runs/41/artifacts?'))result={artifacts:url.endsWith('page=1')?Array.from({length:100},(_,i)=>({id:1000+i,name:'old',expired:true})):${JSON.stringify(artifacts)}.filter(a=>a.name!==process.env.FAKE_MISSING_ARTIFACT).map(a=>({...a,expired:a.name===process.env.FAKE_EXPIRED_ARTIFACT}))};
 else throw new Error(url);
 process.stdout.write(JSON.stringify(result));}
 `);
@@ -221,8 +252,8 @@ process.stdout.write(JSON.stringify(result));}
   assert.equal(values['browser-tests'], 'true'); assert.equal(values['build-tests'], 'true');
   assert.equal(values.baseline, 'true');
   assert.equal(values['build-required'], 'true'); assert.equal(values['build-reused'], 'false');
-  assert.equal(values['source-reports'], artifacts.slice(1).map(a => a.id).join(','));
-  assert.deepEqual(JSON.parse(values['source-report-manifest']), Object.fromEntries(artifacts.slice(1).map(a => [a.name, a.id])));
+  assert.equal(values['source-reports'], artifacts.slice(1, -2).map(a => a.id).join(','));
+  assert.deepEqual(JSON.parse(values['source-report-manifest']), Object.fromEntries(artifacts.slice(1, -2).map(a => [a.name, a.id])));
   const summary = fs.readFileSync(options.env.GITHUB_STEP_SUMMARY, 'utf8');
   for (const text of ['Mode: **full**', 'Code checks: **true**', 'Build integrations required: **true**', 'Draft PRs run Chromium core', 'Artifacts → browser-test-report']) assert(summary.includes(text), text);
   assert.deepEqual(JSON.parse(values.previous), { mode: 'pr', groups: 'core', projects: ['chromium', 'chromium-only'] });
@@ -235,10 +266,23 @@ process.stdout.write(JSON.stringify(result));}
   const reused = fs.readFileSync(output, 'utf8');
   assert.match(reused, /build-required=true\n/); assert.match(reused, /build-reused=true\n/); assert.match(reused, /(?:^|\n)build-tests=false\n/);
   assert.throws(() => invoke({ GITHUB_SHA: base }), /Checkout does not match/);
-  assert.throws(() => invoke({ FAKE_GH_DENIED: '1' }), /Actions read permission denied/);
+  const fallback = env => {
+    fs.writeFileSync(output, ''); invoke(env);
+    const values = Object.fromEntries(fs.readFileSync(output, 'utf8').trim().split('\n').map(line => {
+      const i = line.indexOf('='); return [line.slice(0, i), line.slice(i + 1)];
+    }));
+    assert.equal(values['source-run'], ''); assert.equal(values.previous, '');
+    assert.equal(values.mode, 'full'); assert.equal(values['source-reports'], '');
+    for (const job of ['node', 'build', 'build-tests', 'browser-tests', 'standalone']) assert.equal(values[job], 'true', job);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(root, '.context/ci-plan.json'))).source, null);
+  };
+  fallback({ FAKE_GH_DENIED: '1' });
+  for (const name of ['github-pages', 'browser-fixtures', 'playwright-blob-chromium-1', 'playwright-blob-standalone']) {
+    fallback({ FAKE_MISSING_ARTIFACT: name }); fallback({ FAKE_EXPIRED_ARTIFACT: name });
+  }
   fs.writeFileSync(path.join(root, 'ci-plan.json'), '{broken');
   execFileSync('zip', ['-q', 'receipt.zip', 'ci-plan.json'], { cwd: root });
-  assert.throws(() => invoke(), /JSON/);
+  fallback();
 });
 
 test('report assembly rejects incomplete downloads before merging', t => {

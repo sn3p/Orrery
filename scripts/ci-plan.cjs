@@ -28,7 +28,7 @@ function fromEvent(eventName, event, git) {
 async function main() {
   const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
   const result = fromEvent(process.env.GITHUB_EVENT_NAME, event);
-  const { apiClient, findSource, execution, artifactIds } = require('./ci-reuse.cjs');
+  const { apiClient, findSource, execution } = require('./ci-reuse.cjs');
   const testedSha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   if (process.env.GITHUB_SHA && testedSha !== process.env.GITHUB_SHA) throw new Error('Checkout does not match the event revision');
   const current = { version: 1, repository: process.env.GITHUB_REPOSITORY, pr: event.pull_request?.number || event.number,
@@ -37,10 +37,14 @@ async function main() {
   let source = null;
   let reports = {};
   if (readyEvent(process.env.GITHUB_EVENT_NAME, event) && result.code && process.env.GH_TOKEN) {
-    const api = apiClient(current.repository);
-    current.workflow = api.run(current.run).workflow_id;
-    source = findSource(current, api);
-    if (source) reports = artifactIds(api, source, 'CI');
+    try {
+      const api = apiClient(current.repository);
+      current.workflow = api.run(current.run).workflow_id;
+      source = findSource(current, api);
+      if (source) reports = source.reports;
+    } catch (error) {
+      console.error(`CI reuse unavailable; running full coverage: ${error.message}`);
+    }
   }
   const jobs = execution(result, source);
   const previous = source ? { mode: source.plan.mode, groups: source.plan.groups,

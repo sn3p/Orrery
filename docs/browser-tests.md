@@ -202,9 +202,12 @@ report job rather than silently omitting coverage. When all coverage is reused,
 the plan summary links to the source run page and identifies its
 **Artifacts → browser-test-report** download.
 
-Missing, expired or incompatible receipts fall back to the normal full run.
+Missing, expired, incompatible or corrupt receipts are skipped. Planning also
+requires every artifact needed by the selected source, including the shorter-lived
+public build for partial coverage. If no usable source remains, run full coverage.
 Partial reruns without a new plan receipt are also skipped immediately.
-Corrupt receipts and API errors fail planning. Once a source is selected, a changed
+API errors or lookup timeouts during planning fall back to full coverage with a
+diagnostic. Once jobs rely on the selected source, a changed
 attempt, missing artifact or timeout fails verification; it never silently
 becomes passing coverage or launches duplicate checks. The final gate rechecks
 the source attempt after reading its successful CI job. Recover by rerunning

@@ -30,9 +30,7 @@ function compatible(record, run, current) {
   // A receipt with dependencies does not own all the artifacts it claims as
   // coverage. Select a self-contained source rather than trusting stale ancestors.
   if (record.source) return false;
-  const p = record.plan;
-  if (!validPlan(p)) return false;
-  return true;
+  return validPlan(record.plan);
 }
 
 function apiClient(repository, { now = Date.now, timeoutMs = 120000, execute = execFileSync } = {}) {
@@ -52,22 +50,23 @@ function apiClient(repository, { now = Date.now, timeoutMs = 120000, execute = e
     }
   };
   const api = endpoint => JSON.parse(command('gh', ['api', `${prefix}/${endpoint}`], { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 }));
-  const pages = endpoint => {
+  const pages = (endpoint, key) => {
     const rows = [];
     for (let page = 1; ; page++) {
       const result = api(`${endpoint}${endpoint.includes('?') ? '&' : '?'}per_page=100&page=${page}`);
-      const batch = result.workflow_runs || result.artifacts || result.jobs;
+      const batch = result?.[key];
+      if (!Array.isArray(batch)) throw new Error(`Unexpected Actions API response for ${endpoint}: expected ${key} array`);
       rows.push(...batch);
       if (batch.length < 100) return rows;
     }
   };
-  return {
+  const client = {
     run: id => api(`runs/${id}`),
-    runs: (workflow, head) => pages(`workflows/${workflow}/runs?event=pull_request&head_sha=${head}`),
-    jobs: (id, attempt) => pages(`runs/${id}/attempts/${attempt}/jobs`),
-    artifacts: id => pages(`runs/${id}/artifacts`),
-    record: run => {
-      const artifact = pages(`runs/${run.id}/artifacts`).find(a => a.name === `ci-plan-${run.run_attempt}` && !a.expired);
+    runs: (workflow, head) => pages(`workflows/${workflow}/runs?event=pull_request&head_sha=${head}`, 'workflow_runs'),
+    jobs: (id, attempt) => pages(`runs/${id}/attempts/${attempt}/jobs`, 'jobs'),
+    artifacts: id => pages(`runs/${id}/artifacts`, 'artifacts'),
+    record: (run, artifacts = client.artifacts(run.id)) => {
+      const artifact = artifacts.find(a => a.name === `ci-plan-${run.run_attempt}` && !a.expired);
       if (!artifact || artifact.size_in_bytes > 1024 * 1024) return null;
       const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'orrery-ci-record-'));
       try {
@@ -78,6 +77,7 @@ function apiClient(repository, { now = Date.now, timeoutMs = 120000, execute = e
       } finally { fs.rmSync(directory, { recursive: true, force: true }); }
     },
   };
+  return client;
 }
 
 function findSource(current, api) {
@@ -85,8 +85,20 @@ function findSource(current, api) {
   // them or wait for receipts a partial rerun will not upload.
   const runs = api.runs(current.workflow, current.head).filter(run => eligibleRun(run, current)).sort((a, b) => b.id - a.id);
   for (const run of runs) {
-    const record = api.record(run);
-    if (compatible(record, run, current)) return { run: run.id, attempt: run.run_attempt, plan: record.plan };
+    try {
+      const artifacts = api.artifacts(run.id);
+      const record = api.record(run, artifacts);
+      if (!compatible(record, run, current)) continue;
+      const source = { run: run.id, attempt: run.run_attempt, plan: record.plan };
+      const reports = selectArtifactIds(artifacts, record, 'CI');
+      // Partial coverage needs the public build and fixtures too. Pages artifacts
+      // expire sooner than receipts/reports; reject the candidate before reuse.
+      if (execution(record.plan, source).build) selectArtifactIds(artifacts, record, 'build');
+      if (api.run(run.id).run_attempt !== source.attempt) throw new Error('Source attempt changed while selecting artifacts');
+      return { ...source, reports };
+    } catch (error) {
+      console.error(`Skipping reuse candidate ${run.id}: ${error.message}`);
+    }
   }
   return null;
 }
@@ -117,26 +129,29 @@ function verifyJob(api, source, name) {
   checkRun();
 }
 
-function artifactIds(api, source, name) {
-  const artifacts = api.artifacts(source.run).filter(artifact => !artifact.expired);
-  const run = api.run(source.run);
-  const receipt = api.record(run);
-  if (receipt?.run !== source.run || receipt?.attempt !== source.attempt || receipt.source || !validPlan(receipt?.plan)) {
-    throw new Error('Missing or incompatible source receipt');
-  }
+function selectArtifactIds(artifacts, receipt, name) {
   const plannedAt = Date.parse(receipt.uploadedAt);
   if (!Number.isFinite(plannedAt)) throw new Error('Missing source receipt upload time');
   const keys = name === 'build' ? ['github-pages', 'browser-fixtures']
     : [...receipt.plan.matrix.include.map(job => `playwright-blob-${job.id}`), 'playwright-blob-standalone'];
-  const selected = keys.map(key => {
-    // The plan is uploaded before any producer job starts. A partial rerun can
-    // leave old artifacts behind: never mix those with this attempt's receipt.
-    const artifact = artifacts.find(item => item.name === key && Date.parse(item.created_at) >= plannedAt);
+  return Object.fromEntries(keys.map(key => {
+    // Never mix leftovers from a prior attempt with this attempt's receipt.
+    const artifact = artifacts.find(item => item.name === key && !item.expired && Date.parse(item.created_at) >= plannedAt);
     if (!artifact) throw new Error(`Missing source artifact: ${key}`);
-    return artifact;
-  });
+    return [key, artifact.id];
+  }));
+}
+
+function artifactIds(api, source, name) {
+  const artifacts = api.artifacts(source.run);
+  const run = api.run(source.run);
+  const receipt = api.record(run, artifacts);
+  if (receipt?.run !== source.run || receipt?.attempt !== source.attempt || receipt.source || !validPlan(receipt?.plan)) {
+    throw new Error('Missing or incompatible source receipt');
+  }
+  const selected = selectArtifactIds(artifacts, receipt, name);
   if (api.run(source.run).run_attempt !== source.attempt) throw new Error('Source attempt changed while selecting artifacts');
-  return Object.fromEntries(selected.map((artifact, i) => [keys[i], artifact.id]));
+  return selected;
 }
 
 if (require.main === module) {
