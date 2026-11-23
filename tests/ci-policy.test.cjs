@@ -312,7 +312,7 @@ test('native selection retains core in Chromium, smoke in other engines and two 
 });
 
 test('aggregate gate rejects failing, cancelled, missing or unexpectedly skipped selected jobs', () => {
-  const baseline = { plan: { result: 'success', outputs: { code: 'true', 'build-tests': 'false' } },
+  const baseline = { plan: { result: 'success', outputs: { code: 'true', 'build-required': 'false', 'build-reused': 'false' } },
     node: { result: 'success' }, build: { result: 'success' }, 'build-tests': { result: 'skipped' },
     'browser-tests': { result: 'success' }, standalone: { result: 'success' }, baseline: { result: 'skipped' } };
   const requirements = { node: true, build: true, 'build-tests': false, 'browser-tests': true, standalone: true, baseline: false };
@@ -326,7 +326,7 @@ test('aggregate gate rejects failing, cancelled, missing or unexpectedly skipped
       assert.throws(() => verify(value), undefined, `${job} ${result}`);
     }
   }
-  const full = structuredClone(baseline); full.plan.outputs['build-tests'] = 'true';
+  const full = structuredClone(baseline); full.plan.outputs['build-required'] = 'true';
   full.plan.outputs.execution = JSON.stringify({ ...requirements, 'build-tests': true });
   assert.throws(() => verify(full)); full['build-tests'].result = 'success'; verify(full);
   const docs = structuredClone(baseline); docs.plan.outputs.code = 'false';

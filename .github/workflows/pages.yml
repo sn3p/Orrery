@@ -26,11 +26,13 @@ concurrency:
 jobs:
   plan:
     name: Select test coverage
-    timeout-minutes: 35
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     outputs:
       code: ${{ steps.plan.outputs.code }}
       build-tests: ${{ steps.plan.outputs.build-tests }}
+      build-required: ${{ steps.plan.outputs.build-required }}
+      build-reused: ${{ steps.plan.outputs.build-reused }}
       groups: ${{ steps.plan.outputs.groups }}
       mode: ${{ steps.plan.outputs.mode }}
       matrix: ${{ steps.plan.outputs.matrix }}
@@ -42,6 +44,7 @@ jobs:
       baseline: ${{ steps.plan.outputs.baseline }}
       source-run: ${{ steps.plan.outputs.source-run }}
       source-attempt: ${{ steps.plan.outputs.source-attempt }}
+      source-reports: ${{ steps.plan.outputs.source-reports }}
       previous: ${{ steps.plan.outputs.previous }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -108,8 +111,7 @@ jobs:
       ORRERY_TEST_GROUPS: ${{ needs.plan.outputs.groups }}
       ORRERY_TEST_MODE: ${{ needs.plan.outputs.mode }}
     runs-on: ubuntu-latest
-    # Up to 30 minutes for the original build, then incremental compilation.
-    timeout-minutes: 45
+    timeout-minutes: 10
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -325,7 +327,7 @@ jobs:
   report:
     name: Browser test report
     if: ${{ !cancelled() && needs.plan.outputs.browser-tests == 'true' }}
-    needs: [plan, browser-tests, standalone, baseline]
+    needs: [plan, browser-tests, standalone]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -347,17 +349,18 @@ jobs:
           path: .context/playwright-blob
           merge-multiple: true
       - name: Include the reused source reports
-        if: needs.plan.outputs.source-run != '' && needs.baseline.result == 'success'
+        if: needs.plan.outputs.source-run != ''
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
-          artifact-ids: ${{ needs.baseline.outputs.reports }}
+          artifact-ids: ${{ needs.plan.outputs.source-reports }}
           path: .context/source-reports
           merge-multiple: true
           github-token: ${{ github.token }}
           run-id: ${{ needs.plan.outputs.source-run }}
       - name: Combine disjoint reports
-        if: needs.plan.outputs.source-run != '' && needs.baseline.result == 'success'
+        if: needs.plan.outputs.source-run != ''
         run: |
+          mkdir -p .context/playwright-blob
           for report in .context/source-reports/*.zip; do
             cp "$report" ".context/playwright-blob/source-$(basename "$report")"
           done
@@ -374,19 +377,17 @@ jobs:
 
   baseline:
     name: Reused checks
-    outputs:
-      reports: ${{ steps.source.outputs.reports }}
-    needs: [plan, browser-tests, build-tests]
-    if: ${{ !cancelled() && needs.plan.outputs.baseline == 'true' && (needs.browser-tests.result == 'success' || needs.browser-tests.result == 'skipped') }}
+    needs: plan
+    if: needs.plan.outputs.baseline == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Require the exact source run to pass
         id: source
-        run: node scripts/ci-reuse.cjs CI
+        run: node scripts/ci-reuse.cjs CI --gate-only
         env:
           GH_TOKEN: ${{ github.token }}
           CI_SOURCE_RUN: ${{ needs.plan.outputs.source-run }}
@@ -394,6 +395,7 @@ jobs:
 
   ci:
     name: CI
+    timeout-minutes: 5
     if: always()
     needs: [plan, node, build, build-tests, browser-tests, standalone, baseline]
     runs-on: ubuntu-latest
@@ -401,6 +403,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Require every selected check
+        run: node scripts/ci-gate.cjs
+        env:
+          CI_NEEDS: ${{ toJSON(needs) }}
       - name: Recheck source attempt at the final gate
         if: needs.plan.outputs.baseline == 'true'
         run: node scripts/ci-reuse.cjs CI --gate-only
@@ -408,10 +414,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CI_SOURCE_RUN: ${{ needs.plan.outputs.source-run }}
           CI_SOURCE_ATTEMPT: ${{ needs.plan.outputs.source-attempt }}
-      - name: Require every selected check
-        run: node scripts/ci-gate.cjs
-        env:
-          CI_NEEDS: ${{ toJSON(needs) }}
 
   deploy:
     if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request' && github.event_name != 'schedule' && needs.plan.outputs.code == 'true'

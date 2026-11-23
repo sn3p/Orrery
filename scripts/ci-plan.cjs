@@ -28,17 +28,19 @@ function fromEvent(eventName, event, git) {
 async function main() {
   const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
   const result = fromEvent(process.env.GITHUB_EVENT_NAME, event);
-  const { apiClient, findSource, execution } = require('./ci-reuse.cjs');
+  const { apiClient, findSource, execution, artifactIds } = require('./ci-reuse.cjs');
   const testedSha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
   if (process.env.GITHUB_SHA && testedSha !== process.env.GITHUB_SHA) throw new Error('Checkout does not match the event revision');
   const current = { version: 1, repository: process.env.GITHUB_REPOSITORY, pr: event.pull_request?.number || event.number,
     sha: testedSha, head: event.pull_request?.head?.sha, base: event.pull_request?.base?.sha,
     run: Number(process.env.GITHUB_RUN_ID), attempt: Number(process.env.GITHUB_RUN_ATTEMPT) };
   let source = null;
+  let reports = '';
   if (readyEvent(process.env.GITHUB_EVENT_NAME, event) && result.code && process.env.GH_TOKEN) {
     const api = apiClient(current.repository);
     current.workflow = api.run(current.run).workflow_id;
-    source = await findSource(current, api);
+    source = findSource(current, api);
+    if (source) reports = Object.values(artifactIds(api, source, 'CI')).join(',');
   }
   const jobs = execution(result, source);
   const previous = source ? { mode: source.plan.mode, groups: source.plan.groups,
@@ -46,14 +48,15 @@ async function main() {
   const values = { code: result.code, groups: result.groups, mode: result.mode, budget: result.budget,
     matrix: JSON.stringify(result.matrix), execution: JSON.stringify(jobs),
     'source-run': source?.run || '', 'source-attempt': source?.attempt || '',
+    'source-reports': reports, 'build-required': result.buildTests, 'build-reused': !!source?.plan.buildTests,
     previous: previous ? JSON.stringify(previous) : '', ...jobs };
-  // Preserve the plan's integration requirement for consumers of the receipt.
   fs.appendFileSync(process.env.GITHUB_OUTPUT, Object.entries(values).map(([key, value]) => `${key}=${value}\n`).join(''));
   fs.mkdirSync('.context', { recursive: true });
   fs.writeFileSync('.context/ci-plan.json', JSON.stringify({ ...current, plan: result, source }, null, 2));
-  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Test plan\n\nBudget: **${result.budget}**. Groups: **${result.groups}**.\n\n`
-    + (source ? `Reusing [run ${source.run}](https://github.com/${current.repository}/actions/runs/${source.run}) attempt ${source.attempt} for the exact merge revision ${current.sha}. Only missing checks run here; CI also requires the source CI gate to pass.\n`
-      : 'No reusable evidence selected. All checks in this budget run here.\n'));
+  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## Test plan\n\nBudget: **${result.budget}**. Mode: **${result.mode}**. Groups: **${result.groups}**. Code checks: **${result.code}**. Build integrations required: **${result.buildTests}**; reused: **${values['build-reused']}**; run here: **${jobs['build-tests']}**.\n\n`
+    + 'Draft PRs run Chromium core. Readiness requires full coverage; later pushes use the routine affected-group budget. Nightly/manual runs are exhaustive; documentation-only changes skip code checks. See docs/browser-tests.md.\n\n'
+    + (source ? `Reusing completed [run ${source.run}](https://github.com/${current.repository}/actions/runs/${source.run}) attempt ${source.attempt} for the exact merge revision ${current.sha}. Its report is under **Artifacts → browser-test-report** on that run page. Only missing checks run here; CI revalidates the source attempt.\n`
+      : 'No completed, compatible source selected. All checks in this budget run here; running sources are never awaited.\n'));
   console.log(JSON.stringify(result));
 }
 if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1; });

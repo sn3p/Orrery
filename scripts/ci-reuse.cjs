@@ -5,7 +5,6 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { isDeepStrictEqual } = require('node:util');
 const { selection, plan } = require('../tests/ci-policy.cjs');
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function validPlan(p) {
   if (p?.code !== true || typeof p.buildTests !== 'boolean' || typeof p.groups !== 'string'
@@ -21,7 +20,7 @@ function eligibleRun(run, current) {
   return Number.isSafeInteger(run.id) && run.id < current.run
     && Number.isSafeInteger(run.run_attempt) && run.run_attempt > 0
     && run.workflow_id === current.workflow && run.event === 'pull_request' && run.head_sha === current.head
-    && (!run.conclusion || run.conclusion === 'success');
+    && run.status === 'completed' && run.conclusion === 'success';
 }
 
 function compatible(record, run, current) {
@@ -33,15 +32,26 @@ function compatible(record, run, current) {
   if (record.source) return false;
   const p = record.plan;
   if (!validPlan(p)) return false;
-  // A new readiness event supersedes an older readiness run in its group.
-  // Only its already-successful full result is reusable.
-  if (p.mode === 'full' && (run.status !== 'completed' || run.conclusion !== 'success')) return false;
   return true;
 }
 
-function apiClient(repository) {
+function apiClient(repository, { now = Date.now, timeoutMs = 120000, execute = execFileSync } = {}) {
   const prefix = `repos/${repository}/actions`;
-  const api = endpoint => JSON.parse(execFileSync('gh', ['api', `${prefix}/${endpoint}`], { encoding: 'utf8', timeout: 60000, maxBuffer: 10 * 1024 * 1024 }));
+  const deadline = now() + timeoutMs;
+  const command = (file, args, options) => {
+    const remaining = deadline - now();
+    if (remaining <= 0) throw new Error('CI reuse lookup exceeded its time budget');
+    try {
+      const result = execute(file, args, { ...options, timeout: Math.min(60000, remaining) });
+      if (now() >= deadline) throw new Error('CI reuse lookup exceeded its time budget');
+      return result;
+    }
+    catch (error) {
+      if (error.code === 'ETIMEDOUT') throw new Error('CI reuse lookup exceeded its time budget', { cause: error });
+      throw error;
+    }
+  };
+  const api = endpoint => JSON.parse(command('gh', ['api', `${prefix}/${endpoint}`], { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 }));
   const pages = endpoint => {
     const rows = [];
     for (let page = 1; ; page++) {
@@ -62,28 +72,23 @@ function apiClient(repository) {
       const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'orrery-ci-record-'));
       try {
         const zip = path.join(directory, 'record.zip');
-        fs.writeFileSync(zip, execFileSync('gh', ['api', `${prefix}/artifacts/${artifact.id}/zip`], { timeout: 60000, maxBuffer: 1024 * 1024 }));
-        const record = JSON.parse(execFileSync('unzip', ['-p', zip, 'ci-plan.json'], { encoding: 'utf8', maxBuffer: 1024 * 1024 }));
+        fs.writeFileSync(zip, command('gh', ['api', `${prefix}/artifacts/${artifact.id}/zip`], { maxBuffer: 1024 * 1024 }));
+        const record = JSON.parse(command('unzip', ['-p', zip, 'ci-plan.json'], { encoding: 'utf8', maxBuffer: 1024 * 1024 }));
         return { ...record, uploadedAt: artifact.created_at };
       } finally { fs.rmSync(directory, { recursive: true, force: true }); }
     },
   };
 }
 
-async function findSource(current, api, { pause = sleep, attempts = 180 } = {}) {
-  // A readiness event may arrive before the preceding plan artifact uploads.
-  for (let attempt = 0; attempt < attempts; attempt++) {
-    let pending = false;
-    const runs = api.runs(current.workflow, current.head).filter(run => eligibleRun(run, current)).sort((a, b) => b.id - a.id);
-    for (const run of runs) {
-      const record = api.record(run);
-      if (compatible(record, run, current)) return { run: run.id, attempt: run.run_attempt, plan: record.plan };
-      if (!record && run.status !== 'completed') pending = true;
-    }
-    if (!pending) return null;
-    if (attempt === attempts - 1) throw new Error('Earlier plan is still pending; refusing to duplicate its checks');
-    await pause(10000);
+function findSource(current, api) {
+  // Running sources can be cancelled by a fixup. Never make readiness depend on
+  // them or wait for receipts a partial rerun will not upload.
+  const runs = api.runs(current.workflow, current.head).filter(run => eligibleRun(run, current)).sort((a, b) => b.id - a.id);
+  for (const run of runs) {
+    const record = api.record(run);
+    if (compatible(record, run, current)) return { run: run.id, attempt: run.run_attempt, plan: record.plan };
   }
+  return null;
 }
 
 function execution(plan, source) {
@@ -98,21 +103,18 @@ function execution(plan, source) {
   };
 }
 
-async function waitForJob(api, source, name, { pause = sleep, attempts = 180 } = {}) {
-  for (let count = 0; count < attempts; count++) {
+function verifyJob(api, source, name) {
+  const checkRun = () => {
     const run = api.run(source.run);
     if (run.run_attempt !== source.attempt) throw new Error('Source run was rerun; rerun this verification to select its new attempt');
-    if (run.conclusion && run.conclusion !== 'success') throw new Error(`Source run: ${run.conclusion}`);
-    const job = api.jobs(source.run, source.attempt).find(job => job.name === name);
-    if (job?.status === 'completed') {
-      if (job.conclusion !== 'success') throw new Error(`Source ${name}: ${job.conclusion}`);
-      if (api.run(source.run).run_attempt !== source.attempt) throw new Error('Source run was rerun while checking its job');
-      return;
-    }
-    if (run.status === 'completed') throw new Error(`Source ${name} did not complete successfully`);
-    if (count + 1 < attempts) await pause(10000);
+    if (run.status !== 'completed' || run.conclusion !== 'success') throw new Error('Source run is not completed successfully');
+  };
+  checkRun();
+  const job = api.jobs(source.run, source.attempt).find(job => job.name === name);
+  if (job?.status !== 'completed' || job.conclusion !== 'success') {
+    throw new Error(`Source ${name} did not complete successfully`);
   }
-  throw new Error(`Timed out awaiting source ${name}; no result reused as passing`);
+  checkRun();
 }
 
 function artifactIds(api, source, name) {
@@ -142,12 +144,14 @@ if (require.main === module) {
   if (!Number.isSafeInteger(source.run) || source.run <= 0 || !Number.isSafeInteger(source.attempt) || source.attempt <= 0) throw new Error('Invalid source run identity');
   const api = apiClient(process.env.GITHUB_REPOSITORY);
   const name = process.argv[2] || 'CI';
-  waitForJob(api, source, name).then(() => {
-    if (!process.env.GITHUB_OUTPUT || process.argv.includes('--gate-only')) return;
-    const ids = artifactIds(api, source, name);
-    const values = name === 'build' ? { pages: ids['github-pages'], fixtures: ids['browser-fixtures'] }
-      : { reports: Object.values(ids).join(',') };
-    fs.appendFileSync(process.env.GITHUB_OUTPUT, Object.entries(values).map(([key, value]) => `${key}=${value}\n`).join(''));
-  }).catch(error => { console.error(error); process.exitCode = 1; });
+  try {
+    verifyJob(api, source, name);
+    if (process.env.GITHUB_OUTPUT && !process.argv.includes('--gate-only')) {
+      const ids = artifactIds(api, source, name);
+      const values = name === 'build' ? { pages: ids['github-pages'], fixtures: ids['browser-fixtures'] }
+        : { reports: Object.values(ids).join(',') };
+      fs.appendFileSync(process.env.GITHUB_OUTPUT, Object.entries(values).map(([key, value]) => `${key}=${value}\n`).join(''));
+    }
+  } catch (error) { console.error(error); process.exitCode = 1; }
 }
-module.exports = { compatible, apiClient, findSource, execution, waitForJob, artifactIds };
+module.exports = { compatible, apiClient, findSource, execution, verifyJob, artifactIds };

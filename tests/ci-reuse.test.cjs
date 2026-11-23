@@ -4,12 +4,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { execFileSync } = require('node:child_process');
-const { compatible, findSource, execution, waitForJob, artifactIds } = require('../scripts/ci-reuse.cjs');
+const { compatible, findSource, execution, verifyJob, artifactIds, apiClient } = require('../scripts/ci-reuse.cjs');
 const { plan } = require('./ci-policy.cjs');
 const { verify } = require('../scripts/ci-gate.cjs');
 
 const current = { repository: 'owner/repo', pr: 12, sha: 'a'.repeat(40), head: 'b'.repeat(40), base: 'c'.repeat(40), run: 200, workflow: 1 };
-const run = { id: 100, run_attempt: 1, workflow_id: 1, event: 'pull_request', head_sha: current.head, status: 'in_progress' };
+const run = { id: 100, run_attempt: 1, workflow_id: 1, event: 'pull_request', head_sha: current.head, status: 'completed', conclusion: 'success' };
 const record = () => ({ ...current, version: 1, run: run.id, attempt: 1, plan: plan(['src/unified/App.js'], { draft: true }) });
 
 test('reuse requires the exact PR, tested merge revision, workflow and run attempt', () => {
@@ -22,30 +22,54 @@ test('reuse requires the exact PR, tested merge revision, workflow and run attem
   }
   assert(!compatible(record(), { ...run, conclusion: 'cancelled' }, current));
   const fullRecord = { ...record(), plan: plan([], { full: true }) };
-  assert(!compatible(fullRecord, run, current), 'In-flight full run would be cancelled by the new readiness event');
+  assert(!compatible(fullRecord, { ...run, status: 'in_progress', conclusion: null }, current), 'In-flight coverage is not reusable');
   assert(compatible(fullRecord, { ...run, status: 'completed', conclusion: 'success' }, current));
   assert(!compatible({ ...record(), plan: { ...record().plan, groups: 'invalid' } }, run, current));
   assert(!compatible({ ...record(), plan: { ...record().plan, code: false } }, run, current));
 });
 
-test('readiness finds completed or running coverage and handles a late receipt without rerunning tests', async () => {
-  let calls = 0, pauses = 0;
-  const source = await findSource(current, { runs: () => [run], record: () => ++calls < 2 ? null : record() }, { pause: async () => pauses++ });
-  assert.equal(source.run, 100); assert.equal(pauses, 1);
-  assert.equal((await findSource(current, { runs: () => [{ ...run, status: 'completed' }], record }, {})).run, 100);
-  assert.equal(await findSource(current, { runs: () => [], record }, {}), null);
-  await assert.rejects(findSource(current, { runs: () => [run], record: () => null }, { attempts: 2, pause: async () => {} }), /refusing to duplicate/);
-  const full = { ...record(), plan: plan([], { full: true }) };
-  const completed = { ...run, status: 'completed', conclusion: 'success' };
-  const reused = { ...completed, id: 150 };
-  const sources = { runs: () => [reused, completed], record: r => r.id === reused.id
-    ? { ...full, run: reused.id, source: { run: run.id, attempt: 1 } } : full };
-  assert.equal((await findSource(current, sources)).run, run.id, 'Repeated readiness goes back to self-contained full coverage');
-  assert.equal(await findSource(current, { ...sources, runs: () => [reused] }), null);
-  for (const conclusion of ['failure', 'cancelled', 'timed_out']) {
-    assert.equal(await findSource(current, { runs: () => [{ ...run, conclusion }], record: () => { throw new Error('Ineligible run must not be queried'); } }), null);
+test('readiness selects completed successful coverage once, ignoring pending and partial reruns', () => {
+  for (const status of ['queued', 'in_progress']) {
+    for (const attempt of [1, 2]) {
+      const running = { ...run, status, run_attempt: attempt, conclusion: null };
+      assert.equal(findSource(current, { runs: () => [running], record: () => { throw new Error('Must not wait for or fetch a pending receipt'); } }), null);
+    }
   }
-  await assert.rejects(findSource(current, { runs: () => { throw new Error('API denied'); } }), /API denied/);
+  let reads = 0;
+  assert.equal(findSource(current, { runs: () => [run], record: () => { reads++; return null; } }), null);
+  assert.equal(reads, 1, 'A missing partial-rerun receipt is inspected once');
+  assert.equal(findSource(current, { runs: () => [run], record }).run, 100);
+  assert.equal(findSource(current, { runs: () => [], record }), null);
+  const full = { ...record(), plan: plan([], { full: true }) };
+  const reused = { ...run, id: 150 };
+  const sources = { runs: () => [reused, run], record: r => r.id === reused.id
+    ? { ...full, run: reused.id, source: { run: run.id, attempt: 1 } } : full };
+  assert.equal(findSource(current, sources).run, run.id, 'Repeated readiness goes back to self-contained full coverage');
+  assert.equal(findSource(current, { ...sources, runs: () => [reused] }), null);
+  for (const conclusion of ['failure', 'cancelled', 'timed_out']) {
+    assert.equal(findSource(current, { runs: () => [{ ...run, conclusion }], record: () => { throw new Error('Ineligible run must not be queried'); } }), null);
+  }
+  assert.throws(() => findSource(current, { runs: () => { throw new Error('API denied'); } }), /API denied/);
+});
+
+test('API pagination and downloads share a wall-clock deadline', () => {
+  let time = 0;
+  const timeouts = [];
+  const api = apiClient('owner/repo', { now: () => time, timeoutMs: 100,
+    execute: (_file, _args, options) => {
+      timeouts.push(options.timeout); time += 60;
+      return JSON.stringify({ workflow_runs: Array.from({ length: 100 }, () => run) });
+    } });
+  assert.throws(() => api.runs(1, current.head), /time budget/);
+  assert.deepEqual(timeouts, [100, 40], 'Later requests receive only remaining time');
+  const stalled = apiClient('owner/repo', { execute: () => { throw Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' }); } });
+  assert.throws(() => stalled.run(100), /time budget/);
+  const download = apiClient('owner/repo', { now: () => time, timeoutMs: 100, execute: (_file, args, options) => {
+    if (args[1].includes('/artifacts?')) { time += 80; return JSON.stringify({ artifacts: [{ id: 7, name: 'ci-plan-1', size_in_bytes: 100 }] }); }
+    assert.equal(options.timeout, 20);
+    throw Object.assign(new Error('slow download'), { code: 'ETIMEDOUT' });
+  } });
+  assert.throws(() => download.record(run), /time budget/);
 });
 
 test('malformed coverage receipts cannot suppress required work', () => {
@@ -59,38 +83,37 @@ test('malformed coverage receipts cannot suppress required work', () => {
   }
 });
 
-test('reused pending/failed/cancelled/missing checks cannot yield a passing gate', async () => {
+test('source checks and final gate reject pending, failed, cancelled or rerun evidence immediately', () => {
   const source = { run: 100, attempt: 1, plan: record().plan };
-  let checks = 0;
-  await waitForJob({ run: () => run, jobs: () => [{ name: 'CI', status: ++checks < 2 ? 'in_progress' : 'completed', conclusion: 'success' }] }, source, 'CI', { pause: async () => {} });
-  assert.equal(checks, 2);
+  const passed = { name: 'CI', status: 'completed', conclusion: 'success' };
+  verifyJob({ run: () => run, jobs: () => [passed] }, source, 'CI');
   for (const conclusion of ['failure', 'cancelled', 'skipped', 'timed_out', 'neutral']) {
-    await assert.rejects(waitForJob({ run: () => run, jobs: () => [{ name: 'CI', status: 'completed', conclusion }] }, source, 'CI'), /Source CI/);
+    assert.throws(() => verifyJob({ run: () => run, jobs: () => [{ ...passed, conclusion }] }, source, 'CI'), /Source CI/);
   }
-  await assert.rejects(waitForJob({ run: () => ({ ...run, status: 'completed' }), jobs: () => [] }, source, 'CI'), /did not complete/);
-  await assert.rejects(waitForJob({ run: () => ({ ...run, run_attempt: 2 }), jobs: () => [] }, source, 'CI'), /was rerun/);
+  assert.throws(() => verifyJob({ run: () => run, jobs: () => [] }, source, 'CI'), /did not complete/);
+  assert.throws(() => verifyJob({ run: () => ({ ...run, run_attempt: 2 }), jobs: () => [] }, source, 'CI'), /was rerun/);
   let attempt = 1;
-  await assert.rejects(waitForJob({ run: () => ({ ...run, run_attempt: attempt }), jobs: () => {
-    attempt = 2;
-    return [{ name: 'CI', status: 'completed', conclusion: 'success' }];
+  assert.throws(() => verifyJob({ run: () => ({ ...run, run_attempt: attempt }), jobs: () => {
+    attempt = 2; return [passed];
   } }, source, 'CI'), /was rerun/);
-  await assert.rejects(waitForJob({ run: () => run, jobs: () => [] }, source, 'CI', { attempts: 1 }), /Timed out/);
-  const full = plan([], { full: true });
-  const jobs = execution(full, source);
-  assert.equal(jobs.node, false); assert.equal(jobs.standalone, false); assert.equal(jobs['build-tests'], true);
-  const needs = { plan: { result: 'success', outputs: { code: 'true', 'build-tests': 'true', execution: JSON.stringify(jobs) } } };
-  for (const [job, required] of Object.entries(jobs)) needs[job] = { result: required ? 'success' : 'skipped' };
-  verify(needs);
-  for (const result of ['failure', 'skipped', 'cancelled']) {
-    assert.throws(() => verify({ ...needs, baseline: { result } }));
+  for (const state of [{ status: 'in_progress', conclusion: null }, { conclusion: 'cancelled' }]) {
+    assert.throws(() => verifyJob({ run: () => ({ ...run, ...state }), jobs: () => [passed] }, source, 'CI'), /not completed successfully/);
   }
-  const missingExecution = structuredClone(needs); delete missingExecution.plan.outputs.execution;
-  assert.throws(() => verify(missingExecution));
-  const noWork = structuredClone(needs);
-  noWork.plan.outputs.execution = JSON.stringify(Object.fromEntries(Object.keys(jobs).map(job => [job, false])));
-  assert.throws(() => verify(noWork));
-  await assert.rejects(waitForJob({ run: () => ({ ...run, conclusion: 'cancelled' }),
-    jobs: () => [{ name: 'CI', status: 'completed', conclusion: 'success' }] }, source, 'CI'), /Source run: cancelled/);
+  const full = plan([], { full: true });
+  for (const buildReused of [true, false]) {
+    const jobs = execution(full, { ...source, plan: { ...source.plan, buildTests: buildReused } });
+    assert.equal(jobs.node, false); assert.equal(jobs.standalone, false);
+    const needs = { plan: { result: 'success', outputs: { code: 'true', 'build-required': 'true', 'build-reused': String(buildReused), execution: JSON.stringify(jobs) } } };
+    for (const [job, required] of Object.entries(jobs)) needs[job] = { result: required ? 'success' : 'skipped' };
+    verify(needs);
+    for (const result of ['failure', 'skipped', 'cancelled']) assert.throws(() => verify({ ...needs, baseline: { result } }));
+    const missingExecution = structuredClone(needs); delete missingExecution.plan.outputs.execution;
+    assert.throws(() => verify(missingExecution));
+    // A required integration cannot disappear just because the execution map says skip.
+    needs.plan.outputs['build-reused'] = 'false';
+    needs.plan.outputs.execution = JSON.stringify({ ...jobs, 'build-tests': false });
+    assert.throws(() => verify(needs), /Inconsistent execution/);
+  }
   assert.deepEqual(execution(full, { ...source, plan: full }),
     { node: false, build: false, 'build-tests': false, 'browser-tests': false, standalone: false, baseline: true });
 });
@@ -114,10 +137,22 @@ test('artifact downloads require every expected artifact from the exact attempt'
 test('workflow connects reuse outputs, source gates, artifacts and remaining browser selection', () => {
   const { jobs, permissions } = require('js-yaml').load(fs.readFileSync('.github/workflows/pages.yml', 'utf8'));
   assert.equal(permissions.actions, 'read');
-  assert(jobs.build['timeout-minutes'] >= 40);
-  assert(jobs.plan['timeout-minutes'] >= 30);
+  assert.equal(jobs.build['timeout-minutes'], 10);
+  for (const name of ['plan', 'baseline', 'ci']) assert.equal(jobs[name]['timeout-minutes'], 5);
   assert(jobs.ci.needs.includes('baseline'));
-  assert(jobs.report.needs.includes('baseline'));
+  assert(!jobs.report.needs.includes('baseline'));
+  assert.equal(jobs.baseline.needs, 'plan');
+  assert(jobs.plan.outputs['source-reports']);
+  const sourceReports = jobs.report.steps.find(step => step.name === 'Include the reused source reports');
+  assert.equal(sourceReports.with['artifact-ids'], '${{ needs.plan.outputs.source-reports }}');
+  assert.equal(sourceReports.if, "needs.plan.outputs.source-run != ''");
+  const needs = { plan: { outputs: { 'browser-tests': 'true', 'source-run': '100' } },
+    'browser-tests': { result: 'failure' }, standalone: { result: 'skipped' }, baseline: { result: 'failure' } };
+  // Actions permits hyphens in property names; JS needs bracket notation.
+  const expression = value => value.replace(/^\$\{\{|\}\}$/g, '').replace(/\.([a-z]+(?:-[a-z]+)+)/g, "['$1']");
+  assert(Function('needs', 'cancelled', `return (${expression(jobs.report.if)});`)(needs, () => false), 'Current failures must not suppress reports');
+  assert(Function('needs', `return (${expression(sourceReports.if)});`)(needs), 'Source reports remain included after baseline failure');
+  assert(jobs.ci.steps.findIndex(step => step.run === 'node scripts/ci-gate.cjs') < jobs.ci.steps.findIndex(step => step.run === 'node scripts/ci-reuse.cjs CI --gate-only'));
   assert.equal(jobs['browser-tests'].env.ORRERY_PREVIOUS_COVERAGE, '${{ needs.plan.outputs.previous }}');
   for (const name of ['node', 'build', 'build-tests', 'browser-tests', 'standalone', 'baseline']) {
     assert(jobs.plan.outputs[name], name);
@@ -142,11 +177,12 @@ test('real planner CLI discovers and validates an earlier run through the gh art
   git('add', '.'); git('commit', '-qm', 'base'); const base = git('rev-parse', 'HEAD');
   fs.appendFileSync(path.join(root, 'src/css/main.css'), 'body {color: red}');
   git('commit', '-am', 'head', '-q'); const head = git('rev-parse', 'HEAD');
-  const source = { ...run, id: 41, head_sha: head, status: 'in_progress' };
+  const source = { ...run, id: 41, head_sha: head };
   const receipt = { version: 1, repository: 'owner/repo', pr: 12, sha: head, head, base,
     run: 41, attempt: 1, plan: plan(['src/css/main.css'], { draft: true }) };
   fs.writeFileSync(path.join(root, 'ci-plan.json'), JSON.stringify(receipt));
   execFileSync('zip', ['-q', 'receipt.zip', 'ci-plan.json'], { cwd: root });
+  const artifacts = ['ci-plan-1', ...receipt.plan.matrix.include.map(job => `playwright-blob-${job.id}`), 'playwright-blob-standalone'].map((name, i) => ({ name, id: i + 7, size_in_bytes: 400, created_at: '2026-11-23T12:00:00Z' }));
   const gh = path.join(root, 'gh');
   fs.writeFileSync(gh, `#!${process.execPath}
 const fs=require('node:fs');const url=process.argv[3];
@@ -155,8 +191,9 @@ if(process.env.FAKE_GH_DENIED)throw new Error('Actions read permission denied');
 if(url.endsWith('/artifacts/7/zip'))process.stdout.write(fs.readFileSync(${JSON.stringify(path.join(root, 'receipt.zip'))}));
 else {let result;
 if(url.endsWith('/runs/42'))result={workflow_id:1};
+else if(url.endsWith('/runs/41'))result=source;
 else if(url.includes('/workflows/1/runs?'))result={workflow_runs:url.endsWith('page=1')?Array.from({length:100},(_,i)=>({...source,id:1000+i})):[source]};
-else if(url.includes('/runs/41/artifacts?'))result={artifacts:url.endsWith('page=1')?Array.from({length:100},(_,i)=>({id:1000+i,name:'old',expired:true})):[{id:7,name:'ci-plan-1',size_in_bytes:400}]};
+else if(url.includes('/runs/41/artifacts?'))result={artifacts:url.endsWith('page=1')?Array.from({length:100},(_,i)=>({id:1000+i,name:'old',expired:true})):${JSON.stringify(artifacts)}};
 else throw new Error(url);
 process.stdout.write(JSON.stringify(result));}
 `);
@@ -178,9 +215,19 @@ process.stdout.write(JSON.stringify(result));}
   assert.equal(values.node, 'false'); assert.equal(values.standalone, 'false');
   assert.equal(values['browser-tests'], 'true'); assert.equal(values['build-tests'], 'true');
   assert.equal(values.baseline, 'true');
+  assert.equal(values['build-required'], 'true'); assert.equal(values['build-reused'], 'false');
+  assert.equal(values['source-reports'], artifacts.slice(1).map(a => a.id).join(','));
+  const summary = fs.readFileSync(options.env.GITHUB_STEP_SUMMARY, 'utf8');
+  for (const text of ['Mode: **full**', 'Code checks: **true**', 'Build integrations required: **true**', 'Draft PRs run Chromium core', 'Artifacts → browser-test-report']) assert(summary.includes(text), text);
   assert.deepEqual(JSON.parse(values.previous), { mode: 'pr', groups: 'core', projects: ['chromium', 'chromium-only'] });
   const saved = JSON.parse(fs.readFileSync(path.join(root, '.context/ci-plan.json')));
   assert.equal(saved.sha, head); assert.equal(saved.source.run, 41);
+  receipt.plan.buildTests = true;
+  fs.writeFileSync(path.join(root, 'ci-plan.json'), JSON.stringify(receipt));
+  execFileSync('zip', ['-q', 'receipt.zip', 'ci-plan.json'], { cwd: root });
+  fs.writeFileSync(output, ''); invoke();
+  const reused = fs.readFileSync(output, 'utf8');
+  assert.match(reused, /build-required=true\n/); assert.match(reused, /build-reused=true\n/); assert.match(reused, /(?:^|\n)build-tests=false\n/);
   assert.throws(() => invoke({ GITHUB_SHA: base }), /Checkout does not match/);
   assert.throws(() => invoke({ FAKE_GH_DENIED: '1' }), /Actions read permission denied/);
   fs.writeFileSync(path.join(root, 'ci-plan.json'), '{broken');
@@ -188,7 +235,7 @@ process.stdout.write(JSON.stringify(result));}
   assert.throws(() => invoke(), /JSON/);
 });
 
-test('native blob merge retains disjoint source and readiness results despite matching filenames', t => {
+test('workflow report assembly retains source-only diagnostics and disjoint readiness results', t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'orrery-merge-reports-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const cli = require.resolve('@playwright/test/cli');
@@ -197,15 +244,21 @@ test('native blob merge retains disjoint source and readiness results despite ma
   fs.writeFileSync(path.join(root, 'coverage.spec.cjs'), `const { test, expect } = require(${JSON.stringify(require.resolve('@playwright/test'))});
     test('covered in draft', () => expect(1).toBe(1));
     test('added when ready', () => expect(2).toBe(2));`);
-  const combined = path.join(root, 'combined'); fs.mkdirSync(combined);
+  const combined = path.join(root, '.context/playwright-blob');
+  const sources = path.join(root, '.context/source-reports'); fs.mkdirSync(sources, { recursive: true });
   for (const [part, grep] of [['source', 'covered in draft'], ['current', 'added when ready']]) {
     const blobs = path.join(root, part);
     execFileSync(process.execPath, [cli, 'test', '--config', config, '--grep', grep], {
       cwd: root, stdio: 'pipe', env: { ...process.env, PLAYWRIGHT_BLOB_OUTPUT_DIR: blobs, PLAYWRIGHT_BLOB_OUTPUT_NAME: 'report-chromium-1.zip' },
     });
-    fs.copyFileSync(path.join(blobs, 'report-chromium-1.zip'), path.join(combined, `${part}-report-chromium-1.zip`));
+    if (part === 'source') fs.copyFileSync(path.join(blobs, 'report-chromium-1.zip'), path.join(sources, 'report-chromium-1.zip'));
   }
-  const report = JSON.parse(execFileSync(process.execPath, [cli, 'merge-reports', '--reporter=json', combined], { cwd: root, encoding: 'utf8' }));
+  const workflow = require('js-yaml').load(fs.readFileSync('.github/workflows/pages.yml', 'utf8'));
+  execFileSync('bash', ['-eu', '-c', workflow.jobs.report.steps.find(step => step.name === 'Combine disjoint reports').run], { cwd: root });
+  const merge = () => JSON.parse(execFileSync(process.execPath, [cli, 'merge-reports', '--reporter=json', combined], { cwd: root, encoding: 'utf8' }));
+  assert.equal(merge().stats.expected, 1, 'Source evidence remains when the current build/browser job produced no blobs');
+  fs.copyFileSync(path.join(root, 'current/report-chromium-1.zip'), path.join(combined, 'report-chromium-1.zip'));
+  const report = merge();
   assert.equal(report.stats.expected, 2); assert.equal(report.stats.unexpected, 0);
   assert.deepEqual(report.suites.flatMap(suite => suite.specs.map(spec => spec.title)).sort(), ['added when ready', 'covered in draft']);
 });

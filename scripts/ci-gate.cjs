@@ -1,12 +1,14 @@
 function verify(needs) {
   if (needs.plan?.result !== 'success') throw new Error('Test planning did not succeed');
-  for (const name of ['code', 'build-tests']) {
+  for (const name of ['code', 'build-required', 'build-reused']) {
     if (!['true', 'false'].includes(needs.plan.outputs?.[name])) throw new Error(`Invalid plan output: ${name}`);
   }
   const code = needs.plan.outputs.code === 'true';
-  const build = needs.plan.outputs['build-tests'] === 'true';
+  const buildRequired = needs.plan.outputs['build-required'] === 'true';
+  const buildReused = needs.plan.outputs['build-reused'] === 'true';
   const execution = JSON.parse(needs.plan.outputs.execution);
-  if (execution['build-tests'] !== build || execution.build !== execution['browser-tests']
+  if (execution['build-tests'] !== (buildRequired && !buildReused) || (buildReused && !execution.baseline)
+    || execution.build !== execution['browser-tests']
     || (!code && Object.values(execution).some(Boolean))
     || (code && !execution.baseline && ['node', 'build', 'browser-tests', 'standalone'].some(job => execution[job] !== true))) {
     throw new Error('Inconsistent execution requirements');

@@ -176,8 +176,10 @@ draft alone does not trigger or cancel a run.
 The planner looks for a self-contained earlier run of the same workflow,
 repository and PR, with the exact checkout/merge SHA, head SHA and base SHA.
 Its versioned receipt must describe the expected complete draft, routine or
-full matrix and match the API's run attempt and head SHA. Draft/routine coverage
-may still be running; a full source must already have succeeded. A run that
+full matrix and match the API's run attempt and head SHA. Only completed,
+successful runs are reusable. If draft checks are still running, readiness
+starts its normal full run; it never depends on work a fixup could cancel.
+A run that
 itself reused coverage is not a source: the planner searches further back so
 that artifacts and results always have one directly checked owner.
 
@@ -194,22 +196,28 @@ pin artifact IDs; the artifact upload time must follow the selected attempt's
 plan receipt, preventing reuse of artifacts left by an earlier attempt. Every
 expected source report must be present and unexpired. Source reports receive
 distinct filenames before native Playwright merging, retaining both selections.
-When all coverage is reused, the plan summary links to the source run's report.
+Their IDs are pinned during planning, so the report job includes them even when
+additional checks or source revalidation fail. A missing download fails the
+report job rather than silently omitting coverage. When all coverage is reused,
+the plan summary links to the source run page and identifies its
+**Artifacts → browser-test-report** download.
 
 Missing, expired or incompatible receipts fall back to the normal full run.
-Corrupt receipts, API errors and a plan still pending after the bounded wait
-fail planning. Once a source is selected, a failed/cancelled source, changed
+Partial reruns without a new plan receipt are also skipped immediately.
+Corrupt receipts and API errors fail planning. Once a source is selected, a changed
 attempt, missing artifact or timeout fails verification; it never silently
 becomes passing coverage or launches duplicate checks. The final gate rechecks
 the source attempt after reading its successful CI job. Recover by rerunning
 the readiness workflow with **all jobs**, so planning can select fresh evidence.
-The planner/source waits are bounded to about 30 minutes plus API request time;
-they consume runner time when the original run is slow.
+There is no polling. Each API client has a two-minute elapsed-time budget shared
+by its requests, pagination and receipt downloads; each command receives at
+most the remaining time. Planning, source validation and the final gate have
+five-minute job limits. The final gate checks local results before making its
+source request, so an already-red run fails promptly.
 
-The existing concurrency policy still applies to reused sources: a later push
-can cancel an in-progress draft/routine source, which also makes the dependent
-readiness verification fail. The readiness run's additional checks remain in
-their protected group. Reuse is evidence for the recorded source revision and
+Draft/routine supersession and the protected readiness group remain unchanged.
+Completed source runs cannot be cancelled by a subsequent fixup. Reuse is
+evidence for the recorded source revision and
 its test environment; it does not promise identical floating Chrome/system
 package versions across hosted runs. Nightly/manual runs do not reuse coverage.
 
