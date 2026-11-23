@@ -6,9 +6,9 @@ export const COMETS = Object.freeze([
   { id: '55P', name: 'Tempel–Tuttle', color: 0xc4a0ef, periodDays: 12142 },
 ]);
 export const DEFAULT_COMET_IDS = Object.freeze(COMETS.map(comet => comet.id));
-export function validCometIds(ids) {
+export function validCometIds(ids, catalogue) {
   return Array.isArray(ids) && new Set(ids).size === ids.length
-    && ids.every(id => DEFAULT_COMET_IDS.includes(id));
+    && ids.every(id => catalogue ? catalogue.some(entry => entry.id === id) : /^[1-9][0-9]*P$/.test(id));
 }
 export const lastDate = series => series.start + (series.states.length - 1) * series.step;
 
@@ -45,9 +45,9 @@ export function pathRange(series, jed, periodDays) {
 
 // Fit the same trajectory window that is drawn, including the interpolated body.
 // Keep fitting trajectories when paths are hidden, so that toggle does not zoom.
-export function cometFitPoints(data, ids, jed) {
+export function cometFitPoints(data, ids, jed, catalogue = COMETS) {
   const points = [];
-  for (const comet of COMETS) {
+  for (const comet of catalogue) {
     if (!ids.includes(comet.id)) continue;
     const series = data[comet.id], position = positionAt(series, jed);
     if (!position) continue;
@@ -76,4 +76,13 @@ export function validateCometOptions(shared) {
     if (shared?.[key] !== undefined && typeof shared[key] !== 'boolean') throw new RangeError(`Invalid ${key}.`);
   }
   if (shared?.cometIds !== undefined && !validCometIds(shared.cometIds)) throw new RangeError('Invalid comet selection.');
+}
+
+// Presentation defaults never restrict catalogue membership. Unknown periods use
+// the complete finite supplied trajectory; no orbital elements are inferred.
+export function cataloguePresentation(objects) {
+  return objects.map(entry => ({ ...entry,
+    color: COMETS.find(c => c.id === entry.id)?.color ?? [0x75d5ee, 0xf0bc75, 0xc4a0ef, 0x8cdaa0, 0xef9fb2, 0xcbd079][parseInt(entry.id, 10) % 6],
+    periodDays: COMETS.find(c => c.id === entry.id)?.periodDays ?? Infinity,
+  }));
 }
