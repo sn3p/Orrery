@@ -2,7 +2,7 @@
 
 Runtime files: `CometCatalogSource.js`, `cometSourceCore.js`, `contract.js` and
 `transport.js`. Keep their relative imports and [MIT license](LICENSE) together.
-The app opens `https://sn3p.github.io/orrery-data/comets-v2/latest.json` and retains
+The app opens `https://sn3p.github.io/orrery-data/comets/latest.json` and retains
 one verified source pin per generation. See [Orrery comet behavior](../../../../docs/comets.md).
 
 Vendored from [OrreryData revision 24cdc802](https://github.com/sn3p/orrery-data/tree/24cdc802e83f4a73f5bd2c33ea0a5246b83a66b4/consumer).

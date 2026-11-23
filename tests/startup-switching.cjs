@@ -54,7 +54,8 @@ async function run({ browser, name, output = '.context/startup-switching', scena
       await expect(page.getByRole('status').filter({ hasText: '6 comets selected.' })).toBeVisible();
       await page.getByRole('checkbox', { name: 'Show 2P/Encke', exact: true }).uncheck();
       await page.getByRole('checkbox', { name: 'Comet paths', exact: true }).uncheck();
-      const cometRequests = requests.filter(url => url.includes('/comets-v2/')).length;
+      const cometRequests = requests.filter(url => url.includes('/comets/')).length;
+      assert(cometRequests > 0, 'Comet requests are observed before checking cache reuse');
       if (failure) await page.evaluate(() => { window.failNextCanvasMount = true; });
       const target = initial === 'pixi' ? 'three' : 'pixi';
       await selector.selectOption(target);
@@ -83,7 +84,7 @@ async function run({ browser, name, output = '.context/startup-switching', scena
       await expect(selector).toBeEnabled();
       await expect(page.locator('#orrery-count')).toHaveText('6');
       assert.equal(requests.filter(url => url === latestURL).length, 1, 'Switching never reopens discovery');
-      assert.equal(requests.filter(url => url.includes('/comets-v2/')).length, cometRequests, 'Comet pin/cache survive');
+      assert.equal(requests.filter(url => url.includes('/comets/')).length, cometRequests, 'Comet pin/cache survive');
       assert.deepEqual(errors, []);
       results.push({ prefix, initial, stage, failure, pass: true });
       console.log(name, prefix || '/', initial, stage, failure ? 'fallback' : 'switch', 'passed');
