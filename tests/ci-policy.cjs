@@ -19,8 +19,14 @@ function grep(project, selected = selection(), runMode = mode()) {
   const tags = ['smoke', ...selected.filter(group => group !== 'core' || project.startsWith('chromium'))];
   return new RegExp(`@(?:${tags.join('|')})(?:\\s|$)`);
 }
-function grepInvert(runMode = mode()) {
-  return runMode === 'pr' ? /@extended(?:\s|$)/ : undefined;
+function grepInvert(runMode = mode(), project, previous = process.env.ORRERY_PREVIOUS_COVERAGE ? JSON.parse(process.env.ORRERY_PREVIOUS_COVERAGE) : null) {
+  if (runMode === 'pr') return /@extended(?:\s|$)/;
+  if (!previous || !previous.projects.includes(project)) return undefined;
+  if (previous.mode !== 'pr') throw new Error('Complete full coverage must be reused without another browser job');
+  // Exclude precisely the earlier selection, while keeping extended tests that
+  // were intentionally omitted from PR mode. Firefox/WebKit had smoke only.
+  const prior = grep(project, selection(previous.groups), previous.mode);
+  return new RegExp(`^(?!.*@extended(?:\\s|$)).*${prior ? prior.source : ''}`);
 }
 function fixtureKeys(selected = selection(), runMode = mode()) {
   if (runMode === 'full' && (selected.includes('full') || selected.includes('graphics') || selected.includes('build') || selected.includes('dev'))) return null;

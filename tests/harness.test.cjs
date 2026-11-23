@@ -194,6 +194,7 @@ async function discover(...args) {
   delete env.BROWSERS;
   delete env.ORRERY_TEST_GROUPS;
   delete env.ORRERY_TEST_MODE;
+  delete env.ORRERY_PREVIOUS_COVERAGE;
   const { stdout } = await execute(process.execPath, [cli, 'test', '--list', '--reporter=json', ...args], { env, maxBuffer: 4 * 1024 * 1024 });
   const rows = [];
   function visit(suite, parents = []) {

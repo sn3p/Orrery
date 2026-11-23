@@ -149,6 +149,7 @@ test('planner CLI handles real PR divergence, rename/delete, push, missing histo
     const eventPath = path.join(directory, 'event.json'), output = path.join(directory, 'output'), summary = path.join(directory, 'summary');
     fs.writeFileSync(eventPath, JSON.stringify(event)); fs.writeFileSync(output, ''); fs.writeFileSync(summary, '');
     execFileSync(process.execPath, [cli], { cwd: directory, env: { ...process.env,
+      GITHUB_SHA: git('rev-parse', 'HEAD').trim(),
       GITHUB_EVENT_NAME: name, GITHUB_EVENT_PATH: eventPath, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary }, stdio: 'pipe' });
     return Object.fromEntries(fs.readFileSync(output, 'utf8').trim().split('\n').map(line => {
       const i = line.indexOf('='); return [line.slice(0, i), line.slice(i + 1)];
@@ -231,7 +232,7 @@ test('native selection retains core in Chromium, smoke in other engines and two 
   const cli = require.resolve('@playwright/test/cli');
   const list = (groups, runMode, args) => [process.execPath, [cli, 'test', '--list', '--reporter=json', ...args], {
     encoding: 'utf8', maxBuffer: 10 * 1024 * 1024,
-    env: { ...process.env, BROWSERS: 'chromium,firefox,webkit', ORRERY_TEST_GROUPS: groups, ORRERY_TEST_MODE: runMode },
+    env: { ...process.env, BROWSERS: 'chromium,firefox,webkit', ORRERY_TEST_GROUPS: groups, ORRERY_TEST_MODE: runMode, ORRERY_PREVIOUS_COVERAGE: '' },
   }];
   const parse = stdout => {
     const rows = [];
@@ -311,9 +312,11 @@ test('native selection retains core in Chromium, smoke in other engines and two 
 });
 
 test('aggregate gate rejects failing, cancelled, missing or unexpectedly skipped selected jobs', () => {
-  const baseline = { plan: { result: 'success', outputs: { code: 'true', 'build-tests': 'false' } },
+  const baseline = { plan: { result: 'success', outputs: { code: 'true', 'build-required': 'false', 'build-reused': 'false' } },
     node: { result: 'success' }, build: { result: 'success' }, 'build-tests': { result: 'skipped' },
     'browser-tests': { result: 'success' }, standalone: { result: 'success' } };
+  const requirements = { node: true, build: true, 'build-tests': false, 'browser-tests': true, standalone: true };
+  baseline.plan.outputs.execution = JSON.stringify(requirements);
   verify(baseline);
   const malformed = structuredClone(baseline); delete malformed.plan.outputs.code;
   assert.throws(() => verify(malformed));
@@ -323,9 +326,11 @@ test('aggregate gate rejects failing, cancelled, missing or unexpectedly skipped
       assert.throws(() => verify(value), undefined, `${job} ${result}`);
     }
   }
-  const full = structuredClone(baseline); full.plan.outputs['build-tests'] = 'true';
+  const full = structuredClone(baseline); full.plan.outputs['build-required'] = 'true';
+  full.plan.outputs.execution = JSON.stringify({ ...requirements, 'build-tests': true });
   assert.throws(() => verify(full)); full['build-tests'].result = 'success'; verify(full);
   const docs = structuredClone(baseline); docs.plan.outputs.code = 'false';
+  docs.plan.outputs.execution = JSON.stringify(Object.fromEntries(Object.keys(requirements).map(job => [job, false])));
   for (const job of ['node', 'build', 'browser-tests', 'standalone']) docs[job].result = 'skipped';
   verify(docs);
 });

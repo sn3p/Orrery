@@ -20,7 +20,6 @@ module.exports = defineConfig({
   timeout: 180_000,
   forbidOnly: !!process.env.CI,
   retries: 0,
-  grepInvert: grepInvert(),
   globalSetup: require.resolve('./tests/playwright/setup.cjs'),
   outputDir: '.context/playwright-results',
   reporter: [
@@ -40,8 +39,8 @@ module.exports = defineConfig({
   },
   projects: [
     ...[...new Set(browsers)].map(name => ({
-      name, grep: grep(name), testMatch: ['smoke.spec.cjs', 'browser.spec.cjs', 'catalog.spec.cjs', 'three.spec.cjs', 'switching.spec.cjs', 'default-catalog.spec.cjs'], use: use(name),
+      name, grep: grep(name), grepInvert: grepInvert(undefined, name), testMatch: ['smoke.spec.cjs', 'browser.spec.cjs', 'catalog.spec.cjs', 'three.spec.cjs', 'switching.spec.cjs', 'default-catalog.spec.cjs'], use: use(name),
     })),
-    { name: 'chromium-only', grep: grep('chromium-only'), testMatch: ['chromium.spec.cjs', 'catalog-chromium.spec.cjs'], use: use('chromium') },
+    { name: 'chromium-only', grep: grep('chromium-only'), grepInvert: grepInvert(undefined, 'chromium-only'), testMatch: ['chromium.spec.cjs', 'catalog-chromium.spec.cjs'], use: use('chromium') },
   ],
 });

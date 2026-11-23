@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 # PR updates supersede obsolete checks; production deployments keep their queue.
 # The full run a PR gets on becoming ready has its own group, so a quick
@@ -25,13 +26,26 @@ concurrency:
 jobs:
   plan:
     name: Select test coverage
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     outputs:
       code: ${{ steps.plan.outputs.code }}
       build-tests: ${{ steps.plan.outputs.build-tests }}
+      build-required: ${{ steps.plan.outputs.build-required }}
+      build-reused: ${{ steps.plan.outputs.build-reused }}
       groups: ${{ steps.plan.outputs.groups }}
       mode: ${{ steps.plan.outputs.mode }}
       matrix: ${{ steps.plan.outputs.matrix }}
+      execution: ${{ steps.plan.outputs.execution }}
+      node: ${{ steps.plan.outputs.node }}
+      build: ${{ steps.plan.outputs.build }}
+      browser-tests: ${{ steps.plan.outputs.browser-tests }}
+      standalone: ${{ steps.plan.outputs.standalone }}
+      source-run: ${{ steps.plan.outputs.source-run }}
+      source-attempt: ${{ steps.plan.outputs.source-attempt }}
+      source-reports: ${{ steps.plan.outputs.source-reports }}
+      source-report-manifest: ${{ steps.plan.outputs.source-report-manifest }}
+      previous: ${{ steps.plan.outputs.previous }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -40,11 +54,19 @@ jobs:
       - name: Select required groups from the actual change range
         id: plan
         run: node scripts/ci-plan.cjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Retain exact-revision coverage receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ci-plan-${{ github.run_attempt }}
+          path: .context/ci-plan.json
+          include-hidden-files: true
 
   node:
     name: Fast Node regressions
     needs: plan
-    if: needs.plan.outputs.code == 'true'
+    if: needs.plan.outputs.node == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -84,7 +106,7 @@ jobs:
 
   build:
     needs: plan
-    if: needs.plan.outputs.code == 'true'
+    if: needs.plan.outputs.build == 'true'
     env:
       ORRERY_TEST_GROUPS: ${{ needs.plan.outputs.groups }}
       ORRERY_TEST_MODE: ${{ needs.plan.outputs.mode }}
@@ -105,11 +127,50 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Require the original artifact build
+        id: source
+        if: needs.plan.outputs.source-run != ''
+        run: node scripts/ci-reuse.cjs build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_SOURCE_RUN: ${{ needs.plan.outputs.source-run }}
+          CI_SOURCE_ATTEMPT: ${{ needs.plan.outputs.source-attempt }}
+
+      - name: Reuse the exact public build
+        if: needs.plan.outputs.source-run != ''
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          artifact-ids: ${{ steps.source.outputs.pages }}
+          path: .context/source-pages
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.plan.outputs.source-run }}
+
+      - name: Extract the verified source build
+        if: needs.plan.outputs.source-run != ''
+        run: |
+          rm -rf dist
+          mkdir dist
+          tar -xf .context/source-pages/artifact.tar -C dist
+
+      - name: Reuse prepared fixture variants
+        if: needs.plan.outputs.source-run != ''
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          artifact-ids: ${{ steps.source.outputs.fixtures }}
+          path: .context/test-fixtures
+          merge-multiple: true
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.plan.outputs.source-run }}
+
       - name: Build site from source
+        if: needs.plan.outputs.source-run == ''
         run: npm run build -- --output-clean
 
-      - name: Prepare reusable browser fixtures
+      - name: Prepare only missing browser fixtures
         run: npm run test:fixtures
+        env:
+          ORRERY_REUSE_FIXTURES: ${{ needs.plan.outputs.source-run != '' && '1' || '0' }}
 
       - name: Upload browser fixtures
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -126,10 +187,11 @@ jobs:
   browser-tests:
     name: ${{ matrix.name }}
     needs: [plan, build]
-    if: needs.plan.outputs.code == 'true'
+    if: needs.plan.outputs.browser-tests == 'true'
     env:
       ORRERY_TEST_GROUPS: ${{ needs.plan.outputs.groups }}
       ORRERY_TEST_MODE: ${{ needs.plan.outputs.mode }}
+      ORRERY_PREVIOUS_COVERAGE: ${{ needs.plan.outputs.previous }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -211,7 +273,7 @@ jobs:
   standalone:
     name: Clean-checkout smoke (Pixi and Three)
     needs: plan
-    if: needs.plan.outputs.code == 'true'
+    if: needs.plan.outputs.standalone == 'true'
     # Two public-entry tests build independently; no prepared fixture download.
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -264,7 +326,7 @@ jobs:
 
   report:
     name: Browser test report
-    if: ${{ !cancelled() && needs.plan.outputs.code == 'true' }}
+    if: ${{ !cancelled() && needs.plan.outputs.browser-tests == 'true' }}
     needs: [plan, browser-tests, standalone]
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -286,6 +348,20 @@ jobs:
           pattern: playwright-blob-*
           path: .context/playwright-blob
           merge-multiple: true
+      - name: Include the reused source reports
+        if: needs.plan.outputs.source-run != ''
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          artifact-ids: ${{ needs.plan.outputs.source-reports }}
+          path: .context/source-reports
+          merge-multiple: false
+          github-token: ${{ github.token }}
+          run-id: ${{ needs.plan.outputs.source-run }}
+      - name: Combine disjoint reports
+        if: needs.plan.outputs.source-run != ''
+        run: node scripts/ci-combine-reports.cjs
+        env:
+          CI_SOURCE_REPORTS: ${{ needs.plan.outputs.source-report-manifest }}
       - name: Merge reports
         run: npx playwright merge-reports --reporter html .context/playwright-blob
         env:
@@ -299,6 +375,7 @@ jobs:
 
   ci:
     name: CI
+    timeout-minutes: 5
     if: always()
     needs: [plan, node, build, build-tests, browser-tests, standalone]
     runs-on: ubuntu-latest
@@ -310,6 +387,13 @@ jobs:
         run: node scripts/ci-gate.cjs
         env:
           CI_NEEDS: ${{ toJSON(needs) }}
+      - name: Recheck source attempt at the final gate
+        if: needs.plan.outputs.source-run != ''
+        run: node scripts/ci-reuse.cjs CI --gate-only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_SOURCE_RUN: ${{ needs.plan.outputs.source-run }}
+          CI_SOURCE_ATTEMPT: ${{ needs.plan.outputs.source-attempt }}
 
   deploy:
     if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request' && github.event_name != 'schedule' && needs.plan.outputs.code == 'true'
