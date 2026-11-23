@@ -53,7 +53,8 @@ Use `BROWSERS=chromium` for an explicit local engine subset. Standalone always
 uses Chrome independently of this variable. No group changes assertion tolerances
 or adds retries. Full-size numerical/scale checks remain intact in the extended
 suite; everyday public-entry smoke uses a small, hash-valid indexed fixture.
-Pure numerical Node tests still run for every code change.
+Pure numerical Node tests still cover every code change; readiness can reuse
+their passing result for the exact tested revision.
 
 `ORRERY_TEST_MODE=pr` applies the routine budget: Chromium runs core plus selected
 groups, Firefox/WebKit run public smoke only, and `@extended` cases are omitted.
@@ -144,7 +145,9 @@ checks source identity (including provisioning scripts, catalogue profiles and
 the test-owned independent Three reference files)
 and asset hashes; missing, stale, corrupt or wrong-variant
 fixtures fail without falling back to a local compilation. Writable copies are
-made in each test's output directory. Fixture production entries intentionally
+made in each test's output directory. When readiness reuses an earlier build,
+fixture preparation verifies its source fingerprint and every retained file
+before compiling only missing variants. Fixture production entries intentionally
 differ from the public lazy preview, which has its own deployment tests.
 
 HMR, build-isolation and ordinary-clone provenance tests keep their real builds.
@@ -160,14 +163,55 @@ partition tests verify that each appears in exactly one shard, with no empty
 jobs. Follow-up ready PR updates and master pushes use three Chromium shards,
 Firefox/WebKit smoke and one Chromium-only job. Drafts use three Chromium core
 shards and Chromium-only, with no Firefox/WebKit jobs. The independent clean-checkout job retains its
-two cases in every code budget.
+two cases in every code budget, either executed here or verified in the reused run.
 
 Draft and routine PR updates share a concurrency group: a newer update cancels
 outdated checks in that group. The full readiness run has its own group, so a
 follow-up fixup cannot cancel it and leave full verification unfinished. Marking
-ready starts the full suite, including the fast checks already run in draft.
+ready requires full coverage, reusing compatible draft/routine checks and running
+only the missing browser cases and build integrations.
 Repeated readiness events supersede the previous readiness run. Returning to
 draft alone does not trigger or cancel a run.
+
+The planner looks for a self-contained earlier run of the same workflow,
+repository and PR, with the exact checkout/merge SHA, head SHA and base SHA.
+Its versioned receipt must describe the expected complete draft, routine or
+full matrix and match the API's run attempt and head SHA. Draft/routine coverage
+may still be running; a full source must already have succeeded. A run that
+itself reused coverage is not a source: the planner searches further back so
+that artifacts and results always have one directly checked owner.
+
+For a compatible draft/routine source, readiness reuses Node checks, the two
+standalone cases, the public site build and existing fixture variants. It runs
+build integrations if the source omitted them. Each browser excludes precisely
+the source's selection; extended cases and previously unselected engines remain.
+The source and additional selections are disjoint and together cover all 166
+native executions plus the two standalone cases. A successful self-contained
+full source requires only verification of the reused results.
+
+The source build must succeed before its artifacts are downloaded. Downloads
+pin artifact IDs; the artifact upload time must follow the selected attempt's
+plan receipt, preventing reuse of artifacts left by an earlier attempt. Every
+expected source report must be present and unexpired. Source reports receive
+distinct filenames before native Playwright merging, retaining both selections.
+When all coverage is reused, the plan summary links to the source run's report.
+
+Missing, expired or incompatible receipts fall back to the normal full run.
+Corrupt receipts, API errors and a plan still pending after the bounded wait
+fail planning. Once a source is selected, a failed/cancelled source, changed
+attempt, missing artifact or timeout fails verification; it never silently
+becomes passing coverage or launches duplicate checks. The final gate rechecks
+the source attempt after reading its successful CI job. Recover by rerunning
+the readiness workflow with **all jobs**, so planning can select fresh evidence.
+The planner/source waits are bounded to about 30 minutes plus API request time;
+they consume runner time when the original run is slow.
+
+The existing concurrency policy still applies to reused sources: a later push
+can cancel an in-progress draft/routine source, which also makes the dependent
+readiness verification fail. The readiness run's additional checks remain in
+their protected group. Reuse is evidence for the recorded source revision and
+its test environment; it does not promise identical floating Chrome/system
+package versions across hosted runs. Nightly/manual runs do not reuse coverage.
 
 A green draft check means only the draft budget passed. The full readiness run
 verifies its original revision; later fixup revisions receive affected-group
@@ -211,7 +255,8 @@ master pushes, the nightly and manual runs on master serve every branch and PR,
 and the nightly keeps them from expiring. A PR run's entry serves only that PR
 and never carries over to master, so master starts empty after a key change.
 
-The aggregate `CI` check requires every selected job to succeed. A missing,
+The aggregate `CI` check requires every selected job, including the reused source
+gate when applicable, to succeed. A missing,
 failed, cancelled or unexpectedly skipped job fails that gate. Deployment waits
 for it and the site artifact. Pushes to master and explicit manual deployment
 can publish; the nightly run only verifies. PR updates cancel obsolete work for

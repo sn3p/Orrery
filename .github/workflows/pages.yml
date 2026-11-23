@@ -392,7 +392,6 @@ jobs:
           CI_SOURCE_RUN: ${{ needs.plan.outputs.source-run }}
           CI_SOURCE_ATTEMPT: ${{ needs.plan.outputs.source-attempt }}
 
-
   ci:
     name: CI
     if: always()
@@ -432,5 +431,3 @@ jobs:
       - name: Deploy site
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
-        with:
-          artifact_name: github-pages

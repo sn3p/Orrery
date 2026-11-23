@@ -63,5 +63,3 @@ test('fixture preparation verifies reused bytes and builds only missing variants
   fs.rmSync(path.join(root, 'manifest.json'));
   await assert.rejects(prepare(options), /ENOENT/);
 });
-
-
