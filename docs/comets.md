@@ -32,14 +32,36 @@ orbit solutions and their assumptions, not direct observations at every date.
 Uncertainty grows away from observations. This is an educational visualization,
 not an observing ephemeris or meteor-shower prediction tool.
 
-The original three paths show approximately one orbital period centered near the displayed date.
-Entries without app period metadata show their complete finite supplied trajectory.
+Known comets show approximately one orbital period centered near the displayed date.
+Entries without an app display period use a fixed **10-Julian-year window**
+(3652.5 days), identified in Options when selected. This presentation fallback is
+not an estimate of their orbital period: it may show part of a long orbit or
+several short ones. Scientific date coverage remains independent of this window.
 Near either data boundary, the entire window shifts into the available interval
 so the path keeps its full length. They follow the integrated trajectory rather
 than an artificially closed ellipse; the endpoints need not meet. Path windows
 advance in 32-day increments; markers interpolate continuously. The period is
 used only to choose the window. If a dataset is shorter than one period, the
 path uses all available samples without extrapolating.
+Drawing and Fit use the same window, even when paths are hidden.
+The original three display periods remain unchanged. The curated additions use
+these approximate app-owned durations, rounded from the published Horizons
+`PER` values in Julian years using 365.25 days/year:
+
+| Comet | Display days | Published PER (years) | Source epoch (TDB) | Solution |
+|---|---:|---:|---|---|
+| 9P | 2038 | 5.58040281918145 | 2016-03-28 | JPL#K284/3 |
+| 10P | 1958 | 5.35997037988402 | 2017-12-21 | JPL#K265/65 |
+| 67P | 2353 | 6.44237116469175 | 2015-10-10 | JPL#K284/1 |
+
+Source: each entry's `provenance.vectors.header` in the
+[pinned catalogue fixture](../tests/fixtures/comets-v2/index-b1b10e6d1fba1cb94cd1e03c2e39ea7ec93b584a89f74ece193dcdf8ba379567.json),
+from OrreryData revision `24cdc802e83f4a73f5bd2c33ea0a5246b83a66b4`.
+These epoch-specific periods only choose the display duration; they do not
+calculate positions, infer orbital elements, or promise an exact revolution
+at every date. Runtime code does not parse provenance headers. Catalogue
+membership remains unrestricted by this presentation lookup.
+
 Planets and asteroids retain the application's existing approximate fixed-element
 model; enabling comets does not increase their positional accuracy.
 

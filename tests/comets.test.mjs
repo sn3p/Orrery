@@ -301,3 +301,40 @@ test('v2 subscribers cancel independently and cancelled loads retry under the pi
   await assert.rejects(source.load('67P',{signal:all.signal}),{name:'AbortError'});
   source.close();
 });
+
+test('curated display windows match published periods without changing catalogue membership', () => {
+  const entries = catalogueFixtures.index.objects;
+  const presentation = cataloguePresentation(entries);
+  assert.deepEqual(presentation.map(e => e.id), entries.map(e => e.id));
+  for (const [id, days] of [['9P',2038],['10P',1958],['67P',2353]]) {
+    const entry = entries.find(e => e.id === id);
+    const years = Number(entry.provenance.vectors.header.match(/PER=\s*([\d.]+)/)[1]);
+    assert.equal(Math.round(years * 365.25), days);
+    assert.equal(presentation.find(e => e.id === id).periodDays, days);
+  }
+  for (const original of COMETS) assert.equal(presentation.find(e => e.id === original.id).periodDays, original.periodDays);
+  assert(presentation.every(e => !e.usesDefaultWindow));
+});
+
+test('new and unknown comet paths and fit stay within a moving bounded display window', () => {
+  const entries = cataloguePresentation(catalogueFixtures.product(['9P','10P','67P','123P']).objects);
+  const unknown = entries.find(e => e.id === '123P');
+  assert.equal(unknown.periodDays,3652.5);
+  assert.equal(unknown.usesDefaultWindow,true);
+  for (const entry of entries) {
+    const series = data['1P']; // Same supported time grid; arbitrary ID, no orbit inference.
+    const span = 2 * Math.ceil(entry.periodDays / 8);
+    for (const date of [series.start, series.start+32, series.start+16000, lastDate(series)-32, lastDate(series)]) {
+      const [first,last] = pathRange(series,date,entry.periodDays);
+      assert.equal(last-first,span);
+      assert(first>=0 && last<series.states.length);
+      const fit=cometFitPoints({[entry.id]:series},[entry.id],date,[entry]);
+      assert.deepEqual(fit.slice(1),series.states.slice(first,last+1).map(row=>row.slice(0,3)));
+      assert.equal(fit.length,span+2,'Fit never includes the complete historical trajectory');
+    }
+    const middle=series.start+16000;
+    const first=pathRange(series,middle,entry.periodDays)[0];
+    assert.equal(pathRange(series,middle+32,entry.periodDays)[0],first+8);
+    assert.deepEqual(pathRange({...series,states:series.states.slice(0,10)},series.start,entry.periodDays),[0,9]);
+  }
+});

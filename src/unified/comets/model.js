@@ -5,6 +5,11 @@ export const COMETS = Object.freeze([
   { id: '2P', name: 'Encke', color: 0xf0bc75, periodDays: 1207 },
   { id: '55P', name: 'Tempel–Tuttle', color: 0xc4a0ef, periodDays: 12142 },
 ]);
+// Approximate presentation periods from the pinned Horizons PER headers, rounded
+// from Julian years to days. See docs/comets.md for source epochs/solutions.
+// This lookup never determines membership or computes positions.
+const ADDITIONAL_DISPLAY_PERIOD_DAYS = Object.freeze({ '9P': 2038, '10P': 1958, '67P': 2353 });
+export const DEFAULT_DISPLAY_WINDOW_DAYS = 10 * 365.25;
 export const DEFAULT_COMET_IDS = Object.freeze(COMETS.map(comet => comet.id));
 export function validCometIds(ids, catalogue) {
   return Array.isArray(ids) && new Set(ids).size === ids.length
@@ -78,11 +83,15 @@ export function validateCometOptions(shared) {
   if (shared?.cometIds !== undefined && !validCometIds(shared.cometIds)) throw new RangeError('Invalid comet selection.');
 }
 
-// Presentation defaults never restrict catalogue membership. Unknown periods use
-// the complete finite supplied trajectory; no orbital elements are inferred.
+// The fallback is a fixed display interval, not an estimated orbital period.
 export function cataloguePresentation(objects) {
-  return objects.map(entry => ({ ...entry,
-    color: COMETS.find(c => c.id === entry.id)?.color ?? [0x75d5ee, 0xf0bc75, 0xc4a0ef, 0x8cdaa0, 0xef9fb2, 0xcbd079][parseInt(entry.id, 10) % 6],
-    periodDays: COMETS.find(c => c.id === entry.id)?.periodDays ?? Infinity,
-  }));
+  return objects.map(entry => {
+    const original = COMETS.find(c => c.id === entry.id);
+    const periodDays = original?.periodDays ?? ADDITIONAL_DISPLAY_PERIOD_DAYS[entry.id];
+    return { ...entry,
+      color: original?.color ?? [0x75d5ee, 0xf0bc75, 0xc4a0ef, 0x8cdaa0, 0xef9fb2, 0xcbd079][parseInt(entry.id, 10) % 6],
+      periodDays: periodDays ?? DEFAULT_DISPLAY_WINDOW_DAYS,
+      usesDefaultWindow: periodDays === undefined,
+    };
+  });
 }

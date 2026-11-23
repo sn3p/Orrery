@@ -37,6 +37,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.getByRole('checkbox',{name:'Show comets',exact:true}).check();
       await page.waitForFunction(()=>app.cometData && app.renderer.comets?.entries.every(e=>e.body.visible));
       assert.equal(requests,6);
+      assert.deepEqual(await page.evaluate(()=>app.cometCatalogue.map(e=>e.periodDays)),[27729,1207,12142,2038,1958,2353]);
       await page.evaluate(() => {
         const check = (ok, message) => { if (!ok) throw new Error(message); };
         const series = app.cometData['55P'];
@@ -47,7 +48,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
             const source = app.cometData[comet.id];
             const [first, last] = range.split(':').map(Number);
             const duration = (last - first) * source.step;
-            check(Number.isFinite(comet.periodDays) ? duration >= comet.periodDays && duration < comet.periodDays + 2 * source.step : duration === (source.states.length - 1) * source.step,
+            check(Number.isFinite(comet.periodDays) && duration >= comet.periodDays && duration < comet.periodDays + 2 * source.step,
               `${comet.id}: full trajectory at ${jed}`);
             if (app.rendererId === 'three') {
               const points = path.geometry.attributes.position;
@@ -339,9 +340,23 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       assert.deepEqual(await page.evaluate(()=>app.renderer.comets.entries.map(e=>e.comet.id)),['67P','123P','1P']);
       assert.deepEqual(await page.locator('.property-name').allTextContents().then(names=>names.filter(n=>n.includes('/'))),product.objects.map(e=>e.name));
       assert.equal(await page.locator('.property-name b').count(),0,'Names are literal text');
+      await expect(page.getByRole('status').filter({hasText:'10-year trajectory window'})).toBeVisible();
+      await page.evaluate(()=>{
+        const series=app.cometData['123P'];
+        for(const date of [series.start,series.start+16000,series.start+(series.states.length-1)*series.step]){
+          app.jed=date;app.cancelRender();app.renderFrame();
+          const entry=app.renderer.comets.entries.find(e=>e.comet.id==='123P');
+          const [first,last]=entry.range.split(':').map(Number);
+          if(last-first!==914 || first<0 || last>=series.states.length)throw Error('Unbounded fallback path');
+          const count=app.rendererId==='three' ? entry.path.geometry.attributes.position.count
+            : entry.path.context.instructions.find(i=>i.action==='stroke').data.path.instructions.filter(i=>i.action==='lineTo').length+1;
+          if(count!==915)throw Error('Fallback geometry does not match window');
+        }
+      });
       await page.getByRole('checkbox',{name:'Show 123P/<b>Literal test comet</b>',exact:true}).focus();
       await page.keyboard.press('Space');
       assert.deepEqual(await page.evaluate(()=>app.cometIds),['67P','1P']);
+      await expect(page.getByRole('status').filter({hasText:'10-year trajectory window'})).toHaveCount(0);
       const before=requests;
       await page.evaluate(()=>{app.cometsShown=false;app.cometsShown=true;});
       assert.equal(requests,before,'Hide/show reuses verified pin');
@@ -355,6 +370,13 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.waitForFunction(()=>app.cometStates['123P']==='ready');
       await page.getByRole('button',{name:'Fit selected comets'}).click();
       assert(await page.locator('.orrery-options-panel').evaluate(el=>el.scrollWidth<=el.clientWidth+1));
+      await page.evaluate(()=>{
+        const r=app.renderer;
+        const view=()=>app.rendererId==='three' ? r.camera.position.toArray() : [r.stage.scale.x,r.stage.scale.y];
+        app.focusComets();const before=view();app.cometPaths=false;app.focusComets();
+        // OrbitControls re-normalizes the camera quaternion on repeated fits.
+        if(view().some((value,i)=>Math.abs(value-before[i])>1e-8))throw Error('Hidden fallback paths change fit window');
+      });
       product=require('./comet-catalogue-fixture.cjs').product([]);
       await page.evaluate(()=>app.replaceCometSource('hosted'));
       await expect(page.getByRole('button',{name:'Retry comet data'})).toBeVisible();

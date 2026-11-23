@@ -209,6 +209,9 @@ export default class Options {
       const series = firstSeries;
       status += ` Loaded comets are unavailable at this date. Choose ${formatIsoDay(series.start)} to ${formatIsoDay(lastDate(series))}.`;
     }
+    if (app.cometsShown && app.cometCatalogue.some(entry => entry.usesDefaultWindow && ids.includes(entry.id))) {
+      status += ' Comets without a known display period use a 10-year trajectory window, limited to available data.';
+    }
     if (app.cometsShown && app.cometSelectionNotice) status += ` ${app.cometSelectionNotice}`;
     for (const row of this.cometRows) row.hidden = !app.cometsShown;
     if (this.cometStatus.textContent !== status) this.cometStatus.textContent = status;
