@@ -36,29 +36,45 @@ function sourceFingerprint() {
   return hash.digest('hex');
 }
 
-async function prepare() {
+async function prepare({ root = directory, compileVariant = compile,
+  buildLazy = output => require('./next.cjs').compileLazyProbe(output),
+  buildCatalog = output => require('./catalog-loading.cjs').build(output),
+  buildThree = output => require('./three-build.cjs').build(output) } = {}) {
+  const directory = root;
   const keys = require('./ci-policy.cjs').fixtureKeys();
   const needed = key => !keys || keys.has(key);
-  fs.rmSync(directory, { recursive: true, force: true });
-  const manifest = { version: 1, source: sourceFingerprint(), fixtures: {} };
+  const reuse = process.env.ORRERY_REUSE_FIXTURES === '1';
+  let manifest;
+  if (reuse) {
+    manifest = JSON.parse(fs.readFileSync(path.join(directory, 'manifest.json')));
+    assert.equal(manifest.version, 1, 'Unsupported test fixture artifact');
+    assert.equal(manifest.source, sourceFingerprint(), 'Prepared test fixtures belong to different source; rebuild them');
+    for (const key of Object.keys(manifest.fixtures)) {
+      assert.deepEqual(inventory(path.join(directory, key, key === 'lazy-preview' ? 'site' : '')),
+        manifest.fixtures[key], `Prepared fixture changed: ${key}`);
+    }
+  } else {
+    fs.rmSync(directory, { recursive: true, force: true });
+    manifest = { version: 1, source: sourceFingerprint(), fixtures: {} };
+  }
   for (const definition of definitions.filter(item => needed(item.key))) {
+    if (manifest.fixtures[definition.key]) continue;
     const output = path.join(directory, definition.key);
-    await compile(definition.entry, output, definition);
+    await compileVariant(definition.entry, output, definition);
     manifest.fixtures[definition.key] = inventory(output);
     console.log(`Prepared ${definition.key}`);
   }
   // Compile the lazy JS/CSS/JSON probe once too; its chunk assertion belongs
   // here, while each browser still verifies loading at both deployment paths.
-  const { compileLazyProbe } = require('./next.cjs');
   const lazy = path.join(directory, 'lazy-preview');
-  await compileLazyProbe(lazy);
+  if (!manifest.fixtures['lazy-preview']) await buildLazy(lazy);
   manifest.fixtures['lazy-preview'] = inventory(path.join(lazy, 'site'));
   const catalog = path.join(directory, 'catalog');
-  await require('./catalog-loading.cjs').build(catalog);
+  if (!manifest.fixtures.catalog) await buildCatalog(catalog);
   manifest.fixtures.catalog = inventory(catalog);
   console.log('Prepared catalog');
   const three = path.join(directory, 'three');
-  await require('./three-build.cjs').build(three);
+  if (!manifest.fixtures.three) await buildThree(three);
   manifest.fixtures.three = inventory(three);
   console.log('Prepared three');
   fs.writeFileSync(path.join(directory, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
