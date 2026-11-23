@@ -84,7 +84,9 @@ Comets are distributed by [OrreryData](https://github.com/sn3p/orrery-data).
 On first enable, the app discovers `https://sn3p.github.io/orrery-data/comets-v2/latest.json`
 and pins its verified index for this visit. Each selected object loads separately,
 with bounded decoded length, SHA-256, schema, identity, conventions and reference
-interpolation checks. All catalogue entries are selected on first enable. Subsequent source replacements
+interpolation checks. The first six catalogue entries (or all entries when fewer) are selected on first enable.
+This bounds automatic object loading to six assets (at most 12 MiB decoded by the
+reader contract); every other entry stays available for explicit selection. Subsequent source replacements
 preserve selected IDs that remain available; removed selections are explained in
 Options, and new entries remain available for explicit selection. Asteroid-only startup makes no comet requests.
 

@@ -96,19 +96,19 @@ test('invalid comet assets and settings fail before scene mutation', () => {
 });
 
 // Real producer bytes exercise the same integrity and provenance boundary as visits.
-import CometSource, { validateComet } from '../src/unified/comets/source/CometSource.js';
+import CometSource, { validateComet } from '../src/unified/comets/source/CometCatalogSource.js';
 import Acquisition from '../src/unified/comets/Acquisition.js';
-const fixtureRoot = new URL('./fixtures/comets/', import.meta.url);
+const fixtureRoot = new URL('./fixtures/comets-v2/', import.meta.url);
 const descriptor = JSON.parse(fs.readFileSync(new URL('latest.json', fixtureRoot)));
 const index = JSON.parse(fs.readFileSync(new URL(descriptor.index.url, fixtureRoot)));
 function fixtureFetch(url) {
-  const name = new URL(url).pathname.split('/comets/')[1];
+  const name = new URL(url).pathname.split('/comets-v2/')[1];
   return Promise.resolve(new Response(fs.readFileSync(new URL(name, fixtureRoot))));
 }
 test('hosted contract fixture verifies all bytes, provenance, references and baseline series', async t => {
   const calls=[];
   t.mock.method(globalThis,'fetch',(url,options)=>{calls.push([url,options]);return fixtureFetch(url);});
-  const source=await CometSource.openLatest('https://fixture.test/nested/comets/latest.json');
+  const source=await CometSource.openLatest('https://fixture.test/nested/comets-v2/latest.json');
   assert.equal(source.sourceId,descriptor.index.sha256);
   for(const id of DEFAULT_IDS()) {
     const [a,b]=await Promise.all([source.load(id),source.load(id)]);
@@ -126,7 +126,7 @@ test('partial data has no guessed positions or fit points',()=>{
 });
 test('invalid product fields and corrupt/truncated transport never enter cache',async t=>{
   const object=JSON.parse(fs.readFileSync(new URL(index.objects[0].data.url,fixtureRoot)));
-  for(const modify of [o=>o.id='2P',o=>o.comet_contract_version=2,o=>o.conventions.time='TDB',o=>o.series.start++,o=>o.series.states.pop()]){
+  for(const modify of [o=>o.id='2P',o=>o.comet_contract_version=1,o=>o.conventions.time='TDB',o=>o.series.start++,o=>o.series.states.pop()]){
     const copy=structuredClone(object);modify(copy);assert.throws(()=>validateComet(copy,'1P'));
   }
   let bad=false;
@@ -134,7 +134,7 @@ test('invalid product fields and corrupt/truncated transport never enter cache',
     if(bad&&url.includes('/objects/'))return new Response('bad');
     return fixtureFetch(url);
   });
-  const source=await CometSource.openLatest('https://fixture.test/comets/latest.json');
+  const source=await CometSource.openLatest('https://fixture.test/comets-v2/latest.json');
   bad=true;await assert.rejects(source.load('1P'));bad=false;
   assert.deepEqual((await source.load('1P')).series,data['1P']);source.close();
 });
@@ -164,7 +164,7 @@ test('source subscribers cancel independently, all-cancel retries and pre-aborte
     signal.addEventListener('abort',()=>gate.reject(new DOMException('Cancelled','AbortError')),{once:true});
     await gate.promise;return fixtureFetch(url);
   });
-  const source=await CometSource.openLatest('https://fixture.test/comets/latest.json');
+  const source=await CometSource.openLatest('https://fixture.test/comets-v2/latest.json');
   const one=new AbortController(),two=new AbortController();
   const a=source.load('1P',{signal:one.signal}),b=source.load('1P',{signal:two.signal});
   const rejected=assert.rejects(a,{name:'AbortError'});one.abort();gate.resolve();
@@ -179,14 +179,14 @@ test('bounded transport rejects null bodies, oversized descriptors and wrong has
   let response;
   t.mock.method(globalThis,'fetch',async()=>response);
   for(const body of [null,' '.repeat(4097),'{']){
-    response=new Response(body);await assert.rejects(CometSource.openLatest('https://fixture.test/comets/latest.json'));
+    response=new Response(body);await assert.rejects(CometSource.openLatest('https://fixture.test/comets-v2/latest.json'));
   }
   let corrupt=false;
   globalThis.fetch=async url=>{
     const r=await fixtureFetch(url);if(!corrupt||!url.includes('/objects/'))return r;
     const bytes=new Uint8Array(await r.arrayBuffer());bytes[bytes.length-2]^=1;return new Response(bytes);
   };
-  const source=await CometSource.openLatest('https://fixture.test/comets/latest.json');
+  const source=await CometSource.openLatest('https://fixture.test/comets-v2/latest.json');
   corrupt=true;await assert.rejects(source.load('55P'));corrupt=false;await source.load('55P');source.close();
 });
 
@@ -231,7 +231,7 @@ test('unexpected AbortError becomes retryable rather than stuck loading', async 
 test('comet discovery rejects fragments before requesting data', async t => {
   let requests = 0;
   t.mock.method(globalThis, 'fetch', url => { requests++; return fixtureFetch(url); });
-  await assert.rejects(CometSource.openLatest('https://fixture.test/comets/latest.json#ambiguous'));
+  await assert.rejects(CometSource.openLatest('https://fixture.test/comets-v2/latest.json#ambiguous'));
   assert.equal(requests, 0);
 });
 
@@ -337,4 +337,27 @@ test('new and unknown comet paths and fit stay within a moving bounded display w
     assert.equal(pathRange(series,middle+32,entry.periodDays)[0],first+8);
     assert.deepEqual(pathRange({...series,states:series.states.slice(0,10)},series.start,entry.periodDays),[0,9]);
   }
+});
+
+import { syncCometLayer } from '../src/unified/comets/layer.js';
+test('catalogue-only layer updates preserve data, dispose old resources and report changes',()=>{
+  const initial=[{id:'1P'}], next=[{id:'123P'}];
+  let disposed=0,created=0;
+  const renderer={initialized:true,cometCatalogue:initial,
+    cometSettings:{cometCatalogue:initial,cometData:data,cometIds:['1P'],cometsShown:true},
+    comets:{destroy(){disposed++;}}};
+  const create=(actual,catalogue)=>{
+    assert.equal(actual,data);assert.equal(catalogue,next);created++;
+    return {setData(value){assert.equal(value,data);},destroy(){disposed++;}};
+  };
+  assert.equal(syncCometLayer(renderer,{cometCatalogue:next},create),true);
+  assert.equal(disposed,1);assert.equal(created,1);
+  assert.equal(renderer.cometSettings.cometsShown,true);
+  assert.equal(syncCometLayer(renderer,{planetLabels:'all'},create),false);
+  assert.equal(disposed,1);assert.equal(created,1);
+});
+test('curated colours are distinct and bundled names match hosted names',()=>{
+  const catalogue=cataloguePresentation(catalogueFixtures.index.objects);
+  assert.equal(new Set(catalogue.map(e=>e.color)).size,6);
+  for(const bundled of COMETS)assert.equal(bundled.name,catalogue.find(e=>e.id===bundled.id).name);
 });

@@ -1,14 +1,16 @@
 // These periods only choose the length of the displayed trajectory; positions
 // come from integrated Horizons states, never from a fixed Kepler ellipse.
 export const COMETS = Object.freeze([
-  { id: '1P', name: 'Halley', color: 0x75d5ee, periodDays: 27729 },
-  { id: '2P', name: 'Encke', color: 0xf0bc75, periodDays: 1207 },
-  { id: '55P', name: 'Tempel–Tuttle', color: 0xc4a0ef, periodDays: 12142 },
+  { id: '1P', name: '1P/Halley', color: 0x75d5ee, periodDays: 27729 },
+  { id: '2P', name: '2P/Encke', color: 0xf0bc75, periodDays: 1207 },
+  { id: '55P', name: '55P/Tempel-Tuttle', color: 0xc4a0ef, periodDays: 12142 },
 ]);
 // Approximate presentation periods from the pinned Horizons PER headers, rounded
 // from Julian years to days. See docs/comets.md for source epochs/solutions.
 // This lookup never determines membership or computes positions.
 const ADDITIONAL_DISPLAY_PERIOD_DAYS = Object.freeze({ '9P': 2038, '10P': 1958, '67P': 2353 });
+const ADDITIONAL_COLORS = Object.freeze({ '9P': 0x8cdaa0, '10P': 0xef9fb2, '67P': 0xcbd079 });
+export const DEFAULT_COMET_SELECTION_LIMIT = 6;
 export const DEFAULT_DISPLAY_WINDOW_DAYS = 10 * 365.25;
 export const DEFAULT_COMET_IDS = Object.freeze(COMETS.map(comet => comet.id));
 export function validCometIds(ids, catalogue) {
@@ -89,7 +91,7 @@ export function cataloguePresentation(objects) {
     const original = COMETS.find(c => c.id === entry.id);
     const periodDays = original?.periodDays ?? ADDITIONAL_DISPLAY_PERIOD_DAYS[entry.id];
     return { ...entry,
-      color: original?.color ?? [0x75d5ee, 0xf0bc75, 0xc4a0ef, 0x8cdaa0, 0xef9fb2, 0xcbd079][parseInt(entry.id, 10) % 6],
+      color: original?.color ?? ADDITIONAL_COLORS[entry.id] ?? [0x75d5ee, 0xf0bc75, 0xc4a0ef, 0x8cdaa0, 0xef9fb2, 0xcbd079][parseInt(entry.id, 10) % 6],
       periodDays: periodDays ?? DEFAULT_DISPLAY_WINDOW_DAYS,
       usesDefaultWindow: periodDays === undefined,
     };

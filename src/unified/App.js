@@ -4,7 +4,7 @@ import { replaceShareUrl, shareDateValue } from "./shareUrl.js";
 import PlaybackClock from "../js/PlaybackClock.js";
 import Stats from "../js/Stats.js";
 import Acquisition, { openHostedSource } from "./comets/Acquisition.js";
-import { COMETS, cataloguePresentation, validCometIds, validateCometData, hasUsableComets } from "./comets/model.js";
+import { COMETS, DEFAULT_COMET_SELECTION_LIMIT, cataloguePresentation, validCometIds, validateCometData, hasUsableComets } from "./comets/model.js";
 import Hud from "./ui/Hud.js";
 import CatalogSource from "./catalog/CatalogSource.js";
 import CatalogLoader from "./catalog/CatalogLoader.js";
@@ -301,6 +301,7 @@ export default class App {
   set cometIds(ids) {
     if (this.destroyed || !validCometIds(ids, this.cometCatalogueSource ? this.cometCatalogue : undefined)) return;
     this._cometIds = [...ids];
+    this.cometSelectionNotice = '';
     this.cometSelectionInitialized = true;
     void this.acquireComets();
   }
@@ -339,7 +340,7 @@ export default class App {
         const previous = this._cometIds;
         this._cometIds = this.cometSelectionInitialized
           ? previous.filter(id => this.cometCatalogue.some(entry => entry.id === id))
-          : this.cometCatalogue.map(entry => entry.id);
+          : this.cometCatalogue.slice(0, DEFAULT_COMET_SELECTION_LIMIT).map(entry => entry.id);
         this.cometSelectionNotice = previous.some(id => !this._cometIds.includes(id))
           ? 'Some selected comets are absent from this catalogue. Select available comets below.' : '';
         this.cometSelectionInitialized = true;
@@ -365,8 +366,8 @@ export default class App {
       return { sourceId: 'bundled-horizons-2026-11-18', info: { distributor: 'Orrery bundled fallback', objects: COMETS },
         load: async id => ({ series: data[id] }), close() {} };
     };
-    this.cometSelectionRevision++;
     this.cometCatalogue = [];
+    this.cometSelectionNotice = '';
     this.cometCatalogueSource = null;
     this.cometDiscoveryState = null;
     this.cometAcquisition.replace(open);

@@ -37,6 +37,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.getByRole('checkbox',{name:'Show comets',exact:true}).check();
       await page.waitForFunction(()=>app.cometData && app.renderer.comets?.entries.every(e=>e.body.visible));
       assert.equal(requests,6);
+      assert.equal(await page.evaluate(()=>new Set(app.renderer.comets.entries.map(e=>e.comet.color)).size),6);
       assert.deepEqual(await page.evaluate(()=>app.cometCatalogue.map(e=>e.periodDays)),[27729,1207,12142,2038,1958,2353]);
       await page.evaluate(() => {
         const check = (ok, message) => { if (!ok) throw new Error(message); };
@@ -294,6 +295,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
         app.applyCometOptions();
         await app.replaceCometSource('bundled');
         if(app.cometSourceId!=='bundled-horizons-2026-11-18')throw Error('Incorrect fallback identity');
+        if(app.cometCatalogue.map(e=>e.name).join('|')!=='1P/Halley|2P/Encke|55P/Tempel-Tuttle')throw Error('Inconsistent rollback names');
         await app.replaceCometSource('hosted');
         if(!/^[a-f0-9]{64}$/.test(app.cometSourceId))throw Error('Incorrect hosted identity');
       });
@@ -368,6 +370,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       assert.equal(await page.locator('.orrery-comet-label').count(),2,'Old resources removed');
       await page.getByRole('checkbox',{name:'Show 123P/<b>Literal test comet</b>',exact:true}).check();
       await page.waitForFunction(()=>app.cometStates['123P']==='ready');
+      await expect(page.getByRole('status').filter({hasText:'absent from this catalogue'})).toHaveCount(0);
       await page.getByRole('button',{name:'Fit selected comets'}).click();
       assert(await page.locator('.orrery-options-panel').evaluate(el=>el.scrollWidth<=el.clientWidth+1));
       await page.evaluate(()=>{
@@ -389,6 +392,42 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       const disposed=requests;
       await page.evaluate(()=>app.loadComets());
       assert.equal(requests,disposed,'Disposed app never reopens discovery');
+    } finally {await page.close();}
+  }
+  // Automatic selection is bounded; entries beyond the initial subset stay usable.
+  for (const renderer of ['three','pixi']) {
+    const page=await browser.newPage();
+    await routeFiles(page,root);
+    const ids=['1P','2P','55P','9P','10P','67P','123P','124P'];
+    const product=require('./comet-catalogue-fixture.cjs').product(ids);
+    let downloads=0;
+    await page.route('**/comets-v2/**',route=>{
+      const file=new URL(route.request().url()).pathname.split('/comets-v2/')[1];
+      if(file.startsWith('objects/'))downloads++;
+      return route.fulfill({body:product.files.get(file),contentType:'application/json'});
+    });
+    try {
+      await page.goto(`https://orrery.test/next/?renderer=${renderer}`);
+      await page.evaluate(()=>threeTest.ready);
+      await page.waitForFunction(()=>threeTest.app.catalogue?.firstDraw);
+      await page.evaluate(()=>{window.app=threeTest.app;app.jedDelta=0;app.cometsShown=true;});
+      await page.waitForFunction(()=>Object.keys(app.cometData??{}).length===6);
+      assert.equal(downloads,6);
+      assert.deepEqual(await page.evaluate(()=>app.cometIds),ids.slice(0,6));
+      await page.getByRole('button',{name:'Options',exact:true}).click();
+      await page.getByRole('checkbox',{name:'Show 123P/<b>Literal test comet</b>',exact:true}).check();
+      await page.waitForFunction(()=>app.cometStates['123P']==='ready');
+      assert.equal(downloads,7,'Additional entry loads only on explicit selection');
+      await page.evaluate(()=>{
+        const r=app.renderer;
+        const catalogue=app.cometCatalogue.slice().reverse();
+        r.setOptions({shared:{cometCatalogue:catalogue}});
+        if(!r.comets || r.comets.entries[0].comet.id!=='124P')throw Error('Catalogue-only update lost layer');
+        if(r.cometSettings.cometData!==app.cometData)throw Error('Partial update lost verified data');
+        r.setOptions({shared:{planetLabels:'all'}});
+        if(r.comets.entries.length!==8)throw Error('Partial update lost catalogue');
+      });
+      await page.evaluate(()=>app.destroy());
     } finally {await page.close();}
   }
   // Public entry and indexed catalogue, independent of the instrumented fixture.

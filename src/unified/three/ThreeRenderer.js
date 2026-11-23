@@ -1,3 +1,4 @@
+import { syncCometLayer } from '../comets/layer.js';
 import Comets from "./Comets.js";
 import { cometFitPoints, validateCometOptions } from "../comets/model.js";
 import { PIXELS_PER_AU } from "../../js/constants.js";
@@ -170,15 +171,9 @@ export default class ThreeRenderer {
       this.asteroidsShown = shared.asteroidsShown;
       for (const cloud of [this.asteroids, this.stagedAsteroids, this.catalogueTransition?.previous]) cloud?.setShown(this.asteroidsShown);
     }
-    if (this.comets && shared?.cometCatalogue !== undefined && shared.cometCatalogue !== this.cometCatalogue) { this.comets.destroy(); this.comets = null; }
-    if (shared?.cometCatalogue !== undefined) this.cometCatalogue = shared.cometCatalogue;
-    if (shared?.cometData && !this.comets && this.initialized) {
-      this.comets = new Comets(this.scene, this.container, shared.cometData, shared.cometCatalogue);
-    }
-    if (shared?.cometData && this.comets) this.comets.setData(shared.cometData);
-    if (shared) this.cometSettings = { ...this.cometSettings, ...shared };
-    this.updateComets?.(this.lastJed);
-    let changed = shared && ["asteroidsShown", "cometsShown", "cometPaths", "cometIds", "cometData"].some(key => shared[key] !== undefined);
+    const cometsChanged = syncCometLayer(this, shared,
+      (data, catalogue) => new Comets(this.scene, this.container, data, catalogue));
+    let changed = cometsChanged || shared?.asteroidsShown !== undefined;
     if (mode !== undefined && mode !== this.planetLabelMode) {
       this.planetLabelMode = mode;
       this.planetLabels.setMode(this.planets, mode);
