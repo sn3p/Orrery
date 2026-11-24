@@ -1,12 +1,19 @@
 import CometSource from './source/CometCatalogSource.js';
+import HistorySource from './source/CometHistorySource.js';
+import { fetchLatest } from './source/transport.js';
 
 export const COMET_LATEST_URL = 'https://sn3p.github.io/orrery-data/comets/latest.json';
-// Explicit injection only: production continues to use the strict schema-2 reader.
-export const openCandidateSource = url => async signal => {
-  const { default: HistorySource } = await import('./source/CometHistorySource.js');
-  return HistorySource.openLatest(url, { signal });
+// Explicit candidate injection remains available for offline rollout verification.
+export const openCandidateSource = url => signal => HistorySource.openLatest(url, { signal });
+export const openHostedSource = async signal => {
+  // Read latest once: dispatch and verification must use the same descriptor pin.
+  const descriptor = await fetchLatest(COMET_LATEST_URL, signal, 'comet');
+  switch (descriptor.latest?.comet_contract_version) {
+    case 2: return CometSource.openDescriptor(descriptor, { signal });
+    case 3: return HistorySource.openDescriptor(descriptor, { signal });
+    default: throw new Error('Invalid comet contract version');
+  }
 };
-export const openHostedSource = signal => CometSource.openLatest(COMET_LATEST_URL, { signal });
 
 // One generation owns one source and its verified cache. Selection is independent
 // of acquisition: completing a request never changes visibility or selection.

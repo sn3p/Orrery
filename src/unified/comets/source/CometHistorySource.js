@@ -1,4 +1,4 @@
-// Candidate-only adapter. The hosted schema-2 adapter remains unchanged in scope.
+// Strict schema-3 adapter, shared by production dispatch and explicit candidates.
 import { CometSource, interpolateComet, interpolateCometState } from './cometSourceCore.js';
 import { fetchLatest, fetchVerified, decodeJSON, check, aborted } from './transport.js';
 import { keys } from './contract.js';
@@ -15,7 +15,10 @@ function previousDay(value) {
 
 export default class CometHistorySource extends CometSource {
   static async openLatest(url, { signal } = {}) {
-    const {location,latest} = await fetchLatest(url,signal,'comet');
+    return this.openDescriptor(await fetchLatest(url, signal, 'comet'), { signal });
+  }
+  static async openDescriptor({ location, latest }, { signal } = {}) {
+    check(signal, 'comet');
     keys(latest,['comet_contract_version','index'],[],'comet history');
     requireHistory(latest.comet_contract_version === 3,'contract version');
     reference(latest.index,'index-',256*1024);

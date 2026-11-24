@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import Acquisition, { openCandidateSource, COMET_LATEST_URL } from '../src/unified/comets/Acquisition.js';
+import Acquisition, { openCandidateSource, openHostedSource, COMET_LATEST_URL } from '../src/unified/comets/Acquisition.js';
 import { positionAt, pathStrips, cometFitPoints, cataloguePresentation, firstDate, lastDate } from '../src/unified/comets/model.js';
 import { fixture } from './comet-history-fixture.mjs';
 const T=2444239.5, END=2488067.5;
@@ -10,14 +10,14 @@ const base='https://candidate.test/';
 function transport(t, files, fail=()=>false) {
   const calls=[];
   t.mock.method(globalThis,'fetch',async url=>{
-    const name=new URL(url).pathname.slice(1);calls.push(name);
+    const name=new URL(url).pathname.replace(/^\/orrery-data\/comets\//,'').replace(/^\//,'');calls.push(name);
     return files.has(name) && !fail(name) ? new Response(files.get(name)) : new Response('',{status:404});
   });
   return calls;
 }
 async function checkAcquisition(t, files, real=false) {
-  transport(t,files);
-  const a=new Acquisition(()=>{},openCandidateSource(base+'latest.json'));
+  const calls=transport(t,files);
+  const a=new Acquisition(()=>{});
   t.after(()=>a.close());
   const source=await a.source(), entries=cataloguePresentation(source.info.objects), ids=entries.map(e=>e.id);
   assert.equal(Object.keys(a.data).length,0,'metadata never installs trajectories');
@@ -45,6 +45,7 @@ async function checkAcquisition(t, files, real=false) {
       assert.deepEqual(fit.slice(1),strips.flatMap(s=>s.points.map(p=>p.slice(1))));
     }
   }
+  assert.equal(calls.filter(name=>name==='latest.json').length,1,'one descriptor pins dispatch and all object reads');
   const data=a.data;
   await a.select([]);await a.select(ids);
   assert.equal(a.data,data,'selection retains validated trajectories');
@@ -58,7 +59,7 @@ test('candidate metadata and owned segments flow through acquisition, timeline m
 test('one missing segment rejects the entire selected object; retry preserves pin',async t=>{
   const f=fixture(),missing=f.index.objects[0].segments[0].data.url;
   let failing=true;transport(t,f.files,name=>failing&&name===missing);
-  const a=new Acquisition(()=>{},openCandidateSource(base+'latest.json'));t.after(()=>a.close());
+  const a=new Acquisition(()=>{});t.after(()=>a.close());
   const source=await a.source();await a.select(['1P']);
   assert.equal(a.states['1P'],'error');assert.equal(a.data['1P'],undefined);
   failing=false;await a.select(['1P'],true);
@@ -86,12 +87,12 @@ test('timeline event metadata preserves precision, calendars, distinctions and c
 test('candidate deselection and source replacement prevent delayed pair installation',async t=>{
   const f=fixture();let release;const gate=new Promise(r=>release=r);
   t.mock.method(globalThis,'fetch',async (url,{signal})=>{
-    const name=new URL(url).pathname.slice(1);
+    const name=new URL(url).pathname.replace(/^\/orrery-data\/comets\//,'').replace(/^\//,'');
     if(name.startsWith('objects/')) await gate;
     if(signal.aborted)throw new DOMException('Cancelled','AbortError');
     return new Response(f.files.get(name));
   });
-  const a=new Acquisition(()=>{},openCandidateSource(base+'latest.json'));t.after(()=>a.close());
+  const a=new Acquisition(()=>{});t.after(()=>a.close());
   await a.source();const pending=a.select(['55P']);await a.select([]);a.replace();release();await pending;
   assert.deepEqual(a.data,{});assert.deepEqual(a.states,{});
   await a.select(['55P']);assert.equal(a.states['55P'],'ready');
@@ -201,4 +202,50 @@ test('acquisition rejects resealed historical catalogues with changed modern sol
     assert.equal(calls.length,2,'only descriptor and resealed index are requested');
     assert(!calls.some(name=>name.startsWith('objects/')));
   });
+});
+
+import { createRequire } from 'node:module';
+const { product } = createRequire(import.meta.url)('./comet-catalogue-fixture.cjs');
+test('production dispatch accepts schema 2 and rejects unknown or malformed descriptors',async t=>{
+  const f=product(['1P']);const calls=transport(t,f.files);
+  const a=new Acquisition(()=>{});t.after(()=>a.close());await a.select(['1P']);
+  assert.equal(a.states['1P'],'ready');assert(a.data['1P'].states);
+  assert.equal(calls.filter(n=>n==='latest.json').length,1);
+  for(const [descriptor,message] of [
+    ...[null,{}, {...f.descriptor,comet_contract_version:4}].map(d=>[d,'Invalid comet contract version']),
+    [{...f.descriptor,extra:true},'Invalid comet fields.'],
+    [{...JSON.parse(fixture().files.get('latest.json')),extra:true},'Invalid comet history fields.']]) {
+    const reads=transport(t,new Map([['latest.json',JSON.stringify(descriptor)]]));
+    await assert.rejects(openHostedSource(),{message});
+    assert.deepEqual(reads,['latest.json'],'descriptor validation must reject before an index request');
+  }
+});
+test('production dispatch rejects transport-corrupt index bytes',async t=>{
+  const f=fixture(),descriptor=JSON.parse(f.files.get('latest.json'));
+  f.files.set(descriptor.index.url,Buffer.from('{}'));transport(t,f.files);
+  await assert.rejects(openHostedSource(),/Invalid comet byte length/);
+});
+
+import { createHash } from 'node:crypto';
+import CometSource from '../src/unified/comets/source/CometCatalogSource.js';
+test('production dispatch validates correctly hashed index semantics in both schemas',async t=>{
+  for(const f of [product(['1P']),fixture()]) {
+    const descriptor=JSON.parse(f.files.get('latest.json'));
+    const index=JSON.parse(f.files.get(descriptor.index.url));index.objects=[];
+    const bytes=Buffer.from(JSON.stringify(index)),sha256=createHash('sha256').update(bytes).digest('hex');
+    descriptor.index={url:`index-${sha256}.json`,sha256,bytes:bytes.length};
+    const calls=transport(t,new Map([['latest.json',JSON.stringify(descriptor)],[descriptor.index.url,bytes]]));
+    await assert.rejects(openHostedSource(),{message:descriptor.comet_contract_version===2?'Invalid comet catalogue.':'Invalid comet history catalogue.'});
+    assert.deepEqual(calls,['latest.json',descriptor.index.url],'semantic rejection happens after verified index fetch, before payloads');
+  }
+});
+test('schema-2 descriptor cancellation retains the comet-specific error',async t=>{
+  const controller=new AbortController();controller.abort();
+  const failure={name:'AbortError',message:'Comet read cancelled.'};
+  await assert.rejects(CometSource.openDescriptor({location:new URL(COMET_LATEST_URL),latest:product(['1P']).descriptor},
+    {signal:controller.signal}),failure);
+  await assert.rejects(openHostedSource(controller.signal),failure);
+  const f=product(['1P']);transport(t,f.files);
+  const source=await openHostedSource();t.after(()=>source.close());
+  await assert.rejects(source.load('1P',{signal:controller.signal}),failure);
 });
