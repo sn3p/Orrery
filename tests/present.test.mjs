@@ -344,11 +344,12 @@ test("the ticking date keeps its text node so WebKit still delivers the click", 
 
 test("the speed row dims only while the wall clock drives the date", async () => {
   const { default: Options, SPEED_LIVE_HINT } = await import("../src/unified/ui/Options.js");
-  const title = "Time scale: 1 = 60 days/s; 0 pauses; negative reverses.";
+  const title = "Time scale: 1 = 60 days/s. 0 pauses; negative reverses.";
   let toggles = 0, writes = 0, text = title;
   const controls = {
     speedLive: null,
-    speedInput: { title },
+    speedHelp: { textContent: title },
+    placeTip() {},
     speedRow: { classList: { toggle(name, force) { toggles += 1; assert.equal(name, "orrery-options-inactive"); controls.inactive = force; } } },
     speedHint: { get textContent() { return text; }, set textContent(value) { writes += 1; text = value; } },
   };
@@ -356,15 +357,20 @@ test("the speed row dims only while the wall clock drives the date", async () =>
   set(false);
   assert.equal(toggles, 1);
   assert.equal(controls.inactive, false);
-  assert.equal(text, title);
+  assert.equal(text, "");
+  assert.equal(controls.speedHint.hidden, true);
   set(true); set(true);
   assert.equal(toggles, 2);
   assert.equal(writes, 2);
   assert.equal(controls.inactive, true);
   assert.equal(text, SPEED_LIVE_HINT);
+  assert.equal(controls.speedHelp.textContent, SPEED_LIVE_HINT);
+  assert.equal(controls.speedHint.hidden, false);
   set(false);
-  assert.equal(text, title);
+  assert.equal(text, "");
+  assert.equal(controls.speedHint.hidden, true);
   assert.equal(controls.inactive, false);
+  assert.equal(controls.speedHelp.textContent, title);
 });
 
 test("the date readout has a present indicator", () => {

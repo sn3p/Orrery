@@ -248,17 +248,18 @@ async function graphics(browser, base, output, name) {
         }
       }
       await require('./next-layout.cjs').check(target);
+      const forward = name === 'webkit' && process.platform === 'darwin' ? 'Alt+Tab' : 'Tab';
       const options = target.getByRole('button', { name: 'Options', exact: true });
       await options.focus(); await options.press('Enter');
       const speed = target.getByRole('textbox', { name: 'Playback speed' });
       assert(await options.evaluate(el => el === document.activeElement));
-      await require('./options.cjs').tabIntoOptions(target);
+      await require('./options.cjs').tabIntoOptions(target, forward);
       assert(await target.getByRole("combobox", { name: "Renderer", exact: true }).evaluate(el => el === document.activeElement));
-      // This 2× context exposes the DPR choice directly after the renderer.
-      await target.keyboard.press("Tab");
+      // This 2× context exposes DPR after the renderer and its help button.
+      await require('./options.cjs').tabThroughHelp(target, 'Renderer', forward);
       assert(await target.getByRole("combobox", { name: "Rendering pixel ratio", exact: true }).evaluate(el => el === document.activeElement),
-        'Tab reaches the DPR choice after Renderer');
-      await target.keyboard.press("Tab");
+        'Tab reaches the DPR choice after Renderer help');
+      await require('./options.cjs').tabThroughHelp(target, 'Rendering pixel ratio', forward);
       assert(await speed.evaluate(el => el === document.activeElement));
       for (const selector of ['.orrery-identity', '.orrery-date', '#orrery-count', '.orrery-options-panel']) {
         const box = await target.locator(selector).boundingBox();

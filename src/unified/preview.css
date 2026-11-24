@@ -222,41 +222,9 @@
 /* The wall clock is driving the date; the slider value is not the rate. */
 .orrery-options-panel .dg li.orrery-options-inactive .property-name,
 .orrery-options-panel .dg li.orrery-options-inactive .c { opacity: .5; }
-.orrery-options-panel .dg li:has(+ .orrery-options-rule) .orrery-options-hint {
-  margin-bottom: 0;
-}
-.orrery-options-panel .dg li.orrery-options-rule {
-  height: auto !important;
-  margin: 0 -8px;
-  padding: 12px 0 !important;
-  border: 0 !important;
-  background: none !important;
-  line-height: 0;
-  pointer-events: none;
-}
-.orrery-options-panel .dg li.orrery-options-rule::before {
-  content: "";
-  display: block;
-  height: 1px;
-  background: #365c41;
-}
 .orrery-options-panel .dg .c select { border-color: #477b54; }
 
-/* Checkbox rows sit label-then-box. The rest of the row is not a target. */
-.orrery-options-panel .dg .cr.boolean > div {
-  display: inline-block;
-  max-width: 100%;
-  vertical-align: middle;
-}
-.orrery-options-panel .dg .cr.boolean .property-name,
-.orrery-options-panel .dg .cr.boolean .c {
-  display: inline-block;
-  float: none;
-  width: auto !important;
-  overflow: visible;
-  vertical-align: middle;
-}
-.orrery-options-panel .dg .cr.boolean .property-name { margin-right: 8px; }
+/* Only labels and checkboxes toggle boolean settings. */
 .orrery-options-panel .dg .cr.boolean,
 .orrery-options-panel .dg .cr.boolean * { cursor: default; }
 .orrery-options-panel .dg .cr.boolean .property-name,
@@ -683,3 +651,165 @@ dialog .orrery-dialog-title:focus { outline: none; }
 .orrery-options-hint a { color: var(--color-link); }
 
 .orrery-options-panel .dg li[hidden] { display: none !important; }
+
+/* Compact comet chooser, using the existing dialog visual language. */
+.orrery-options-panel .dg li.orrery-comet-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  height: auto;
+  padding: 4px 0 8px;
+}
+.orrery-comet-summary .orrery-glossary-trigger { width: auto; margin: 0; }
+.orrery-options-panel .dg .cr > div > .orrery-glossary-trigger { grid-column: 2 / -1; }
+.orrery-comet-chooser { width: 380px; padding: 0; }
+.orrery-comet-choice-list { margin: 0; }
+.orrery-comet-choice-list label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 28px;
+  padding: 3px 4px;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.orrery-comet-choice-list label:hover { background: #1a1a1a; }
+.orrery-comet-choice-list span { min-width: 0; overflow-wrap: anywhere; }
+.orrery-comet-choice-list input { flex: none; accent-color: var(--color-accent); }
+.orrery-comet-choice-list input:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+/* One inset and row rhythm, independent of dat.GUI's default list styling. */
+.orrery-options-panel { padding: 6px 10px 10px; }
+.orrery-options-panel .dg.main > ul > li:not(.folder) {
+  padding-inline: 0;
+  border-bottom: 0;
+  line-height: 18px;
+}
+/* Shared Options sections keep the existing panel width and type scale. */
+.orrery-options-panel .dg li.orrery-options-section {
+  margin: 8px -10px 0;
+  border-top: 1px solid #365c41 !important;
+  border-bottom: 0 !important;
+  padding: 6px 10px 0 !important;
+  height: auto;
+}
+.orrery-options-panel .dg li.orrery-options-section:first-child { margin-top: 0; border-top: 0 !important; padding-top: 0 !important; }
+.orrery-options-panel .dg .orrery-options-section h2,
+.orrery-options-panel .dg .orrery-options-section .property-name {
+  margin: 0;
+  color: #eee !important;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 28px;
+}
+.orrery-options-panel .dg .cr > div {
+  display: grid;
+  grid-template-columns: minmax(68px, max-content) minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 0 6px;
+  width: 100%;
+  max-width: 100%;
+  min-height: 28px;
+}
+.orrery-options-panel .dg .cr .property-name,
+.orrery-options-panel .dg .cr .c {
+  float: none;
+  width: auto !important;
+  min-width: 0;
+  margin: 0;
+}
+.orrery-options-panel .dg .cr.boolean > div { grid-template-columns: minmax(68px, max-content) max-content 18px; }
+.orrery-options-panel .dg .cr.boolean input { display: block; margin: 0; }
+.orrery-options-panel .dg .has-slider .c { display: flex; align-items: center; gap: 6px; }
+.orrery-options-panel .dg .has-slider .slider {
+  order: -1;
+  flex: 1;
+  width: auto !important;
+  margin: 0 !important;
+}
+.orrery-options-panel .dg .has-slider input[type="text"] {
+  flex: 0 0 42px;
+  box-sizing: border-box;
+  width: 42px !important;
+  margin: 0 !important;
+}
+.orrery-options-panel .dg .c select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding: 0 22px 0 5px;
+  background: #151515 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M.5.5 4 4 7.5.5' fill='none' stroke='%23aaa'/%3E%3C/svg%3E") no-repeat right 7px center;
+  cursor: pointer;
+}
+.orrery-options-info {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #777;
+  font: inherit;
+  cursor: help;
+}
+.orrery-options-info span {
+  display: grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  box-sizing: border-box;
+  border: 1px solid #555;
+  border-radius: 50%;
+  font-size: 9px;
+  line-height: 1;
+}
+.orrery-options-info:hover span,
+.orrery-options-info.is-open span { color: #b5e8c1; border-color: var(--color-accent-muted); }
+.orrery-options-info:focus-visible { outline: 1px solid var(--color-accent); }
+.orrery-options-tip {
+  position: fixed;
+  z-index: 10;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border: 1px solid #365c41;
+  background: #1a1a1a;
+  color: #ccc;
+  font: 11px/16px var(--font-ui);
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+}
+.orrery-options-tip.is-side { overflow: visible; }
+.orrery-options-tip.is-side::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: var(--tip-notch, 8px);
+  width: 8px;
+  height: 8px;
+  background: #1a1a1a;
+  border-left: 1px solid #365c41;
+  border-bottom: 1px solid #365c41;
+  transform: rotate(45deg);
+}
+.orrery-options-tip[hidden], .orrery-options-hint[hidden] { display: none; }
+.orrery-options-panel .dg li.orrery-comet-status { height: auto; }
+.orrery-comet-actions { padding: 6px 0 0 !important; }
+/* Match panel actions and dialog actions; never inherit a dat.GUI row height. */
+.orrery-comet-actions button,
+.orrery-comet-chooser .orrery-glossary-close {
+  box-sizing: border-box;
+  min-height: 28px;
+  line-height: 18px;
+  padding: 3px 12px;
+}
+.orrery-comet-actions button { background: #1a1a1a; border-color: #477b54; color: #b5e8c1; }
+.orrery-comet-chooser[open] { display: flex; flex-direction: column; overflow: hidden; }
+.orrery-comet-chooser header { flex: none; padding: 16px 16px 0; }
+.orrery-comet-chooser-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 12px; }
+.orrery-comet-chooser footer { flex: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px 16px; }
+
+.orrery-comet-chooser footer button[hidden] { display: none; }

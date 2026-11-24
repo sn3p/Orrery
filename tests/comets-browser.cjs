@@ -15,6 +15,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
   if (process.env.ORRERY_PREBUILT_FIXTURES) require('./fixture-builds.cjs').copyPrepared('three',root);
   else await require('./three-build.cjs').build(root);
   for (const renderer of ['three','pixi']) {
+    await require('./options-feedback.cjs')(browser, root, renderer);
     const page = await browser.newPage({viewport:{width:1280,height:800},deviceScaleFactor:2});
     const errors=[];
     page.on('pageerror', e=>errors.push(e.message));
@@ -32,6 +33,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.getByRole('checkbox',{name:'Show comets',exact:true}).check();
       await page.waitForFunction(()=>app.cometData && app.renderer.comets?.entries.every(e=>e.body.visible));
       assert.equal(requests,6);
+      await require('./options-geometry.cjs')(page.locator('.orrery-options-panel'));
       assert.equal(await page.evaluate(()=>new Set(app.renderer.comets.entries.map(e=>e.comet.color)).size),6);
       assert.deepEqual(await page.evaluate(()=>app.cometCatalogue.map(e=>e.periodDays)),[27729,1207,12142,2038,1958,2353]);
       await page.evaluate(() => {
@@ -130,13 +132,16 @@ async function run({browser, name, output = '.context/comet-browser'}) {
         app.renderFrame();
       });
       assert(await page.evaluate(()=>app.renderer.asteroids.shown===false),'Catalogue replacement retains hidden asteroids');
-      await page.getByRole('checkbox',{name:'Show 2P/Encke' ,exact:true}).uncheck();
       await page.getByRole('checkbox',{name:'Comet paths',exact:true}).uncheck();
+      await page.getByRole('button',{name:'Choose…',exact:true}).click();
+      await page.getByRole('checkbox',{name:'Show 2P/Encke' ,exact:true}).uncheck();
       assert(await page.evaluate(()=>app.renderer.comets.entries.every(e=>!e.path.visible) && !app.renderer.comets.entries[1].body.visible));
       await page.getByRole('checkbox',{name:'Show 1P/Halley',exact:true}).focus();
       await page.keyboard.press('Space');
       await expect(page.getByRole('checkbox',{name:'Show 1P/Halley',exact:true})).not.toBeChecked();
       await page.getByRole('checkbox',{name:'Show 1P/Halley',exact:true}).check();
+      await page.getByRole('button',{name:'Done',exact:true}).click();
+      await expect(page.getByRole('button',{name:'Choose…',exact:true})).toBeFocused();
       const other=renderer==='three'?'pixi':'three';
       await page.getByRole('combobox',{name:'Renderer',exact:true}).selectOption(other);
       await page.waitForFunction(id=>app.rendererId===id&&!app.switching,other);
@@ -154,7 +159,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
         return {different:JSON.stringify(forward)!==JSON.stringify(backward),hidden:app.renderer.comets.entries.every(e=>!e.body.visible)};
       });
       assert(dates.different && dates.hidden);
-      await expect(page.getByRole('status').filter({hasText:'Comets are unavailable'})).toBeVisible();
+      await expect(page.locator('.orrery-options-panel').getByRole('status').filter({hasText:'Comets are unavailable'})).toBeVisible();
       await page.evaluate(()=>{app.jed=2444239.5;app.renderFrame();});
       await page.getByRole('button',{name:'Fit selected comets'}).click();
       for (const viewport of [{width:320,height:568},{width:568,height:240},{width:1280,height:800}]) {
@@ -164,6 +169,20 @@ async function run({browser, name, output = '.context/comet-browser'}) {
         assert(box.x>=0 && box.x+box.width<=viewport.width+1 && box.y+box.height<=viewport.height+1);
         await page.getByRole('button',{name:'Fit selected comets'}).scrollIntoViewIfNeeded();
         assert(await panel.evaluate(el=>el.scrollWidth<=el.clientWidth+1),'No horizontal overflow');
+        await page.getByRole('button',{name:'Choose…',exact:true}).click();
+        const chooser = page.getByRole('dialog',{name:'Choose comets'});
+        await chooser.locator('.orrery-comet-chooser-body').evaluate(el => { el.scrollTop = el.scrollHeight; });
+        const done = chooser.getByRole('button',{name:'Done',exact:true});
+        const doneBox = await done.boundingBox(), chooserBox = await chooser.boundingBox();
+        assert(doneBox.y >= chooserBox.y && doneBox.y + doneBox.height <= viewport.height,
+          'Done remains visible while the comet list scrolls on short screens');
+        assert(await chooser.evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'Chooser has no horizontal overflow');
+        assert.equal(doneBox.height, 28, 'Chooser and panel actions share the compact height');
+        await done.hover();
+        assert.deepEqual(await done.evaluate(el => ({color:getComputedStyle(el).color,border:getComputedStyle(el).borderColor})),
+          {color:'rgb(255, 255, 255)',border:'rgb(111, 191, 131)'}, 'Sizing rules preserve dialog button hover styling');
+        await done.click();
+        await expect(page.getByRole('button',{name:'Choose…',exact:true})).toBeFocused();
       }
       await page.evaluate(()=>{
         const r=app.renderer, original=r.render, before={...r.comets.entries[0].position};
@@ -250,17 +269,32 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.getByRole('checkbox',{name:'Show comets',exact:true}).check();
       await page.waitForFunction(()=>app.cometStates['2P']==='error');
       assert.equal(downloads,3,'Re-show retries the failed object only');
-      await expect(page.getByRole('status').filter({hasText:'reload the page'})).toBeVisible();
+      await expect(page.locator('.orrery-options-panel').getByRole('status').filter({hasText:'reload the page'})).toBeVisible();
       await page.getByRole('button',{name:'Retry comet data'}).click();
       await page.waitForFunction(()=>app.cometStates['2P']==='error');
       assert.equal(downloads,4,'Pinned missing object can retry without silently changing sources');
+      await page.setViewportSize({width:320,height:240});
+      await page.getByRole('button',{name:'Choose…',exact:true}).click();
+      const errorChooser = page.getByRole('dialog',{name:'Choose comets'});
+      await expect(errorChooser.getByRole('status')).toContainText('Could not load');
+      const done = errorChooser.getByRole('button',{name:'Done',exact:true});
+      for (const scroll of [0, 10000]) {
+        await errorChooser.locator('.orrery-comet-chooser-body').evaluate((el,value)=>{el.scrollTop=value;},scroll);
+        const bounds = await done.boundingBox();
+        assert(bounds.y >= 0 && bounds.y + bounds.height <= 240,
+          'Long partial-failure notices cannot push Done outside a short viewport');
+      }
+      await done.click();
+      await page.setViewportSize({width:390,height:844});
       assert.equal(discoveries,1);
       assert.equal(await page.evaluate(()=>app.cometSourceId),sourceId);
+      await page.getByRole('button',{name:'Choose…',exact:true}).click();
       await page.getByRole('checkbox',{name:'Show 2P/Encke',exact:true}).uncheck();
       fail=false;
       await page.getByRole('checkbox',{name:'Show 2P/Encke',exact:true}).check();
       await page.waitForFunction(()=>app.cometStates['2P']==='ready');
       assert.equal(downloads,5,'Reselect retries the failed object');
+      await page.getByRole('button',{name:'Done',exact:true}).click();
       await page.evaluate(()=>{app.cometsShown=false;app.cometsShown=true;});
       assert.equal(downloads,5,'Showing verified selections reuses the cache');
 
@@ -339,9 +373,10 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.getByRole('checkbox',{name:'Show comets',exact:true}).check();
       await page.waitForFunction(()=>Object.keys(app.cometData??{}).length===3);
       assert.deepEqual(await page.evaluate(()=>app.renderer.comets.entries.map(e=>e.comet.id)),['67P','123P','1P']);
-      assert.deepEqual(await page.locator('.property-name').allTextContents().then(names=>names.filter(n=>n.includes('/'))),product.objects.map(e=>e.name));
-      assert.equal(await page.locator('.property-name b').count(),0,'Names are literal text');
-      await expect(page.getByRole('status').filter({hasText:'10-year trajectory window'})).toBeVisible();
+      await page.getByRole('button',{name:'Choose…',exact:true}).click();
+      assert.deepEqual(await page.locator('.orrery-comet-choice-list label span').allTextContents(),product.objects.map(e=>e.name));
+      assert.equal(await page.locator('.orrery-comet-choice-list b').count(),0,'Names are literal text');
+      await expect(page.getByRole('dialog',{name:'Choose comets'}).getByRole('status').filter({hasText:'10-year trajectory window'})).toBeVisible();
       await page.evaluate(()=>{
         const series=app.cometData['123P'];
         for(const date of [series.start,series.start+16000,series.start+(series.states.length-1)*series.step]){
@@ -357,19 +392,22 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.getByRole('checkbox',{name:'Show 123P/<b>Literal test comet</b>',exact:true}).focus();
       await page.keyboard.press('Space');
       assert.deepEqual(await page.evaluate(()=>app.cometIds),['67P','1P']);
-      await expect(page.getByRole('status').filter({hasText:'10-year trajectory window'})).toHaveCount(0);
+      await expect(page.getByRole('dialog',{name:'Choose comets'}).getByRole('status').filter({hasText:'10-year trajectory window'})).toHaveCount(0);
+      await page.getByRole('button',{name:'Done',exact:true}).click();
       const before=requests;
       await page.evaluate(()=>{app.cometsShown=false;app.cometsShown=true;});
       assert.equal(requests,before,'Hide/show reuses verified pin');
       product=require('./comet-catalogue-fixture.cjs').product(['2P','123P']);
       await page.evaluate(()=>app.replaceCometSource('hosted'));
       assert.deepEqual(await page.evaluate(()=>app.cometIds),[]);
-      await expect(page.getByRole('status').filter({hasText:'absent from this catalogue'})).toBeVisible();
+      await expect(page.locator('.orrery-options-panel').getByRole('status').filter({hasText:'absent from this catalogue'})).toBeVisible();
       assert.deepEqual(await page.evaluate(()=>app.renderer.comets.entries.map(e=>e.comet.id)),['2P','123P']);
       assert.equal(await page.locator('.orrery-comet-label').count(),2,'Old resources removed');
+      await page.getByRole('button',{name:'Choose…',exact:true}).click();
       await page.getByRole('checkbox',{name:'Show 123P/<b>Literal test comet</b>',exact:true}).check();
       await page.waitForFunction(()=>app.cometStates['123P']==='ready');
-      await expect(page.getByRole('status').filter({hasText:'absent from this catalogue'})).toHaveCount(0);
+      await expect(page.getByRole('dialog',{name:'Choose comets'}).getByRole('status').filter({hasText:'absent from this catalogue'})).toHaveCount(0);
+      await page.getByRole('button',{name:'Done',exact:true}).click();
       await page.getByRole('button',{name:'Fit selected comets'}).click();
       assert(await page.locator('.orrery-options-panel').evaluate(el=>el.scrollWidth<=el.clientWidth+1));
       await page.evaluate(()=>{
@@ -418,6 +456,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       assert.equal(downloads,6);
       assert.deepEqual(await page.evaluate(()=>app.cometIds),ids.slice(0,6));
       await page.getByRole('button',{name:'Options',exact:true}).click();
+      await page.getByRole('button',{name:'Choose…',exact:true}).click();
       await page.getByRole('checkbox',{name:'Show 123P/<b>Literal test comet</b>',exact:true}).check();
       await page.waitForFunction(()=>app.cometStates['123P']==='ready');
       assert.equal(downloads,7,'Additional entry loads only on explicit selection');

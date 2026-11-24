@@ -51,8 +51,11 @@ async function run({ browser, name, output = '.context/startup-switching', scena
       await expect(selector).toHaveValue(initial);
       // Real comet controls stay usable independently of the held asteroids.
       await page.getByRole('checkbox', { name: 'Show comets', exact: true }).check();
-      await expect(page.getByRole('status').filter({ hasText: '6 comets selected.' })).toBeVisible();
+      await expect(page.locator('.orrery-comet-summary')).toContainText('6/6 selected');
+      await expect(page.getByRole('button', { name: 'Fit selected comets' })).toBeEnabled();
+      await page.getByRole('button', { name: 'Choose…', exact: true }).click();
       await page.getByRole('checkbox', { name: 'Show 2P/Encke', exact: true }).uncheck();
+      await page.getByRole('button', { name: 'Done', exact: true }).click();
       await page.getByRole('checkbox', { name: 'Comet paths', exact: true }).uncheck();
       const cometRequests = requests.filter(url => url.includes('/comets/')).length;
       assert(cometRequests > 0, 'Comet requests are observed before checking cache reuse');
@@ -73,7 +76,9 @@ async function run({ browser, name, output = '.context/startup-switching', scena
         await expect(selector).toBeEnabled();
       }
       await openOptions(page);
+      await page.getByRole('button', { name: 'Choose…', exact: true }).click();
       await expect(page.getByRole('checkbox', { name: 'Show 2P/Encke', exact: true })).not.toBeChecked();
+      await page.getByRole('button', { name: 'Done', exact: true }).click();
       await expect(page.getByRole('checkbox', { name: 'Comet paths', exact: true })).not.toBeChecked();
       await page.getByRole('button', { name: 'Fit selected comets' }).click();
       await expect(page.locator('.orrery-comet-label:not([hidden])')).toHaveCount(5);

@@ -342,7 +342,7 @@ export default class App {
           ? previous.filter(id => this.cometCatalogue.some(entry => entry.id === id))
           : this.cometCatalogue.slice(0, DEFAULT_COMET_SELECTION_LIMIT).map(entry => entry.id);
         this.cometSelectionNotice = previous.some(id => !this._cometIds.includes(id))
-          ? 'Some selected comets are absent from this catalogue. Select available comets below.' : '';
+          ? 'Some selected comets are absent from this catalogue. Choose available comets.' : '';
         this.cometSelectionInitialized = true;
       }
       this.cometDiscoveryState = 'ready';

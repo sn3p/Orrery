@@ -104,6 +104,7 @@ async function state(browser, base, output, name) {
 }
 
 async function reviewRegressions(browser, base, output, name) {
+  const forward = name === 'webkit' && process.platform === 'darwin' ? 'Alt+Tab' : 'Tab';
   for (const id of ['pixi', 'three']) {
     const { page, errors } = await boot(browser, base, id);
     try {
@@ -175,7 +176,10 @@ async function reviewRegressions(browser, base, output, name) {
       await page.evaluate(() => { app.rendererRegistry.three.load = () => new Promise((resolve, reject) => { window.rejectSwitch = () => reject(new Error('controlled code failure')); }); });
       const trigger = page.getByRole('button', { name: 'Options', exact: true });
       await trigger.click();
-      await page.getByRole('combobox', { name: 'Renderer', exact: true }).selectOption('three');
+      const renderer = page.getByRole('combobox', { name: 'Renderer', exact: true });
+      // Exercise focus restoration explicitly; pointer selection need not focus in WebKit.
+      await renderer.focus();
+      await renderer.selectOption('three');
       await page.waitForFunction(() => !!window.rejectSwitch);
       assert.equal(await trigger.getAttribute('aria-expanded'), 'true', 'Desktop options remain open');
       await page.setViewportSize(viewport);
@@ -201,13 +205,23 @@ async function reviewRegressions(browser, base, output, name) {
         await page.screenshot({ path: path.join(output, `${name}-review-${viewport.width}-${label}.png`) });
       };
       await visibleStatus('loading');
-      // Reopening remains possible while waiting; new failure must reveal itself.
-      if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
+      // Reopening by keyboard remains possible while waiting; new failure must reveal itself.
+      if (await trigger.getAttribute('aria-expanded') !== 'true') {
+        await trigger.focus();
+        await trigger.press('Enter');
+      }
       assert(await trigger.evaluate(el => el === document.activeElement),
         'Pending switch keeps focus on the disclosure');
-      await require('./options.cjs').tabIntoOptions(page);
+      await require('./options.cjs').tabIntoOptions(page, forward);
+      const rendererHelp = page.getByRole('button', { name: 'About Renderer', exact: true });
+      assert(await rendererHelp.evaluate(el => el === document.activeElement && !el.disabled),
+        'Pending switch skips the disabled renderer choice and reaches its available help');
+      const tip = page.locator('#' + await rendererHelp.getAttribute('aria-describedby'));
+      assert(await tip.isVisible(), 'Renderer help remains readable during a pending switch');
+      await page.keyboard.press(forward);
+      assert(await tip.isHidden(), 'Leaving renderer help dismisses its tooltip');
       assert(await page.getByRole('combobox', { name: 'Rendering pixel ratio' }).evaluate(el => el === document.activeElement && !el.disabled),
-        'Pending switch opens at an enabled control');
+        'Tab continues from renderer help to the enabled pixel ratio control');
       await page.evaluate(() => rejectSwitch());
       await page.waitForFunction(() => !app.switching && !!app.switchError);
       await visibleStatus('failure');
