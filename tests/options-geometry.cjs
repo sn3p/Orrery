@@ -6,7 +6,9 @@ module.exports = async panel => {
     const rect = el => { const r = el.getBoundingClientRect(); return { x: r.x, right: r.right, height: r.height, width: r.width, centerY: r.y + r.height / 2 }; };
     const visible = el => el.getClientRects().length;
     return {
-      panel: rect(panel),
+      // Client bounds exclude borders and any non-overlay scrollbar gutter.
+      panelClient: { x: panel.getBoundingClientRect().x + panel.clientLeft,
+        right: panel.getBoundingClientRect().x + panel.clientLeft + panel.clientWidth },
       glossary: panel.querySelector('.cr .orrery-glossary-trigger') && {
         link: rect(panel.querySelector('.cr .orrery-glossary-trigger')),
         select: rect(panel.querySelector('select[aria-label="Minor-planet groups"]')),
@@ -40,8 +42,8 @@ module.exports = async panel => {
   }
   for (const section of layout.sections) {
     close(section.label.x, first.label.x, 'Heading and control labels share an inset');
-    close(section.box.x, layout.panel.x + 1, 'Section separator reaches the panel edge');
-    close(section.box.right, layout.panel.right - 1, 'Section separator reaches the opposite panel edge');
+    close(section.box.x, layout.panelClient.x, 'Section separator reaches the client area edge');
+    close(section.box.right, layout.panelClient.right, 'Section separator reaches the opposite client area edge');
     assert.equal(section.bottomBorder, '0px', 'No dat.GUI rule underneath a heading');
   }
   for (const action of layout.actions) {

@@ -383,6 +383,20 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       }
       await page.screenshot({ path: path.join(output, `${name}-options-${viewport.width}x${viewport.height}.png`) });
     }
+    // Chromium can force the reserved gutter used in CI; WebKit keeps overlay scrollbars.
+    if (browser.browserType().name() === "chromium") {
+      const scrollbarStyle = await page.addStyleTag({ content: `
+        .orrery-options-panel { scrollbar-gutter: stable; scrollbar-width: auto; }
+        .orrery-options-panel::-webkit-scrollbar { width: 15px; }
+      ` });
+      try {
+        assert(await panel.evaluate(el => el.scrollHeight > el.clientHeight), 'Short panel needs scrolling');
+        assert(await panel.evaluate(el => el.offsetWidth - el.clientWidth
+          - parseFloat(getComputedStyle(el).borderLeftWidth) - parseFloat(getComputedStyle(el).borderRightWidth) > 0),
+        'Exercise a scrollbar that reserves horizontal space');
+        await checkSpacing();
+      } finally { await scrollbarStyle.evaluate(el => el.remove()); }
+    }
     await speed.fill("-1.5"); await speed.press("Enter");
     const reverseDate = await page.locator("#orrery-date").textContent();
     await trigger.click();
