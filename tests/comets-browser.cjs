@@ -214,7 +214,6 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       assert.deepEqual(errors,[]);
     } finally { await page.close(); }
   }
-  await require('./comet-history-browser.cjs')(browser, root);
   for (const renderer of ['three','pixi']) {
     const page=await browser.newPage();
     await routeFiles(page,root);
@@ -436,7 +435,6 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     } finally {await page.close();}
   }
   // Automatic selection is bounded; entries beyond the initial subset stay usable.
-  await require('./comet-history-browser.cjs')(browser, root);
   for (const renderer of ['three','pixi']) {
     const page=await browser.newPage();
     await routeFiles(page,root);
@@ -478,7 +476,6 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     } finally {await page.close();}
   }
   // Public entry and indexed catalogue, independent of the instrumented fixture.
-  await require('./comet-history-browser.cjs')(browser, root);
   for (const renderer of ['three','pixi']) {
     const page=await browser.newPage({viewport:{width:800,height:600}});
     await routeFiles(page,path.resolve('dist'));
