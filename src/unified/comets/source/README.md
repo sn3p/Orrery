@@ -6,11 +6,10 @@ Vendored from [OrreryData a2076e1c78ffa5ae2bd8c879b77452f31af0829a](https://gith
 Copyright (c) 2016 Matthijs Kuiper.
 
 Local transport adaptations omit the unused `linkCancellation` export and preserve Orrery's existing rejection of
-latest-URL fragments and verified-asset redirects. All other copied modules are
-unchanged. The asteroid adapter remains separate and unchanged.
+latest-URL fragments and verified-asset redirects. Both source classes expose `openDescriptor` so production dispatch verifies the
+single fetched descriptor without a second latest request. Other contract logic is unchanged. The asteroid adapter remains separate and unchanged.
 
-Production still opens the strict schema-2 reader at
-`https://sn3p.github.io/orrery-data/comets/latest.json`. Schema 3 is accessible only
-through explicit candidate source injection. No hosted switch is included.
+Production dispatches to the strict schema-2 or schema-3 reader at
+`https://sn3p.github.io/orrery-data/comets/latest.json`. Explicit candidate source injection remains available. No live data switch is included.
 See [app behavior](../../../../docs/comets.md) and the upstream
 [contract](https://github.com/sn3p/orrery-data/blob/a2076e1c78ffa5ae2bd8c879b77452f31af0829a/docs/comet-history-candidates.md).

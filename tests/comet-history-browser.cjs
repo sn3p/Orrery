@@ -14,22 +14,28 @@ module.exports=async function(browser,root){
     page.on('pageerror',e=>errors.push(e.message));
     await require('./comet-fixture.cjs').routeComets(page);
     await require('./route-files.cjs').routeFiles(page,root);
-    let fail=false;
+    let fail=false, history=true;
+    const requests=[];
     const index=JSON.parse(files.get(JSON.parse(files.get('latest.json')).index.url));
     const missing=index.objects[0].segments[0].data.url;
-    await page.route('https://candidate.test/**',route=>{
-      const name=new URL(route.request().url()).pathname.slice(1);
+    await page.route('https://sn3p.github.io/orrery-data/comets/**',route=>{
+      if(!history)return route.fallback();
+      const name=new URL(route.request().url()).pathname.replace('/orrery-data/comets/','');
+      requests.push(name);
       return route.fulfill({status:files.has(name)&&!(fail&&name===missing)?200:404,
         body:files.get(name)||'',contentType:'application/json',headers:{'access-control-allow-origin':'*'}});
     });
     try{
       await page.goto(`https://orrery.test/Orrery/next/?renderer=${renderer}`);
       await page.evaluate(()=>threeTest.ready);await page.waitForFunction(()=>threeTest.app.catalogue?.firstDraw);
-      await page.evaluate(async()=>{window.app=threeTest.app;app.jedDelta=0;app.cometsShown=true;await app.replaceCometSource('candidate','https://candidate.test/latest.json');app.cancelRender();});
+      await page.evaluate(async()=>{window.app=threeTest.app;app.jedDelta=0;app.cometsShown=true;await app.loadComets();app.cancelRender();});
       await page.waitForFunction(()=>Object.keys(app.cometData).length===6);
-      for(const jd of [index.objects.find(e=>e.id==='55P').segments[0].coverage.start,2444239.5-1e-6,2444239.5,2444239.5+1e-6,2444240.5,2488067.5,2488067.5+1e-6]){
+      assert.equal(requests.filter(n=>n==='latest.json').length,1);
+      assert.equal(await page.evaluate(()=>app.cometSourceId),JSON.parse(files.get('latest.json')).index.sha256);
+      assert.equal(requests.filter(n=>n.startsWith('objects/')).length,8);
+      for(const jd of [index.objects.find(e=>e.id==='1P').segments[0].coverage.start-1e-6,index.objects.find(e=>e.id==='1P').segments[0].coverage.start,index.objects.find(e=>e.id==='55P').segments[0].coverage.start,2444239.5-1e-6,2444239.5,2444239.5+1e-6,2444240.5,2488067.5,2488067.5+1e-6]){
         await page.evaluate(jd=>{app.jed=jd;app.cancelRender();app.renderFrame();},jd);
-        assert.equal(await page.evaluate(()=>app.renderer.comets.entries.filter(e=>e.body.visible).length),jd<2444239.5?2:jd>2488067.5?0:6);
+        assert.equal(await page.evaluate(()=>app.renderer.comets.entries.filter(e=>e.body.visible).length),index.objects.filter(e=>jd>=e.segments[0].coverage.start&&jd<=2488067.5).length);
       }
       await page.evaluate(()=>{app.jed=2444239.5;app.cancelRender();app.renderFrame();});
       assert(await page.evaluate(()=>app.renderer.comets.entries.filter(e=>['1P','55P'].includes(e.comet.id)).every(e=>e.range.includes('historical:')&&e.range.includes('|modern:'))));
@@ -76,14 +82,32 @@ module.exports=async function(browser,root){
       await expect(page.locator('#orrery-comet-history')).toContainText('240 BCE (calendar unspecified)');
       await expect(page.locator('#orrery-comet-history')).not.toContainText('55P/Tempel-Tuttle');
       await page.keyboard.press('Escape');
+      history=false;
       await page.evaluate(async()=>{await app.replaceCometSource('hosted');app.gui.timeline.open();});
       await expect(page.locator('#orrery-comet-history')).toBeHidden();
       assert((await page.locator('.orrery-options-panel [role=status]').allTextContents()).some(text=>text.includes('Catalogue trajectories: 1980-01-01 to 2099-12-30.')));
       await page.keyboard.press('Escape');
-      fail=true;await page.evaluate(async()=>{app.cometIds=['1P'];await app.replaceCometSource('candidate','https://candidate.test/latest.json');});
+      history=true;fail=true;await page.evaluate(async()=>{app.cometIds=['1P'];await app.replaceCometSource('hosted');});
       assert.equal(await page.evaluate(()=>app.cometStates['1P']),'error');
       assert.equal(await page.evaluate(()=>app.cometData['1P']),undefined);
       fail=false;await page.evaluate(()=>app.loadComets());assert.equal(await page.evaluate(()=>app.cometStates['1P']),'ready');
+      await page.evaluate(async()=>{await app.replaceCometSource('bundled');});
+      assert.equal(await page.evaluate(()=>app.cometSourceId),'bundled-horizons-2026-11-18');
+      assert(await page.evaluate(()=>!app.cometData['1P'].segments));
+      // The test entry omits Intro; exercise the actual built About markup directly.
+      await page.locator('#orrery-intro').evaluate(e=>e.showModal());
+      await expect(page.locator('#orrery-intro')).toContainText('Coverage varies by comet and loaded catalogue');
+      await expect(page.locator('#orrery-intro')).toContainText('21 Aug 1835');
+      await expect(page.locator('#orrery-intro')).toContainText('22 Dec 1865');
+      for(const viewport of [{width:320,height:568},{width:1280,height:800}]) {
+        await page.setViewportSize(viewport);
+        assert(await page.locator('#orrery-intro').evaluate(e=>e.scrollWidth<=e.clientWidth+1),'About must wrap without horizontal overflow');
+        const close=page.locator('.orrery-intro-close');
+        await page.locator('#orrery-intro-date').focus();await close.focus();
+        await expect(close).toBeFocused();
+        assert(await close.evaluate(e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;}),'About close stays reachable after keyboard focus');
+      }
+      await page.keyboard.press('Enter');await expect(page.locator('#orrery-intro')).not.toBeVisible();
       assert.deepEqual(errors,[]);
     }finally{await page.close();}
   }

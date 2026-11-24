@@ -85,8 +85,10 @@ On first enable, the app discovers `https://sn3p.github.io/orrery-data/comets/la
 and pins its verified index for this visit. Each selected object loads separately,
 with bounded decoded length, SHA-256, schema, identity, conventions and reference
 interpolation checks. The first six catalogue entries (or all entries when fewer) are selected on first enable.
-This bounds automatic object loading to six assets (at most 12 MiB decoded by the
-reader contract); every other entry stays available for explicit selection. Subsequent source replacements
+For schema 2 this bounds automatic loading to six assets (at most 12 MiB decoded).
+The approved schema-3 catalogue loads eight assets for those six objects, including
+two historical segments (at most 16 MiB decoded by the reader contract). Every
+other entry stays available for explicit selection. Subsequent source replacements
 preserve selected IDs that remain available; removed selections are explained in
 Options, and new entries remain available for explicit selection. Asteroid-only startup makes no comet requests.
 
@@ -123,13 +125,15 @@ identify retrieved bytes, not hashes of transformed assets.
 
 The v2 reader verifies each catalogue entry against its own independent midpoint references and provenance. Reader source, dependencies, MIT license and lineage are retained in `src/unified/comets/source`.
 
-## Explicit historical candidate integration
+## Production schema transition and historical candidates
 
-Production continues to use schema 2 at the existing unversioned URL. The strict
-schema-3 reader is only selected explicitly with
+Production reads one descriptor at the existing `comets/latest.json` URL and dispatches
+to the strict schema-2 or schema-3 reader. Unknown versions and failed verification
+fail closed without blending bundled trajectories. Live data activation is separate.
+The strict schema-3 reader can also be selected explicitly with
 `app.replaceCometSource('candidate', candidateDescriptorURL)`; this is an integration
 API, not a hosted rollout or a persisted preference. `replaceCometSource('hosted')`
-restores the production reader, and the existing bundled rollback remains available.
+restores production version dispatch, and the existing bundled rollback remains available.
 A source replacement clears the previous generation's metadata, models and failures.
 
 Metadata loads first. Selecting an object loads its required segments atomically;
@@ -144,7 +148,7 @@ and Fit share the same shifted display window and marker. Hiding paths keeps Fit
 unchanged. Discovery events never change visibility or trajectory coverage.
 
 Options and its chooser show loading, failure and date availability with retry.
-The date dialog's candidate-only history details retain selected objects' event
+For historical catalogues, the date dialog's history details retain selected objects' event
 kind, date precision, calendar, notes and source citations, including disputed dates.
 They offer no fabricated precise date jumps. Schema-2 metadata has no event section.
 
