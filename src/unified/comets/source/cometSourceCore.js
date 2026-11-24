@@ -98,7 +98,10 @@ export function validateCometIndex(index) {
 // outstanding reads. Selection and renderer generation remain the app's concern.
 export class CometSource {
   static async openLatest(url, { signal } = {}) {
-    const { location, latest } = await fetchLatest(url, signal, 'comet');
+    return this.openDescriptor(await fetchLatest(url, signal, 'comet'), { signal });
+  }
+  static async openDescriptor({ location, latest }, { signal } = {}) {
+    check(signal);
     fields(latest, ['comet_contract_version', 'index']); version(latest);
     reference(latest.index, 'index-', 256 * 1024);
     const indexURL = new URL(latest.index.url, location).href;
