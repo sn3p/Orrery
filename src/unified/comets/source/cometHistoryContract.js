@@ -31,7 +31,7 @@ function metadata(value, id, sources) {
     requireHistory(['discovery','independent_discovery','recovery','earlier_sighting','photographic_observation','discovery_recognition'].includes(e.kind)
       && ['documented','day-disputed'].includes(e.certainty) && nullable(e.note)
       && Array.isArray(e.people) && e.people.every(text) && Array.isArray(e.sources) && e.sources.length > 0
-      && e.sources.every(s => typeof s === 'string' && Object.hasOwn(sources,s)), 'event semantics');
+      && e.sources.every(s => text(s) && Object.hasOwn(sources,s)), 'event semantics');
     const d = e.date;
     fields(d,['year','month','day','precision','calendar','year_numbering']);
     requireHistory(Number.isSafeInteger(d.year) && Math.abs(d.year) <= 9999 && d.year_numbering === 'astronomical'
@@ -43,6 +43,13 @@ function metadata(value, id, sources) {
           && day(`${String(d.year).padStart(4,'0')}-${String(d.month).padStart(2,'0')}-${String(d.day).padStart(2,'0')}`)), 'date precision');
   }
 }
+// Match Python str.splitlines(), including CRLF and Unicode separators, so
+// request-endpoint removal does not accidentally hide scientific header lines.
+export function modelIdentity(header) {
+  const lines = header.split(/\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]/u);
+  if (lines.at(-1) === '') lines.pop();
+  return lines.filter(line=>!line.startsWith('Start time')&&!line.startsWith('Stop  time')).join('\n');
+}
 function historicalQuery(id, offset) {
   const [start,,record] = HISTORY[id], count = Math.floor((END-start)/4)+1;
   const first = start+offset, last = start+4*(count-1)-(offset ? 4-offset : 0);
@@ -53,7 +60,8 @@ export function validateHistoryIndex(index) {
   requireHistory(index.comet_contract_version === 3 && Array.isArray(index.objects)
     && equal(index.objects.map(e=>e?.id),IDS), 'catalogue');
   requireHistory(index.sources && typeof index.sources === 'object' && !Array.isArray(index.sources), 'sources');
-  for (const s of Object.values(index.sources)) {
+  for (const [key,s] of Object.entries(index.sources)) {
+    requireHistory(text(key),'source key');
     fields(s,['url','checked_on'],['note','description']);
     requireHistory(https(s.url) && day(s.checked_on) && (s.note === undefined || text(s.note))
       && (s.description === undefined || text(s.description)), 'source');
@@ -82,7 +90,7 @@ export function validateHistoryIndex(index) {
         requireHistory(p.url === historicalQuery(e.id,kind === 'vectors' ? 0 : Number(kind))
           && ['1.2','1.3'].includes(p.api_version) && hash(p.sha256) && utcTimestamp(p.retrieved_at) && p.target === e.name
           && p.solution === HISTORY[e.id][3] && text(p.header), 'historical provenance');
-        normalized.push(p.header.split('\n').filter(l=>!l.startsWith('Start time')&&!l.startsWith('Stop  time')).join('\n'));
+        normalized.push(modelIdentity(p.header));
       }
       requireHistory(new Set(normalized).size === 1, 'historical model');
       const v = s.validation;

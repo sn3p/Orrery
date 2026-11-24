@@ -133,7 +133,7 @@ export class CometSource {
           check(controller.signal);
           const value = this.validatePayload(decode(bytes), entry);
           check(controller.signal);
-          this.cacheValue(id, freeze(value));
+          this.cache.set(id, freeze(value));
           return value;
         } finally {
           pending.settled = true;
@@ -175,6 +175,5 @@ export class CometSource {
       'interpolation tolerance');
     return value;
   }
-  cacheValue(id, value) { this.cache.set(id, value); }
   close() { this.lifetime.abort(); this.cache.clear(); }
 }

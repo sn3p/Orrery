@@ -8,10 +8,12 @@ import { fixture } from './comet-history-fixture.mjs';
 const T=2444239.5, END=2488067.5;
 const base='https://candidate.test/';
 function transport(t, files, fail=()=>false) {
+  const calls=[];
   t.mock.method(globalThis,'fetch',async url=>{
-    const name=new URL(url).pathname.slice(1);
+    const name=new URL(url).pathname.slice(1);calls.push(name);
     return files.has(name) && !fail(name) ? new Response(files.get(name)) : new Response('',{status:404});
   });
+  return calls;
 }
 async function checkAcquisition(t, files, real=false) {
   transport(t,files);
@@ -126,4 +128,59 @@ test('segmented windows use the series grid and only read displayed states',()=>
   assert(reads<=12,`display window read ${reads} states out of ${rows.length}`);
   const firstReads=reads;assert.equal(pathStrips(model,12010,10),strips);assert.equal(reads,firstReads);
   pathStrips(model,12026,10);assert(reads-firstReads<=12);
+});
+
+import HistorySource from '../src/unified/comets/source/CometHistorySource.js';
+import {modelIdentity} from '../src/unified/comets/source/cometHistoryContract.js';
+test('reader modern access neither requests nor depends on unavailable history',async t=>{
+  const f=fixture(),old=f.index.objects[0].segments[0].data.url;
+  f.files.delete(old);const calls=transport(t,f.files);
+  const source=await HistorySource.openLatest(base+'latest.json');t.after(()=>source.close());
+  assert.deepEqual(await source.positionAt('1P',T),[0,0,0]);
+  assert.deepEqual((await source.pathSegments('1P',T,T+8)).map(s=>s.key),['modern']);
+  assert(!calls.includes(old));
+  await assert.rejects(source.positionAt('1P',T-1));
+  assert.deepEqual(await source.positionAt('1P',T),[0,0,0]);
+});
+test('reader memoizes only successful immutable transition pairs per source',async t=>{
+  transport(t,fixture().files);
+  const source=await HistorySource.openLatest(base+'latest.json');t.after(()=>source.close());
+  let checks=0;const check=source.validateTransition.bind(source);
+  source.validateTransition=(...args)=>{checks++;check(...args);};
+  const historical=await source.loadSegment('1P','historical');
+  assert(Object.isFrozen(historical.series.states));
+  await source.pathSegments('1P',T-8,T+8);await source.positionAt('1P',T-1);await source.positionAt('1P',T);
+  assert.equal(checks,1);
+  source.close();assert.equal(source.validatedTransitions.size,0);
+  const next=await HistorySource.openLatest(base+'latest.json');t.after(()=>next.close());
+  assert.equal(next.validatedTransitions.size,0);await next.positionAt('1P',T-1);assert.equal(next.validatedTransitions.size,1);
+});
+test('reader failed pair is never memoized and retry preserves authoritative modern',async t=>{
+  const f=fixture((kind,value,object,segment)=>{
+    if(kind==='payload'&&object.id==='1P'&&segment.key==='historical')value.series.states.at(-1)[3]=.00005;
+  });
+  const calls=transport(t,f.files),entry=f.index.objects[0];
+  const source=await HistorySource.openLatest(base+'latest.json');t.after(()=>source.close());
+  const modern=await source.loadSegment('1P','modern');
+  for(let i=0;i<2;i++)await assert.rejects(source.positionAt('1P',T-1),/transition evidence/);
+  assert.equal(source.validatedTransitions.size,0);
+  assert.equal(await source.loadSegment('1P','modern'),modern);
+  assert.equal(calls.filter(name=>name===entry.segments[0].data.url).length,2);
+  assert.equal(calls.filter(name=>name===entry.segments[1].data.url).length,1);
+});
+test('reader rejects empty source keys and accepts Python-equivalent scientific header lines',async t=>{
+  for(const mutate of [index=>{index.sources['']=index.sources.sbdb;},index=>{index.objects[0].discovery.events[0].sources=[''];}]){
+    const f=fixture((kind,value)=>{if(kind==='index')mutate(value);});transport(t,f.files);
+    await assert.rejects(HistorySource.openLatest(base+'latest.json'));
+  }
+  const f=fixture((kind,index)=>{if(kind==='index')for(const [i,v] of Object.values(index.objects[0].segments[0].provenance).entries())
+    v.header=v.header.replaceAll('\n',['\r','\r\n','\u0085','\n'][i]);});
+  transport(t,f.files);const source=await HistorySource.openLatest(base+'latest.json');source.close();
+});
+test('model identity preserves scientific lines for every Python splitlines separator',()=>{
+  for(const separator of ['\n','\r','\r\n','\v','\f','\x1c','\x1d','\x1e','\x85','\u2028','\u2029']){
+    const header=['Start time: request','EOP file: observed','Stop  time: request','Model: DE441'].join(separator)+separator;
+    assert.equal(modelIdentity(header),'EOP file: observed\nModel: DE441');
+    assert.notEqual(modelIdentity(header.replace('DE441','DE440')),modelIdentity(header));
+  }
 });

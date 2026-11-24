@@ -133,7 +133,10 @@ restores the production reader, and the existing bundled rollback remains availa
 A source replacement clears the previous generation's metadata, models and failures.
 
 Metadata loads first. Selecting an object loads its required segments atomically;
-failed pairs expose no partial marker/path/Fit. Selected validated trajectories are
+failed pairs expose no partial marker/path/Fit. The reference reader can load modern
+segments independently of historical availability; historical reads still validate
+against modern and memoize only a successful immutable pair per source. The app's
+selected-object acquisition intentionally remains eager and atomic across its segments. Selected validated trajectories are
 retained for timeline playback. 1P and 55P use historical and modern series; modern
 owns 1980-01-01 UT exactly. Separate path strips never connect across the seam, and
 55P's January 2 support sample never extends historical ownership. Both renderers
@@ -145,7 +148,7 @@ The date dialog's candidate-only history details retain selected objects' event
 kind, date precision, calendar, notes and source citations, including disputed dates.
 They offer no fabricated precise date jumps. Schema-2 metadata has no event section.
 
-Reader provenance: OrreryData `a967c6a3548727c98ba3998dafaeb9dde4588123`.
+Reader provenance: OrreryData `f8c517466094b29e9f1813dabfc6d13241e9be62`.
 Retained candidate pin: `a9de1f2f711dd65e880102de7c1f0c14bf20598a20d9cc4e001081406e40c2e2`.
 Synthetic contract fixtures run in CI; exact retained files can be checked without
 servers using `COMET_HISTORY_CANDIDATE=/path/to/candidate node --test tests/comet-history.test.mjs`.

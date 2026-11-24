@@ -31,6 +31,7 @@ export default class CometHistorySource extends CometSource {
     this.entries = index.objects.flatMap(e=>e.segments.map(s=>({id:`${e.id}:${s.key}`,objectId:e.id,segment:s,data:s.data})));
     this.active = 0;
     this.queue = [];
+    this.validatedTransitions = new Map();
   }
   object(id) {
     check(this.lifetime.signal,'comet');
@@ -61,17 +62,22 @@ export default class CometHistorySource extends CometSource {
     check(signal,'comet');
     const object = this.object(id);
     requireHistory(object.segments.some(s=>s.key===key),'selection');
-    // Every caller owns subscribers to both files. Cached payloads are only
-    // returned after this pair check, including retry and pre-1980-only visits.
-    if (!object.transition) return super.load(`${id}:${key}`,{signal});
+    // Modern is independently authoritative. History must prove compatibility
+    // against modern, including retries and pre-1980-only visits.
+    if (key === 'modern' || !object.transition) return super.load(`${id}:${key}`,{signal});
     return this.group(signal,async sharedSignal=>{
       const [historical,modern] = await Promise.all(['historical','modern'].map(part=>
         super.load(`${id}:${part}`,{signal:sharedSignal})));
       check(sharedSignal,'comet'); check(this.lifetime.signal,'comet');
-      try { this.validateTransition(object,historical,modern); }
-      catch(error) {
-        this.cache.delete(`${id}:historical`); this.cache.delete(`${id}:modern`);
-        throw error;
+      const verified = this.validatedTransitions.get(id);
+      if (verified?.historical !== historical || verified?.modern !== modern) {
+        try { this.validateTransition(object,historical,modern); }
+        catch(error) {
+          this.validatedTransitions.delete(id);
+          this.cache.delete(`${id}:historical`);
+          throw error;
+        }
+        this.validatedTransitions.set(id,{historical,modern});
       }
       return key==='historical'?historical:modern;
     });
@@ -128,6 +134,7 @@ export default class CometHistorySource extends CometSource {
     try { check(signal,'comet'); return await super.fetchEntry(entry,signal); }
     finally { this.active--; this.drain(); }
   }
+  close() { super.close(); this.validatedTransitions.clear(); }
   drain() { while(this.active<2 && this.queue.length) this.queue.shift().start(); }
 }
 export { T, END };
