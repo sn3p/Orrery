@@ -1,6 +1,6 @@
 # Orrery comet readers
 
-Vendored from [OrreryData f8c517466094b29e9f1813dabfc6d13241e9be62](https://github.com/sn3p/orrery-data/tree/f8c517466094b29e9f1813dabfc6d13241e9be62/consumer):
+Vendored from [OrreryData a2076e1c78ffa5ae2bd8c879b77452f31af0829a](https://github.com/sn3p/orrery-data/tree/a2076e1c78ffa5ae2bd8c879b77452f31af0829a/consumer):
 `CometHistorySource.js`, `cometHistoryContract.js`, `CometCatalogSource.js`,
 `cometSourceCore.js`, `contract.js`, `transport.js`. Keep the [MIT license](LICENSE).
 Copyright (c) 2016 Matthijs Kuiper.
@@ -13,4 +13,4 @@ Production still opens the strict schema-2 reader at
 `https://sn3p.github.io/orrery-data/comets/latest.json`. Schema 3 is accessible only
 through explicit candidate source injection. No hosted switch is included.
 See [app behavior](../../../../docs/comets.md) and the upstream
-[contract](https://github.com/sn3p/orrery-data/blob/f8c517466094b29e9f1813dabfc6d13241e9be62/docs/comet-history-candidates.md).
+[contract](https://github.com/sn3p/orrery-data/blob/a2076e1c78ffa5ae2bd8c879b77452f31af0829a/docs/comet-history-candidates.md).

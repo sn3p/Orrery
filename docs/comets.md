@@ -148,7 +148,7 @@ The date dialog's candidate-only history details retain selected objects' event
 kind, date precision, calendar, notes and source citations, including disputed dates.
 They offer no fabricated precise date jumps. Schema-2 metadata has no event section.
 
-Reader provenance: OrreryData `f8c517466094b29e9f1813dabfc6d13241e9be62`.
+Reader provenance: OrreryData `a2076e1c78ffa5ae2bd8c879b77452f31af0829a`.
 Retained candidate pin: `a9de1f2f711dd65e880102de7c1f0c14bf20598a20d9cc4e001081406e40c2e2`.
 Synthetic contract fixtures run in CI; exact retained files can be checked without
 servers using `COMET_HISTORY_CANDIDATE=/path/to/candidate node --test tests/comet-history.test.mjs`.

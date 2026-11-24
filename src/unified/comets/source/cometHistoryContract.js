@@ -81,6 +81,7 @@ export function validateHistoryIndex(index) {
         && s.coverage.end === (old ? T : END) && s.coverage.end_inclusive === !old, 'coverage');
       if (!old) {
         validateCometIndex({comet_contract_version:2,objects:[{id:e.id,name:e.name,coverage:s.sample_coverage,data:s.data,provenance:s.provenance,validation:s.validation}]});
+        requireHistory(!historical || Object.values(s.provenance).every(p=>p.solution === HISTORY[e.id][3]), 'modern historical solution');
         continue;
       }
       fields(s.provenance,['vectors','1','2','3']);

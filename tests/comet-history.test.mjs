@@ -184,3 +184,21 @@ test('model identity preserves scientific lines for every Python splitlines sepa
     assert.notEqual(modelIdentity(header.replace('DE441','DE440')),modelIdentity(header));
   }
 });
+
+test('acquisition rejects resealed historical catalogues with changed modern solutions before payload reads',async t=>{
+  for(const [id,solution] of [['1P','JPL#76'],['55P','JPL#J985/70']])await t.test(id,async t=>{
+    const f=fixture((kind,index)=>{if(kind==='index'){
+      const modern=index.objects.find(object=>object.id===id).segments.find(segment=>segment.key==='modern');
+      // Change both together so schema-2's matching-provenance check still passes.
+      modern.provenance.vectors.solution=modern.provenance.midpoints.solution=solution;
+    }});
+    const calls=transport(t,f.files);let failure;
+    const open=openCandidateSource(base+'latest.json');
+    const a=new Acquisition(()=>{},async signal=>{try{return await open(signal);}catch(error){failure=error;throw error;}});
+    t.after(()=>a.close());await a.select([id]);
+    assert.match(failure?.message??'',/modern historical solution/);
+    assert.equal(a.states[id],'error');assert.deepEqual(a.data,{});assert.equal(a.current,undefined);
+    assert.equal(calls.length,2,'only descriptor and resealed index are requested');
+    assert(!calls.some(name=>name.startsWith('objects/')));
+  });
+});
