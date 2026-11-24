@@ -24,7 +24,11 @@ async function checkAcquisition(t, files, real=false) {
   if(real) assert.equal(source.sourceId,'a9de1f2f711dd65e880102de7c1f0c14bf20598a20d9cc4e001081406e40c2e2');
   for(const entry of entries) {
     const model=a.data[entry.id];
-    assert.deepEqual(model.discovery,entry.discovery);
+    assert.equal(model.discovery,undefined,'metadata remains owned by the catalogue');
+    for (const segment of model.segments) {
+      assert.equal(segment.points,undefined,'no full duplicate path is retained');
+      assert.equal(segment.series,(await source.loadSegment(entry.id,segment.key)).series);
+    }
     for(const jd of [firstDate(model),T-1e-6,T,T+1e-6,T+1,END,END+1e-6,firstDate(model)-1e-6]) {
       const expected=await source.positionAt(entry.id,jd), actual=positionAt(model,jd);
       assert.deepEqual(actual && [actual.x,actual.y,actual.z],expected);
@@ -89,4 +93,16 @@ test('candidate deselection and source replacement prevent delayed pair installa
   await a.source();const pending=a.select(['55P']);await a.select([]);a.replace();release();await pending;
   assert.deepEqual(a.data,{});assert.deepEqual(a.states,{});
   await a.select(['55P']);assert.equal(a.states['55P'],'ready');
+});
+
+test('segmented windows use the series grid and only read displayed states',()=>{
+  let reads=0;
+  const rows=Array.from({length:12001},(_,i)=>[i,0,0,0,0,0]);
+  const states=new Proxy(rows,{get(target,key){if(/^\d+$/.test(String(key)))reads++;return target[key];}});
+  const model={segments:[{key:'modern',coverage:{start:10,end:24010,end_inclusive:true},series:{start:10,step:2,states}}]};
+  const strips=pathStrips(model,12010,10);
+  assert.equal(strips[0].points.at(-1)[0]-strips[0].points[0][0],12);
+  assert(reads<=12,`display window read ${reads} states out of ${rows.length}`);
+  const firstReads=reads;assert.equal(pathStrips(model,12010,10),strips);assert.equal(reads,firstReads);
+  pathStrips(model,12026,10);assert(reads-firstReads<=12);
 });

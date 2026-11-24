@@ -57,17 +57,17 @@ export default class Acquisition {
           const source = await this.source();
           if (!valid()) return;
           let comet;
-          if (source.pathSegments) {
+          if (source.loadSegment) {
             const entry = source.info.objects.find(object => object.id === id);
             // Reader validates the complete pair before exposing a selected object.
-            const strips = await source.pathSegments(id, entry.segments[0].coverage.start,
-              entry.segments.at(-1).coverage.end, { signal: request.signal });
-            const segments = await Promise.all(entry.segments.map(async segment => ({
-              key: segment.key, coverage: segment.coverage,
-              series: (await source.loadSegment(id, segment.key, { signal: request.signal })).series,
-              points: strips.find(strip => strip.key === segment.key).points,
-            })));
-            comet = { series: { segments, discovery: entry.discovery } };
+            const segments = [];
+            // loadSegment validates its entire transition pair. Keep only shared
+            // source series references; display windows are generated on demand.
+            for (const segment of entry.segments) {
+              const payload = await source.loadSegment(id, segment.key, { signal: request.signal });
+              segments.push({ key: segment.key, coverage: segment.coverage, series: payload.series });
+            }
+            comet = { series: { segments } };
           } else comet = await source.load(id, { signal: request.signal });
           if (!valid()) return;
           this.data = { ...this.data, [id]: comet.series };

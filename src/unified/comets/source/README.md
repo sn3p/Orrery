@@ -5,7 +5,7 @@ Vendored from [OrreryData a967c6a3548727c98ba3998dafaeb9dde4588123](https://gith
 `cometSourceCore.js`, `contract.js`, `transport.js`. Keep the [MIT license](LICENSE).
 Copyright (c) 2016 Matthijs Kuiper.
 
-The sole local transport adaptations preserve Orrery's existing rejection of
+Local transport adaptations omit the unused `linkCancellation` export and preserve Orrery's existing rejection of
 latest-URL fragments and verified-asset redirects. All other copied modules are
 unchanged. The asteroid adapter remains separate and unchanged.
 

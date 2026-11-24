@@ -44,14 +44,20 @@ export default class Comets {
         const strips = pathStrips(series, jed, comet.periodDays);
         const range = strips.map(s => `${s.key}:${s.points[0]?.[0]}:${s.points.at(-1)?.[0]}`).join('|');
         if (range !== entry.range) {
-          const vertices = [];
-          for (const strip of strips) for (let i = 1; i < strip.points.length; i++) {
-            vertices.push(...strip.points[i-1].slice(1).map(v => v*PIXELS_PER_AU),
-              ...strip.points[i].slice(1).map(v => v*PIXELS_PER_AU));
+          const count = strips.reduce((n, strip) => n + strip.points.length, 0);
+          const edges = strips.reduce((n, strip) => n + Math.max(0, strip.points.length - 1), 0);
+          const vertices = new Float32Array(count * 3);
+          const indices = new (count > 65535 ? Uint32Array : Uint16Array)(edges * 2);
+          let vertex = 0, edge = 0;
+          for (const strip of strips) for (let i = 0; i < strip.points.length; i++, vertex++) {
+            const point = strip.points[i];
+            for (let axis = 0; axis < 3; axis++) vertices[vertex * 3 + axis] = point[axis + 1] * PIXELS_PER_AU;
+            if (i > 0) { indices[edge++] = vertex - 1; indices[edge++] = vertex; }
           }
           path.geometry.dispose();
           path.geometry = new THREE.BufferGeometry();
-          path.geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+          path.geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+          path.geometry.setIndex(new THREE.BufferAttribute(indices, 1));
           entry.range = range;
         }
       }

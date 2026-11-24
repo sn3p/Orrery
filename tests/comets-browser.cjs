@@ -52,7 +52,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
               `${comet.id}: full trajectory at ${jed}`);
             if (app.rendererId === 'three') {
               const points = path.geometry.attributes.position;
-              check(points.count === 2 * (last - first), 'Three uses exactly the source slice');
+              check(points.count === last - first + 1, 'Three uses exactly the source slice');
               for (const [vertex, sample] of [[0, first], [points.count - 1, last]]) {
                 for (let axis = 0; axis < 3; axis++) check(points.array[vertex * 3 + axis] === Math.fround(source.states[sample][axis] * 100),
                   'Three endpoints are JPL samples without an invented closing segment');
@@ -390,7 +390,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
           if(last-first!==914 || first<0 || last>=series.states.length)throw Error('Unbounded fallback path');
           const count=app.rendererId==='three' ? entry.path.geometry.attributes.position.count
             : entry.path.context.instructions.find(i=>i.action==='stroke').data.path.instructions.filter(i=>i.action==='lineTo').length+1;
-          if(count!==(app.rendererId==='three'?1828:915))throw Error('Fallback geometry does not match window');
+          if(count!==915)throw Error('Fallback geometry does not match window');
         }
       });
       await page.getByRole('checkbox',{name:'Show 123P/<b>Literal test comet</b>',exact:true}).focus();

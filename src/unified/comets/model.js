@@ -114,21 +114,38 @@ export function pathStrips(model, jed, periodDays) {
     windowCache.set(model, { key, strips });
     return strips;
   }
-  const start = firstDate(model), end = lastDate(model), step = 4;
+  const start = firstDate(model), end = lastDate(model);
+  const step = (model.segments.find(s => owns(s.coverage, jed)) ?? model.segments[0]).series.step;
   const center = start + Math.round((jed - start) / step / 8) * step * 8;
   const span = Math.min(2 * Math.ceil(periodDays / step / 2) * step, end - start);
   const first = Math.max(start, Math.min(center - span / 2, end - span)), last = first + span;
   const key = `${first}:${last}`;
   if (windowCache.get(model)?.key === key) return windowCache.get(model).strips;
   const strips = model.segments.flatMap(segment => {
-    const points = segment.points.filter(p => p[0] >= first && p[0] <= last);
-    const lo = Math.max(first, segment.points[0][0]), hi = Math.min(last, segment.points.at(-1)[0]);
+    const { series, coverage } = segment;
+    const lo = Math.max(first, coverage.start);
+    const hi = Math.min(last, coverage.end_inclusive ? coverage.end : previousJulianDay(coverage.end));
     if (lo > hi) return [];
-    const vertex = jd => { const p = positionAt(segment.series, jd); return [jd, p.x, p.y, p.z]; };
-    if (!points.length || points[0][0] > lo) points.unshift(vertex(lo));
-    if (points.at(-1)[0] < hi) points.push(vertex(hi));
+    const vertex = jd => { const p = positionAt(series, jd); return [jd, p.x, p.y, p.z]; };
+    const points = [vertex(lo)];
+    // Uniform grids let us address the visible sample range directly. Reuse
+    // exact sampled positions; only clipped boundary vertices need interpolation.
+    const begin = Math.floor((lo - series.start) / series.step) + 1;
+    const finish = Math.ceil((hi - series.start) / series.step);
+    for (let i = begin; i < finish; i++) {
+      const row = series.states[i];
+      points.push([series.start + i * series.step, row[0], row[1], row[2]]);
+    }
+    if (hi > lo) points.push(vertex(hi));
     return [{ key: segment.key, points }];
   });
   windowCache.set(model, { key, strips });
   return strips;
+}
+
+function previousJulianDay(value) {
+  const view = new DataView(new ArrayBuffer(8));
+  view.setFloat64(0, value);
+  view.setBigUint64(0, view.getBigUint64(0) - 1n);
+  return view.getFloat64(0);
 }

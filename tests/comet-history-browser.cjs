@@ -36,7 +36,11 @@ module.exports=async function(browser,root){
       await page.evaluate(()=>{
         const r=app.renderer;
         for(const entry of r.comets.entries.filter(e=>['1P','55P'].includes(e.comet.id))) {
-          if(app.rendererId==='three') { if(!entry.path.isLineSegments) throw Error('Seam must not be a connecting line'); }
+          if(app.rendererId==='three') { if(!entry.path.isLineSegments) throw Error('Seam must not be a connecting line');
+            const geometry=entry.path.geometry, indices=geometry.index.array;
+            if(geometry.index.count!==2*(geometry.attributes.position.count-2))throw Error('Each strip reuses unique vertices');
+            let breaks=0;for(let i=2;i<indices.length;i+=2)if(indices[i]!==indices[i-1])breaks++;
+            if(breaks!==1)throw Error('Indexed edges must leave the seam disconnected'); }
           else {const commands=entry.path.context.instructions.find(i=>i.action==='stroke').data.path.instructions;
             if(commands.filter(i=>i.action==='moveTo').length!==2)throw Error('Historical and modern paths need separate strips');}
         }
