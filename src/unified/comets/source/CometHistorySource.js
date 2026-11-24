@@ -1,0 +1,133 @@
+// Candidate-only adapter. The hosted schema-2 adapter remains unchanged in scope.
+import { CometSource, interpolateComet, interpolateCometState } from './cometSourceCore.js';
+import { fetchLatest, fetchVerified, decodeJSON, check, aborted } from './transport.js';
+import { keys } from './contract.js';
+import { T, END, reference, requireHistory, validateHistoryIndex, validateSegment } from './cometHistoryContract.js';
+
+// Historical owned intervals are half-open. Finish a visible strip at the
+// immediately preceding representable Julian day, reserving exact T for modern.
+function previousDay(value) {
+  const view = new DataView(new ArrayBuffer(8));
+  view.setFloat64(0,value);
+  view.setBigUint64(0,view.getBigUint64(0)-1n); // coverage endpoints are positive JDs
+  return view.getFloat64(0);
+}
+
+export default class CometHistorySource extends CometSource {
+  static async openLatest(url, { signal } = {}) {
+    const {location,latest} = await fetchLatest(url,signal,'comet');
+    keys(latest,['comet_contract_version','index'],[],'comet history');
+    requireHistory(latest.comet_contract_version === 3,'contract version');
+    reference(latest.index,'index-',256*1024);
+    const indexURL = new URL(latest.index.url,location).href;
+    const bytes = await fetchVerified(latest.index,indexURL,signal,'comet');
+    check(signal,'comet');
+    const index = validateHistoryIndex(decodeJSON(bytes,'comet'));
+    check(signal,'comet');
+    return new CometHistorySource(indexURL,latest.index.sha256,index);
+  }
+  constructor(url,pin,index) {
+    super(url,pin,index);
+    this.entries = index.objects.flatMap(e=>e.segments.map(s=>({id:`${e.id}:${s.key}`,objectId:e.id,segment:s,data:s.data})));
+    this.active = 0;
+    this.queue = [];
+  }
+  object(id) {
+    check(this.lifetime.signal,'comet');
+    const entry = this.info.objects.find(e=>e.id===id);
+    requireHistory(entry,'selection');
+    return entry;
+  }
+  segmentAt(id,jd) {
+    requireHistory(Number.isFinite(jd),'date');
+    return this.object(id).segments.find(s=>jd>=s.coverage.start &&
+      (jd<s.coverage.end || (jd===s.coverage.end && s.coverage.end_inclusive))) ?? null;
+  }
+  // No default date: callers must explicitly distinguish marker and path reads.
+  async load(id,{jd,signal}={}) {
+    check(signal,'comet');
+    const segment = this.segmentAt(id,jd);
+    return segment ? this.loadSegment(id,segment.key,{signal}) : null;
+  }
+  async group(signal, work) {
+    check(signal,'comet'); check(this.lifetime.signal,'comet');
+    const controller = new AbortController();
+    const cancel = () => controller.abort();
+    signal?.addEventListener('abort',cancel,{once:true});
+    try { return await work(controller.signal); }
+    finally { controller.abort(); signal?.removeEventListener('abort',cancel); }
+  }
+  async loadSegment(id,key,{signal}={}) {
+    check(signal,'comet');
+    const object = this.object(id);
+    requireHistory(object.segments.some(s=>s.key===key),'selection');
+    // Every caller owns subscribers to both files. Cached payloads are only
+    // returned after this pair check, including retry and pre-1980-only visits.
+    if (!object.transition) return super.load(`${id}:${key}`,{signal});
+    return this.group(signal,async sharedSignal=>{
+      const [historical,modern] = await Promise.all(['historical','modern'].map(part=>
+        super.load(`${id}:${part}`,{signal:sharedSignal})));
+      check(sharedSignal,'comet'); check(this.lifetime.signal,'comet');
+      try { this.validateTransition(object,historical,modern); }
+      catch(error) {
+        this.cache.delete(`${id}:historical`); this.cache.delete(`${id}:modern`);
+        throw error;
+      }
+      return key==='historical'?historical:modern;
+    });
+  }
+  async positionAt(id,jd,{signal}={}) {
+    const value = await this.load(id,{jd,signal});
+    check(signal,'comet'); check(this.lifetime.signal,'comet');
+    return value ? interpolateComet(value.series,jd) : null;
+  }
+  // Returns separate strips; support-only samples beyond the owned interval are
+  // never exposed as path vertices. No connector or cross-file interpolation.
+  async pathSegments(id,start,end,{signal}={}) {
+    requireHistory(Number.isFinite(start)&&Number.isFinite(end)&&start<=end,'path range');
+    check(signal,'comet');
+    const wanted = this.object(id).segments.filter(s=>start<=s.coverage.end && end>=s.coverage.start
+      && !(start===s.coverage.end && !s.coverage.end_inclusive));
+    return this.group(signal,async pathSignal=>{
+    const strips = await Promise.all(wanted.map(async s=>{
+      const value = await this.loadSegment(id,s.key,{signal:pathSignal}), series = value.series;
+      const first = Math.max(start,s.coverage.start);
+      const last = Math.min(end,s.coverage.end_inclusive?s.coverage.end:previousDay(s.coverage.end));
+      const times = [first];
+      for (let i=Math.floor((first-series.start)/series.step)+1; series.start+i*series.step<last; i++) times.push(series.start+i*series.step);
+      if(last>first) times.push(last);
+      return {key:s.key,points:times.map(t=>[t,...interpolateComet(series,t)])};
+    }));
+    check(signal,'comet'); check(this.lifetime.signal,'comet');
+    return strips;
+    });
+  }
+  validatePayload(value,entry) { return validateSegment(value,entry); }
+  validateTransition(object,historical,modern) {
+    for(const c of object.transition.comparisons) {
+      const h = interpolateCometState(historical.series,c.jd), m = interpolateCometState(modern.series,c.jd);
+      const dp = Math.hypot(...h.position.map((v,i)=>v-m.position[i]));
+      const dv = Math.hypot(...h.velocity.map((v,i)=>v-m.velocity[i]));
+      requireHistory(dp <= object.transition.position_limit_au && dv <= object.transition.velocity_limit_au_per_day
+        && Math.abs(dp-c.position_difference_au)<=1e-14 && Math.abs(dv-c.velocity_difference_au_per_day)<=1e-14,'transition evidence');
+    }
+  }
+  // The strict index admits exactly eight files, each <=2MiB. Retaining all
+  // verified files is bounded by construction; there is no unreachable LRU policy.
+  async fetchEntry(entry,signal) {
+    await new Promise((resolve,reject)=>{
+      const item = {start:()=>{signal.removeEventListener('abort',cancel);this.active++;resolve();}};
+      const cancel = ()=>{
+        const i=this.queue.indexOf(item); if(i>=0)this.queue.splice(i,1);
+        signal.removeEventListener('abort',cancel); reject(aborted('comet'));
+      };
+      if(signal.aborted) { cancel(); return; }
+      signal.addEventListener('abort',cancel,{once:true});
+      this.queue.push(item); this.drain();
+    });
+    try { check(signal,'comet'); return await super.fetchEntry(entry,signal); }
+    finally { this.active--; this.drain(); }
+  }
+  drain() { while(this.active<2 && this.queue.length) this.queue.shift().start(); }
+}
+export { T, END };
