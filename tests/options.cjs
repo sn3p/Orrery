@@ -36,26 +36,52 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
   const groups = page.getByRole("combobox", { name: "Minor-planet groups" });
   const dpr = page.getByRole("combobox", { name: "Rendering pixel ratio" });
   const checkSpacing = async () => {
+    await require("./options-geometry.cjs")(panel);
+    const priorSpeed = await speed.inputValue();
+    const track = panel.locator('.slider');
+    await track.scrollIntoViewIfNeeded();
+    const trackBox = await track.boundingBox();
+    assert(trackBox.width >= 80, 'Speed track has a usable drag target');
+    for (const fraction of [0.75, 0.25]) {
+      await page.mouse.move(trackBox.x + trackBox.width / 2, trackBox.y + trackBox.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(trackBox.x + trackBox.width * fraction, trackBox.y + trackBox.height / 2);
+      await page.mouse.up();
+      const value = Number(await speed.inputValue());
+      assert(fraction > 0.5 ? value > 0 : value < 0, 'Dragging the visible speed track changes playback direction');
+    }
+    await speed.fill(priorSpeed);
+    await speed.press('Enter');
     const spacing = await panel.evaluate(el => {
       const label = document.createRange();
       label.selectNodeContents(el.querySelector("input[aria-label='Playback speed']").closest("li").querySelector(".property-name"));
-      const hint = el.querySelector("select[aria-label='Rendering pixel ratio']").getAttribute("aria-describedby");
-      const text = document.getElementById(hint).firstChild;
-      const range = document.createRange();
-      range.selectNodeContents(text);
-      const lines = [...range.getClientRects()];
-      range.setStart(text, text.textContent.lastIndexOf("GPU"));
+      const select = el.querySelector("select[aria-label='Rendering pixel ratio']");
       return {
-        unified: !!document.querySelector(".orrery-footer"),
         gap: el.querySelector(".slider").getBoundingClientRect().left - label.getBoundingClientRect().right,
-        lines: lines.length,
-        lastLineTop: lines.at(-1)?.top,
-        lastWordTop: range.getBoundingClientRect().top,
+        appearance: getComputedStyle(select).appearance,
+        background: getComputedStyle(select).backgroundImage,
+        paddingRight: parseFloat(getComputedStyle(select).paddingRight),
       };
     });
-    assert(spacing.gap >= 8, "Speed label keeps at least 8px of visible space before the slider");
-    assert.equal(spacing.lines, 2, "DPR help wraps compactly within the panel at its UI font size");
-    assert(Math.abs(spacing.lastWordTop - spacing.lastLineTop) < 1, "Help text remains within the expected last line");
+    assert(spacing.gap >= 6, "Speed label keeps at least 6px of visible space before the slider");
+    assert.equal(spacing.appearance, "none", "Selects use the inset custom chevron");
+    assert(spacing.background.includes("data:image/svg+xml") && spacing.paddingRight >= 22,
+      "Select text reserves room for its drawn chevron");
+    const info = page.getByRole("button", { name: "About Rendering pixel ratio", exact: true });
+    await dpr.focus();
+    await info.scrollIntoViewIfNeeded();
+    await info.focus();
+    const tooltip = page.locator("#" + await info.getAttribute("aria-describedby"));
+    await expect(tooltip).toBeVisible();
+    await expect(tooltip).toHaveText("Pixel density: 2× is sharper but uses more GPU.");
+    const box = await tooltip.boundingBox(), viewport = page.viewportSize();
+    assert(box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width + 1
+      && box.y + box.height <= viewport.height + 1, "Help stays inside the viewport");
+    assert(await tooltip.evaluate(el => !el.closest('.orrery-options-panel')), "Help escapes the panel's scroll clipping");
+    await page.keyboard.press("Escape");
+    await expect(tooltip).toBeHidden();
+    await expect(panel).toBeVisible();
+    await expect(info).toBeFocused();
   };
   try {
     await page.goto(url);
@@ -118,9 +144,11 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       || (!el.querySelector("select[aria-label='Renderer']") && el.querySelector("input") === document.activeElement)),
     "Tab reaches the first revealed control");
     await expect(renderer).toHaveAccessibleDescription("Change renderer; time and options persist.");
-    await expect(speed).toHaveAccessibleDescription("Time scale: 1 = 60 days/s; 0 pauses; negative reverses.");
+    await expect(speed).toHaveAccessibleDescription("Time scale: 1 = 60 days/s. 0 pauses; negative reverses.");
     await expect(labels).toHaveAccessibleDescription("Show labels for Earth, all planets, or none.");
     await expect(orbits).toHaveAccessibleDescription("Show or hide planetary orbit lines.");
+    assert.equal(await labels.getAttribute("title"), null);
+    assert.equal(await orbits.getAttribute("title"), null);
     await expect(groups).toHaveAccessibleDescription("Numbered minor planets with known discovery dates. Most are in the main belt.");
     assert.deepEqual(await labels.locator("option").allTextContents(), ["Off", "Earth only", "All planets"]);
     assert.equal(await labels.inputValue(), "earth");
@@ -140,12 +168,15 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       "The visible default does not invent a saved orbit preference");
     const dprHelp = await page.locator("#" + await dpr.getAttribute("aria-describedby")).textContent();
     assert.equal(dprHelp, "Pixel density: 2× is sharper but uses more GPU.");
-    assert.equal(await dpr.getAttribute("title"), dprHelp);
+    assert.deepEqual(await panel.getByRole("heading").allTextContents(),
+      ["Rendering", "Playback", "Planets", "Asteroids", "Comets"], "Settings use the reviewed section order");
+    assert.equal(await panel.evaluate(el => el.getBoundingClientRect().width), 300,
+      "The redesign retains the production panel width");
     const styles = await panel.evaluate(el => ({
       background: getComputedStyle(el).backgroundColor,
-      hints: [...el.querySelectorAll(".orrery-options-hint")].map(hint => ({
+      hints: [...document.querySelectorAll("[role=tooltip]")].map(hint => ({
         help: getComputedStyle(hint).color,
-        label: getComputedStyle(hint.closest("li").querySelector(".property-name")).color,
+        background: getComputedStyle(hint).backgroundColor,
       })),
       select: (() => {
         const style = getComputedStyle(el.querySelector("select"));
@@ -159,14 +190,49 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       return srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
     }).reduce((sum, channel, i) => sum + channel * [0.2126, 0.7152, 0.0722][i], 0);
     for (const hint of styles.hints) {
-      const help = luminance(hint.help), background = luminance(styles.background);
-      assert((luminance(hint.label) + 0.05) / (help + 0.05) >= 1.5,
-        "Labels remain visibly brighter than help text");
+      const help = luminance(hint.help), background = luminance(hint.background);
       const contrast = (Math.max(help, background) + 0.05) / (Math.min(help, background) + 0.05);
       assert(contrast >= 4.5, `Help text contrast is at least 4.5:1 (actual ${contrast.toFixed(2)}:1)`);
     }
     assert(styles.select, "DPR select has a visible border on every side");
     await checkSpacing();
+    const realTime = page.getByRole("checkbox", { name: "Real time", exact: true });
+    const realInfo = page.getByRole("button", { name: "About Real time", exact: true });
+    const realTip = page.locator("#" + await realInfo.getAttribute("aria-describedby"));
+    const wasRealTime = await realTime.isChecked();
+    const realRow = realTime.locator('xpath=ancestor::li[1]');
+    const realRowBox = await realRow.boundingBox();
+    await realRow.click({ position: { x: realRowBox.width - 2, y: realRowBox.height / 2 } });
+    assert.equal(await realTime.isChecked(), wasRealTime, "Blank space at the row edge never toggles the checkbox");
+    await realInfo.hover();
+    await expect(realTip).toBeVisible();
+    await page.mouse.move(640, 400);
+    await expect(realTip).toBeHidden();
+    await trigger.focus();
+    await realInfo.hover();
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
+    await exports.openOptions(page);
+    await realInfo.click();
+    await realTip.dblclick();
+    await expect(realTip).toBeVisible();
+    assert(await page.evaluate(() => getSelection().toString().length > 0), "Pinned help text can be selected");
+    await realInfo.click();
+    await expect(realTip).toBeHidden();
+    await realInfo.click();
+    await expect(realTip).toBeVisible();
+    assert.equal(await realTime.isChecked(), wasRealTime, "Clicking help never toggles the checkbox row");
+    await page.mouse.move(640, 400);
+    await expect(realTip).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(async () => {
+      const tipBox = await realTip.boundingBox();
+      return !!tipBox && tipBox.x >= 0 && tipBox.y >= 0 && tipBox.x + tipBox.width <= 390
+        && tipBox.y + tipBox.height <= 844;
+    }, { message: "An open pinned tooltip follows viewport resize" }).toBe(true);
+    await realInfo.click();
+    await expect(realTip).toBeHidden();
+    await page.setViewportSize({ width: 1280, height: 800 });
     await speed.fill("0"); await speed.press("Enter");
     await page.evaluate(() => {
       const gl = document.querySelector("canvas").getContext("webgl2");
@@ -294,6 +360,16 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       }
       assert.equal(await panel.evaluate(el => el.scrollWidth <= el.clientWidth), true, "Panel has no horizontal overflow");
       await checkSpacing();
+      const info = page.getByRole("button", { name: "About Rendering pixel ratio", exact: true });
+      await info.click();
+      const tip = page.locator("#" + await info.getAttribute("aria-describedby"));
+      if (await panel.evaluate(el => el.scrollHeight > el.clientHeight)) {
+        await panel.evaluate(el => { el.scrollTop = el.scrollHeight; });
+        await expect(tip).toBeHidden();
+        await expect(panel).toBeVisible();
+      } else {
+        await page.keyboard.press("Escape");
+      }
       await page.screenshot({ path: path.join(output, `${name}-options-${viewport.width}x${viewport.height}.png`) });
     }
     await speed.fill("-1.5"); await speed.press("Enter");

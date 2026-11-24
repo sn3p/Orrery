@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { expect } = require('@playwright/test');
 const fs = require('node:fs');
 const path = require('node:path');
 const { serve } = require('./support.cjs');
@@ -167,11 +168,13 @@ async function run({ browser, name, output = '.context/timeline' }) {
 
         const speedInput = page.getByRole('textbox', { name: 'Playback speed' });
         const speedRow = speedInput.locator('xpath=ancestor::li[1]');
-        const speedHint = async () => page.locator('#' + await speedInput.getAttribute('aria-describedby')).textContent();
+        const speedHint = () => speedRow.locator('.orrery-options-hint');
         await page.getByRole('button', { name: 'Options', exact: true }).click();
         assert.equal(await speedRow.evaluate(el => getComputedStyle(el.querySelector('.c')).opacity), '0.5',
           'Speed dims while the wall clock drives the date');
-        assert.equal(await speedHint(), 'Real time: one second per second. 0 pauses; negative reverses.');
+        assert(await speedHint().isVisible());
+        await expect(speedInput).toHaveAccessibleDescription('Real time: one second per second. 0 pauses; negative reverses.');
+        assert.equal(await speedHint().textContent(), 'Real time: one second per second. 0 pauses; negative reverses.');
         await page.keyboard.press('Escape');
 
         await date.click();
@@ -180,7 +183,9 @@ async function run({ browser, name, output = '.context/timeline' }) {
         await page.getByRole('button', { name: 'Options', exact: true }).click();
         assert.equal(await speedRow.evaluate(el => getComputedStyle(el.querySelector('.c')).opacity), '1',
           'Speed is fully applicable again after leaving the present');
-        assert.equal(await speedHint(), 'Time scale: 1 = 60 days/s; 0 pauses; negative reverses.');
+        assert(await speedHint().isHidden(), 'Persistent speed help disappears outside live mode');
+        assert.equal(await speedHint().textContent(), '');
+        await expect(speedInput).toHaveAccessibleDescription('Time scale: 1 = 60 days/s. 0 pauses; negative reverses.');
         await page.keyboard.press('Escape');
         assert.equal(await text(page, '#orrery-fps'), '0 FPS');
         assert.equal(share(page).get('date'), null, 'The 1980 beginning is omitted from the URL');
