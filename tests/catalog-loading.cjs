@@ -161,6 +161,11 @@ async function run(browser, base, output, name) {
         assert.equal(await page.evaluate(() => window.catalogProbe.raw.some(ref => ref.deref())), false, "Raw payload arrays and rows are collectible");
         await session.detach();
       }
+      // Element screenshots include overlapping DOM. Native select arrows in
+      // Options can rerasterize after context restoration; they are not part of
+      // the scene whose pixels this assertion must compare exactly.
+      await page.getByRole("button", { name: "Options", exact: true }).click();
+      assert(await page.locator(".orrery-options-panel").isHidden(), "Recovery comparison exposes the canvas");
       const before = await page.locator("canvas").screenshot();
       const supported = await page.evaluate(() => !!window.catalogTest.app.renderer.app.renderer.gl.getExtension("WEBGL_lose_context"));
       if (supported) {

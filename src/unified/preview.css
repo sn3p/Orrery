@@ -813,3 +813,11 @@ dialog .orrery-dialog-title:focus { outline: none; }
 .orrery-comet-chooser footer { flex: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px 16px; }
 
 .orrery-comet-chooser footer button[hidden] { display: none; }
+
+.orrery-comet-choice-list small { margin-left: auto; font-size: 11px; color: #aaa; max-width: 42%; }
+#orrery-comet-history { grid-column: 1 / -1; min-width: 0; margin-top: 16px; overflow-wrap: anywhere; font-size: 12px; }
+#orrery-comet-history summary { cursor: pointer; }
+#orrery-comet-history h2 { font-size: 13px; }
+#orrery-comet-history ul { padding-left: 20px; }
+#orrery-comet-history li { margin-bottom: 10px; }
+#orrery-comet-history a { color: var(--color-accent); }

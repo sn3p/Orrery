@@ -1,5 +1,6 @@
 import { formatIsoDay } from "../../js/utils.js";
-import { lastDate, hasCoverage } from "../comets/model.js";
+import { lastDate, firstDate, hasCoverage } from "../comets/model.js";
+import { CometFeedbackCache, catalogueCoverage } from "../comets/feedback.js";
 import * as dat from "dat.gui";
 import { DEFAULT_POPULATION_PRESET, POPULATION_PRESET_OPTIONS, legendGroups, populationHint } from "../catalog/population.js";
 
@@ -129,7 +130,7 @@ export default class Options {
     input.setAttribute("aria-label", "Show comets");
     this.confineCheckbox(toggle);
     this.makeSectionToggle(toggle, "Comets");
-    this.addHint(toggle, "Comets from the OrreryData catalogue. Positions and paths use NASA/JPL Horizons predictions from 1980 to 2099; uncertainty grows away from observations.", input);
+    this.addHint(toggle, "Comet paths are calculated from JPL orbit models. Historical positions are approximate, with uncertainty varying by comet and date.", input);
     this.panelCometFeedback = this.createCometFeedback();
 
     this.cometRows = [];
@@ -271,7 +272,11 @@ export default class Options {
       };
       const name = document.createElement("span");
       name.textContent = comet.name;
-      label.append(checkbox, name);
+      const state = document.createElement("small");
+      state.id = `${this.cometDialog.id}-${comet.id}-state`;
+      checkbox.setAttribute("aria-describedby", state.id);
+      label.append(checkbox, name, state);
+      checkbox.cometStatus = state;
       this.cometChoiceList.append(label);
       this.cometChoices[comet.id] = checkbox;
     }
@@ -283,25 +288,31 @@ export default class Options {
   updateComets() {
     if (!this.panelCometFeedback) return;
     const app = this.orrery, ids = app.cometIds;
+    this.cometFeedbackCache ??= new CometFeedbackCache();
+    if (!this.cometFeedbackCache.changed(app)) return;
     const feedback = [this.panelCometFeedback, this.chooserCometFeedback];
     const focusedRetry = feedback.find(view => view.retry === document.activeElement)?.retry;
     if (this.cometCatalogue !== app.cometCatalogue) {
       this.cometCatalogue = app.cometCatalogue;
       this.rebuildCometChoices();
-      this.cometDisplayKey = null;
     }
-    let ready = 0, loading = 0, failed = 0, usable = 0, firstSeries;
+    for (const [id, checkbox] of Object.entries(this.cometChoices)) {
+      const data = app.cometData?.[id], state = app.cometStates?.[id];
+      const text = state === 'error' ? 'Could not load' : state === 'loading' ? 'Loading…'
+        : data ? hasCoverage(data, app.jed) ? 'Available' : 'Unavailable at this date' : 'Not loaded';
+      if (checkbox.cometStatus.textContent !== text) checkbox.cometStatus.textContent = text;
+    }
+    let ready = 0, loading = 0, failed = 0, usable = 0;
     for (const id of ids) {
       const series = app.cometData?.[id];
-      if (series) { ready++; firstSeries ??= series; }
+      if (series) ready++;
       if (hasCoverage(series, app.jed)) usable++;
       if (app.cometStates?.[id] === 'loading') loading++;
       if (app.cometStates?.[id] === 'error') failed++;
     }
-    const key = [ready, loading, failed, usable, firstSeries?.start, firstSeries && lastDate(firstSeries),
-      app.cometDiscoveryState, app.cometSelectionNotice, app.cometsShown, !!app.switching, ...ids].join("|");
-    if (key === this.cometDisplayKey) return;
-    this.cometDisplayKey = key;
+    const loaded = ids.map(id => app.cometData?.[id]).filter(Boolean);
+    const coverageStart = loaded.length ? Math.min(...loaded.map(firstDate)) : null;
+    const coverageEnd = loaded.length ? Math.max(...loaded.map(lastDate)) : null;
     let status = "";
     if (app.cometsShown) {
       if (app.cometDiscoveryState === 'loading') status = 'Loading comet catalogue…';
@@ -311,16 +322,20 @@ export default class Options {
         + (loading ? ` Loading ${loading}…` : '')
         + (failed ? ` Could not load ${failed}. Retry below. If it still fails, reload the page to check for updated comet data.` : '');
       else if (ready) {
-        const series = firstSeries;
-        if (!usable) status = `Comets are unavailable at this date. Choose ${formatIsoDay(series.start)} to ${formatIsoDay(lastDate(series))}.`;
+        if (usable < ready && usable) status = `${usable} available; ${ready - usable} unavailable at this date.`;
+        if (!usable) status = `Comets are unavailable at this date. Choose ${formatIsoDay(coverageStart)} to ${formatIsoDay(coverageEnd)}.`;
       }
     }
     if (app.cometsShown && ready && !usable && (loading || failed)) {
-      const series = firstSeries;
-      status += ` Loaded comets are unavailable at this date. Choose ${formatIsoDay(series.start)} to ${formatIsoDay(lastDate(series))}.`;
+      status += ` Loaded comets are unavailable at this date. Choose ${formatIsoDay(coverageStart)} to ${formatIsoDay(coverageEnd)}.`;
     }
     if (app.cometsShown && app.cometCatalogue.some(entry => entry.usesDefaultWindow && ids.includes(entry.id))) {
       status += ' Comets without a known display period use a 10-year trajectory window, limited to available data.';
+    }
+    const sourceCoverage = catalogueCoverage(app.cometCatalogue);
+    if (app.cometsShown && sourceCoverage) {
+      status += ` Catalogue trajectories: ${formatIsoDay(sourceCoverage[0])} to ${formatIsoDay(sourceCoverage[1])}.`;
+      if (app.cometCatalogue.some(entry => entry.segments)) status += ' Coverage varies by comet.';
     }
     if (app.cometsShown && app.cometSelectionNotice) status += ` ${app.cometSelectionNotice}`;
     for (const row of this.cometRows) row.hidden = !app.cometsShown;

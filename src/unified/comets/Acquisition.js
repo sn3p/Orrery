@@ -1,6 +1,11 @@
 import CometSource from './source/CometCatalogSource.js';
 
 export const COMET_LATEST_URL = 'https://sn3p.github.io/orrery-data/comets/latest.json';
+// Explicit injection only: production continues to use the strict schema-2 reader.
+export const openCandidateSource = url => async signal => {
+  const { default: HistorySource } = await import('./source/CometHistorySource.js');
+  return HistorySource.openLatest(url, { signal });
+};
 export const openHostedSource = signal => CometSource.openLatest(COMET_LATEST_URL, { signal });
 
 // One generation owns one source and its verified cache. Selection is independent
@@ -51,7 +56,19 @@ export default class Acquisition {
         try {
           const source = await this.source();
           if (!valid()) return;
-          const comet = await source.load(id, { signal: request.signal });
+          let comet;
+          if (source.loadSegment) {
+            const entry = source.info.objects.find(object => object.id === id);
+            // Reader validates the complete pair before exposing a selected object.
+            const segments = [];
+            // loadSegment validates its entire transition pair. Keep only shared
+            // source series references; display windows are generated on demand.
+            for (const segment of entry.segments) {
+              const payload = await source.loadSegment(id, segment.key, { signal: request.signal });
+              segments.push({ key: segment.key, coverage: segment.coverage, series: payload.series });
+            }
+            comet = { series: { segments } };
+          } else comet = await source.load(id, { signal: request.signal });
           if (!valid()) return;
           this.data = { ...this.data, [id]: comet.series };
           this.states[id] = 'ready';

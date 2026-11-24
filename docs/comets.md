@@ -122,3 +122,35 @@ this script as part of installation, builds or tests. Source response hashes
 identify retrieved bytes, not hashes of transformed assets.
 
 The v2 reader verifies each catalogue entry against its own independent midpoint references and provenance. Reader source, dependencies, MIT license and lineage are retained in `src/unified/comets/source`.
+
+## Explicit historical candidate integration
+
+Production continues to use schema 2 at the existing unversioned URL. The strict
+schema-3 reader is only selected explicitly with
+`app.replaceCometSource('candidate', candidateDescriptorURL)`; this is an integration
+API, not a hosted rollout or a persisted preference. `replaceCometSource('hosted')`
+restores the production reader, and the existing bundled rollback remains available.
+A source replacement clears the previous generation's metadata, models and failures.
+
+Metadata loads first. Selecting an object loads its required segments atomically;
+failed pairs expose no partial marker/path/Fit. The reference reader can load modern
+segments independently of historical availability; historical reads still validate
+against modern and memoize only a successful immutable pair per source. The app's
+selected-object acquisition intentionally remains eager and atomic across its segments. Selected validated trajectories are
+retained for timeline playback. 1P and 55P use historical and modern series; modern
+owns 1980-01-01 UT exactly. Separate path strips never connect across the seam, and
+55P's January 2 support sample never extends historical ownership. Both renderers
+and Fit share the same shifted display window and marker. Hiding paths keeps Fit
+unchanged. Discovery events never change visibility or trajectory coverage.
+
+Options and its chooser show loading, failure and date availability with retry.
+The date dialog's candidate-only history details retain selected objects' event
+kind, date precision, calendar, notes and source citations, including disputed dates.
+They offer no fabricated precise date jumps. Schema-2 metadata has no event section.
+
+Reader provenance: OrreryData `a2076e1c78ffa5ae2bd8c879b77452f31af0829a`.
+Retained candidate pin: `a9de1f2f711dd65e880102de7c1f0c14bf20598a20d9cc4e001081406e40c2e2`.
+Synthetic contract fixtures run in CI; exact retained files can be checked without
+servers using `COMET_HISTORY_CANDIDATE=/path/to/candidate node --test tests/comet-history.test.mjs`.
+Local source storage is not a deployment. Hosted switching, retention/pruning and
+old-client rollout require separate review.

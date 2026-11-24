@@ -14,6 +14,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
   const root = path.resolve(output, 'site');
   if (process.env.ORRERY_PREBUILT_FIXTURES) require('./fixture-builds.cjs').copyPrepared('three',root);
   else await require('./three-build.cjs').build(root);
+  await require('./comet-history-browser.cjs')(browser, root);
   for (const renderer of ['three','pixi']) {
     await require('./options-feedback.cjs')(browser, root, renderer);
     const page = await browser.newPage({viewport:{width:1280,height:800},deviceScaleFactor:2});
@@ -44,7 +45,8 @@ async function run({browser, name, output = '.context/comet-browser'}) {
           app.jed = jed; app.cancelRender(); app.renderFrame();
           for (const { comet, path, range } of app.renderer.comets.entries) {
             const source = app.cometData[comet.id];
-            const [first, last] = range.split(':').map(Number);
+            const [,start,end] = range.split(':');
+            const first = (Number(start)-source.start)/source.step, last = (Number(end)-source.start)/source.step;
             const duration = (last - first) * source.step;
             check(Number.isFinite(comet.periodDays) && duration >= comet.periodDays && duration < comet.periodDays + 2 * source.step,
               `${comet.id}: full trajectory at ${jed}`);
@@ -382,7 +384,8 @@ async function run({browser, name, output = '.context/comet-browser'}) {
         for(const date of [series.start,series.start+16000,series.start+(series.states.length-1)*series.step]){
           app.jed=date;app.cancelRender();app.renderFrame();
           const entry=app.renderer.comets.entries.find(e=>e.comet.id==='123P');
-          const [first,last]=entry.range.split(':').map(Number);
+          const [,start,end]=entry.range.split(':');
+          const first=(Number(start)-series.start)/series.step,last=(Number(end)-series.start)/series.step;
           if(last-first!==914 || first<0 || last>=series.states.length)throw Error('Unbounded fallback path');
           const count=app.rendererId==='three' ? entry.path.geometry.attributes.position.count
             : entry.path.context.instructions.find(i=>i.action==='stroke').data.path.instructions.filter(i=>i.action==='lineTo').length+1;

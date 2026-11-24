@@ -3,7 +3,7 @@ import { validDate } from "../js/asteroidOrbits.js";
 import { replaceShareUrl, shareDateValue } from "./shareUrl.js";
 import PlaybackClock from "../js/PlaybackClock.js";
 import Stats from "../js/Stats.js";
-import Acquisition, { openHostedSource } from "./comets/Acquisition.js";
+import Acquisition, { openHostedSource, openCandidateSource } from "./comets/Acquisition.js";
 import { COMETS, DEFAULT_COMET_SELECTION_LIMIT, cataloguePresentation, validCometIds, validateCometData, hasUsableComets } from "./comets/model.js";
 import Hud from "./ui/Hud.js";
 import CatalogSource from "./catalog/CatalogSource.js";
@@ -308,6 +308,7 @@ export default class App {
   applyCometOptions() {
     this.renderer?.setOptions?.(this.rendererSettings());
     this.gui?.controls.updateComets?.();
+    this.gui?.timeline?.updateCometHistory?.();
     this.requestRender();
   }
   syncComets() {
@@ -355,10 +356,11 @@ export default class App {
   }
   loadComets() { return this.acquireComets(true); }
   // Explicit rollback/reload transaction. Never blend bundled and hosted pins.
-  async replaceCometSource(mode = 'hosted') {
+  async replaceCometSource(mode = 'hosted', candidateURL) {
     if (this.destroyed) return;
-    if (!['hosted', 'bundled'].includes(mode)) throw new RangeError('Invalid comet source.');
-    const open = mode === 'hosted' ? openHostedSource : async signal => {
+    if (!['hosted', 'bundled', 'candidate'].includes(mode)) throw new RangeError('Invalid comet source.');
+    if (mode === 'candidate' && typeof candidateURL !== 'string') throw new RangeError('Candidate URL required.');
+    const open = mode === 'candidate' ? openCandidateSource(candidateURL) : mode === 'hosted' ? openHostedSource : async signal => {
       const { default: url } = await import(/* webpackChunkName: "comet-vectors" */ "./comets/vectors.json");
       const response = await fetch(url, { signal });
       if (!response.ok) throw new Error('Could not load bundled comet data.');
@@ -782,6 +784,7 @@ export default class App {
     if (this.gui?.swatches && !this.asteroidsShown) this.gui.swatches.hidden = true;
     else if (this.gui?.swatches) this.gui.swatches.hidden = !this.gui.swatches.childElementCount;
     this.gui?.controls.updateComets?.();
+    this.gui?.timeline?.updateCometHistory?.();
     this.notePresent();
   }
   resetClock() {

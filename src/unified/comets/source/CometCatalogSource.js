@@ -1,7 +1,1 @@
-import { createCometSource } from './cometSourceCore.js';
-
-const { CometSource, validateComet } = createCometSource({ version: 2 });
-
-export default CometSource;
-export { validateComet };
-export { interpolateComet } from './cometSourceCore.js';
+export { CometSource as default, validateComet, interpolateComet } from './cometSourceCore.js';
