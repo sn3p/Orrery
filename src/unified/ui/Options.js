@@ -1,5 +1,6 @@
 import { formatIsoDay } from "../../js/utils.js";
 import { lastDate, firstDate, hasCoverage } from "../comets/model.js";
+import { CometFeedbackCache, catalogueCoverage } from "../comets/feedback.js";
 import * as dat from "dat.gui";
 import { DEFAULT_POPULATION_PRESET, POPULATION_PRESET_OPTIONS, legendGroups, populationHint } from "../catalog/population.js";
 
@@ -287,12 +288,13 @@ export default class Options {
   updateComets() {
     if (!this.panelCometFeedback) return;
     const app = this.orrery, ids = app.cometIds;
+    this.cometFeedbackCache ??= new CometFeedbackCache();
+    if (!this.cometFeedbackCache.changed(app)) return;
     const feedback = [this.panelCometFeedback, this.chooserCometFeedback];
     const focusedRetry = feedback.find(view => view.retry === document.activeElement)?.retry;
     if (this.cometCatalogue !== app.cometCatalogue) {
       this.cometCatalogue = app.cometCatalogue;
       this.rebuildCometChoices();
-      this.cometDisplayKey = null;
     }
     for (const [id, checkbox] of Object.entries(this.cometChoices)) {
       const data = app.cometData?.[id], state = app.cometStates?.[id];
@@ -311,10 +313,6 @@ export default class Options {
     const loaded = ids.map(id => app.cometData?.[id]).filter(Boolean);
     const coverageStart = loaded.length ? Math.min(...loaded.map(firstDate)) : null;
     const coverageEnd = loaded.length ? Math.max(...loaded.map(lastDate)) : null;
-    const key = [coverageStart, coverageEnd, ready, loading, failed, usable,
-      app.cometDiscoveryState, app.cometSelectionNotice, app.cometsShown, !!app.switching, ...ids].join("|");
-    if (key === this.cometDisplayKey) return;
-    this.cometDisplayKey = key;
     let status = "";
     if (app.cometsShown) {
       if (app.cometDiscoveryState === 'loading') status = 'Loading comet catalogue…';
@@ -333,6 +331,11 @@ export default class Options {
     }
     if (app.cometsShown && app.cometCatalogue.some(entry => entry.usesDefaultWindow && ids.includes(entry.id))) {
       status += ' Comets without a known display period use a 10-year trajectory window, limited to available data.';
+    }
+    const sourceCoverage = catalogueCoverage(app.cometCatalogue);
+    if (app.cometsShown && sourceCoverage) {
+      status += ` Catalogue trajectories: ${formatIsoDay(sourceCoverage[0])} to ${formatIsoDay(sourceCoverage[1])}.`;
+      if (app.cometCatalogue.some(entry => entry.segments)) status += ' Coverage varies by comet.';
     }
     if (app.cometsShown && app.cometSelectionNotice) status += ` ${app.cometSelectionNotice}`;
     for (const row of this.cometRows) row.hidden = !app.cometsShown;

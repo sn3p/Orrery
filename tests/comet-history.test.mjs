@@ -95,6 +95,27 @@ test('candidate deselection and source replacement prevent delayed pair installa
   await a.select(['55P']);assert.equal(a.states['55P'],'ready');
 });
 
+import {CometFeedbackCache,catalogueCoverage} from '../src/unified/comets/feedback.js';
+test('feedback skips unchanged coverage regions, invalidates endpoints, selection and state',()=>{
+  let reads=0;
+  const model={get start(){reads++;return 10;},step:2,states:[[0,0,0,0,0,0],[1,1,1,0,0,0]]};
+  const app={cometData:{'1P':model},cometCatalogue:[],cometIds:['1P'],cometStates:{'1P':'ready'},jed:10.1};
+  const cache=new CometFeedbackCache();assert(cache.changed(app));const baseline=reads;
+  for(const jed of [10.2,10.3,11,11.9]){app.jed=jed;assert(!cache.changed(app));}
+  assert.equal(reads,baseline,'no per-model coverage reads during playback within a region');
+  for(const jed of [12,12.1,10,9.9]){app.jed=jed;assert(cache.changed(app));}
+  app.cometIds=[];assert(cache.changed(app));app.cometStates['1P']='error';assert(cache.changed(app));
+  app.cometData={};assert(cache.changed(app));
+  assert.deepEqual(catalogueCoverage([{coverage:[10,20]},{coverage:[10,20]}]),[10,20]);
+  assert.deepEqual(catalogueCoverage(fixture().index.objects),[2391511.5,END]);
+});
+test('disputed events are labelled and BCE month/day precision has a trailing era',()=>{
+  for(const [precision,expected] of [['year','240 BCE'],['month','240-05 BCE'],['day','240-05-02 BCE']])
+    assert.equal(eventDate({year:-239,month:5,day:2,precision,calendar:'gregorian'}),`${expected} (Gregorian)`);
+  assert.equal(eventDate({year:0,month:null,day:null,precision:'year',calendar:'historical-unspecified'}),'1 BCE (calendar unspecified)');
+  const {index}=fixture(), disputed=historyEvents(index.objects.find(e=>e.id==='10P'),index.sources)[0];
+  assert(disputed.text.includes('discovery (day disputed)'));assert(disputed.text.includes('July 3'));assert(disputed.text.includes('July 4'));
+});
 test('segmented windows use the series grid and only read displayed states',()=>{
   let reads=0;
   const rows=Array.from({length:12001},(_,i)=>[i,0,0,0,0,0]);

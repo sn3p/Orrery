@@ -62,6 +62,7 @@ module.exports=async function(browser,root){
       const summary=page.locator('#orrery-comet-history summary');await summary.focus();await page.keyboard.press('Enter');
       await expect(page.locator('#orrery-comet-history')).toHaveAttribute('open','');
       await expect(page.locator('#orrery-comet-history')).toContainText('1865-12 (Gregorian): independent discovery');
+      await expect(page.locator('#orrery-comet-history')).toContainText('discovery (day disputed)');
       await expect(page.locator('#orrery-comet-history')).toContainText('July 3');
       await expect(page.locator('#orrery-comet-history')).toContainText('July 4');
       assert(await page.locator('#orrery-comet-history a').count()>0);
@@ -77,6 +78,7 @@ module.exports=async function(browser,root){
       await page.keyboard.press('Escape');
       await page.evaluate(async()=>{await app.replaceCometSource('hosted');app.gui.timeline.open();});
       await expect(page.locator('#orrery-comet-history')).toBeHidden();
+      assert((await page.locator('.orrery-options-panel [role=status]').allTextContents()).some(text=>text.includes('Catalogue trajectories: 1980-01-01 to 2099-12-30.')));
       await page.keyboard.press('Escape');
       fail=true;await page.evaluate(async()=>{app.cometIds=['1P'];await app.replaceCometSource('candidate','https://candidate.test/latest.json');});
       assert.equal(await page.evaluate(()=>app.cometStates['1P']),'error');
