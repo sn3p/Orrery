@@ -28,8 +28,13 @@ module.exports=async function(browser,root){
     try{
       await page.goto(`https://orrery.test/Orrery/next/?renderer=${renderer}`);
       await page.evaluate(()=>threeTest.ready);await page.waitForFunction(()=>threeTest.app.catalogue?.firstDraw);
+      const enableScripts=[];
+      const trackScripts=request=>{if(request.resourceType()==='script')enableScripts.push(request.url());};
+      page.on('request',trackScripts);
       await page.evaluate(async()=>{window.app=threeTest.app;app.jedDelta=0;app.cometsShown=true;await app.loadComets();app.cancelRender();});
       await page.waitForFunction(()=>Object.keys(app.cometData).length===6);
+      page.off('request',trackScripts);
+      assert.deepEqual(enableScripts,[],'Enabling production history needs no additional code download');
       assert.equal(requests.filter(n=>n==='latest.json').length,1);
       assert.equal(await page.evaluate(()=>app.cometSourceId),JSON.parse(files.get('latest.json')).index.sha256);
       assert.equal(requests.filter(n=>n.startsWith('objects/')).length,8);
@@ -97,8 +102,9 @@ module.exports=async function(browser,root){
       // The test entry omits Intro; exercise the actual built About markup directly.
       await page.locator('#orrery-intro').evaluate(e=>e.showModal());
       await expect(page.locator('#orrery-intro')).toContainText('Coverage varies by comet and loaded catalogue');
-      await expect(page.locator('#orrery-intro')).toContainText('21 Aug 1835');
-      await expect(page.locator('#orrery-intro')).toContainText('22 Dec 1865');
+      await expect(page.locator('#orrery-intro')).toContainText('start and end dates');
+      await expect(page.locator('#orrery-intro')).not.toContainText('1835');
+      await expect(page.locator('#orrery-intro')).not.toContainText('1865');
       for(const viewport of [{width:320,height:568},{width:1280,height:800}]) {
         await page.setViewportSize(viewport);
         assert(await page.locator('#orrery-intro').evaluate(e=>e.scrollWidth<=e.clientWidth+1),'About must wrap without horizontal overflow');

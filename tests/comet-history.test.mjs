@@ -211,16 +211,41 @@ test('production dispatch accepts schema 2 and rejects unknown or malformed desc
   const a=new Acquisition(()=>{});t.after(()=>a.close());await a.select(['1P']);
   assert.equal(a.states['1P'],'ready');assert(a.data['1P'].states);
   assert.equal(calls.filter(n=>n==='latest.json').length,1);
-  for(const descriptor of [null,{}, {...f.descriptor,comet_contract_version:4}, {...f.descriptor,extra:true},
-    {...JSON.parse(fixture().files.get('latest.json')),extra:true}]) {
-    transport(t,new Map([['latest.json',JSON.stringify(descriptor)]]));
-    await assert.rejects(openHostedSource());
+  for(const [descriptor,message] of [
+    ...[null,{}, {...f.descriptor,comet_contract_version:4}].map(d=>[d,'Invalid comet contract version']),
+    [{...f.descriptor,extra:true},'Invalid comet fields.'],
+    [{...JSON.parse(fixture().files.get('latest.json')),extra:true},'Invalid comet history fields.']]) {
+    const reads=transport(t,new Map([['latest.json',JSON.stringify(descriptor)]]));
+    await assert.rejects(openHostedSource(),{message});
+    assert.deepEqual(reads,['latest.json'],'descriptor validation must reject before an index request');
   }
 });
-test('production dispatch rejects corrupt pinned index and aborts before installation',async t=>{
+test('production dispatch rejects transport-corrupt index bytes',async t=>{
   const f=fixture(),descriptor=JSON.parse(f.files.get('latest.json'));
   f.files.set(descriptor.index.url,Buffer.from('{}'));transport(t,f.files);
-  await assert.rejects(openHostedSource());
+  await assert.rejects(openHostedSource(),/Invalid comet byte length/);
+});
+
+import { createHash } from 'node:crypto';
+import CometSource from '../src/unified/comets/source/CometCatalogSource.js';
+test('production dispatch validates correctly hashed index semantics in both schemas',async t=>{
+  for(const f of [product(['1P']),fixture()]) {
+    const descriptor=JSON.parse(f.files.get('latest.json'));
+    const index=JSON.parse(f.files.get(descriptor.index.url));index.objects=[];
+    const bytes=Buffer.from(JSON.stringify(index)),sha256=createHash('sha256').update(bytes).digest('hex');
+    descriptor.index={url:`index-${sha256}.json`,sha256,bytes:bytes.length};
+    const calls=transport(t,new Map([['latest.json',JSON.stringify(descriptor)],[descriptor.index.url,bytes]]));
+    await assert.rejects(openHostedSource(),{message:descriptor.comet_contract_version===2?'Invalid comet catalogue.':'Invalid comet history catalogue.'});
+    assert.deepEqual(calls,['latest.json',descriptor.index.url],'semantic rejection happens after verified index fetch, before payloads');
+  }
+});
+test('schema-2 descriptor cancellation retains the comet-specific error',async t=>{
   const controller=new AbortController();controller.abort();
-  await assert.rejects(openHostedSource(controller.signal),{name:'AbortError'});
+  const failure={name:'AbortError',message:'Comet read cancelled.'};
+  await assert.rejects(CometSource.openDescriptor({location:new URL(COMET_LATEST_URL),latest:product(['1P']).descriptor},
+    {signal:controller.signal}),failure);
+  await assert.rejects(openHostedSource(controller.signal),failure);
+  const f=product(['1P']);transport(t,f.files);
+  const source=await openHostedSource();t.after(()=>source.close());
+  await assert.rejects(source.load('1P',{signal:controller.signal}),failure);
 });

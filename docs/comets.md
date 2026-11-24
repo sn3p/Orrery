@@ -129,7 +129,11 @@ The v2 reader verifies each catalogue entry against its own independent midpoint
 
 Production reads one descriptor at the existing `comets/latest.json` URL and dispatches
 to the strict schema-2 or schema-3 reader. Unknown versions and failed verification
-fail closed without blending bundled trajectories. Live data activation is separate.
+fail closed without blending bundled trajectories. Both readers ship with the app;
+enabling schema 3 needs no separate code download after descriptor discovery.
+Live data activation is separate. The approved same-URL replacement can break older
+schema-2-only clients; deploy and verify this loader before the separately reviewed
+data activation, following the producer [rollout contract](https://github.com/sn3p/orrery-data/blob/b0909248536811f65be3d4f5405041cf83ef59f6/docs/comet-production-rollout.md).
 The strict schema-3 reader can also be selected explicitly with
 `app.replaceCometSource('candidate', candidateDescriptorURL)`; this is an integration
 API, not a hosted rollout or a persisted preference. `replaceCometSource('hosted')`
