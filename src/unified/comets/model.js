@@ -17,10 +17,13 @@ export function validCometIds(ids, catalogue) {
   return Array.isArray(ids) && new Set(ids).size === ids.length
     && ids.every(id => catalogue ? catalogue.some(entry => entry.id === id) : /^[1-9][0-9]*P$/.test(id));
 }
-export const lastDate = series => series.start + (series.states.length - 1) * series.step;
+export const lastDate = series => series.segments ? series.segments.at(-1).coverage.end
+  : series.start + (series.states.length - 1) * series.step;
+export const firstDate = series => series.segments ? series.segments[0].coverage.start : series.start;
+const owns = (coverage, jed) => jed >= coverage.start && (jed < coverage.end || (jed === coverage.end && coverage.end_inclusive));
 
 export const hasCoverage = (series, jed) => !!series && Number.isFinite(jed)
-  && jed >= series.start && jed <= lastDate(series);
+  && (series.segments ? series.segments.some(s => owns(s.coverage, jed)) : jed >= series.start && jed <= lastDate(series));
 export const hasUsableComets = (data, ids, jed) => ids.some(id => hasCoverage(data?.[id], jed));
 
 // Cubic Hermite interpolation uses positions and velocities in AU and AU/day.
@@ -28,6 +31,7 @@ export const hasUsableComets = (data, ids, jed) => ids.some(id => hasCoverage(da
 // precision. Outside the supplied interval there is deliberately no extrapolation.
 export function positionAt(series, jed, target = {}) {
   if (!hasCoverage(series, jed)) return null;
+  if (series.segments) return positionAt(series.segments.find(s => owns(s.coverage, jed)).series, jed, target);
   const offset = (jed - series.start) / series.step;
   const i = Math.min(Math.floor(offset), series.states.length - 2), t = offset - i;
   const a = series.states[i], b = series.states[i + 1], t2 = t * t, t3 = t2 * t;
@@ -59,8 +63,7 @@ export function cometFitPoints(data, ids, jed, catalogue = COMETS) {
     const series = data[comet.id], position = positionAt(series, jed);
     if (!position) continue;
     points.push([position.x, position.y, position.z]);
-    const [first, last] = pathRange(series, jed, comet.periodDays);
-    for (let i = first; i <= last; i++) points.push(series.states[i].slice(0, 3));
+    for (const strip of pathStrips(series, jed, comet.periodDays)) points.push(...strip.points.map(p => p.slice(1)));
   }
   return points;
 }
@@ -96,4 +99,36 @@ export function cataloguePresentation(objects) {
       usesDefaultWindow: periodDays === undefined,
     };
   });
+}
+
+// All renderers and Fit consume exactly these strips, never a seam connector.
+const windowCache = new WeakMap();
+export function pathStrips(model, jed, periodDays) {
+  if (!model) return [];
+  if (!model.segments) {
+    const [first, last] = pathRange(model, jed, periodDays);
+    const key = `${first}:${last}`;
+    if (windowCache.get(model)?.key === key) return windowCache.get(model).strips;
+    const strips = [{ key: 'modern', points: model.states.slice(first, last + 1).map((row, i) =>
+      [model.start + (first + i) * model.step, ...row.slice(0, 3)]) }];
+    windowCache.set(model, { key, strips });
+    return strips;
+  }
+  const start = firstDate(model), end = lastDate(model), step = 4;
+  const center = start + Math.round((jed - start) / step / 8) * step * 8;
+  const span = Math.min(2 * Math.ceil(periodDays / step / 2) * step, end - start);
+  const first = Math.max(start, Math.min(center - span / 2, end - span)), last = first + span;
+  const key = `${first}:${last}`;
+  if (windowCache.get(model)?.key === key) return windowCache.get(model).strips;
+  const strips = model.segments.flatMap(segment => {
+    const points = segment.points.filter(p => p[0] >= first && p[0] <= last);
+    const lo = Math.max(first, segment.points[0][0]), hi = Math.min(last, segment.points.at(-1)[0]);
+    if (lo > hi) return [];
+    const vertex = jd => { const p = positionAt(segment.series, jd); return [jd, p.x, p.y, p.z]; };
+    if (!points.length || points[0][0] > lo) points.unshift(vertex(lo));
+    if (points.at(-1)[0] < hi) points.push(vertex(hi));
+    return [{ key: segment.key, points }];
+  });
+  windowCache.set(model, { key, strips });
+  return strips;
 }

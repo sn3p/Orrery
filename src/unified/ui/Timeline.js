@@ -1,4 +1,5 @@
 import { formatIsoDay, parseIsoDay, toJED } from "../../js/utils.js";
+import { historyEvents } from "../comets/history.js";
 import { currentJed } from "../present.js";
 
 const interactive = target => target?.closest?.("button, a, input, select, textarea, dialog, [contenteditable='true']");
@@ -58,6 +59,34 @@ export default class Timeline {
     this.today.replaceChildren("today ", mark);
   }
 
+  updateCometHistory() {
+    const details = document.getElementById("orrery-comet-history");
+    if (!details) return;
+    const entries = this.app.cometsShown ? (this.app.cometCatalogue ?? [])
+      .filter(entry => this.app.cometIds.includes(entry.id) && entry.discovery?.events) : [];
+    const key = entries.map(entry => entry.id).join('|');
+    if (this.historySource === this.app.cometSourceInfo && this.historyKey === key) return;
+    this.historySource = this.app.cometSourceInfo; this.historyKey = key;
+    details.hidden = !entries.length;
+    if (!entries.length) details.open = false;
+    const container = document.getElementById("orrery-comet-history-entries");
+    container.replaceChildren();
+    for (const entry of entries) {
+      const heading = document.createElement("h2"); heading.textContent = entry.name;
+      const list = document.createElement("ul");
+      for (const event of historyEvents(entry, this.app.cometSourceInfo.sources)) {
+        const item = document.createElement("li"); item.textContent = event.text + ' ';
+        for (const citation of event.citations) {
+          const link = document.createElement("a"); link.textContent = citation.label;
+          link.href = citation.url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+          item.append(link, ' ');
+        }
+        list.append(item);
+      }
+      container.append(heading, list);
+    }
+  }
+
   updatePlayback(speed) {
     if (!this.enabled) return;
     if (speed !== 0) this.resumeSpeed = speed;
@@ -90,6 +119,7 @@ export default class Timeline {
 
   open() {
     if (!this.enabled || this.destroyed || this.dialog.open) return false;
+    this.updateCometHistory();
     this.error.textContent = "";
     this.input.value = formatIsoDay(this.app.jed);
     this.app.hold(true);

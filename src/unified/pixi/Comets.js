@@ -1,5 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
-import { COMETS, positionAt, pathRange } from '../comets/model.js';
+import { COMETS, positionAt, pathStrips } from '../comets/model.js';
 import { cometLabel } from '../comets/labels.js';
 import { PIXELS_PER_AU } from '../../js/constants.js';
 
@@ -35,12 +35,12 @@ export default class Comets {
       // Constant screen-size markers, like the Three view.
       body.scale.set(1 / this.group.parent.scale.x);
       if (paths) {
-        const [first,last] = pathRange(series, jed, comet.periodDays), range = `${first}:${last}`;
+        const strips = pathStrips(series, jed, comet.periodDays);
+        const range = strips.map(s => `${s.key}:${s.points[0]?.[0]}:${s.points.at(-1)?.[0]}`).join('|');
         if (range !== entry.range) {
           path.clear();
-          for (let i=first; i<=last; i++) {
-            const [x,y] = series.states[i];
-            if (i === first) path.moveTo(-x*PIXELS_PER_AU, y*PIXELS_PER_AU);
+          for (const strip of strips) for (const [i, [,x,y]] of strip.points.entries()) {
+            if (i === 0) path.moveTo(-x*PIXELS_PER_AU, y*PIXELS_PER_AU);
             else path.lineTo(-x*PIXELS_PER_AU, y*PIXELS_PER_AU);
           }
           path.stroke({width: 1, pixelLine: true, color: comet.color, alpha: .35});

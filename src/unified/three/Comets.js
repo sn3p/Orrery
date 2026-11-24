@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { COMETS, positionAt, pathRange } from '../comets/model.js';
+import { COMETS, positionAt, pathStrips } from '../comets/model.js';
 import { cometLabel } from '../comets/labels.js';
 import { PIXELS_PER_AU } from '../../js/constants.js';
 
@@ -14,7 +14,7 @@ export default class Comets {
       const body = new THREE.Points(geometry, new THREE.PointsMaterial({
         color: comet.color, size: 6, sizeAttenuation: false, depthTest: false,
       }));
-      const path = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({
+      const path = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({
         color: comet.color, transparent: true, opacity: .35,
       }));
       this.group.add(path, body);
@@ -41,13 +41,17 @@ export default class Comets {
       if (!shown) { label.hide(); continue; }
       body.position.set(position.x * PIXELS_PER_AU, position.y * PIXELS_PER_AU, position.z * PIXELS_PER_AU);
       if (paths) {
-        const [first, last] = pathRange(series, jed, comet.periodDays), range = `${first}:${last}`;
+        const strips = pathStrips(series, jed, comet.periodDays);
+        const range = strips.map(s => `${s.key}:${s.points[0]?.[0]}:${s.points.at(-1)?.[0]}`).join('|');
         if (range !== entry.range) {
-          const vertices = new Float32Array((last-first+1)*3);
-          for (let i=first; i<=last; i++) for (let k=0; k<3; k++) vertices[(i-first)*3+k] = series.states[i][k]*PIXELS_PER_AU;
+          const vertices = [];
+          for (const strip of strips) for (let i = 1; i < strip.points.length; i++) {
+            vertices.push(...strip.points[i-1].slice(1).map(v => v*PIXELS_PER_AU),
+              ...strip.points[i].slice(1).map(v => v*PIXELS_PER_AU));
+          }
           path.geometry.dispose();
           path.geometry = new THREE.BufferGeometry();
-          path.geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+          path.geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
           entry.range = range;
         }
       }
