@@ -11,14 +11,25 @@ exports.openOptions = async page => {
 // gives an overflowing scroll container without tabindex its own Tab stop,
 // even when it holds controls (Chromium and WebKit skip it). When the panel
 // overflows the viewport, the first Tab lands on the panel itself.
-exports.tabIntoOptions = async page => {
-  await page.keyboard.press("Tab");
+exports.tabIntoOptions = async (page, key = "Tab") => {
+  await page.keyboard.press(key);
   const onScroller = await page.evaluate(() => {
     const panel = document.activeElement;
     return panel?.matches(".orrery-options-panel") && !panel.hasAttribute("tabindex")
       && panel.scrollHeight > panel.clientHeight;
   });
-  if (onScroller) await page.keyboard.press("Tab");
+  if (onScroller) await page.keyboard.press(key);
+};
+
+// Help is an intentional tab stop between a setting and the next control.
+exports.tabThroughHelp = async (page, name, key = "Tab") => {
+  const info = page.getByRole("button", { name: `About ${name}`, exact: true });
+  const tip = page.locator("#" + await info.getAttribute("aria-describedby"));
+  await page.keyboard.press(key);
+  await expect(info).toBeFocused();
+  await expect(tip).toBeVisible();
+  await page.keyboard.press(key);
+  await expect(tip).toBeHidden();
 };
 
 exports.testOptions = async (browser, url, output, name, application = "unified") => {

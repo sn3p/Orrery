@@ -97,22 +97,22 @@ async function run({ browser, name, application = "unified", output: artifactDir
           await options.focus(); await options.press('Enter');
           const input = page.getByRole("textbox", { name: "Playback speed" });
           assert(await options.evaluate(el => el === document.activeElement));
-          await require("./options.cjs").tabIntoOptions(page);
+          await require("./options.cjs").tabIntoOptions(page, forward);
           assert(await page.getByRole("combobox", { name: "Renderer", exact: true }).evaluate(el => el === document.activeElement),
             "Tab reaches Renderer first");
-          await page.keyboard.press(forward);
+          await require("./options.cjs").tabThroughHelp(page, "Renderer", forward);
           const pixelRatio = page.getByRole("combobox", { name: "Rendering pixel ratio" });
           if (await pixelRatio.isVisible()) {
-            assert(await pixelRatio.evaluate(el => el === document.activeElement), "Tab reaches pixel ratio after Renderer");
-            await page.keyboard.press(forward);
+            assert(await pixelRatio.evaluate(el => el === document.activeElement), "Tab reaches pixel ratio after Renderer help");
+            await require("./options.cjs").tabThroughHelp(page, "Rendering pixel ratio", forward);
           }
-          assert(await input.evaluate(el => el === document.activeElement), "Tab reaches speed after Renderer");
-          await page.keyboard.press(forward);
+          assert(await input.evaluate(el => el === document.activeElement), "Tab reaches speed after rendering settings and help");
+          await require("./options.cjs").tabThroughHelp(page, "Playback speed", forward);
           assert(await page.getByRole("checkbox", { name: "Real time" }).evaluate(el => el === document.activeElement),
-            "Tab reaches real time after speed");
-          await page.keyboard.press(forward);
+            "Tab reaches real time after speed help");
+          await require("./options.cjs").tabThroughHelp(page, "Real time", forward);
           assert(await page.getByRole("combobox", { name: "Planet labels" }).evaluate(el => el === document.activeElement),
-            "Tab reaches planet labels after real time");
+            "Tab reaches planet labels after real time help");
           await input.fill("0"); await input.press("Enter");
           await page.waitForFunction(() => document.querySelector("#orrery-fps").textContent === "0 FPS");
           await require("./next-layout.cjs").checkLongReadouts(page);
