@@ -6,6 +6,7 @@ module.exports = async (browser, root, renderer) => {
   page.on('pageerror', error => errors.push(error.message));
   await require('./route-files.cjs').routeFiles(page, root);
   const ids = ['1P','2P','55P','9P','10P','67P', ...Array.from({length:60},(_,i)=>`${120+i}P`)];
+  const starters = await require('./comet-starters.cjs')(ids);
   let product = require('./comet-catalogue-fixture.cjs').product(ids, {compact:true});
   await page.route('**/comets/**', route => {
     const file = new URL(route.request().url()).pathname.split('/comets/')[1];
@@ -21,10 +22,10 @@ module.exports = async (browser, root, renderer) => {
   const dialog = page.getByRole('dialog',{name:'Choose comets'});
   try {
     await start();
-    assert.deepEqual(await page.evaluate(()=>app.cometIds),['1P','2P','55P','67P'], JSON.stringify(await page.evaluate(()=>({state:app.cometDiscoveryState,notice:app.cometSelectionNotice,source:app.cometSourceId}))));
+    assert.deepEqual(await page.evaluate(()=>app.cometIds),starters, JSON.stringify(await page.evaluate(()=>({state:app.cometDiscoveryState,notice:app.cometSelectionNotice,source:app.cometSourceId}))));
     await open();
     await expect(dialog.locator('h1')).toBeFocused();
-    await expect(dialog.locator('label')).toHaveCount(4);
+    await expect(dialog.locator('label')).toHaveCount(starters.length);
     await page.evaluate(()=>{window.halleyRow=document.querySelector('[data-comet-id="1P"]');});
     await dialog.getByRole('searchbox').fill('halley');
     await expect(dialog.locator('label')).toHaveCount(1);
@@ -101,7 +102,7 @@ module.exports = async (browser, root, renderer) => {
     await page.keyboard.press('Escape');
     await page.evaluate(()=>localStorage.setItem('orrery.selectedComets','["invalid id"]'));
     await start();
-    assert.deepEqual(await page.evaluate(()=>app.cometIds),['1P','2P','55P','67P']);
+    assert.deepEqual(await page.evaluate(()=>app.cometIds),starters);
     assert.deepEqual(errors,[]);
   } finally {await page.close();}
 };

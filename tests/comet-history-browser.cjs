@@ -17,6 +17,7 @@ module.exports=async function(browser,root){
     let fail=false, history=true;
     const requests=[];
     const index=JSON.parse(files.get(JSON.parse(files.get('latest.json')).index.url));
+    const starters=await require('./comet-starters.cjs')(index.objects);
     const missing=index.objects[0].segments[0].data.url;
     await page.route('https://sn3p.github.io/orrery-data/comets/**',route=>{
       if(!history)return route.fallback();
@@ -32,7 +33,7 @@ module.exports=async function(browser,root){
       const trackScripts=request=>{if(request.resourceType()==='script')enableScripts.push(request.url());};
       page.on('request',trackScripts);
       await page.evaluate(async()=>{window.app=threeTest.app;app.jedDelta=0;app.cometsShown=true;await app.loadComets();app.cancelRender();});
-      assert.deepEqual(await page.evaluate(()=>app.cometIds),['1P','2P','55P','67P']);
+      assert.deepEqual(await page.evaluate(()=>app.cometIds),starters);
       // Exercise all legacy trajectories explicitly, independently of starter policy.
       await page.evaluate(async()=>{app.cometIds=app.cometCatalogue.map(e=>e.id);await app.loadComets();});
       await page.waitForFunction(()=>Object.keys(app.cometData).length===6);

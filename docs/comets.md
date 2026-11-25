@@ -89,7 +89,11 @@ Tempel–Tuttle, 67P and 29P/Schwassmann–Wachmann 1 (`c1000079`), restricted t
 entries present in the active catalogue. This app-owned starter set is independent
 of the producer's legacy six-default metadata. Older schema-2/3 catalogues seed the
 four available members; the bundled rollback seeds its three available members.
-Existing selections, including empty selections and missing IDs, are never migrated.
+Saved selections, including empty selections and missing IDs, are never migrated.
+Unedited starters are not saved: they follow the available starter set when the
+catalogue changes and on later visits. Visitors who never saved a choice therefore
+receive the current starters rather than retaining a previous release's defaults.
+Missing-entry notices apply to saved or explicitly edited selections only.
 29P has a dedicated blue colour distinct from the other starters; its existing
 10-year display window (plus the directory acquisition margin) remains unchanged.
 Every other entry stays available for explicit selection. Subsequent source replacements

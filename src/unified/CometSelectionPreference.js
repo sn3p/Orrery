@@ -93,6 +93,7 @@ export class CometSelectionPreference {
     this.scope = scope;
     this.onChange = onChange;
     this.ids = loadCometSelection(scope);
+    this.usesDefaults = this.ids === null;
     this.pending = [];
     this.saved = Promise.resolve();
     this.onStorage = event => {
@@ -101,9 +102,11 @@ export class CometSelectionPreference {
     scope.addEventListener?.('storage', this.onStorage);
     if (readEdits(scope).length) this.flush();
   }
-  initialize(ids) { this.ids ??= [...ids]; }
-  publish(ids) {
-    if (JSON.stringify(ids) === JSON.stringify(this.ids)) return;
+  // Automatic starters follow the active catalogue until an actual edit is made.
+  initialize(ids) { if (this.usesDefaults) this.ids = [...ids]; }
+  publish(ids, usesDefaults = ids === null) {
+    if (JSON.stringify(ids) === JSON.stringify(this.ids) && usesDefaults === this.usesDefaults) return;
+    this.usesDefaults = usesDefaults;
     this.ids = ids;
     if (!this.closed) this.onChange();
   }
@@ -118,11 +121,12 @@ export class CometSelectionPreference {
   edit(edit) {
     const records = this.records();
     const snapshot = readSnapshot(this.scope);
-    const current = records.reduce(applyRecord, snapshot)?.ids ?? this.ids;
+    const persisted = records.reduce(applyRecord, snapshot);
+    const current = persisted?.ids ?? this.ids;
     // Empty deltas are redundant; explicit Clear/Undo or per-ID actions still
     // establish ordering against unseen edits in another tab.
     if (edit.replace === undefined && !edit.add.length && !edit.remove.length) {
-      this.publish(current);
+      this.publish(current, persisted === null && this.usesDefaults);
       return this.saved;
     }
     const stamps = [...records.map(record => record.key), ...Object.values(snapshot?.clocks ?? {}), snapshot?.replacement].filter(Boolean);
@@ -138,6 +142,7 @@ export class CometSelectionPreference {
       if (!this.scope.localStorage) throw new Error('Storage unavailable');
       this.scope.localStorage.setItem(key, JSON.stringify(edit));
     } catch { this.pending.push({key, edit}); }
+    this.usesDefaults = false;
     this.ids = applyEdit(this.ids, edit);
     this.onChange();
     return this.flush();
@@ -174,7 +179,7 @@ export class CometSelectionPreference {
   }
   missingNotice(catalogue) {
     const available = new Set(catalogue.map(entry => entry.id));
-    const signature = JSON.stringify((this.ids ?? []).filter(id => !available.has(id)).sort());
+    const signature = JSON.stringify((this.usesDefaults ? [] : this.ids ?? []).filter(id => !available.has(id)).sort());
     const key = `${COMET_SELECTION_STORAGE_KEY}.missing`;
     let previous = this.missingSignature;
     try { previous = this.scope.localStorage?.getItem(key) ?? previous; this.scope.localStorage?.setItem(key, signature); } catch { /* In-memory acknowledgement still works. */ }

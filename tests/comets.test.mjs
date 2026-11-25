@@ -504,3 +504,37 @@ for (const action of ['independent add', 'clear']) {
     preference.destroy();
   });
 }
+
+test('approved starter policy and 29P presentation stay explicit', async () => {
+  const {STARTER_COMET_IDS,cataloguePresentation,DEFAULT_DISPLAY_WINDOW_DAYS}=await import('../src/unified/comets/model.js');
+  assert.deepEqual(STARTER_COMET_IDS,['1P','2P','55P','67P','c1000079']);
+  const rows=cataloguePresentation(STARTER_COMET_IDS.map(id=>({id})));
+  assert.equal(new Set(rows.map(e=>e.color)).size,rows.length);
+  const comet=rows.find(e=>e.id==='c1000079');
+  assert.equal(comet.periodDays,DEFAULT_DISPLAY_WINDOW_DAYS,'29P retains the approved partial window');
+  assert.equal(comet.color,0x7d9cff);
+});
+
+test('automatic starters follow catalogues without becoming saved or missing selections', async () => {
+  const values=new Map();
+  const scope={localStorage:{get length(){return values.size;},key:i=>[...values.keys()][i],getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)},navigator:{locks:{request:async(k,fn)=>fn()}}};
+  const p=new CometSelectionPreference(()=>{},scope);
+  p.initialize(['1P']);
+  await p.edit({add:[],remove:[]});
+  p.initialize(['1P','c1000079']);
+  assert.deepEqual(p.ids,['1P','c1000079'],'A no-op does not freeze the first catalogue');
+  assert.equal(loadCometSelection(scope),null,'Automatic starters are not persisted');
+  assert.equal(p.missingNotice([{id:'1P'}]),'','Unedited defaults are not saved missing IDs');
+  p.initialize(['1P']);
+  assert.deepEqual(p.ids,['1P']);
+  // Saving the same membership in another tab establishes explicit intent.
+  values.set(COMET_SELECTION_STORAGE_KEY,JSON.stringify(['1P']));p.refresh();
+  p.initialize(['1P','c1000079']);assert.deepEqual(p.ids,['1P']);
+  await p.edit({replace:[]});p.initialize(['1P']);assert.deepEqual(p.ids,[]);
+  values.clear();p.refresh();p.initialize(['1P','c1000079']);
+  assert.deepEqual(p.ids,['1P','c1000079'],'Clearing storage restores automatic starters');
+  await p.edit({add:[],remove:['1P']});
+  p.initialize(['1P']);assert.deepEqual(p.ids,['c1000079']);
+  assert.equal(p.missingNotice([{id:'1P'}]),'Some saved comets are absent from this catalogue.');
+  p.destroy();
+});

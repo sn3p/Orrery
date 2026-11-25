@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const {expect} = require('@playwright/test');
 module.exports = async (browser, root) => {
+  const starters = await require('./comet-starters.cjs')();
   const context = await browser.newContext();
   const pages = [await context.newPage(), await context.newPage()];
   const boot = async page => {
@@ -86,6 +87,6 @@ module.exports = async (browser, root) => {
     await expect(b.getByRole('button',{name:'Undo',exact:true})).toHaveCount(0);
     // Removing storage restores first-visit defaults; explicit [] still means empty.
     await a.evaluate(()=>localStorage.clear());
-    await expect.poll(()=>b.evaluate(()=>app.cometIds)).toEqual(['1P','2P','55P','67P']);
+    await expect.poll(()=>b.evaluate(()=>app.cometIds)).toEqual(starters);
   } finally {await context.close();}
 };
