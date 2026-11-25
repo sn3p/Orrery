@@ -25,6 +25,17 @@ module.exports = async (browser, root, renderer) => {
     await open();
     await expect(dialog.locator('h1')).toBeFocused();
     await expect(dialog.locator('label')).toHaveCount(6);
+    await page.evaluate(()=>{window.halleyRow=document.querySelector('[data-comet-id="1P"]');});
+    await dialog.getByRole('searchbox').fill('halley');
+    await expect(dialog.locator('label')).toHaveCount(1);
+    assert(await page.evaluate(()=>halleyRow===document.querySelector('[data-comet-id="1P"]')));
+    assert.equal(await page.evaluate(async()=>{
+      let writes=0;const observer=new MutationObserver(changes=>{writes+=changes.length;});
+      observer.observe(halleyRow.cometStatus,{childList:true,characterData:true,subtree:true});
+      app.gui.controls.cometFeedbackCache=null;app.gui.controls.updateComets();
+      await Promise.resolve();observer.disconnect();return writes;
+    }),0,'Unchanged status text does not mutate accessible DOM');
+    await dialog.getByRole('searchbox').fill('');
     await dialog.getByRole('button',{name:/Browse catalogue/}).click();
     await expect(dialog.locator('label')).toHaveCount(30);
     await expect(dialog.locator('input[type=checkbox]').first()).toBeFocused();
@@ -48,11 +59,13 @@ module.exports = async (browser, root, renderer) => {
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('searchbox')).toHaveValue('');
     await dialog.getByRole('button',{name:'Clear selection',exact:true}).click();
+    await page.evaluate(()=>app.cometSelection.saved);
     assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('orrery.selectedComets'))),[]);
     await dialog.getByRole('button',{name:'Undo',exact:true}).click();
     assert((await page.evaluate(()=>app.cometIds)).includes('179P'));
     await dialog.getByRole('button',{name:'Done',exact:true}).click();
     await expect(page.getByRole('button',{name:'Choose…',exact:true})).toBeFocused();
+    await page.evaluate(()=>app.cometSelection.saved);
     await start();
     assert((await page.evaluate(()=>app.cometIds)).includes('179P'));
     product = require('./comet-catalogue-fixture.cjs').product(['1P']);
@@ -66,6 +79,7 @@ module.exports = async (browser, root, renderer) => {
     await open();
     await dialog.getByRole('button',{name:'Clear selection',exact:true}).click();
     await dialog.getByRole('button',{name:'Done',exact:true}).click();
+    await page.evaluate(()=>app.cometSelection.saved);
     await start();
     assert.deepEqual(await page.evaluate(()=>app.cometIds),[]);
     await open();

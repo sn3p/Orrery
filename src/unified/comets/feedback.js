@@ -37,26 +37,3 @@ export function catalogueHasCoverage(entry, jed) {
     jed >= c.start && (jed < c.end || (jed === c.end && c.end_inclusive)))
     : !!entry.coverage && jed >= entry.coverage[0] && jed <= entry.coverage[1];
 }
-
-export function coverageSummary(entries) {
-  if (!entries.length) return '';
-  const ranges = entries.map(entry => {
-    const segments = entry.segments?.map(s => [s.coverage.start, s.coverage.end])
-      ?? (entry.coverage ? [entry.coverage] : []);
-    // Do not describe a gap as continuous coverage in a future catalogue.
-    if (!segments.length || segments.some((s, i) => i && s[0] > segments[i - 1][1])) return null;
-    return [segments[0][0], segments.at(-1)[1]];
-  });
-  if (ranges.some(r => !r)) return 'Coverage varies by comet.';
-  const start = Math.max(...ranges.map(r => r[0])), end = Math.min(...ranges.map(r => r[1]));
-  if (start > end) return 'Coverage varies by comet.';
-  const year = jd => new Date((jd - 2440587.5) * 86400000).getUTCFullYear();
-  const count = ['zero', 'one', 'two', 'three', 'four', 'five', 'six'][entries.length] ?? entries.length;
-  let text = entries.length === 1 ? 'The comet has' : `All ${count} comets have`;
-  text += ` trajectories from ${year(start)}–${year(end)}.`;
-  const earlier = entries.flatMap((entry, i) => ranges[i][0] < start
-    ? [`${entry.name.replace(/^[^/]+\//, '').replaceAll('-', '–')} from ${year(ranges[i][0])}`] : []);
-  if (earlier.length) text += ` Earlier coverage: ${earlier.length > 1
-    ? earlier.slice(0, -1).join(', ') + ' and ' + earlier.at(-1) : earlier[0]}.`;
-  return text;
-}

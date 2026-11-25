@@ -1,4 +1,4 @@
-import { loadCometSelection, saveCometSelection } from './CometSelectionPreference.js';
+import { CometSelectionPreference } from './CometSelectionPreference.js';
 import { formatIsoDay, toJED } from "../js/utils.js";
 import { validDate } from "../js/asteroidOrbits.js";
 import { replaceShareUrl, shareDateValue } from "./shareUrl.js";
@@ -69,11 +69,12 @@ export default class App {
     this._asteroidsShown = true;
     this._cometsShown = false;
     this._cometPaths = true;
-    const savedComets = loadCometSelection();
-    this._cometIds = savedComets ?? [];
-    this.rememberedCometIds = savedComets;
     this.cometCatalogue = [];
-    this.cometSelectionInitialized = savedComets !== null;
+    this.cometSelection = new CometSelectionPreference(() => {
+      this.cometSelectionNotice = '';
+      void this.acquireComets();
+    });
+    this.cometEditableIds = null;
     this.cometSelectionRevision = 0;
     this.cometData = null;
     this.cometLoading = null;
@@ -300,21 +301,28 @@ export default class App {
     this._cometPaths = value;
     this.applyCometOptions();
   }
-  get cometIds() { return [...this._cometIds]; }
+  get rememberedCometIds() { return this.cometSelection.ids === null ? null : [...this.cometSelection.ids]; }
+  get cometIds() {
+    const desired = this.cometSelection.ids;
+    if (this.activeCometDesired !== desired || this.activeCometCatalogue !== this.cometCatalogue) {
+      this.activeCometDesired = desired;
+      this.activeCometCatalogue = this.cometCatalogue;
+      const selected = new Set(desired ?? []);
+      this.activeCometIds = this.cometCatalogue.filter(entry => selected.has(entry.id)).map(entry => entry.id);
+    }
+    return [...this.activeCometIds];
+  }
   set cometIds(ids) {
     if (this.destroyed || !validCometIds(ids, this.cometCatalogueSource ? this.cometCatalogue : undefined)) return;
-    this._cometIds = [...ids];
-    const missing = (this.rememberedCometIds ?? []).filter(id => !this.cometCatalogue.some(entry => entry.id === id));
-    this.rememberedCometIds = [...new Set([...ids, ...missing])];
-    saveCometSelection(this.rememberedCometIds);
-    this.cometSelectionNotice = missing.length ? 'Some saved comets are absent from this catalogue.' : '';
-    this.cometSelectionInitialized = true;
-    void this.acquireComets();
+    // During replacement the previous editable catalogue remains authoritative.
+    // Before first discovery an explicit setter edits the saved intent directly.
+    const editable = this.cometEditableIds ?? new Set(this.cometSelection.ids ?? []);
+    const previous = this.cometSelection.ids ?? [];
+    this.cometSelection.edit({ add: ids.filter(id => !previous.includes(id)),
+      remove: previous.filter(id => editable.has(id) && !ids.includes(id)) });
   }
   restoreCometSelection(ids) {
-    if (this.destroyed || !validCometIds(ids)) return;
-    this.rememberedCometIds = [...ids];
-    this.cometIds = ids.filter(id => this.cometCatalogue.some(entry => entry.id === id));
+    if (!this.destroyed && validCometIds(ids)) this.cometSelection.edit({ replace: ids });
   }
   applyCometOptions() {
     this.renderer?.setOptions?.(this.rendererSettings());
@@ -329,8 +337,8 @@ export default class App {
     this.cometStates = acquisition.states;
     this.cometSourceId = acquisition.current?.sourceId ?? null;
     this.cometSourceInfo = acquisition.current?.info ?? null;
-    this.cometLoading = this._cometIds.some(id => acquisition.states[id] === 'loading');
-    this.cometError = this._cometIds.some(id => acquisition.states[id] === 'error');
+    this.cometLoading = this.cometIds.some(id => acquisition.states[id] === 'loading');
+    this.cometError = this.cometIds.some(id => acquisition.states[id] === 'error');
     this.applyCometOptions();
   }
   async acquireComets(retry = false) {
@@ -349,17 +357,12 @@ export default class App {
       if (this.cometCatalogueSource !== source) {
         this.cometCatalogueSource = source;
         this.cometCatalogue = cataloguePresentation(source.info.objects);
-        const previous = this.rememberedCometIds ?? this._cometIds;
-        this._cometIds = this.cometSelectionInitialized
-          ? previous.filter(id => this.cometCatalogue.some(entry => entry.id === id))
-          : this.cometCatalogue.slice(0, DEFAULT_COMET_SELECTION_LIMIT).map(entry => entry.id);
-        this.cometSelectionNotice = previous.some(id => !this._cometIds.includes(id))
-          ? 'Some saved comets are absent from this catalogue.' : '';
-        this.rememberedCometIds ??= [...this._cometIds];
-        this.cometSelectionInitialized = true;
+        this.cometEditableIds = new Set(this.cometCatalogue.map(entry => entry.id));
+        this.cometSelection.initialize(this.cometCatalogue.slice(0, DEFAULT_COMET_SELECTION_LIMIT).map(entry => entry.id));
+        this.cometSelectionNotice = this.cometSelection.missingNotice(this.cometCatalogue);
       }
       this.cometDiscoveryState = 'ready';
-      return acquisition.select(this._cometIds, retry);
+      return acquisition.select(this.cometIds, retry);
     } catch {
       if (this.destroyed || revision !== this.cometSelectionRevision || generation !== acquisition.generation) return;
       this.cometDiscoveryState = 'error';
@@ -389,7 +392,7 @@ export default class App {
   }
   focusComets() {
     if (this.destroyed || this.switching || !this._cometsShown
-      || !hasUsableComets(this.cometData, this._cometIds, this.jed)) return;
+      || !hasUsableComets(this.cometData, this.cometIds, this.jed)) return;
     this.renderer?.focusComets?.();
     this.requestRender();
   }
@@ -1017,6 +1020,7 @@ export default class App {
     if (render) this.requestRender();
   }
   destroy() {
+    this.cometSelection?.destroy();
     // Startup failure can leave owned feedback after resources were destroyed.
     // Clear it on later explicit disposal, without touching a newer App's UI.
     this.renderFailure = null;

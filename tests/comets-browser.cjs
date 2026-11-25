@@ -14,6 +14,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
   const root = path.resolve(output, 'site');
   if (process.env.ORRERY_PREBUILT_FIXTURES) require('./fixture-builds.cjs').copyPrepared('three',root);
   else await require('./three-build.cjs').build(root);
+  await require('./comet-selection-races.cjs')(browser, root);
   await require('./comet-history-browser.cjs')(browser, root);
   for (const renderer of ['three','pixi']) {
     await require('./options-feedback.cjs')(browser, root, renderer);
@@ -412,7 +413,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.getByRole('button',{name:/Browse catalogue/}).click();
       await page.getByRole('checkbox',{name:'Show 123P/<b>Literal test comet</b>',exact:true}).check();
       await page.waitForFunction(()=>app.cometStates['123P']==='ready');
-      await expect(page.getByRole('dialog',{name:'Choose comets'}).getByRole('status').filter({hasText:'absent from this catalogue'})).toHaveCount(1);
+      await expect(page.getByRole('dialog',{name:'Choose comets'}).getByRole('status').filter({hasText:'absent from this catalogue'})).toHaveCount(0);
       await page.getByRole('button',{name:'Done',exact:true}).click();
       await page.getByRole('button',{name:'Fit selected comets'}).click();
       assert(await page.locator('.orrery-options-panel').evaluate(el=>el.scrollWidth<=el.clientWidth+1));

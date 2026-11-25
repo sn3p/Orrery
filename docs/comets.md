@@ -173,3 +173,13 @@ selection edit or closing the dialog. Visibility and renderer changes preserve
 selection. Share URLs carry no comet selection override. Normal rows have no
 availability label; exceptional date coverage comes from catalogue metadata,
 even before loading. Loaded selections show their scene colour.
+
+Selection edits use one desired-ID state; active IDs are derived from verified
+catalogue membership. Missing-entry notices describe a new condition once and
+clear after interaction, while missing saved IDs remain remembered. Cross-tab
+edits use per-ID operations and Web Locks rather than replacing stale snapshots.
+A synchronous pending-edit journal preserves edits across reloads while a lock
+is busy; browsers without Web Locks replay that journal without compaction.
+Clear and Undo deliberately replace the whole desired selection. Search waits
+briefly for typing to settle, indexes names once per catalogue revision, and
+reuses row elements.

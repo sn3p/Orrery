@@ -395,3 +395,40 @@ test('comet search ignores punctuation and accents and ranks exact designations 
     {id:'C/2020 F3',name:'C/2020 F3 (NEOWISE)'}, {id:'6P',name:'6P/d’Arrest'}, {id:'109P',name:'109P/Swift–Tuttle'}, {id:'1P',name:'1P/Hálléy'}];
   for (const [query, id] of [['67p','67P'],['2020f3','C/2020 F3'],['c/2020 f3','C/2020 F3'],['darrest','6P'],['swift tuttle','109P'],['halley','1P']]) assert.equal(searchComets(catalogue,query)[0].id,id);
 });
+
+test('repeated searches normalize catalogue names once per catalogue revision', () => {
+  let reads = 0;
+  const catalogue = Array.from({length:4000}, (_, i) => ({id:`${i+1}P`,get name(){reads++;return `${i+1}P/Comet ${i}`;}}));
+  for (const query of ['c','co','com','comet','20p']) searchComets(catalogue,query);
+  assert.equal(reads,4000);
+  searchComets([...catalogue],'comet');
+  assert.equal(reads,8000);
+});
+
+import { CometSelectionPreference } from '../src/unified/CometSelectionPreference.js';
+test('a denied preference lock preserves local intent and does not poison later saves', async () => {
+  const values = new Map(); let fail = true;
+  const scope = {localStorage:{get length(){return values.size;},key:i=>[...values.keys()][i],getItem:key=>values.get(key),setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)},
+    navigator:{locks:{request:async(key,write)=>{if(fail)throw Error('denied');return write();}}}};
+  const preference = new CometSelectionPreference(()=>{},scope);
+  preference.initialize([]);
+  await preference.edit({add:['1P'],remove:[]});
+  assert.deepEqual(preference.ids,['1P']);
+  fail=false;
+  await preference.edit({add:['2P'],remove:[]});
+  assert.deepEqual(loadCometSelection(scope),['1P','2P']);
+  assert.equal(preference.pending.length,0);
+  preference.destroy();
+});
+
+test('tabs without Web Locks retain independent durable edits across reload', async () => {
+  const values = new Map([[COMET_SELECTION_STORAGE_KEY, '["1P"]']]);
+  const scope = {localStorage:{get length(){return values.size;},key:i=>[...values.keys()][i],getItem:key=>values.get(key),setItem:(key,value)=>values.set(key,value)}};
+  const a = new CometSelectionPreference(()=>{},scope), b = new CometSelectionPreference(()=>{},scope);
+  await Promise.all([a.edit({add:['2P'],remove:[]}),b.edit({add:['55P'],remove:[]})]);
+  const reloaded = new CometSelectionPreference(()=>{},scope);
+  assert.deepEqual(reloaded.ids,['1P','2P','55P']);
+  await reloaded.edit({replace:[]});
+  assert.deepEqual(loadCometSelection(scope),[]);
+  a.destroy();b.destroy();reloaded.destroy();
+});

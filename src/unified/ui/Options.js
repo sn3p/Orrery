@@ -1,3 +1,4 @@
+import { fromJED } from '../../js/utils.js';
 import { searchComets } from '../comets/search.js';
 import { hasCoverage } from "../comets/model.js";
 import { CometFeedbackCache, catalogueHasCoverage, catalogueCoverage } from "../comets/feedback.js";
@@ -8,6 +9,7 @@ const SPEED_HINT = "Time scale: 1 = 60 days/s. 0 pauses; negative reverses.";
 
 export const SPEED_LIVE_HINT = "Real time: one second per second. 0 pauses; negative reverses.";
 
+const COMET_PAGE_SIZE = 30;
 let nextPanelId = 0;
 
 export default class Options {
@@ -191,7 +193,11 @@ export default class Options {
     this.cometSearch = document.createElement("input");
     this.cometSearch.type = "search";
     this.cometSearch.setAttribute("aria-label", "Search comets by name or designation");
-    this.cometSearch.oninput = () => this.changeCometView(this.cometSearch.value ? 'search' : 'selected');
+    this.cometSearch.oninput = () => {
+      clearTimeout(this.cometSearchTimer);
+      if (!this.cometSearch.value) this.changeCometView('selected');
+      else this.cometSearchTimer = setTimeout(() => this.changeCometView('search'), 100);
+    };
     this.cometClear = document.createElement("button");
     this.cometClear.className = "orrery-glossary-trigger";
     this.cometClear.textContent = "Clear selection";
@@ -246,6 +252,9 @@ export default class Options {
     const dialog = this.cometDialog;
     if (dialog.open || this.cometClosingHandled !== false) return;
     this.cometClosingHandled = true;
+    clearTimeout(this.cometSearchTimer);
+    this.orrery.cometSelectionNotice = '';
+    this.updateComets();
     // Release only the hold this chooser introduced. Another open modal owns its hold.
     if (!this.cometWasHeld && !document.querySelector("dialog[open]")) this.orrery.hold(false);
     const active = document.activeElement;
@@ -279,8 +288,9 @@ export default class Options {
   }
 
   changeCometView(mode, focus = false) {
+    clearTimeout(this.cometSearchTimer);
     this.cometView = mode;
-    this.cometLimit = 30;
+    this.cometLimit = COMET_PAGE_SIZE;
     this.cometSelectedSnapshot = [...this.orrery.cometIds];
     this.rebuildCometChoices();
     this.cometFeedbackCache = null;
@@ -294,6 +304,10 @@ export default class Options {
     this.cometChoiceList.replaceChildren();
     this.cometChoices = {};
     const catalogue = this.orrery.cometCatalogue;
+    if (this.cometRowCatalogue !== catalogue) {
+      this.cometRowCatalogue = catalogue;
+      this.cometRowCache = new Map();
+    }
     const mode = this.cometView ?? 'selected';
     const entries = mode === 'search' ? searchComets(catalogue, this.cometSearch.value)
       : mode === 'catalogue' ? catalogue : catalogue.filter(entry => (this.cometSelectedSnapshot ?? this.orrery.cometIds).includes(entry.id));
@@ -310,11 +324,19 @@ export default class Options {
       heading.append(back);
     }
     if (mode === 'selected' && !entries.length) this.cometChoiceList.append(Object.assign(document.createElement('p'), {textContent: 'No comets selected.'}));
-    const limit = mode === 'selected' ? entries.length : (this.cometLimit ?? 30);
+    const limit = mode === 'selected' ? entries.length : (this.cometLimit ?? COMET_PAGE_SIZE);
     for (const comet of entries.slice(0, limit)) {
+      const cached = this.cometRowCache.get(comet.id);
+      if (cached) {
+        this.cometChoiceList.append(cached.closest('label'));
+        this.cometChoices[comet.id] = cached;
+        continue;
+      }
       const label = document.createElement("label");
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
+      checkbox.cometEntry = comet;
+      this.cometRowCache.set(comet.id, checkbox);
       checkbox.dataset.cometId = comet.id;
       checkbox.setAttribute("aria-label", `Show ${comet.name}`);
       checkbox.onchange = () => {
@@ -352,7 +374,7 @@ export default class Options {
       more.className = "orrery-glossary-trigger";
       more.textContent = `Load more · ${limit} of ${entries.length.toLocaleString('en')}`;
       more.onclick = () => {
-        this.cometLimit = limit + 30;
+        this.cometLimit = limit + COMET_PAGE_SIZE;
         this.rebuildCometChoices();
         this.cometFeedbackCache = null;
         this.updateComets();
@@ -368,6 +390,7 @@ export default class Options {
   updateComets() {
     if (!this.panelCometFeedback) return;
     const app = this.orrery, ids = app.cometIds;
+    const selectedIds = new Set(ids);
     this.cometFeedbackCache ??= new CometFeedbackCache();
     if (!this.cometFeedbackCache.changed(app)) return;
     const feedback = [this.panelCometFeedback, this.chooserCometFeedback];
@@ -378,15 +401,15 @@ export default class Options {
     }
     for (const [id, checkbox] of Object.entries(this.cometChoices)) {
       const data = app.cometData?.[id], state = app.cometStates?.[id];
-      const entry = app.cometCatalogue.find(entry => entry.id === id);
+      const entry = checkbox.cometEntry;
       const coverage = catalogueCoverage([entry]);
       const covered = catalogueHasCoverage(entry, app.jed);
-      const selected = ids.includes(id);
+      const selected = selectedIds.has(id);
       const text = !coverage ? 'No trajectory available' : !covered ? 'No trajectory for this date'
         : selected && state === 'error' ? 'Could not load trajectory'
         : selected && state === 'loading' ? 'Loading…' : '';
       checkbox.disabled = !coverage && !selected;
-      checkbox.cometStatus.textContent = text;
+      if (checkbox.cometStatus.textContent !== text) checkbox.cometStatus.textContent = text;
       checkbox.cometStatus.classList.toggle('is-error', selected && covered && state === 'error');
       checkbox.cometStatus.classList.toggle('is-loading', selected && covered && state === 'loading');
       checkbox.cometSwatch.hidden = !selected || !hasCoverage(data, app.jed);
@@ -407,18 +430,18 @@ export default class Options {
       else if (loading || failed) status = (loading ? `${ready} of ${ids.length} ready. Loading ${loading}…` : '')
         + (failed ? ` Could not load ${failed}.` : '');
     }
-    const selectedEntries = app.cometCatalogue.filter(entry => ids.includes(entry.id));
+    const selectedEntries = app.cometCatalogue.filter(entry => selectedIds.has(entry.id));
     const unavailable = selectedEntries.filter(entry => !catalogueHasCoverage(entry, app.jed)).length;
     if (app.cometsShown && unavailable) {
       status += unavailable === ids.length ? ' No trajectory for this date.'
         : ` ${unavailable} of ${ids.length} ${unavailable === 1 ? 'has' : 'have'} no trajectory for this date.`;
       if (unavailable === ids.length) {
         const range = catalogueCoverage(selectedEntries);
-        const year = jd => new Date((jd - 2440587.5) * 86400000).getUTCFullYear();
+        const year = jd => fromJED(jd).getUTCFullYear();
         if (range) status += ` ${ids.length === 1 ? selectedEntries[0].name + ' covers' : 'Selected comets cover'} ${year(range[0])}–${year(range[1])}.`;
       }
     }
-    if (app.cometsShown && app.cometCatalogue.some(entry => entry.usesDefaultWindow && ids.includes(entry.id))) {
+    if (app.cometsShown && app.cometCatalogue.some(entry => entry.usesDefaultWindow && selectedIds.has(entry.id))) {
       status += ' Comets without a known display period use a 10-year trajectory window, limited to available data.';
     }
     if (!loading && !failed && app.cometDiscoveryState === 'ready') this.cometRetried = false;
@@ -437,7 +460,7 @@ export default class Options {
     this.cometClear.disabled = !this.cometUndo && !(app.rememberedCometIds?.length || ids.length);
     this.cometSearch.placeholder = `Search ${app.cometCatalogue.length.toLocaleString('en')} comets`;
     this.cometChoose.disabled = !app.cometCatalogue.length;
-    for (const [id, checkbox] of Object.entries(this.cometChoices)) checkbox.checked = ids.includes(id);
+    for (const [id, checkbox] of Object.entries(this.cometChoices)) checkbox.checked = selectedIds.has(id);
     if (!app.cometsShown && this.cometDialog.open) this.closeCometChooser();
     if (focusedRetry && !focusedRetry.getClientRects().length) {
       const candidates = this.cometDialog.open ? [this.cometDone] : this.panel.hidden ? [this.trigger]
@@ -771,6 +794,7 @@ export default class Options {
   }
 
   destroy() {
+    clearTimeout(this.cometSearchTimer);
     if (this.destroyed) return;
     this.destroyed = true;
     this.hideTip();
