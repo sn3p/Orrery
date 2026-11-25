@@ -17,6 +17,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
   await require('./comet-history-browser.cjs')(browser, root);
   for (const renderer of ['three','pixi']) {
     await require('./options-feedback.cjs')(browser, root, renderer);
+    await require('./comet-chooser.cjs')(browser, root, renderer);
     const page = await browser.newPage({viewport:{width:1280,height:800},deviceScaleFactor:2});
     const errors=[];
     page.on('pageerror', e=>errors.push(e.message));
@@ -271,10 +272,11 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.getByRole('checkbox',{name:'Show comets',exact:true}).check();
       await page.waitForFunction(()=>app.cometStates['2P']==='error');
       assert.equal(downloads,3,'Re-show retries the failed object only');
-      await expect(page.locator('.orrery-options-panel').getByRole('status').filter({hasText:'reload the page'})).toBeVisible();
+      await expect(page.locator('.orrery-options-panel').getByRole('status')).not.toContainText('Reload the page');
       await page.getByRole('button',{name:'Retry comet data'}).click();
       await page.waitForFunction(()=>app.cometStates['2P']==='error');
       assert.equal(downloads,4,'Pinned missing object can retry without silently changing sources');
+      await expect(page.locator('.orrery-options-panel').getByRole('status')).toContainText('Reload the page if it keeps failing.');
       await page.setViewportSize({width:320,height:240});
       await page.getByRole('button',{name:'Choose…',exact:true}).click();
       const errorChooser = page.getByRole('dialog',{name:'Choose comets'});
@@ -376,7 +378,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.waitForFunction(()=>Object.keys(app.cometData??{}).length===3);
       assert.deepEqual(await page.evaluate(()=>app.renderer.comets.entries.map(e=>e.comet.id)),['67P','123P','1P']);
       await page.getByRole('button',{name:'Choose…',exact:true}).click();
-      assert.deepEqual(await page.locator('.orrery-comet-choice-list label span').allTextContents(),product.objects.map(e=>e.name));
+      assert.deepEqual(await page.locator('.orrery-comet-detail > span').allTextContents(),product.objects.map(e=>e.name));
       assert.equal(await page.locator('.orrery-comet-choice-list b').count(),0,'Names are literal text');
       await expect(page.getByRole('dialog',{name:'Choose comets'}).getByRole('status').filter({hasText:'10-year trajectory window'})).toBeVisible();
       await page.evaluate(()=>{
@@ -407,9 +409,10 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       assert.deepEqual(await page.evaluate(()=>app.renderer.comets.entries.map(e=>e.comet.id)),['2P','123P']);
       assert.equal(await page.locator('.orrery-comet-label').count(),2,'Old resources removed');
       await page.getByRole('button',{name:'Choose…',exact:true}).click();
+      await page.getByRole('button',{name:/Browse catalogue/}).click();
       await page.getByRole('checkbox',{name:'Show 123P/<b>Literal test comet</b>',exact:true}).check();
       await page.waitForFunction(()=>app.cometStates['123P']==='ready');
-      await expect(page.getByRole('dialog',{name:'Choose comets'}).getByRole('status').filter({hasText:'absent from this catalogue'})).toHaveCount(0);
+      await expect(page.getByRole('dialog',{name:'Choose comets'}).getByRole('status').filter({hasText:'absent from this catalogue'})).toHaveCount(1);
       await page.getByRole('button',{name:'Done',exact:true}).click();
       await page.getByRole('button',{name:'Fit selected comets'}).click();
       assert(await page.locator('.orrery-options-panel').evaluate(el=>el.scrollWidth<=el.clientWidth+1));
@@ -427,7 +430,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       product=require('./comet-catalogue-fixture.cjs').product(['123P','67P']);
       await page.getByRole('button',{name:'Retry comet data'}).click();
       await page.waitForFunction(()=>app.cometStates['123P']==='ready');
-      assert.deepEqual(await page.evaluate(()=>app.cometIds),['123P']);
+      assert.deepEqual(await page.evaluate(()=>app.cometIds),['123P','67P']);
       await page.evaluate(async()=>{app.destroy();await app.loadComets();});
       const disposed=requests;
       await page.evaluate(()=>app.loadComets());
@@ -460,6 +463,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       assert.deepEqual(await page.evaluate(()=>app.cometIds),ids.slice(0,6));
       await page.getByRole('button',{name:'Options',exact:true}).click();
       await page.getByRole('button',{name:'Choose…',exact:true}).click();
+      await page.getByRole('button',{name:/Browse catalogue/}).click();
       await page.getByRole('checkbox',{name:'Show 123P/<b>Literal test comet</b>',exact:true}).check();
       await page.waitForFunction(()=>app.cometStates['123P']==='ready');
       assert.equal(downloads,7,'Additional entry loads only on explicit selection');

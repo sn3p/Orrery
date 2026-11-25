@@ -1,3 +1,4 @@
+import { loadCometSelection, saveCometSelection } from './CometSelectionPreference.js';
 import { formatIsoDay, toJED } from "../js/utils.js";
 import { validDate } from "../js/asteroidOrbits.js";
 import { replaceShareUrl, shareDateValue } from "./shareUrl.js";
@@ -68,9 +69,11 @@ export default class App {
     this._asteroidsShown = true;
     this._cometsShown = false;
     this._cometPaths = true;
-    this._cometIds = [];
+    const savedComets = loadCometSelection();
+    this._cometIds = savedComets ?? [];
+    this.rememberedCometIds = savedComets;
     this.cometCatalogue = [];
-    this.cometSelectionInitialized = false;
+    this.cometSelectionInitialized = savedComets !== null;
     this.cometSelectionRevision = 0;
     this.cometData = null;
     this.cometLoading = null;
@@ -301,9 +304,17 @@ export default class App {
   set cometIds(ids) {
     if (this.destroyed || !validCometIds(ids, this.cometCatalogueSource ? this.cometCatalogue : undefined)) return;
     this._cometIds = [...ids];
-    this.cometSelectionNotice = '';
+    const missing = (this.rememberedCometIds ?? []).filter(id => !this.cometCatalogue.some(entry => entry.id === id));
+    this.rememberedCometIds = [...new Set([...ids, ...missing])];
+    saveCometSelection(this.rememberedCometIds);
+    this.cometSelectionNotice = missing.length ? 'Some saved comets are absent from this catalogue.' : '';
     this.cometSelectionInitialized = true;
     void this.acquireComets();
+  }
+  restoreCometSelection(ids) {
+    if (this.destroyed || !validCometIds(ids)) return;
+    this.rememberedCometIds = [...ids];
+    this.cometIds = ids.filter(id => this.cometCatalogue.some(entry => entry.id === id));
   }
   applyCometOptions() {
     this.renderer?.setOptions?.(this.rendererSettings());
@@ -338,12 +349,13 @@ export default class App {
       if (this.cometCatalogueSource !== source) {
         this.cometCatalogueSource = source;
         this.cometCatalogue = cataloguePresentation(source.info.objects);
-        const previous = this._cometIds;
+        const previous = this.rememberedCometIds ?? this._cometIds;
         this._cometIds = this.cometSelectionInitialized
           ? previous.filter(id => this.cometCatalogue.some(entry => entry.id === id))
           : this.cometCatalogue.slice(0, DEFAULT_COMET_SELECTION_LIMIT).map(entry => entry.id);
         this.cometSelectionNotice = previous.some(id => !this._cometIds.includes(id))
-          ? 'Some selected comets are absent from this catalogue. Choose available comets.' : '';
+          ? 'Some saved comets are absent from this catalogue.' : '';
+        this.rememberedCometIds ??= [...this._cometIds];
         this.cometSelectionInitialized = true;
       }
       this.cometDiscoveryState = 'ready';

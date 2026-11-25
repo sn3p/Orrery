@@ -69,10 +69,10 @@ module.exports=async function(browser,root){
       await page.getByRole('button',{name:'Options',exact:true}).click();
       await expect(page.getByRole('checkbox',{name:'Show comets',exact:true})).toHaveAccessibleDescription('Comet paths are calculated from JPL orbit models. Historical positions are approximate, with uncertainty varying by comet and date.');
       await page.evaluate(()=>{app.cometIds=['2P','55P'];app.jed=2378496.5;app.cancelRender();app.renderFrame();});
-      await expect(page.locator('.orrery-options-panel [role=status]').filter({hasText:'No trajectory for this date'})).toContainText('2 of 2 loaded comets');
-      await expect(page.locator('.orrery-options-panel [role=status]')).toContainText('All six comets have trajectories from 1980–2099. Earlier coverage: Halley from 1835 and Tempel–Tuttle from 1865.');
+      await expect(page.locator('.orrery-options-panel [role=status]').filter({hasText:'No trajectory for this date'})).toContainText('Selected comets cover 1865–2099.');
+      await expect(page.locator('.orrery-options-panel [role=status]')).toContainText('Selected comets cover 1865–2099.');
       await page.getByRole('button',{name:'Choose…',exact:true}).click();
-      await expect(page.getByRole('dialog').filter({hasText:'Choose comets'}).locator('[role=status]')).toContainText('Earlier coverage: Halley from 1835 and Tempel–Tuttle from 1865.');
+      await expect(page.getByRole('dialog').filter({hasText:'Choose comets'}).locator('[role=status]')).toContainText('Selected comets cover 1865–2099.');
       await expect(page.getByRole('checkbox',{name:'Show 55P/Tempel-Tuttle',exact:true})).toHaveAccessibleDescription('No trajectory for this date');
       await page.getByRole('button',{name:'Done',exact:true}).click();
       await page.evaluate(()=>{app.cometIds=['55P','10P'];app.gui.timeline.open();});
@@ -96,7 +96,7 @@ module.exports=async function(browser,root){
       history=false;
       await page.evaluate(async()=>{await app.replaceCometSource('hosted');app.gui.timeline.open();});
       await expect(page.locator('#orrery-comet-history')).toBeHidden();
-      assert((await page.locator('.orrery-options-panel [role=status]').allTextContents()).some(text=>text.includes('All six comets have trajectories from 1980–2099.')));
+      assert(!(await page.locator('.orrery-options-panel [role=status]').allTextContents()).some(text=>text.includes('All six comets')));
       await page.keyboard.press('Escape');
       history=true;fail=true;await page.evaluate(async()=>{app.cometIds=['1P'];await app.replaceCometSource('hosted');});
       assert.equal(await page.evaluate(()=>app.cometStates['1P']),'error');
@@ -105,7 +105,7 @@ module.exports=async function(browser,root){
       await page.evaluate(async()=>{await app.replaceCometSource('bundled');});
       assert.equal(await page.evaluate(()=>app.cometSourceId),'bundled-horizons-2026-11-18');
       assert(await page.evaluate(()=>!app.cometData['1P'].segments));
-      await expect(page.locator('.orrery-options-panel [role=status]')).toContainText('All three comets have trajectories from 1980–2099.');
+      await expect(page.locator('.orrery-options-panel [role=status]')).toContainText('1P/Halley covers 1980–2099.');
       await expect(page.locator('.orrery-options-panel [role=status]')).not.toContainText('Earlier coverage');
       // The test entry omits Intro; exercise the actual built About markup directly.
       await page.locator('#orrery-intro').evaluate(e=>e.showModal());

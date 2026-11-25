@@ -6,7 +6,7 @@ const { createHash } = require('node:crypto');
 const root = path.join(__dirname, 'fixtures/comets-v2');
 const latest = JSON.parse(fs.readFileSync(path.join(root, 'latest.json')));
 const index = JSON.parse(fs.readFileSync(path.join(root, latest.index.url)));
-function product(ids) {
+function product(ids, { compact = false } = {}) {
   const files = new Map();
   const reference = (value, prefix) => {
     const bytes = Buffer.from(JSON.stringify(value));
@@ -26,6 +26,10 @@ function product(ids) {
         source.url = source.url.replace(`DES%3D${original.id}`, `DES%3D${id}`);
         source.target = entry.name;
       }
+    }
+    if (compact) {
+      entry.validation.references = entry.validation.references.filter(row => row[0] === entry.validation.worst_jd);
+      for (const source of Object.values(entry.provenance)) source.header = 'Synthetic catalogue paging fixture';
     }
     entry.data = reference(object, 'objects/');
     return entry;

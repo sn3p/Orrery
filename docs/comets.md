@@ -89,8 +89,9 @@ For schema 2 this bounds automatic loading to six assets (at most 12 MiB decoded
 The approved schema-3 catalogue loads eight assets for those six objects, including
 two historical segments (at most 16 MiB decoded by the reader contract). Every
 other entry stays available for explicit selection. Subsequent source replacements
-preserve selected IDs that remain available; removed selections are explained in
-Options, and new entries remain available for explicit selection. Asteroid-only startup makes no comet requests.
+preserve saved IDs, including entries temporarily absent from the active catalogue.
+Only available entries load; a brief Options notice explains missing entries, which
+return when available again. New entries remain available for explicit selection. Asteroid-only startup makes no comet requests.
 
 Ready selections render and can be fitted while others load or fail. Retry loads
 missing selected objects under the same pin; deselection cancels outstanding reads.
@@ -162,3 +163,13 @@ Synthetic contract fixtures run in CI; exact retained files can be checked witho
 servers using `COMET_HISTORY_CANDIDATE=/path/to/candidate node --test tests/comet-history.test.mjs`.
 Local source storage is not a deployment. Hosted switching, retention/pruning and
 old-client rollout require separate review.
+
+The chooser opens with selected entries in catalogue order. Search matches names
+and designations without case, punctuation or accent distinctions; Browse and
+search page in batches of 30. The list scrolls within a viewport-bounded dialog.
+Selection is remembered in this browser, including explicit empty selections.
+Clear selection also clears missing saved IDs and offers Undo until another
+selection edit or closing the dialog. Visibility and renderer changes preserve
+selection. Share URLs carry no comet selection override. Normal rows have no
+availability label; exceptional date coverage comes from catalogue metadata,
+even before loading. Loaded selections show their scene colour.

@@ -373,3 +373,25 @@ test('curated colours are distinct and bundled names match hosted names',()=>{
   assert.equal(new Set(catalogue.map(e=>e.color)).size,6);
   for(const bundled of COMETS)assert.equal(bundled.name,catalogue.find(e=>e.id===bundled.id).name);
 });
+
+import { loadCometSelection, saveCometSelection, COMET_SELECTION_STORAGE_KEY } from '../src/unified/CometSelectionPreference.js';
+import { searchComets } from '../src/unified/comets/search.js';
+test('comet preference distinguishes first visit, empty selection and malformed storage', () => {
+  const values = new Map();
+  const scope = { localStorage: {getItem: key => values.get(key), setItem: (key, value) => values.set(key, value)} };
+  assert.equal(loadCometSelection(scope), null);
+  for (const ids of [[], ['67P'], ['1P', '2P']]) {
+    saveCometSelection(ids, scope);
+    assert.deepEqual(loadCometSelection(scope), ids);
+  }
+  for (const value of ['bad', '{}', '[null]', '[1]']) {
+    values.set(COMET_SELECTION_STORAGE_KEY, value);
+    assert.equal(loadCometSelection(scope), null);
+  }
+  assert.equal(loadCometSelection({get localStorage() {throw Error('blocked');}}), null);
+});
+test('comet search ignores punctuation and accents and ranks exact designations first', () => {
+  const catalogue = [{id:'167P',name:'167P/Test 67P'}, {id:'67P',name:'67P/Churyumov–Gerasimenko'},
+    {id:'C/2020 F3',name:'C/2020 F3 (NEOWISE)'}, {id:'6P',name:'6P/d’Arrest'}, {id:'109P',name:'109P/Swift–Tuttle'}, {id:'1P',name:'1P/Hálléy'}];
+  for (const [query, id] of [['67p','67P'],['2020f3','C/2020 F3'],['c/2020 f3','C/2020 F3'],['darrest','6P'],['swift tuttle','109P'],['halley','1P']]) assert.equal(searchComets(catalogue,query)[0].id,id);
+});
