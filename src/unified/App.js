@@ -4,7 +4,7 @@ import { replaceShareUrl, shareDateValue } from "./shareUrl.js";
 import PlaybackClock from "../js/PlaybackClock.js";
 import Stats from "../js/Stats.js";
 import Acquisition, { openHostedSource, openCandidateSource } from "./comets/Acquisition.js";
-import { COMETS, DEFAULT_COMET_SELECTION_LIMIT, cataloguePresentation, validCometIds, validateCometData, hasUsableComets } from "./comets/model.js";
+import { COMETS, firstDate, lastDate, DEFAULT_COMET_SELECTION_LIMIT, cataloguePresentation, validCometIds, validateCometData, hasUsableComets } from "./comets/model.js";
 import Hud from "./ui/Hud.js";
 import CatalogSource from "./catalog/CatalogSource.js";
 import CatalogLoader from "./catalog/CatalogLoader.js";
@@ -365,7 +365,7 @@ export default class App {
       const response = await fetch(url, { signal });
       if (!response.ok) throw new Error('Could not load bundled comet data.');
       const data = validateCometData(await response.json());
-      return { sourceId: 'bundled-horizons-2026-11-18', info: { distributor: 'Orrery bundled fallback', objects: COMETS },
+      return { sourceId: 'bundled-horizons-2026-11-18', info: { distributor: 'Orrery bundled fallback', objects: COMETS.map(entry => ({ ...entry, coverage: [firstDate(data[entry.id]), lastDate(data[entry.id])] })) },
         load: async id => ({ series: data[id] }), close() {} };
     };
     this.cometCatalogue = [];

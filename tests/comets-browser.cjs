@@ -161,7 +161,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
         return {different:JSON.stringify(forward)!==JSON.stringify(backward),hidden:app.renderer.comets.entries.every(e=>!e.body.visible)};
       });
       assert(dates.different && dates.hidden);
-      await expect(page.locator('.orrery-options-panel').getByRole('status').filter({hasText:'Comets are unavailable'})).toBeVisible();
+      await expect(page.locator('.orrery-options-panel').getByRole('status').filter({hasText:'No trajectory for this date'})).toBeVisible();
       await page.evaluate(()=>{app.jed=2444239.5;app.renderFrame();});
       await page.getByRole('button',{name:'Fit selected comets'}).click();
       for (const viewport of [{width:320,height:568},{width:568,height:240},{width:1280,height:800}]) {

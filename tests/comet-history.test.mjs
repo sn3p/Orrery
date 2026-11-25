@@ -249,3 +249,29 @@ test('schema-2 descriptor cancellation retains the comet-specific error',async t
   const source=await openHostedSource();t.after(()=>source.close());
   await assert.rejects(source.load('1P',{signal:controller.signal}),failure);
 });
+
+import {coverageSummary, catalogueHasCoverage} from '../src/unified/comets/feedback.js';
+test('coverage feedback follows catalogue metadata across historical, rollback and future sources', () => {
+  const entries = fixture().index.objects;
+  assert.equal(coverageSummary(entries), 'All six comets have trajectories from 1980–2099. Earlier coverage: Halley from 1835 and Tempel–Tuttle from 1865.');
+  const modern = entries.map(e => ({id:e.id, name:e.name, coverage:[T, END]}));
+  assert.equal(coverageSummary(modern), 'All six comets have trajectories from 1980–2099.');
+  assert.equal(coverageSummary(modern.slice(0,3)), 'All three comets have trajectories from 1980–2099.');
+  assert.equal(coverageSummary([]), '');
+  assert.equal(coverageSummary([{name:'Future',coverage:[2451544.5,2451910.5]}]), 'The comet has trajectories from 2000–2001.');
+  const cache = new CometFeedbackCache();
+  const app = {cometData:{},cometCatalogue:entries,cometIds:[],cometStates:{},jed:0};
+  assert(cache.changed(app));
+  for (const entry of entries) for (const segment of entry.segments) {
+    const c=segment.coverage;
+    for (const jd of [c.start-1e-6,c.start,c.start+1e-6,c.end-1e-6,c.end,c.end+1e-6]) {
+      assert.equal(catalogueHasCoverage(entry,jd),entry.segments.some(s => jd>=s.coverage.start && (jd<s.coverage.end || jd===s.coverage.end && s.coverage.end_inclusive)));
+      app.jed=jd; cache.changed(app);
+    }
+  }
+  app.cometCatalogue=modern;assert(cache.changed(app));
+  app.jed=T-1e-6;assert(cache.changed(app));assert(!catalogueHasCoverage(modern[0],app.jed));
+  app.jed=T;assert(cache.changed(app));assert(catalogueHasCoverage(modern[0],app.jed));
+  assert(!catalogueHasCoverage(modern[0],NaN));
+  assert.equal(coverageSummary([{name:'Gap',segments:[{coverage:{start:T,end:T+1}},{coverage:{start:T+2,end:END}}]}]),'Coverage varies by comet.');
+});
