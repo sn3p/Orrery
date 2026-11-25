@@ -7,7 +7,7 @@ Vendored from [OrreryData 53a6ce491c5b5a119236fc629e54449bf15920a5](https://gith
 Copyright (c) 2016 Matthijs Kuiper.
 
 Local adaptations retain schema-2/3 `openDescriptor` entry points and reject
-latest-URL fragments and verified-asset redirects. Other reader logic is unchanged.
+latest-URL fragments and verified-asset redirects. The unused upstream linkCancellation export is omitted. Other reader logic is unchanged.
 The asteroid adapter remains separate.
 
 Production dispatch accepts schemas 2, 3 and 4 at the existing endpoint.

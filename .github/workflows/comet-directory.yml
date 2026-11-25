@@ -27,7 +27,7 @@ jobs:
         with:
           node-version-file: .tool-versions
       - run: npm ci
-      - run: npx playwright install --with-deps chromium webkit
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
       - run: python3 .context/producer/scripts/comet_directory_candidate.py
       - run: node tests/run-comet-directory.cjs .context/producer ${{ matrix.browser }}
         env:
