@@ -57,5 +57,17 @@ module.exports = async (browser, root) => {
     await a.evaluate(()=>app.restoreCometSelection([]));await saved(a);
     await expect.poll(()=>b.evaluate(()=>app.cometIds)).toEqual([]);
     await boot(b);await enable(b);assert.deepEqual(await b.evaluate(()=>app.cometIds),[]);
+    await b.evaluate(()=>app.gui.controls.open());
+    await b.getByRole('button',{name:'Choose…',exact:true}).click();
+    const clear = b.getByRole('dialog',{name:'Choose comets'}).getByRole('button',{name:'Clear selection',exact:true});
+    await expect(clear).toBeDisabled();
+    await a.evaluate(()=>app.restoreCometSelection(['999P']));await saved(a);
+    await expect.poll(()=>b.evaluate(()=>app.rememberedCometIds)).toEqual(['999P']);
+    assert.deepEqual(await b.evaluate(()=>app.cometIds),[]);
+    assert.equal(await b.evaluate(()=>app.cometSelectionNotice),'');
+    await expect(clear).toBeEnabled();
+    await clear.click();await saved(b);
+    await expect.poll(()=>a.evaluate(()=>app.rememberedCometIds)).toEqual([]);
+
   } finally {await context.close();}
 };

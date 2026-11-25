@@ -109,6 +109,9 @@ test('feedback skips unchanged coverage regions, invalidates endpoints, selectio
   for(const jed of [12,12.1,10,9.9]){app.jed=jed;assert(cache.changed(app));}
   app.cometIds=[];assert(cache.changed(app));app.cometStates['1P']='error';assert(cache.changed(app));
   app.cometData={};assert(cache.changed(app));
+  app.rememberedCometIds=['999P'];assert(cache.changed(app));
+  assert(!cache.changed(app));
+  app.rememberedCometIds=[];assert(cache.changed(app));
   assert.deepEqual(catalogueCoverage([{coverage:[10,20]},{coverage:[10,20]}]),[10,20]);
   assert.deepEqual(catalogueCoverage(fixture().index.objects),[2391511.5,END]);
 });
