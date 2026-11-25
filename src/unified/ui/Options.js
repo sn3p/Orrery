@@ -1,7 +1,7 @@
 import { fromJED } from '../../js/utils.js';
 import { searchComets } from '../comets/search.js';
 import { hasCoverage } from "../comets/model.js";
-import { CometFeedbackCache, catalogueHasCoverage, catalogueCoverage } from "../comets/feedback.js";
+import { assessmentMessage, CometFeedbackCache, catalogueHasCoverage, catalogueCoverage } from "../comets/feedback.js";
 import * as dat from "dat.gui";
 import { DEFAULT_POPULATION_PRESET, POPULATION_PRESET_OPTIONS, legendGroups, populationHint } from "../catalog/population.js";
 
@@ -352,7 +352,7 @@ export default class Options {
       const name = document.createElement("span");
       name.textContent = comet.name;
       const state = document.createElement("small");
-      state.id = `${this.cometDialog.id}-${comet.id}-state`;
+      state.id = `${this.cometDialog.id}-${encodeURIComponent(comet.id)}-state`;
       checkbox.setAttribute("aria-describedby", state.id);
       const detail = document.createElement("span");
       detail.className = "orrery-comet-detail";
@@ -412,7 +412,7 @@ export default class Options {
       const coverage = catalogueCoverage([entry]);
       const covered = catalogueHasCoverage(entry, app.jed);
       const selected = selectedIds.has(id);
-      const text = !coverage ? 'No trajectory available' : !covered ? 'No trajectory for this date'
+      const text = !coverage ? assessmentMessage(entry, app.jed) : !covered ? 'No trajectory for this date'
         : selected && state === 'error' ? 'Could not load trajectory'
         : selected && state === 'loading' ? 'Loading…' : '';
       checkbox.disabled = !coverage && !selected;
@@ -438,7 +438,7 @@ export default class Options {
         + (failed ? ` Could not load ${failed}.` : '');
     }
     const selectedEntries = app.cometCatalogue.filter(entry => selectedIds.has(entry.id));
-    const unavailable = selectedEntries.filter(entry => !catalogueHasCoverage(entry, app.jed)).length;
+    const unavailable = selectedEntries.filter(entry => catalogueCoverage([entry]) && !catalogueHasCoverage(entry, app.jed)).length;
     if (app.cometsShown && unavailable) {
       status += unavailable === ids.length ? ' No trajectory for this date.'
         : ` ${unavailable} of ${ids.length} ${unavailable === 1 ? 'has' : 'have'} no trajectory for this date.`;

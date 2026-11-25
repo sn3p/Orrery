@@ -1,16 +1,19 @@
 import CometSource from './source/CometCatalogSource.js';
+import DirectorySource from './source/CometDirectorySource.js';
+import { DEFAULT_DISPLAY_WINDOW_DAYS } from './model.js';
 import HistorySource from './source/CometHistorySource.js';
 import { fetchLatest } from './source/transport.js';
 
 export const COMET_LATEST_URL = 'https://sn3p.github.io/orrery-data/comets/latest.json';
 // Explicit candidate injection remains available for offline rollout verification.
-export const openCandidateSource = url => signal => HistorySource.openLatest(url, { signal });
+export const openCandidateSource = url => signal => DirectorySource.openLatest(url, { signal });
 export const openHostedSource = async signal => {
   // Read latest once: dispatch and verification must use the same descriptor pin.
   const descriptor = await fetchLatest(COMET_LATEST_URL, signal, 'comet');
   switch (descriptor.latest?.comet_contract_version) {
     case 2: return CometSource.openDescriptor(descriptor, { signal });
     case 3: return HistorySource.openDescriptor(descriptor, { signal });
+    case 4: return DirectorySource.openDescriptor(descriptor, { signal });
     default: throw new Error('Invalid comet contract version');
   }
 };
@@ -41,7 +44,29 @@ export default class Acquisition {
     }
     return this.opening;
   }
-  select(ids, retry = false) {
+  select(ids, retry = false, context = {}) {
+    const windowed = !!this.current?.getObject;
+    if (windowed) {
+      const windows = Object.fromEntries(ids.map(id => {
+        const entry = context.catalogue?.find(e => e.id === id);
+        const half = (entry?.periodDays ?? DEFAULT_DISPLAY_WINDOW_DAYS) / 2 + 64;
+        const center = Math.floor(context.jed / 64) * 64;
+        const coverage = entry?.coverage ?? [];
+        const first = coverage[0]?.start, last = coverage.at(-1)?.end;
+        if (entry?.trajectory?.kind === 'legacy') return [id, { start: first, end: last }];
+        const span = Number.isFinite(first) && Number.isFinite(last) ? Math.min(half * 2, last - first) : half * 2;
+        const start = Number.isFinite(first) ? Math.max(first, Math.min(center - half, last - span)) : center - half;
+        return [id, { start, end: start + span }];
+      }));
+      for (const id of new Set([...Object.keys(this.data), ...this.requests.keys(), ...Object.keys(this.states)])) {
+        if (!windows[id] || JSON.stringify(windows[id]) !== JSON.stringify(this.windows?.[id])) {
+          this.requests.get(id)?.abort(); this.requests.delete(id);
+          const { [id]: removed, ...remaining } = this.data; this.data = remaining;
+          delete this.states[id];
+        }
+      }
+      this.windows = windows;
+    }
     if (this.closed) return Promise.resolve();
     for (const [id, request] of this.requests) if (!ids.includes(id)) {
       this.requests.delete(id);
@@ -64,7 +89,16 @@ export default class Acquisition {
           const source = await this.source();
           if (!valid()) return;
           let comet;
-          if (source.loadSegment) {
+          if (source.getObject) {
+            const entry = source.getObject(id);
+            const legacy = entry?.trajectory?.kind === 'legacy';
+            const window = legacy ? { start: entry.coverage[0].start, end: entry.coverage.at(-1).end } : this.windows[id];
+            const result = await source.loadWindow(id, { ...window, signal: request.signal });
+            // Legacy paths retain their established grid-rounded presentation.
+            // New segmented paths draw exactly the bounded window requested,
+            // independent of which support blocks happen to be resident.
+            comet = { series: { segments: result.segments, ...(!legacy && { displayWindow: window }) } };
+          } else if (source.loadSegment) {
             const entry = source.info.objects.find(object => object.id === id);
             // Reader validates the complete pair before exposing a selected object.
             const segments = [];

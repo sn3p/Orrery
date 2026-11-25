@@ -377,6 +377,9 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.evaluate(()=>{window.app=threeTest.app;app.jedDelta=0;});
       await page.getByRole('button',{name:'Options',exact:true}).click();
       await page.getByRole('checkbox',{name:'Show comets',exact:true}).check();
+      await page.waitForFunction(()=>Object.keys(app.cometData??{}).length===2);
+      assert.deepEqual(await page.evaluate(()=>app.cometIds),['67P','1P'],'Defaults use preserved identities, not catalogue order');
+      await page.evaluate(async()=>{app.cometIds=['67P','123P','1P'];await app.loadComets();});
       await page.waitForFunction(()=>Object.keys(app.cometData??{}).length===3);
       assert.deepEqual(await page.evaluate(()=>app.renderer.comets.entries.map(e=>e.comet.id)),['67P','123P','1P']);
       await page.getByRole('button',{name:'Choose…',exact:true}).click();

@@ -7,7 +7,7 @@ export default class Comets {
   constructor(stage, container, data, catalogue = COMETS) {
     this.data = data;
     this.group = new Container();
-    this.entries = catalogue.map(comet => {
+    this.entries = catalogue.filter(comet => !comet.assessment || comet.trajectory).map(comet => {
       const body = new Graphics().circle(0,0,3).fill(comet.color);
       const path = new Graphics();
       this.group.addChild(path, body);
@@ -18,7 +18,10 @@ export default class Comets {
   }
   setData(data) {
     for (const entry of this.entries) {
-      if (this.data[entry.comet.id] !== data[entry.comet.id]) entry.range = "";
+      if (this.data[entry.comet.id] !== data[entry.comet.id]) {
+        entry.range = "";
+        entry.path.clear();
+      }
     }
     this.data = data;
   }

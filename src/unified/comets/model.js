@@ -10,16 +10,16 @@ export const COMETS = Object.freeze([
 // This lookup never determines membership or computes positions.
 const ADDITIONAL_DISPLAY_PERIOD_DAYS = Object.freeze({ '9P': 2038, '10P': 1958, '67P': 2353 });
 const ADDITIONAL_COLORS = Object.freeze({ '9P': 0x8cdaa0, '10P': 0xef9fb2, '67P': 0xcbd079 });
-export const DEFAULT_COMET_SELECTION_LIMIT = 6;
+export const HOSTED_DEFAULT_COMET_IDS = Object.freeze(['1P', '2P', '55P', '9P', '10P', '67P']);
 export const DEFAULT_DISPLAY_WINDOW_DAYS = 10 * 365.25;
 export const DEFAULT_COMET_IDS = Object.freeze(COMETS.map(comet => comet.id));
 export function validCometIds(ids, catalogue) {
   return Array.isArray(ids) && new Set(ids).size === ids.length
-    && ids.every(id => catalogue ? catalogue.some(entry => entry.id === id) : /^[1-9][0-9]*P$/.test(id));
+    && ids.every(id => catalogue ? catalogue.some(entry => entry.id === id) : typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(id) && !['__proto__', 'constructor', 'prototype'].includes(id));
 }
-export const lastDate = series => series.segments ? series.segments.at(-1).coverage.end
+export const lastDate = series => series.segments ? series.segments.at(-1)?.coverage.end
   : series.start + (series.states.length - 1) * series.step;
-export const firstDate = series => series.segments ? series.segments[0].coverage.start : series.start;
+export const firstDate = series => series.segments ? series.segments[0]?.coverage.start : series.start;
 const owns = (coverage, jed) => jed >= coverage.start && (jed < coverage.end || (jed === coverage.end && coverage.end_inclusive));
 
 export const hasCoverage = (series, jed) => !!series && Number.isFinite(jed)
@@ -32,6 +32,10 @@ export const hasUsableComets = (data, ids, jed) => ids.some(id => hasCoverage(da
 export function positionAt(series, jed, target = {}) {
   if (!hasCoverage(series, jed)) return null;
   if (series.segments) return positionAt(series.segments.find(s => owns(s.coverage, jed)).series, jed, target);
+  if (jed === lastDate(series)) {
+    const row = series.states.at(-1);
+    return Object.assign(target, { x: row[0], y: row[1], z: row[2] });
+  }
   const offset = (jed - series.start) / series.step;
   const i = Math.min(Math.floor(offset), series.states.length - 2), t = offset - i;
   const a = series.states[i], b = series.states[i + 1], t2 = t * t, t3 = t2 * t;
@@ -94,7 +98,7 @@ export function cataloguePresentation(objects) {
     const original = COMETS.find(c => c.id === entry.id);
     const periodDays = original?.periodDays ?? ADDITIONAL_DISPLAY_PERIOD_DAYS[entry.id];
     return { ...entry,
-      color: original?.color ?? ADDITIONAL_COLORS[entry.id] ?? [0x75d5ee, 0xf0bc75, 0xc4a0ef, 0x8cdaa0, 0xef9fb2, 0xcbd079][parseInt(entry.id, 10) % 6],
+      color: original?.color ?? ADDITIONAL_COLORS[entry.id] ?? [0x75d5ee, 0xf0bc75, 0xc4a0ef, 0x8cdaa0, 0xef9fb2, 0xcbd079][[...entry.id].reduce((hash, c) => (hash * 31 + c.charCodeAt(0)) >>> 0, 0) % 6],
       periodDays: periodDays ?? DEFAULT_DISPLAY_WINDOW_DAYS,
       usesDefaultWindow: periodDays === undefined,
     };
@@ -104,7 +108,7 @@ export function cataloguePresentation(objects) {
 // All renderers and Fit consume exactly these strips, never a seam connector.
 const windowCache = new WeakMap();
 export function pathStrips(model, jed, periodDays) {
-  if (!model) return [];
+  if (!model || model.segments?.length === 0) return [];
   if (!model.segments) {
     const [first, last] = pathRange(model, jed, periodDays);
     const key = `${first}:${last}`;
@@ -118,7 +122,8 @@ export function pathStrips(model, jed, periodDays) {
   const step = (model.segments.find(s => owns(s.coverage, jed)) ?? model.segments[0]).series.step;
   const center = start + Math.round((jed - start) / step / 8) * step * 8;
   const span = Math.min(2 * Math.ceil(periodDays / step / 2) * step, end - start);
-  const first = Math.max(start, Math.min(center - span / 2, end - span)), last = first + span;
+  const first = model.displayWindow?.start ?? Math.max(start, Math.min(center - span / 2, end - span));
+  const last = model.displayWindow?.end ?? first + span;
   const key = `${first}:${last}`;
   if (windowCache.get(model)?.key === key) return windowCache.get(model).strips;
   const strips = model.segments.flatMap(segment => {
