@@ -143,6 +143,15 @@ export class CometSelectionPreference {
     return this.flush();
   }
   flush() {
+    // Retrying unique journal keys needs no compaction lock. Keep their original
+    // clocks so recovered edits cannot override newer intent from another tab.
+    this.pending = this.pending.filter(record => {
+      try {
+        if (!this.scope.localStorage) return true;
+        this.scope.localStorage.setItem(record.key, JSON.stringify(record.edit));
+        return false;
+      } catch { return true; }
+    });
     const write = () => {
       const records = this.records();
       const next = replay(this.scope, records);

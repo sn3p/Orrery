@@ -48,7 +48,7 @@ module.exports = async (browser, root) => {
     await a.evaluate(()=>{window.unlock=null;window.lockHeld=new Promise(resolve=>{
       navigator.locks.request('orrery.selectedComets',()=>new Promise(done=>{window.unlock=done;resolve();}));
     });return window.lockHeld;});
-    await Promise.all([a.evaluate(()=>{app.cometIds=['1P','2P'];}),b.evaluate(()=>{app.cometIds=['1P','55P'];})]);
+    await Promise.all([a.evaluate(()=>{app.cometIds=[...app.cometIds,'2P'];}),b.evaluate(()=>{app.cometIds=[...app.cometIds,'55P'];})]);
     // Reload a tab whose write is queued: the synchronous journal must survive.
     await boot(b);await enable(b);
     assert((await b.evaluate(()=>app.cometIds)).includes('55P'));

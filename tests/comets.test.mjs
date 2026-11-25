@@ -487,3 +487,20 @@ test('journal replay and conflict resolution use code-unit ordering', () => {
   const scope={localStorage:{get length(){return values.size;},key:i=>[...values.keys()][i],getItem:key=>values.get(key)}};
   assert.deepEqual(loadCometSelection(scope),['2P']);
 });
+
+for (const action of ['independent add', 'clear']) {
+  test(`storage recovery without coordination persists failed edits before ${action}`, async () => {
+    const values = new Map([[COMET_SELECTION_STORAGE_KEY,'[]']]); let blocked = true;
+    const scope = {localStorage:{get length(){return values.size;},key:i=>[...values.keys()][i],getItem:key=>values.get(key),
+      setItem:(key,value)=>{if(blocked)throw Error('blocked');values.set(key,value);}}};
+    const preference = new CometSelectionPreference(()=>{},scope);
+    await preference.edit({add:['1P'],remove:[]});
+    const originalKey = preference.pending[0].key;
+    blocked = false;
+    await preference.edit(action === 'clear' ? {replace:[]} : {add:['2P'],remove:[]});
+    assert.deepEqual(loadCometSelection(scope),action === 'clear' ? [] : ['1P','2P']);
+    assert(values.has(originalKey),'recovery retains the failed operation’s original ordering key');
+    assert.equal(preference.pending.length,0);
+    preference.destroy();
+  });
+}

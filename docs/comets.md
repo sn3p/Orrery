@@ -184,7 +184,9 @@ failed writes cannot override newer choices after another tab compacts its edits
 Existing plain-array preferences remain readable. Compaction uses a shared
 IndexedDB readwrite transaction, also when Web Locks are present, so tabs with
 different capabilities coordinate. If neither mechanism is available, the durable
-journal is retained until safe compaction is possible.
+journal is retained until safe compaction is possible. Failed journal writes are
+retried on the next save under their original ordering keys, without requiring
+either coordination mechanism.
 Clear and Undo deliberately replace the whole desired selection. Search waits
 briefly for typing to settle, indexes names once per catalogue revision, and
 reuses row elements.
