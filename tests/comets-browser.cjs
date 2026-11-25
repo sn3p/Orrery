@@ -15,6 +15,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
   if (process.env.ORRERY_PREBUILT_FIXTURES) require('./fixture-builds.cjs').copyPrepared('three',root);
   else await require('./three-build.cjs').build(root);
   await require('./comet-selection-races.cjs')(browser, root);
+  await require('./comet-storage-fallback.cjs')(browser, root);
   await require('./comet-history-browser.cjs')(browser, root);
   for (const renderer of ['three','pixi']) {
     await require('./options-feedback.cjs')(browser, root, renderer);

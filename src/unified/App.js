@@ -72,6 +72,7 @@ export default class App {
     this.cometCatalogue = [];
     this.cometSelection = new CometSelectionPreference(() => {
       this.cometSelectionNotice = '';
+      if (this.cometCatalogueSource) this.cometSelection.initialize(this.cometCatalogue.slice(0, DEFAULT_COMET_SELECTION_LIMIT).map(entry => entry.id));
       void this.acquireComets();
     });
     this.cometEditableIds = null;

@@ -374,14 +374,14 @@ test('curated colours are distinct and bundled names match hosted names',()=>{
   for(const bundled of COMETS)assert.equal(bundled.name,catalogue.find(e=>e.id===bundled.id).name);
 });
 
-import { loadCometSelection, saveCometSelection, COMET_SELECTION_STORAGE_KEY } from '../src/unified/CometSelectionPreference.js';
+import { loadCometSelection, COMET_SELECTION_STORAGE_KEY } from '../src/unified/CometSelectionPreference.js';
 import { searchComets } from '../src/unified/comets/search.js';
 test('comet preference distinguishes first visit, empty selection and malformed storage', () => {
   const values = new Map();
   const scope = { localStorage: {getItem: key => values.get(key), setItem: (key, value) => values.set(key, value)} };
   assert.equal(loadCometSelection(scope), null);
   for (const ids of [[], ['67P'], ['1P', '2P']]) {
-    saveCometSelection(ids, scope);
+    scope.localStorage.setItem(COMET_SELECTION_STORAGE_KEY, JSON.stringify(ids));
     assert.deepEqual(loadCometSelection(scope), ids);
   }
   for (const value of ['bad', '{}', '[null]', '[1]']) {
@@ -473,3 +473,17 @@ for (const action of ['clear', 'deselect', 'independent add']) {
     a.destroy();b.destroy();
   });
 }
+
+test('an empty selection delta does not write, acquire a lock, or notify App', async () => {
+  let writes=0, locks=0, notifications=0;
+  const scope={localStorage:{getItem:()=>null,setItem:()=>writes++},navigator:{locks:{request:()=>locks++}}};
+  const p=new CometSelectionPreference(()=>notifications++,scope);p.initialize(['1P']);
+  await p.edit({add:[],remove:[]});
+  assert.deepEqual([writes,locks,notifications],[0,0,0]);p.destroy();
+});
+test('journal replay and conflict resolution use code-unit ordering', () => {
+  const prefix='orrery.selectedComets.edit.1795600000000000-';
+  const values=new Map([[prefix+'y123',JSON.stringify({replace:['2P']})],[prefix+'j123',JSON.stringify({replace:['1P']})]]);
+  const scope={localStorage:{get length(){return values.size;},key:i=>[...values.keys()][i],getItem:key=>values.get(key)}};
+  assert.deepEqual(loadCometSelection(scope),['2P']);
+});

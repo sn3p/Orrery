@@ -55,17 +55,33 @@ function readEdits(scope) {
       } catch { /* Ignore malformed browser preferences. */ }
     }
   } catch { /* Storage may be unavailable. */ }
-  return edits.sort((a,b) => a.key.localeCompare(b.key));
+  return edits.sort((a,b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
 }
 export function loadCometSelection(scope = globalThis) {
   return replay(scope, readEdits(scope))?.ids ?? null;
 }
-export function saveCometSelection(ids, scope = globalThis) {
-  try {
-    if (!scope.localStorage) return false;
-    scope.localStorage.setItem(COMET_SELECTION_STORAGE_KEY, JSON.stringify(ids));
-    return true;
-  } catch { return false; }
+// All capable tabs use the same transaction domain, including tabs that also
+// hold a Web Lock. The callback is synchronous while the readwrite lock is held.
+function withStorageTransaction(scope, write) {
+  if (!scope.indexedDB) return scope.navigator?.locks ? write() : undefined;
+  return new Promise((resolve, reject) => {
+    const request = scope.indexedDB.open(COMET_SELECTION_STORAGE_KEY, 1);
+    let unavailable = false;
+    request.onupgradeneeded = () => request.result.createObjectStore('mutex');
+    request.onerror = () => reject(request.error);
+    request.onblocked = () => { unavailable = true; reject(new Error('Preference database blocked')); };
+    request.onsuccess = () => {
+      const db = request.result;
+      if (unavailable) { db.close(); return; }
+      const transaction = db.transaction('mutex', 'readwrite');
+      let failure;
+      transaction.oncomplete = () => { db.close(); resolve(); };
+      transaction.onabort = () => { db.close(); reject(failure ?? transaction.error); };
+      transaction.objectStore('mutex').get('selection').onsuccess = () => {
+        try { write(); } catch (error) { failure = error; transaction.abort(); }
+      };
+    };
+  });
 }
 
 // Desired IDs are canonical; App derives active IDs from catalogue membership.
@@ -94,7 +110,7 @@ export class CometSelectionPreference {
   records() {
     // Failed writes retain their original ordering key, rather than becoming
     // an unconditional tail applied after every newer durable edit.
-    return [...readEdits(this.scope), ...this.pending].sort((a,b) => a.key.localeCompare(b.key));
+    return [...readEdits(this.scope), ...this.pending].sort((a,b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
   }
   refresh() {
     if (!this.closed) this.publish(replay(this.scope, this.records())?.ids ?? null);
@@ -102,6 +118,13 @@ export class CometSelectionPreference {
   edit(edit) {
     const records = this.records();
     const snapshot = readSnapshot(this.scope);
+    const current = records.reduce(applyRecord, snapshot)?.ids ?? this.ids;
+    // Empty deltas are redundant; explicit Clear/Undo or per-ID actions still
+    // establish ordering against unseen edits in another tab.
+    if (edit.replace === undefined && !edit.add.length && !edit.remove.length) {
+      this.publish(current);
+      return this.saved;
+    }
     const stamps = [...records.map(record => record.key), ...Object.values(snapshot?.clocks ?? {}), snapshot?.replacement].filter(Boolean);
     const timer = this.scope.performance ?? globalThis.performance;
     const now = timer ? Math.floor((timer.timeOrigin + timer.now()) * 1000) : Date.now() * 1000;
@@ -134,9 +157,9 @@ export class CometSelectionPreference {
       }
       this.refresh();
     };
-    // Without Web Locks keep durable operations rather than racing compaction.
+    const compact = () => withStorageTransaction(this.scope, write);
     this.saved = this.saved.then(() => this.scope.navigator?.locks
-      ? this.scope.navigator.locks.request(COMET_SELECTION_STORAGE_KEY, write) : undefined)
+      ? this.scope.navigator.locks.request(COMET_SELECTION_STORAGE_KEY, compact) : compact())
       .catch(() => { /* The journal survives; a later edit or reload retries. */ });
     return this.saved;
   }
