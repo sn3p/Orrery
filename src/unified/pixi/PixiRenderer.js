@@ -2,7 +2,7 @@ import { syncCometLayer } from '../comets/layer.js';
 import Comets from "./Comets.js";
 import { cometFitPoints, validateCometOptions } from "../comets/model.js";
 import { PIXELS_PER_AU } from "../../js/constants.js";
-import { Application, ParticleContainer, ParticleShader, Graphics, Texture } from "pixi.js";
+import { Application, ParticleContainer, ParticleShader, FillGradient, Graphics, Texture } from "pixi.js";
 import Controls from "./Controls.js";
 import Planet from "./Planet.js";
 import Asteroids from "./Asteroids.js";
@@ -10,6 +10,7 @@ import { DEFAULT_PLANET_LABEL_MODE, isPlanetLabelMode, PlanetLabels } from "../P
 import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "../PlanetOrbitPreference.js";
 import { DEFAULT_POPULATION_PRESET, isPopulationPreset } from "../catalog/population.js";
 import { VIEW_FIT_MS, easeOutCubic, lerp, pixiPresetTargetScale } from "../viewFit.js";
+import { SUN_GLOW_EXTENT, sunGlowStops } from "../sunGlow.js";
 
 function disposePlanets(batch) {
   for (const { orbit } of batch) orbit?.destroy();
@@ -183,9 +184,12 @@ export default class PixiRenderer {
 
   get texturePixelRatio() { return Math.max(1, Math.ceil(this.app.renderer.resolution)); }
 
-  addSun() {
-    const sun = new Graphics();
-    sun.circle(0, 0, 5).fill({ color: 0xfff2ac });
+  addSun(radius = 5) {
+    // One stage child: asteroid clouds are inserted by index after it.
+    this.sunGlow = new FillGradient({ type: "radial", colorStops: sunGlowStops() });
+    const sun = new Graphics()
+      .circle(0, 0, radius * SUN_GLOW_EXTENT).fill(this.sunGlow)
+      .circle(0, 0, radius).fill({ color: 0xfff2ac });
     this.stage.addChild(sun);
   }
 
@@ -512,6 +516,8 @@ export default class PixiRenderer {
     // ParticleContainer destroys its shader; release every binding before the
     // shared texture source (also used by the asteroid shaders) is destroyed.
     this.circleTexture?.destroy(true);
+    this.sunGlow?.destroy();
+    this.sunGlow = null;
     this.initialized = false;
   }
 }

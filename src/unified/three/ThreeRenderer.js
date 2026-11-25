@@ -455,6 +455,7 @@ export default class ThreeRenderer {
   releaseSceneResources() {
     this.scene?.traverse(object => {
       object.geometry?.dispose();
+      object.material?.map?.dispose();
       object.material?.dispose();
     });
     for (const cloud of new Set([this.asteroids, this.stagedAsteroids, this.catalogueTransition?.previous])) {
