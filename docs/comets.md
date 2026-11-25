@@ -179,7 +179,10 @@ catalogue membership. Missing-entry notices describe a new condition once and
 clear after interaction, while missing saved IDs remain remembered. Cross-tab
 edits use per-ID operations and Web Locks rather than replacing stale snapshots.
 A synchronous pending-edit journal preserves edits across reloads while a lock
-is busy; browsers without Web Locks replay that journal without compaction.
+is busy. Compacted snapshots retain per-ID and replacement ordering, so older
+failed writes cannot override newer choices after another tab compacts its edits.
+Existing plain-array preferences remain readable. Browsers without Web Locks
+replay the journal without compaction.
 Clear and Undo deliberately replace the whole desired selection. Search waits
 briefly for typing to settle, indexes names once per catalogue revision, and
 reuses row elements.

@@ -60,7 +60,7 @@ module.exports = async (browser, root, renderer) => {
     await expect(dialog.getByRole('searchbox')).toHaveValue('');
     await dialog.getByRole('button',{name:'Clear selection',exact:true}).click();
     await page.evaluate(()=>app.cometSelection.saved);
-    assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('orrery.selectedComets'))),[]);
+    assert.deepEqual(await page.evaluate(()=>((value)=>value.ids ?? value)(JSON.parse(localStorage.getItem('orrery.selectedComets')))),[]);
     await dialog.getByRole('button',{name:'Undo',exact:true}).click();
     assert((await page.evaluate(()=>app.cometIds)).includes('179P'));
     await dialog.getByRole('button',{name:'Done',exact:true}).click();
@@ -70,9 +70,9 @@ module.exports = async (browser, root, renderer) => {
     assert((await page.evaluate(()=>app.cometIds)).includes('179P'));
     product = require('./comet-catalogue-fixture.cjs').product(['1P']);
     await page.evaluate(()=>app.replaceCometSource('hosted'));
-    assert((await page.evaluate(()=>JSON.parse(localStorage.getItem('orrery.selectedComets')))).includes('179P'));
+    assert((await page.evaluate(()=>((value)=>value.ids ?? value)(JSON.parse(localStorage.getItem('orrery.selectedComets'))))).includes('179P'));
     await page.evaluate(()=>{app.cometIds=[];});
-    assert((await page.evaluate(()=>JSON.parse(localStorage.getItem('orrery.selectedComets')))).includes('179P'));
+    assert((await page.evaluate(()=>((value)=>value.ids ?? value)(JSON.parse(localStorage.getItem('orrery.selectedComets'))))).includes('179P'));
     product = require('./comet-catalogue-fixture.cjs').product(ids, {compact:true});
     await page.evaluate(()=>app.replaceCometSource('hosted'));
     assert((await page.evaluate(()=>app.cometIds)).includes('179P'));

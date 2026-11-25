@@ -432,3 +432,44 @@ test('tabs without Web Locks retain independent durable edits across reload', as
   assert.deepEqual(loadCometSelection(scope),[]);
   a.destroy();b.destroy();reloaded.destroy();
 });
+
+for (const action of ['clear', 'deselect']) for (const phase of ['refresh', 'flush']) {
+  test(`storage recovery preserves newer ${action} during ${phase}`, async () => {
+    const values = new Map(); let blocked = true;
+    const scope = {localStorage:{get length(){return values.size;},key:i=>[...values.keys()][i],getItem:key=>values.get(key),
+      setItem:(key,value)=>{if(blocked)throw Error('storage blocked');values.set(key,value);},removeItem:key=>values.delete(key)},navigator:{}};
+    const preference = new CometSelectionPreference(()=>{},scope);
+    preference.initialize([]);
+    await preference.edit({add:['1P'],remove:[]});
+    blocked=false;
+    await preference.edit(action === 'clear' ? {replace:[]} : {add:[],remove:['1P']});
+    if (phase === 'refresh') preference.refresh();
+    else {
+      scope.navigator.locks={request:async(key,write)=>write()};
+      await preference.flush();
+      assert.deepEqual(loadCometSelection(scope),[]);
+    }
+    assert.deepEqual(preference.ids,[]);
+    preference.destroy();
+  });
+}
+
+for (const action of ['clear', 'deselect', 'independent add']) {
+  test(`compacted remote ${action} retains ordering against an older failed local add`, async () => {
+    const values = new Map([[COMET_SELECTION_STORAGE_KEY,'[]']]); let blocked = true;
+    const scope = fail => ({localStorage:{get length(){return values.size;},key:i=>[...values.keys()][i],getItem:key=>values.get(key),
+      setItem:(key,value)=>{if(fail && blocked)throw Error('blocked');values.set(key,value);},removeItem:key=>values.delete(key)},
+      navigator:{locks:{request:async(key,write)=>write()}}});
+    const a = new CometSelectionPreference(()=>{},scope(true));
+    const b = new CometSelectionPreference(()=>{},scope(false));
+    await a.edit({add:['1P'],remove:[]});
+    await b.edit(action==='clear' ? {replace:[]} : action==='deselect' ? {add:[],remove:['1P']} : {add:['2P'],remove:[]});
+    blocked=false;
+    a.refresh();
+    const expected = action==='independent add' ? ['1P','2P'] : [];
+    assert.deepEqual(a.ids.slice().sort(),expected);
+    await a.flush();
+    assert.deepEqual(loadCometSelection(scope(false)).slice().sort(),expected);
+    a.destroy();b.destroy();
+  });
+}

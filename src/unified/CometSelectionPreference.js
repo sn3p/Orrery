@@ -5,12 +5,43 @@ const applyEdit = (ids, edit) => edit.replace !== undefined ? [...edit.replace]
   : [...new Set([...(ids ?? edit.base ?? []).filter(id => !edit.remove.includes(id)), ...edit.add])];
 const validEdit = edit => edit && (edit.base === undefined || validCometIds(edit.base)) && (edit.replace !== undefined ? validCometIds(edit.replace)
   : validCometIds(edit.add) && validCometIds(edit.remove));
-function readBase(scope) {
+const emptySnapshot = ids => ({version: 1, ids, clocks: {}, replacement: ''});
+const validClock = value => typeof value === 'string' && (value === '' || value.startsWith(EDIT_PREFIX));
+function readSnapshot(scope) {
   try {
     const value = JSON.parse(scope.localStorage?.getItem(COMET_SELECTION_STORAGE_KEY) ?? 'null');
-    return Array.isArray(value) && validCometIds([...new Set(value)]) ? [...new Set(value)] : null;
-  } catch { return null; }
+    // Existing browsers saved a plain ID array; retain that migration path.
+    if (Array.isArray(value) && validCometIds([...new Set(value)])) return emptySnapshot([...new Set(value)]);
+    if (value?.version === 1 && validCometIds(value.ids) && value.clocks && typeof value.clocks === 'object'
+      && validCometIds(Object.keys(value.clocks)) && Object.values(value.clocks).every(validClock)
+      && validClock(value.replacement)) return value;
+  } catch { /* Storage may be unavailable or malformed. */ }
+  return null;
 }
+function applyRecord(snapshot, {key, edit}) {
+  const current = snapshot ?? emptySnapshot(edit.base ?? []);
+  const ids = new Set(current.ids), clocks = {...current.clocks};
+  let replacement = current.replacement;
+  if (edit.replace !== undefined) {
+    if (key <= replacement) return current;
+    const selected = new Set(edit.replace);
+    for (const id of new Set([...ids, ...selected])) {
+      if ((clocks[id] ?? '') <= key) {
+        if (selected.has(id)) ids.add(id); else ids.delete(id);
+      }
+    }
+    replacement = key;
+    for (const id of Object.keys(clocks)) if (clocks[id] <= key) delete clocks[id];
+  } else {
+    for (const [selected, entries] of [[false, edit.remove], [true, edit.add]]) for (const id of entries) {
+      if (key <= replacement || key <= (clocks[id] ?? '')) continue;
+      if (selected) ids.add(id); else ids.delete(id);
+      clocks[id] = key;
+    }
+  }
+  return {version: 1, ids: [...ids], clocks, replacement};
+}
+const replay = (scope, records) => records.reduce(applyRecord, readSnapshot(scope));
 function readEdits(scope) {
   const edits = [];
   try {
@@ -27,7 +58,7 @@ function readEdits(scope) {
   return edits.sort((a,b) => a.key.localeCompare(b.key));
 }
 export function loadCometSelection(scope = globalThis) {
-  return readEdits(scope).reduce((ids, record) => applyEdit(ids, record.edit), readBase(scope));
+  return replay(scope, readEdits(scope))?.ids ?? null;
 }
 export function saveCometSelection(ids, scope = globalThis) {
   try {
@@ -39,7 +70,8 @@ export function saveCometSelection(ids, scope = globalThis) {
 
 // Desired IDs are canonical; App derives active IDs from catalogue membership.
 // Each edit is durable before returning to the UI. Locks compact the journal
-// into the legacy array without losing other tabs' edits or reloads mid-save.
+// into a versioned snapshot. Per-ID clocks preserve ordering even when another
+// tab compacts newer operations before an older failed write recovers.
 export class CometSelectionPreference {
   constructor(onChange, scope = globalThis) {
     this.scope = scope;
@@ -59,12 +91,22 @@ export class CometSelectionPreference {
     this.ids = ids;
     if (!this.closed) this.onChange();
   }
+  records() {
+    // Failed writes retain their original ordering key, rather than becoming
+    // an unconditional tail applied after every newer durable edit.
+    return [...readEdits(this.scope), ...this.pending].sort((a,b) => a.key.localeCompare(b.key));
+  }
   refresh() {
-    if (!this.closed) this.publish(this.pending.reduce(applyEdit, loadCometSelection(this.scope)));
+    if (!this.closed) this.publish(replay(this.scope, this.records())?.ids ?? null);
   }
   edit(edit) {
-    const records = readEdits(this.scope);
-    const clock = Math.max(Date.now() * 1000, ...records.map(record => Number(record.key.slice(EDIT_PREFIX.length).split('-')[0]) + 1));
+    const records = this.records();
+    const snapshot = readSnapshot(this.scope);
+    const stamps = [...records.map(record => record.key), ...Object.values(snapshot?.clocks ?? {}), snapshot?.replacement].filter(Boolean);
+    const timer = this.scope.performance ?? globalThis.performance;
+    const now = timer ? Math.floor((timer.timeOrigin + timer.now()) * 1000) : Date.now() * 1000;
+    const clock = this.lastClock = Math.max(now, (this.lastClock ?? 0) + 1,
+      ...stamps.map(key => Number(key.slice(EDIT_PREFIX.length).split('-')[0]) + 1));
     const key = `${EDIT_PREFIX}${clock}-${this.scope.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
     // A baseline travels with the operation; never overwrite another tab's
     // snapshot while initializing first-visit defaults.
@@ -72,19 +114,23 @@ export class CometSelectionPreference {
     try {
       if (!this.scope.localStorage) throw new Error('Storage unavailable');
       this.scope.localStorage.setItem(key, JSON.stringify(edit));
-    } catch { this.pending.push(edit); }
+    } catch { this.pending.push({key, edit}); }
     this.ids = applyEdit(this.ids, edit);
     this.onChange();
     return this.flush();
   }
   flush() {
     const write = () => {
-      const records = readEdits(this.scope);
-      const next = this.pending.reduce(applyEdit, records.reduce((ids, record) => applyEdit(ids, record.edit), readBase(this.scope)) ?? this.ids);
-      if (next !== null && saveCometSelection(next, this.scope)) {
+      const records = this.records();
+      const next = replay(this.scope, records);
+      if (next !== null) {
+        // One atomic value carries both membership and operation ordering.
+        this.scope.localStorage.setItem(COMET_SELECTION_STORAGE_KEY, JSON.stringify(next));
         // Delete oldest first: any remaining suffix is safe to replay on next.
-        for (const record of records) this.scope.localStorage.removeItem(record.key);
-        this.pending = [];
+        for (const record of records) {
+          this.scope.localStorage.removeItem(record.key);
+          this.pending = this.pending.filter(pending => pending.key !== record.key);
+        }
       }
       this.refresh();
     };
