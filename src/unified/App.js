@@ -349,7 +349,7 @@ export default class App {
     if (this.destroyed || this.cometAcquisition.closed) return;
     const revision = ++this.cometSelectionRevision;
     const acquisition = this.cometAcquisition;
-    if (!this.cometsShown) return acquisition.suspend();
+    if (!this.cometsShown) return acquisition.suspend(this.cometIds);
     const generation = acquisition.generation;
     if (!acquisition.current) {
       this.cometDiscoveryState = 'loading';

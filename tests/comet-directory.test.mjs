@@ -96,3 +96,40 @@ test('comet queue cancellation retains comet diagnostics',async()=>{
   const pending=queue.run(controller.signal,()=>{});controller.abort();
   await assert.rejects(pending,error=>error.name==='AbortError'&&/comet/i.test(error.message));
 });
+
+test('hidden deselection releases models and windows while retaining selected data',async()=>{
+  const row={...entry,periodDays:10,coverage:[{start:0,end:10000,end_inclusive:true}]};
+  const source={getObject:()=>row,close(){},loadWindow:async()=>({segments:[]})};
+  const a=new Acquisition(()=>{},async()=>source);
+  await a.select(['c1','c2'],false,{jed:100,catalogue:[{...row,id:'c1'},{...row,id:'c2'}]});
+  const retained=a.data.c2;
+  const pending=a.select(['c1','c2','c3'],false,{jed:100,catalogue:['c1','c2','c3'].map(id=>({...row,id}))});
+  a.suspend(['c2']);await pending;
+  assert.equal(a.windows.c3,undefined);assert.equal(a.data.c3,undefined);
+  assert.equal(a.data.c1,undefined);assert.equal(a.windows.c1,undefined);assert.equal(a.loadedWindows.c1,undefined);
+  assert.equal(a.states.c1,undefined);assert.equal(a.data.c2,retained);a.close();
+});
+test('retry on the earlier verified window clears a replacement error without another download',async()=>{
+  const row={...entry,periodDays:10,coverage:[{start:0,end:10000,end_inclusive:true}]};
+  let fail=false,calls=0;
+  const source={getObject:()=>row,close(){},loadWindow:async()=>{calls++;if(fail)throw Error('failed B');return {segments:[]};}};
+  const a=new Acquisition(()=>{},async()=>source),context=jed=>({jed,catalogue:[row]});
+  await a.select([row.id],false,context(100));const verified=a.data[row.id];
+  fail=true;await a.select([row.id],false,context(300));assert.equal(a.states[row.id],'error');
+  await a.select([row.id],false,context(100));assert.equal(a.states[row.id],'error');
+  await a.select([row.id],true,context(100));assert.equal(a.states[row.id],'ready');
+  assert.equal(a.data[row.id],verified);assert.equal(calls,2);a.close();
+});
+test('drawing and Fit honor zero and negative exclusive coverage endpoints',async()=>{
+  const {cometFitPoints}=await import('../src/unified/comets/model.js');
+  for(const end of [0,-4]) {
+    const start=end-8;
+    const series={start,step:2,states:Array.from({length:5},(_,i)=>[start+i*2,0,0,1,0,0])};
+    const model={segments:[{key:'segment',coverage:{start,end,end_inclusive:false},series}],displayWindow:{start,end}};
+    const strips=pathStrips(model,start+2,10);
+    assert(strips[0].points.length>1);assert(strips[0].points.at(-1)[0]<end);
+    assert(strips[0].points.flat().every(Number.isFinite));
+    const fit=cometFitPoints({c1:model},['c1'],start+2,[{id:'c1',periodDays:10}]);
+    assert.equal(fit.length,strips[0].points.length+1);assert(fit.flat().every(Number.isFinite));
+  }
+});

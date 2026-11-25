@@ -151,8 +151,9 @@ export function pathStrips(model, jed, periodDays) {
 }
 
 function previousJulianDay(value) {
+  if (value === 0) return -Number.MIN_VALUE;
   const view = new DataView(new ArrayBuffer(8));
   view.setFloat64(0, value);
-  view.setBigUint64(0, view.getBigUint64(0) - 1n);
+  view.setBigUint64(0, view.getBigUint64(0) + (value > 0 ? -1n : 1n));
   return view.getFloat64(0);
 }

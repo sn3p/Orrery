@@ -93,7 +93,11 @@ export default class Acquisition {
     }
     const work = ids.map(id => {
       if (this.requests.has(id)) return this.requests.get(id).completion;
-      if ((this.states[id] === 'error' && !retry) || (this.data[id] && (!windowed || sameWindow(this.loadedWindows?.[id], this.windows[id])))) return;
+      if (this.states[id] === 'error' && !retry) return;
+      if (this.data[id] && (!windowed || sameWindow(this.loadedWindows?.[id], this.windows[id]))) {
+        this.states[id] = 'ready';
+        return;
+      }
       const request = new AbortController(), generation = this.generation;
       this.requests.set(id, request);
       this.states[id] = 'loading';
@@ -150,13 +154,17 @@ export default class Acquisition {
     this.changed();
     return Promise.all(work);
   }
-  suspend() {
+  suspend(ids = Object.keys(this.data)) {
     this.selection = null;
     for (const [id, request] of this.requests) {
       request.abort();
       if (this.data[id]) this.states[id] = 'ready'; else delete this.states[id];
     }
     this.requests.clear();
+    for (const id of new Set([...Object.keys(this.data), ...Object.keys(this.windows ?? {}), ...Object.keys(this.loadedWindows ?? {})])) if (!ids.includes(id)) {
+      const { [id]: removed, ...remaining } = this.data; this.data = remaining;
+      delete this.windows?.[id]; delete this.loadedWindows?.[id]; delete this.states[id];
+    }
     for (const id of Object.keys(this.states)) if (this.states[id] === 'error') delete this.states[id];
     this.changed();
   }

@@ -30,6 +30,16 @@ module.exports = async function(browser, root, directory) {
         const before=app.cometData;app.cometsShown=false;app.cometsShown=true;await app.loadComets();
         if(app.cometData!==before)throw Error('Hide/show discarded verified models');
       });
+      if(expanded) await page.evaluate(async()=>{
+        const before=app.cometData['2P'];
+        app.cometsShown=false;app.restoreCometSelection(['2P']);await app.acquireComets();
+        if(Object.keys(app.cometData).join(',')!=='2P'||app.cometData['2P']!==before)throw Error('Hidden selection retained deselected models');
+        for(const entry of app.renderer.comets.entries.filter(e=>e.comet.id!=='2P')) {
+          if(app.rendererId==='three' && entry.path.geometry.getAttribute('position'))throw Error('Deselected path buffer retained');
+          if(app.rendererId==='pixi' && entry.path.context.instructions.length)throw Error('Deselected path commands retained');
+        }
+        app.cometsShown=true;await app.loadComets();
+      });
       const available=index.objects.filter(e=>expanded?e.trajectory:true);
       for(const entry of available) {
         const coverage=expanded?entry.coverage:entry.segments.map(s=>s.coverage);
