@@ -821,3 +821,23 @@ dialog .orrery-dialog-title:focus { outline: none; }
 #orrery-comet-history ul { padding-left: 20px; }
 #orrery-comet-history li { margin-bottom: 10px; }
 #orrery-comet-history a { color: var(--color-accent); }
+
+.orrery-comet-summary .orrery-glossary-close { margin-left: auto; }
+.orrery-comet-chooser { top: 12px; bottom: auto; margin: 0 auto; width: 400px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); box-sizing: border-box; }
+.orrery-comet-chooser input[type="search"] { box-sizing: border-box; width: 100%; min-width: 0; padding: 6px; border: 1px solid #555; background: #191919; color: inherit; font: inherit; }
+.orrery-comet-selection-summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 14px; }
+.orrery-comet-selection-summary .orrery-glossary-trigger { width: auto; margin: 0; }
+.orrery-comet-list-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; padding: 8px 4px; color: #888; }
+.orrery-comet-list-heading button { width: auto; margin: 0 0 0 auto; }
+.orrery-comet-choice-list label { align-items: start; padding-block: 7px; }
+.orrery-comet-detail { flex: 1; }
+.orrery-comet-choice-list small { display: block; max-width: none; margin: 3px 0 0; }
+.orrery-comet-choice-list small:empty { display: none; }
+.orrery-comet-swatch { flex: none; width: 7px; height: 7px; margin-top: 5px; }
+.orrery-comet-swatch[hidden] { display: none; }
+.orrery-comet-choice-list .is-error { color: #ef9f9f; }
+.orrery-comet-browse { border-top: 1px solid #333; padding-top: 12px; margin-top: 10px; }
+.orrery-comet-chooser footer [role="status"] { flex-basis: 100%; margin: 0; }
+.orrery-comet-choice-list .is-loading::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 5px; border: 1px solid #555; border-top-color: currentColor; border-radius: 50%; animation: comet-spin 1s linear infinite; }
+@keyframes comet-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .orrery-comet-choice-list .is-loading::before { animation: none; } }

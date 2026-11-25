@@ -89,8 +89,9 @@ For schema 2 this bounds automatic loading to six assets (at most 12 MiB decoded
 The approved schema-3 catalogue loads eight assets for those six objects, including
 two historical segments (at most 16 MiB decoded by the reader contract). Every
 other entry stays available for explicit selection. Subsequent source replacements
-preserve selected IDs that remain available; removed selections are explained in
-Options, and new entries remain available for explicit selection. Asteroid-only startup makes no comet requests.
+preserve saved IDs, including entries temporarily absent from the active catalogue.
+Only available entries load; a brief Options notice explains missing entries, which
+return when available again. New entries remain available for explicit selection. Asteroid-only startup makes no comet requests.
 
 Ready selections render and can be fitted while others load or fail. Retry loads
 missing selected objects under the same pin; deselection cancels outstanding reads.
@@ -162,3 +163,35 @@ Synthetic contract fixtures run in CI; exact retained files can be checked witho
 servers using `COMET_HISTORY_CANDIDATE=/path/to/candidate node --test tests/comet-history.test.mjs`.
 Local source storage is not a deployment. Hosted switching, retention/pruning and
 old-client rollout require separate review.
+
+The chooser opens with selected entries in catalogue order. Search matches names
+and designations without case, punctuation or accent distinctions; Browse and
+search page in batches of 30. The list scrolls within a viewport-bounded dialog.
+Selection is remembered in this browser, including explicit empty selections.
+Clear selection also clears missing saved IDs and offers Undo until another
+selection edit or closing the dialog. Visibility and renderer changes preserve
+selection. Share URLs carry no comet selection override. Normal rows have no
+availability label; exceptional date coverage comes from catalogue metadata,
+even before loading. Loaded selections show their scene colour.
+
+Selection edits use one desired-ID state; active IDs are derived from verified
+catalogue membership. Missing-entry notices describe a new condition once and
+clear after interaction, while missing saved IDs remain remembered. Cross-tab
+edits use per-ID operations and Web Locks rather than replacing stale snapshots.
+A synchronous pending-edit journal preserves edits across reloads while a lock
+is busy. Compacted snapshots retain per-ID and replacement ordering, so older
+failed writes cannot override newer choices after another tab compacts its edits.
+Existing plain-array preferences remain readable. Compaction uses a shared
+IndexedDB readwrite transaction, also when Web Locks are present, so tabs with
+different capabilities coordinate. If neither mechanism is available, the durable
+journal is retained until safe compaction is possible. Failed journal writes are
+retried on the next save under their original ordering keys, without requiring
+either coordination mechanism.
+Clear and Undo deliberately replace the whole desired selection. Search waits
+briefly for typing to settle, indexes names once per catalogue revision, and
+reuses row elements.
+
+Removing browser storage restores the first-visit defaults in open tabs; an
+explicit saved empty selection stays empty. External selection changes invalidate
+Clear’s Undo and add newly active entries to an open Selected list, while
+previously displayed unchecked rows stay in place.
