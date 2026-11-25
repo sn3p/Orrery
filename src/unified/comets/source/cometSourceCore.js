@@ -94,6 +94,37 @@ export function validateCometIndex(index) {
   });
   return index;
 }
+
+// Shared cancellable download queue for segmented readers.
+export class CometDownloadQueue {
+  constructor(limit=2) { this.limit=limit; this.active=0; this.waiting=[]; }
+  async run(signal,work) {
+    await new Promise((resolve,reject)=>{
+      const item={start:()=>{signal.removeEventListener('abort',cancel);this.active++;resolve();}};
+      const cancel=()=>{const i=this.waiting.indexOf(item);if(i>=0)this.waiting.splice(i,1);signal.removeEventListener('abort',cancel);reject(aborted());};
+      if(signal.aborted){cancel();return;}
+      signal.addEventListener('abort',cancel,{once:true});this.waiting.push(item);this.drain();
+    });
+    try { check(signal); return await work(); }
+    finally { this.active--;this.drain(); }
+  }
+  drain() { while(this.active<this.limit && this.waiting.length)this.waiting.shift().start(); }
+}
+export function previousJulianDay(value) {
+  if(value===0)return -Number.MIN_VALUE;
+  const view=new DataView(new ArrayBuffer(8));view.setFloat64(0,value);
+  view.setBigUint64(0,view.getBigUint64(0)+(value>0?-1n:1n));return view.getFloat64(0);
+}
+export function cometPathStrip(segment,start,end,interpolate=interpolateComet) {
+  const {key,coverage,series}=segment;
+  const first=Math.max(start,coverage.start),last=Math.min(end,coverage.end_inclusive?coverage.end:previousJulianDay(coverage.end));
+  if(first>last)return null;
+  const times=[first];
+  for(let i=Math.floor((first-series.start)/series.step)+1;series.start+i*series.step<last;i++)times.push(series.start+i*series.step);
+  if(last>first)times.push(last);
+  return {key,points:times.map(t=>[t,...interpolate(series,t)])};
+}
+
 // A source pins one index. A new visit/retry creates a new source; close aborts
 // outstanding reads. Selection and renderer generation remain the app's concern.
 export class CometSource {
@@ -122,7 +153,7 @@ export class CometSource {
   }
   async load(id, { signal } = {}) {
     check(signal); check(this.lifetime.signal);
-    const entry = this.entries.find(v => v.id === id);
+    const entry = this.entryFor(id);
     requireValue(entry, 'selection');
     if (this.cache.has(id)) return this.cache.get(id);
     let pending = this.pending.get(id);
@@ -168,6 +199,7 @@ export class CometSource {
       if (signals.some(signal => signal.aborted)) cancel();
     });
   }
+  entryFor(id) { return this.entries.find(v => v.id === id); }
   fetchEntry(entry, signal) {
     return fetchVerified(entry.data, new URL(entry.data.url, this.url).href, signal, 'comet');
   }

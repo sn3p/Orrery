@@ -1,15 +1,16 @@
 # Orrery comet readers
 
-Vendored from [OrreryData a2076e1c78ffa5ae2bd8c879b77452f31af0829a](https://github.com/sn3p/orrery-data/tree/a2076e1c78ffa5ae2bd8c879b77452f31af0829a/consumer):
-`CometHistorySource.js`, `cometHistoryContract.js`, `CometCatalogSource.js`,
-`cometSourceCore.js`, `contract.js`, `transport.js`. Keep the [MIT license](LICENSE).
+Vendored from [OrreryData 53a6ce491c5b5a119236fc629e54449bf15920a5](https://github.com/sn3p/orrery-data/tree/53a6ce491c5b5a119236fc629e54449bf15920a5/consumer):
+`CometDirectorySource.js`, `cometDirectoryContract.js`, `CometHistorySource.js`,
+`cometHistoryContract.js`, `CometCatalogSource.js`, `cometSourceCore.js`,
+`contract.js`, `transport.js`. Keep the [MIT license](LICENSE).
 Copyright (c) 2016 Matthijs Kuiper.
 
-Local transport adaptations omit the unused `linkCancellation` export and preserve Orrery's existing rejection of
-latest-URL fragments and verified-asset redirects. Both source classes expose `openDescriptor` so production dispatch verifies the
-single fetched descriptor without a second latest request. Other contract logic is unchanged. The asteroid adapter remains separate and unchanged.
+Local adaptations retain schema-2/3 `openDescriptor` entry points and reject
+latest-URL fragments and verified-asset redirects. Other reader logic is unchanged.
+The asteroid adapter remains separate.
 
-Production dispatches to the strict schema-2 or schema-3 reader at
-`https://sn3p.github.io/orrery-data/comets/latest.json`. Explicit candidate source injection remains available. No live data switch is included.
-See [app behavior](../../../../docs/comets.md) and the upstream
-[contract](https://github.com/sn3p/orrery-data/blob/a2076e1c78ffa5ae2bd8c879b77452f31af0829a/docs/comet-history-candidates.md).
+Production dispatch accepts schemas 2, 3 and 4 at the existing endpoint.
+Schemas 2/3 retain their existing acquisition path. Schema 4 uses bounded date
+windows, the directory reader's verified cache and legacy discovery metadata.
+No hosted descriptor or data is changed. See [integration](../../../../docs/comet-directory.md).

@@ -1,17 +1,8 @@
 // Strict schema-3 adapter, shared by production dispatch and explicit candidates.
-import { CometSource, interpolateComet, interpolateCometState } from './cometSourceCore.js';
-import { fetchLatest, fetchVerified, decodeJSON, check, aborted } from './transport.js';
+import { CometSource, interpolateComet, interpolateCometState, CometDownloadQueue, cometPathStrip } from './cometSourceCore.js';
+import { fetchLatest, fetchVerified, decodeJSON, check } from './transport.js';
 import { keys } from './contract.js';
 import { T, END, reference, requireHistory, validateHistoryIndex, validateSegment } from './cometHistoryContract.js';
-
-// Historical owned intervals are half-open. Finish a visible strip at the
-// immediately preceding representable Julian day, reserving exact T for modern.
-function previousDay(value) {
-  const view = new DataView(new ArrayBuffer(8));
-  view.setFloat64(0,value);
-  view.setBigUint64(0,view.getBigUint64(0)-1n); // coverage endpoints are positive JDs
-  return view.getFloat64(0);
-}
 
 export default class CometHistorySource extends CometSource {
   static async openLatest(url, { signal } = {}) {
@@ -32,8 +23,7 @@ export default class CometHistorySource extends CometSource {
   constructor(url,pin,index) {
     super(url,pin,index);
     this.entries = index.objects.flatMap(e=>e.segments.map(s=>({id:`${e.id}:${s.key}`,objectId:e.id,segment:s,data:s.data})));
-    this.active = 0;
-    this.queue = [];
+    this.downloads = new CometDownloadQueue();
     this.validatedTransitions = new Map();
   }
   object(id) {
@@ -99,16 +89,11 @@ export default class CometHistorySource extends CometSource {
       && !(start===s.coverage.end && !s.coverage.end_inclusive));
     return this.group(signal,async pathSignal=>{
     const strips = await Promise.all(wanted.map(async s=>{
-      const value = await this.loadSegment(id,s.key,{signal:pathSignal}), series = value.series;
-      const first = Math.max(start,s.coverage.start);
-      const last = Math.min(end,s.coverage.end_inclusive?s.coverage.end:previousDay(s.coverage.end));
-      const times = [first];
-      for (let i=Math.floor((first-series.start)/series.step)+1; series.start+i*series.step<last; i++) times.push(series.start+i*series.step);
-      if(last>first) times.push(last);
-      return {key:s.key,points:times.map(t=>[t,...interpolateComet(series,t)])};
+      const value = await this.loadSegment(id,s.key,{signal:pathSignal});
+      return cometPathStrip({key:s.key,coverage:s.coverage,series:value.series},start,end);
     }));
     check(signal,'comet'); check(this.lifetime.signal,'comet');
-    return strips;
+    return strips.filter(Boolean);
     });
   }
   validatePayload(value,entry) { return validateSegment(value,entry); }
@@ -123,21 +108,9 @@ export default class CometHistorySource extends CometSource {
   }
   // The strict index admits exactly eight files, each <=2MiB. Retaining all
   // verified files is bounded by construction; there is no unreachable LRU policy.
-  async fetchEntry(entry,signal) {
-    await new Promise((resolve,reject)=>{
-      const item = {start:()=>{signal.removeEventListener('abort',cancel);this.active++;resolve();}};
-      const cancel = ()=>{
-        const i=this.queue.indexOf(item); if(i>=0)this.queue.splice(i,1);
-        signal.removeEventListener('abort',cancel); reject(aborted('comet'));
-      };
-      if(signal.aborted) { cancel(); return; }
-      signal.addEventListener('abort',cancel,{once:true});
-      this.queue.push(item); this.drain();
-    });
-    try { check(signal,'comet'); return await super.fetchEntry(entry,signal); }
-    finally { this.active--; this.drain(); }
+  fetchEntry(entry,signal) {
+    return this.downloads.run(signal,()=>super.fetchEntry(entry,signal));
   }
   close() { super.close(); this.validatedTransitions.clear(); }
-  drain() { while(this.active<2 && this.queue.length) this.queue.shift().start(); }
 }
 export { T, END };
