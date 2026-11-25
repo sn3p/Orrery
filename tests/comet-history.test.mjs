@@ -216,7 +216,7 @@ test('production dispatch accepts schema 2 and rejects unknown or malformed desc
   assert.equal(a.states['1P'],'ready');assert(a.data['1P'].states);
   assert.equal(calls.filter(n=>n==='latest.json').length,1);
   for(const [descriptor,message] of [
-    ...[null,{}, {...f.descriptor,comet_contract_version:4}].map(d=>[d,'Invalid comet contract version']),
+    ...[null,{}, {...f.descriptor,comet_contract_version:5}].map(d=>[d,'Invalid comet contract version']),
     [{...f.descriptor,extra:true},'Invalid comet fields.'],
     [{...JSON.parse(fixture().files.get('latest.json')),extra:true},'Invalid comet history fields.']]) {
     const reads=transport(t,new Map([['latest.json',JSON.stringify(descriptor)]]));

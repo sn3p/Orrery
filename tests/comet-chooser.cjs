@@ -99,7 +99,7 @@ module.exports = async (browser, root, renderer) => {
     await open();
     await expect(dialog).toContainText('No comets selected.');
     await page.keyboard.press('Escape');
-    await page.evaluate(()=>localStorage.setItem('orrery.selectedComets','["bogus"]'));
+    await page.evaluate(()=>localStorage.setItem('orrery.selectedComets','["invalid id"]'));
     await start();
     assert.deepEqual(await page.evaluate(()=>app.cometIds),ids.slice(0,6));
     assert.deepEqual(errors,[]);

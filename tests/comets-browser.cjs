@@ -334,7 +334,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
         await app.replaceCometSource('hosted');
         if(!/^[a-f0-9]{64}$/.test(app.cometSourceId))throw Error('Incorrect hosted identity');
       });
-      await page.evaluate(()=>{
+      await page.evaluate(async()=>{
         const renderer=app.renderer, focus=renderer.focusComets, options=renderer.setOptions;
         let fits=0, updates=0;
         renderer.focusComets=()=>{fits++;};
@@ -345,6 +345,11 @@ async function run({browser, name, output = '.context/comet-browser'}) {
           app.focusComets();
           app.cometIds=[];app.cometsShown=true;app.focusComets();
           app.cometIds=['1P'];
+          if(app.cometData['1P'])throw Error('Hidden deselection retained the model');
+          app.focusComets();
+          if(fits!==0)throw Error('Unloaded selection reached renderer fit');
+          await app.loadComets();
+          if(app.cometStates['1P']!=='ready')throw Error('Reselected comet did not finish loading');
           const date=app.jed;app.jed=2444238.5;app.focusComets();
           app.jed=date;
           if(fits!==0)throw Error('Invalid selection reached renderer fit');
@@ -377,6 +382,9 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.evaluate(()=>{window.app=threeTest.app;app.jedDelta=0;});
       await page.getByRole('button',{name:'Options',exact:true}).click();
       await page.getByRole('checkbox',{name:'Show comets',exact:true}).check();
+      await page.waitForFunction(()=>Object.keys(app.cometData??{}).length===2);
+      assert.deepEqual(await page.evaluate(()=>app.cometIds),['67P','1P'],'Defaults use preserved identities, not catalogue order');
+      await page.evaluate(async()=>{app.cometIds=['67P','123P','1P'];await app.loadComets();});
       await page.waitForFunction(()=>Object.keys(app.cometData??{}).length===3);
       assert.deepEqual(await page.evaluate(()=>app.renderer.comets.entries.map(e=>e.comet.id)),['67P','123P','1P']);
       await page.getByRole('button',{name:'Choose…',exact:true}).click();

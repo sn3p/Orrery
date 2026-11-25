@@ -44,7 +44,7 @@ test('comet paths are bounded data slices, not synthetic closed ellipses', () =>
   }
   assert(validCometIds([]));
   assert(validCometIds(['1P','55P']));
-  for(const ids of [null,['fake'],['1P','1P']]) assert(!validCometIds(ids));
+  for(const ids of [null,['invalid id'],['1P','1P']]) assert(!validCometIds(ids));
 });
 
 test('comet paths retain a full period at both boundaries and throughout playback', () => {
@@ -90,7 +90,7 @@ test('invalid comet assets and settings fail before scene mutation', () => {
   for (const value of [null, {}, {...data, '1P': {...data['1P'], step:0}}, {...data, '2P': {start:1,step:1,states:[[0,0,0,0,0,0],[0,0,NaN,0,0,0]]}}]) {
     assert.throws(()=>validateCometData(value), /Invalid comet ephemeris/);
   }
-  for (const value of [{cometsShown:1},{asteroidsShown:'false'},{cometPaths:null},{cometIds:['fake']}]) {
+  for (const value of [{cometsShown:1},{asteroidsShown:'false'},{cometPaths:null},{cometIds:['invalid id']}]) {
     assert.throws(()=>validateCometOptions(value), RangeError);
   }
 });

@@ -4,8 +4,8 @@ import { validDate } from "../js/asteroidOrbits.js";
 import { replaceShareUrl, shareDateValue } from "./shareUrl.js";
 import PlaybackClock from "../js/PlaybackClock.js";
 import Stats from "../js/Stats.js";
-import Acquisition, { openHostedSource, openCandidateSource } from "./comets/Acquisition.js";
-import { COMETS, firstDate, lastDate, DEFAULT_COMET_SELECTION_LIMIT, cataloguePresentation, validCometIds, validateCometData, hasUsableComets } from "./comets/model.js";
+import Acquisition, { openHostedSource, openCandidateSource, COMET_WINDOW_BUCKET_DAYS } from "./comets/Acquisition.js";
+import { COMETS, firstDate, lastDate, HOSTED_DEFAULT_COMET_IDS, cataloguePresentation, validCometIds, validateCometData, hasUsableComets } from "./comets/model.js";
 import Hud from "./ui/Hud.js";
 import CatalogSource from "./catalog/CatalogSource.js";
 import CatalogLoader from "./catalog/CatalogLoader.js";
@@ -72,7 +72,7 @@ export default class App {
     this.cometCatalogue = [];
     this.cometSelection = new CometSelectionPreference(() => {
       this.cometSelectionNotice = '';
-      if (this.cometCatalogueSource) this.cometSelection.initialize(this.cometCatalogue.slice(0, DEFAULT_COMET_SELECTION_LIMIT).map(entry => entry.id));
+      if (this.cometCatalogueSource) this.cometSelection.initialize((this.cometCatalogueSource.info.defaults ?? HOSTED_DEFAULT_COMET_IDS).filter(id => this.cometEditableIds.has(id)));
       void this.acquireComets();
     });
     this.cometEditableIds = null;
@@ -337,7 +337,10 @@ export default class App {
     this.cometData = acquisition.data;
     this.cometStates = acquisition.states;
     this.cometSourceId = acquisition.current?.sourceId ?? null;
-    this.cometSourceInfo = acquisition.current?.info ?? null;
+    if (this.cometInfoSource !== acquisition.current) {
+      this.cometInfoSource = acquisition.current;
+      this.cometSourceInfo = acquisition.current ? { ...acquisition.current.info, sources: acquisition.current.info.sources ?? acquisition.current.legacy?.info.sources } : null;
+    }
     this.cometLoading = this.cometIds.some(id => acquisition.states[id] === 'loading');
     this.cometError = this.cometIds.some(id => acquisition.states[id] === 'error');
     this.applyCometOptions();
@@ -346,7 +349,7 @@ export default class App {
     if (this.destroyed || this.cometAcquisition.closed) return;
     const revision = ++this.cometSelectionRevision;
     const acquisition = this.cometAcquisition;
-    if (!this.cometsShown) return acquisition.select([]);
+    if (!this.cometsShown) return acquisition.suspend(this.cometIds);
     const generation = acquisition.generation;
     if (!acquisition.current) {
       this.cometDiscoveryState = 'loading';
@@ -357,13 +360,13 @@ export default class App {
       if (this.destroyed || revision !== this.cometSelectionRevision || generation !== acquisition.generation) return;
       if (this.cometCatalogueSource !== source) {
         this.cometCatalogueSource = source;
-        this.cometCatalogue = cataloguePresentation(source.info.objects);
+        this.cometCatalogue = cataloguePresentation(source.info.objects.map(entry => ({ ...entry, discovery: entry.discovery ?? source.legacy?.info.objects.find(e => e.id === entry.id)?.discovery })));
         this.cometEditableIds = new Set(this.cometCatalogue.map(entry => entry.id));
-        this.cometSelection.initialize(this.cometCatalogue.slice(0, DEFAULT_COMET_SELECTION_LIMIT).map(entry => entry.id));
+        this.cometSelection.initialize((source.info.defaults ?? HOSTED_DEFAULT_COMET_IDS).filter(id => this.cometEditableIds.has(id)));
         this.cometSelectionNotice = this.cometSelection.missingNotice(this.cometCatalogue);
       }
       this.cometDiscoveryState = 'ready';
-      return acquisition.select(this.cometIds, retry);
+      return acquisition.select(this.cometIds, retry, { jed: this.jed, catalogue: this.cometCatalogue });
     } catch {
       if (this.destroyed || revision !== this.cometSelectionRevision || generation !== acquisition.generation) return;
       this.cometDiscoveryState = 'error';
@@ -938,6 +941,11 @@ export default class App {
       this.renderStatus();
     }
     if (committed && this.catalogue) this.hasCommittedReadouts = true;
+    if (committed && this.cometsShown && this.cometAcquisition.current?.getObject) {
+      const key = `${this.cometAcquisition.generation}:${Math.floor(this.jed / COMET_WINDOW_BUCKET_DAYS)}`;
+      if (this.cometWindowKey !== key) { this.cometWindowKey = key; void this.acquireComets(); }
+    }
+
     this.updateGui();
     // Manual callers (including finite benchmarks) own failure handling. Keep
     // the same throwable boundary after restoring app/graphics state.

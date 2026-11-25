@@ -8,7 +8,7 @@ export default class Comets {
     this.data = data;
     this.group = new THREE.Group();
     this.projected = new THREE.Vector3();
-    this.entries = catalogue.map(comet => {
+    this.entries = catalogue.filter(comet => !comet.assessment || comet.trajectory).map(comet => {
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0], 3));
       const body = new THREE.Points(geometry, new THREE.PointsMaterial({
@@ -26,7 +26,11 @@ export default class Comets {
 
   setData(data) {
     for (const entry of this.entries) {
-      if (this.data[entry.comet.id] !== data[entry.comet.id]) entry.range = "";
+      if (this.data[entry.comet.id] !== data[entry.comet.id]) {
+        entry.range = "";
+        entry.path.geometry.dispose();
+        entry.path.geometry = new THREE.BufferGeometry();
+      }
     }
     this.data = data;
   }
