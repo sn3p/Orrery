@@ -17,7 +17,7 @@ export class CometFeedbackCache {
     // Exact endpoints have their own region to preserve inclusive/exclusive ends.
     const region = Number.isFinite(app.jed) ? `${lo}:${boundaries[lo] === app.jed}` : 'unsupported';
     const key = [region, app.cometsShown, !!app.switching, app.cometDiscoveryState, app.cometSelectionNotice,
-      app.cometIds.join(','), app.rememberedCometIds?.join(','), ...Object.entries(app.cometStates ?? {}).flat()].join('|');
+      app.cometIds.join(','), app.cometSelection?.ids?.join(','), ...Object.entries(app.cometStates ?? {}).flat()].join('|');
     if (!dataChanged && !catalogueChanged && key === this.key) return false;
     this.key = key;
     return true;

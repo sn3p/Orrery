@@ -181,8 +181,15 @@ edits use per-ID operations and Web Locks rather than replacing stale snapshots.
 A synchronous pending-edit journal preserves edits across reloads while a lock
 is busy. Compacted snapshots retain per-ID and replacement ordering, so older
 failed writes cannot override newer choices after another tab compacts its edits.
-Existing plain-array preferences remain readable. Browsers without Web Locks
-replay the journal without compaction.
+Existing plain-array preferences remain readable. Compaction uses a shared
+IndexedDB readwrite transaction, also when Web Locks are present, so tabs with
+different capabilities coordinate. If neither mechanism is available, the durable
+journal is retained until safe compaction is possible.
 Clear and Undo deliberately replace the whole desired selection. Search waits
 briefly for typing to settle, indexes names once per catalogue revision, and
 reuses row elements.
+
+Removing browser storage restores the first-visit defaults in open tabs; an
+explicit saved empty selection stays empty. External selection changes invalidate
+Clear’s Undo and add newly active entries to an open Selected list, while
+previously displayed unchecked rows stay in place.

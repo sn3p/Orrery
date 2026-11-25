@@ -62,8 +62,9 @@ export default class Timeline {
   updateCometHistory() {
     const details = document.getElementById("orrery-comet-history");
     if (!details) return;
+    const selected = new Set(this.app.cometIds);
     const entries = this.app.cometsShown ? (this.app.cometCatalogue ?? [])
-      .filter(entry => this.app.cometIds.includes(entry.id) && entry.discovery?.events) : [];
+      .filter(entry => selected.has(entry.id) && entry.discovery?.events) : [];
     const key = entries.map(entry => entry.id).join('|');
     if (this.historySource === this.app.cometSourceInfo && this.historyKey === key) return;
     this.historySource = this.app.cometSourceInfo; this.historyKey = key;

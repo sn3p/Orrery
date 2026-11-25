@@ -68,6 +68,24 @@ module.exports = async (browser, root) => {
     await expect(clear).toBeEnabled();
     await clear.click();await saved(b);
     await expect.poll(()=>a.evaluate(()=>app.rememberedCometIds)).toEqual([]);
-
+    // Remote additions update the open Selected list and invalidate Clear's Undo.
+    await b.getByRole('button',{name:/Browse catalogue/}).focus();
+    await a.evaluate(()=>app.restoreCometSelection(['1P','2P']));await saved(a);
+    await expect(b.getByRole('checkbox',{name:'Show 2P/Encke',exact:true})).toBeVisible();
+    await expect(b.getByRole('button',{name:/Browse catalogue/})).toBeFocused();
+    await expect(b.getByRole('button',{name:'Undo',exact:true})).toHaveCount(0);
+    await b.getByRole('checkbox',{name:'Show 1P/Halley',exact:true}).uncheck();
+    await expect(b.getByRole('checkbox',{name:'Show 1P/Halley',exact:true})).toBeVisible();
+    await b.getByRole('checkbox',{name:'Show 2P/Encke',exact:true}).focus();
+    await a.evaluate(()=>app.restoreCometSelection(['2P','55P']));await saved(a);
+    await expect(b.getByRole('checkbox',{name:'Show 55P/Tempel-Tuttle',exact:true})).toBeVisible();
+    await expect(b.getByRole('checkbox',{name:'Show 2P/Encke',exact:true})).toBeFocused();
+    await b.getByRole('button',{name:'Clear selection',exact:true}).click();await saved(b);
+    await expect(b.getByRole('button',{name:'Undo',exact:true})).toBeVisible();
+    await a.evaluate(()=>app.restoreCometSelection(['55P']));await saved(a);
+    await expect(b.getByRole('button',{name:'Undo',exact:true})).toHaveCount(0);
+    // Removing storage restores first-visit defaults; explicit [] still means empty.
+    await a.evaluate(()=>localStorage.clear());
+    await expect.poll(()=>b.evaluate(()=>app.cometIds)).toEqual(['1P','2P','55P','9P','10P','67P']);
   } finally {await context.close();}
 };

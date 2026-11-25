@@ -301,6 +301,7 @@ export default class Options {
 
   rebuildCometChoices() {
     const focusedId = document.activeElement?.dataset?.cometId;
+    const focusedBrowse = document.activeElement === this.cometBrowse;
     this.cometChoiceList.replaceChildren();
     this.cometChoices = {};
     const catalogue = this.orrery.cometCatalogue;
@@ -309,8 +310,9 @@ export default class Options {
       this.cometRowCache = new Map();
     }
     const mode = this.cometView ?? 'selected';
+    const selected = new Set(this.cometSelectedSnapshot ?? this.orrery.cometIds);
     const entries = mode === 'search' ? searchComets(catalogue, this.cometSearch.value)
-      : mode === 'catalogue' ? catalogue : catalogue.filter(entry => (this.cometSelectedSnapshot ?? this.orrery.cometIds).includes(entry.id));
+      : mode === 'catalogue' ? catalogue : catalogue.filter(entry => selected.has(entry.id));
     const heading = document.createElement("div");
     heading.className = "orrery-comet-list-heading";
     heading.textContent = mode === 'search' ? (entries.length ? `${entries.length.toLocaleString('en')} matches` : 'No matches')
@@ -341,8 +343,9 @@ export default class Options {
       checkbox.setAttribute("aria-label", `Show ${comet.name}`);
       checkbox.onchange = () => {
         this.cometUndo = null;
+        const selected = new Set(this.orrery.cometIds);
         this.orrery.cometIds = this.orrery.cometCatalogue
-          .filter(item => item.id === comet.id ? checkbox.checked : this.orrery.cometIds.includes(item.id))
+          .filter(item => item.id === comet.id ? checkbox.checked : selected.has(item.id))
           .map(item => item.id);
         this.updateComets();
       };
@@ -384,7 +387,7 @@ export default class Options {
     }
     if (focusedId && this.cometDialog.open) {
       (this.cometChoices[focusedId] ?? this.cometDialog.querySelector("h1")).focus();
-    }
+    } else if (focusedBrowse && this.cometDialog.open) this.cometBrowse?.focus();
   }
 
   updateComets() {
@@ -395,7 +398,11 @@ export default class Options {
     if (!this.cometFeedbackCache.changed(app)) return;
     const feedback = [this.panelCometFeedback, this.chooserCometFeedback];
     const focusedRetry = feedback.find(view => view.retry === document.activeElement)?.retry;
-    if (this.cometCatalogue !== app.cometCatalogue) {
+    if (this.cometUndo && app.cometSelection.ids?.length) this.cometUndo = null;
+    const displayed = new Set(this.cometSelectedSnapshot ?? []);
+    const added = this.cometView === 'selected' && ids.some(id => !displayed.has(id));
+    if (added) this.cometSelectedSnapshot = [...new Set([...displayed, ...ids])];
+    if (this.cometCatalogue !== app.cometCatalogue || added) {
       this.cometCatalogue = app.cometCatalogue;
       this.rebuildCometChoices();
     }
@@ -457,7 +464,7 @@ export default class Options {
     this.cometFocus.disabled = !app.cometsShown || !usable || !!app.switching;
     this.cometSummary.textContent = this.cometDialogSummary.textContent = `${ids.length} selected`;
     this.cometClear.textContent = this.cometUndo ? 'Undo' : 'Clear selection';
-    this.cometClear.disabled = !this.cometUndo && !(app.rememberedCometIds?.length || ids.length);
+    this.cometClear.disabled = !this.cometUndo && !(app.cometSelection.ids?.length || ids.length);
     this.cometSearch.placeholder = `Search ${app.cometCatalogue.length.toLocaleString('en')} comets`;
     this.cometChoose.disabled = !app.cometCatalogue.length;
     for (const [id, checkbox] of Object.entries(this.cometChoices)) checkbox.checked = selectedIds.has(id);

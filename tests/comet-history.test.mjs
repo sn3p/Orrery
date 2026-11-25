@@ -103,15 +103,16 @@ test('feedback skips unchanged coverage regions, invalidates endpoints, selectio
   let reads=0;
   const model={get start(){reads++;return 10;},step:2,states:[[0,0,0,0,0,0],[1,1,1,0,0,0]]};
   const app={cometData:{'1P':model},cometCatalogue:[],cometIds:['1P'],cometStates:{'1P':'ready'},jed:10.1};
+  Object.defineProperty(app,'rememberedCometIds',{get(){throw Error('Feedback must not copy remembered IDs');}});
   const cache=new CometFeedbackCache();assert(cache.changed(app));const baseline=reads;
   for(const jed of [10.2,10.3,11,11.9]){app.jed=jed;assert(!cache.changed(app));}
   assert.equal(reads,baseline,'no per-model coverage reads during playback within a region');
   for(const jed of [12,12.1,10,9.9]){app.jed=jed;assert(cache.changed(app));}
   app.cometIds=[];assert(cache.changed(app));app.cometStates['1P']='error';assert(cache.changed(app));
   app.cometData={};assert(cache.changed(app));
-  app.rememberedCometIds=['999P'];assert(cache.changed(app));
+  app.cometSelection={ids:['999P']};assert(cache.changed(app));
   assert(!cache.changed(app));
-  app.rememberedCometIds=[];assert(cache.changed(app));
+  app.cometSelection.ids=[];assert(cache.changed(app));
   assert.deepEqual(catalogueCoverage([{coverage:[10,20]},{coverage:[10,20]}]),[10,20]);
   assert.deepEqual(catalogueCoverage(fixture().index.objects),[2391511.5,END]);
 });

@@ -54,7 +54,18 @@ module.exports = async (browser, root, renderer) => {
     await expect(dialog).toContainText('No matches');
     await dialog.getByRole('searchbox').fill('179p');
     await expect(dialog.locator('label')).toHaveCount(1);
+    await page.evaluate(()=>{
+      const checkbox=document.querySelector('.orrery-comet-choice-list input');
+      const change=checkbox.onchange;
+      checkbox.onchange=()=>{
+        const descriptor=Object.getOwnPropertyDescriptor(Object.getPrototypeOf(app),'cometIds');
+        window.selectionReads=0;
+        Object.defineProperty(app,'cometIds',{configurable:true,get(){selectionReads++;return descriptor.get.call(this);},set:descriptor.set});
+        try{change();}finally{delete app.cometIds;}
+      };
+    });
     await dialog.getByRole('checkbox').check();
+    assert(await page.evaluate(()=>selectionReads<30),'Checkbox selection reads stay bounded independently of catalogue size');
     await page.keyboard.press('Escape');
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('searchbox')).toHaveValue('');
@@ -73,8 +84,11 @@ module.exports = async (browser, root, renderer) => {
     assert((await page.evaluate(()=>((value)=>value.ids ?? value)(JSON.parse(localStorage.getItem('orrery.selectedComets'))))).includes('179P'));
     await page.evaluate(()=>{app.cometIds=[];});
     assert((await page.evaluate(()=>((value)=>value.ids ?? value)(JSON.parse(localStorage.getItem('orrery.selectedComets'))))).includes('179P'));
+    await open();
     product = require('./comet-catalogue-fixture.cjs').product(ids, {compact:true});
     await page.evaluate(()=>app.replaceCometSource('hosted'));
+    await expect(dialog.getByRole('checkbox',{name:'Show 179P/<b>Literal test comet</b>',exact:true})).toBeVisible();
+    await dialog.getByRole('button',{name:'Done',exact:true}).click();
     assert((await page.evaluate(()=>app.cometIds)).includes('179P'));
     await open();
     await dialog.getByRole('button',{name:'Clear selection',exact:true}).click();
