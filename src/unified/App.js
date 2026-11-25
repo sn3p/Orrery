@@ -72,7 +72,7 @@ export default class App {
     this.cometCatalogue = [];
     this.cometSelection = new CometSelectionPreference(() => {
       this.cometSelectionNotice = '';
-      if (this.cometCatalogueSource) this.cometSelection.initialize((this.cometCatalogueSource.info.defaults ?? HOSTED_DEFAULT_COMET_IDS).filter(id => this.cometEditableIds.has(id)));
+      if (this.cometCatalogueSource) this.cometSelection.initialize(HOSTED_DEFAULT_COMET_IDS.filter(id => this.cometEditableIds.has(id)));
       void this.acquireComets();
     });
     this.cometEditableIds = null;
@@ -362,7 +362,7 @@ export default class App {
         this.cometCatalogueSource = source;
         this.cometCatalogue = cataloguePresentation(source.info.objects.map(entry => ({ ...entry, discovery: entry.discovery ?? source.legacy?.info.objects.find(e => e.id === entry.id)?.discovery })));
         this.cometEditableIds = new Set(this.cometCatalogue.map(entry => entry.id));
-        this.cometSelection.initialize((source.info.defaults ?? HOSTED_DEFAULT_COMET_IDS).filter(id => this.cometEditableIds.has(id)));
+        this.cometSelection.initialize(HOSTED_DEFAULT_COMET_IDS.filter(id => this.cometEditableIds.has(id)));
         this.cometSelectionNotice = this.cometSelection.missingNotice(this.cometCatalogue);
       }
       this.cometDiscoveryState = 'ready';

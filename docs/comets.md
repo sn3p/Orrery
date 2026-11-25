@@ -9,8 +9,8 @@ separately. **Fit selected comets** frames their trajectories; normal zoom and
 camera controls remain available. It fits the displayed trajectory windows in
 the current viewing direction with a small margin, keeping the Sun centered.
 **paths** toggles the comet trajectories.
-Selections last for the visit and survive renderer changes. Reload restores the
-asteroid-only default. The footer count remains an asteroid count.
+Selections survive renderer changes. Reload restores asteroid-only visibility
+while remembering comet selections. The footer count remains an asteroid count.
 The About Orrery panel explains the comet data source, date coverage and model
 limits, with a link to JPL Horizons. Loading, retry and unavailable-date messages
 remain beside the comet controls in Options.
@@ -84,11 +84,15 @@ Comets are distributed by [OrreryData](https://github.com/sn3p/orrery-data).
 On first enable, the app discovers `https://sn3p.github.io/orrery-data/comets/latest.json`
 and pins its verified index for this visit. Each selected object loads separately,
 with bounded decoded length, SHA-256, schema, identity, conventions and reference
-interpolation checks. The first six catalogue entries (or all entries when fewer) are selected on first enable.
-For schema 2 this bounds automatic loading to six assets (at most 12 MiB decoded).
-The approved schema-3 catalogue loads eight assets for those six objects, including
-two historical segments (at most 16 MiB decoded by the reader contract). Every
-other entry stays available for explicit selection. Subsequent source replacements
+interpolation checks. Without a saved selection, the app selects Halley, Encke,
+Tempel–Tuttle, 67P and 29P/Schwassmann–Wachmann 1 (`c1000079`), restricted to
+entries present in the active catalogue. This app-owned starter set is independent
+of the producer's legacy six-default metadata. Older schema-2/3 catalogues seed the
+four available members; the bundled rollback seeds its three available members.
+Existing selections, including empty selections and missing IDs, are never migrated.
+29P has a dedicated blue colour distinct from the other starters; its existing
+10-year display window (plus the directory acquisition margin) remains unchanged.
+Every other entry stays available for explicit selection. Subsequent source replacements
 preserve saved IDs, including entries temporarily absent from the active catalogue.
 Only available entries load; a brief Options notice explains missing entries, which
 return when available again. New entries remain available for explicit selection. Asteroid-only startup makes no comet requests.

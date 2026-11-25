@@ -86,6 +86,6 @@ module.exports = async (browser, root) => {
     await expect(b.getByRole('button',{name:'Undo',exact:true})).toHaveCount(0);
     // Removing storage restores first-visit defaults; explicit [] still means empty.
     await a.evaluate(()=>localStorage.clear());
-    await expect.poll(()=>b.evaluate(()=>app.cometIds)).toEqual(['1P','2P','55P','9P','10P','67P']);
+    await expect.poll(()=>b.evaluate(()=>app.cometIds)).toEqual(['1P','2P','55P','67P']);
   } finally {await context.close();}
 };

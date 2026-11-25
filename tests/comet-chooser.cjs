@@ -21,10 +21,10 @@ module.exports = async (browser, root, renderer) => {
   const dialog = page.getByRole('dialog',{name:'Choose comets'});
   try {
     await start();
-    assert.deepEqual(await page.evaluate(()=>app.cometIds),ids.slice(0,6), JSON.stringify(await page.evaluate(()=>({state:app.cometDiscoveryState,notice:app.cometSelectionNotice,source:app.cometSourceId}))));
+    assert.deepEqual(await page.evaluate(()=>app.cometIds),['1P','2P','55P','67P'], JSON.stringify(await page.evaluate(()=>({state:app.cometDiscoveryState,notice:app.cometSelectionNotice,source:app.cometSourceId}))));
     await open();
     await expect(dialog.locator('h1')).toBeFocused();
-    await expect(dialog.locator('label')).toHaveCount(6);
+    await expect(dialog.locator('label')).toHaveCount(4);
     await page.evaluate(()=>{window.halleyRow=document.querySelector('[data-comet-id="1P"]');});
     await dialog.getByRole('searchbox').fill('halley');
     await expect(dialog.locator('label')).toHaveCount(1);
@@ -101,7 +101,7 @@ module.exports = async (browser, root, renderer) => {
     await page.keyboard.press('Escape');
     await page.evaluate(()=>localStorage.setItem('orrery.selectedComets','["invalid id"]'));
     await start();
-    assert.deepEqual(await page.evaluate(()=>app.cometIds),ids.slice(0,6));
+    assert.deepEqual(await page.evaluate(()=>app.cometIds),['1P','2P','55P','67P']);
     assert.deepEqual(errors,[]);
   } finally {await page.close();}
 };

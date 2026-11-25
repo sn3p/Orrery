@@ -32,7 +32,14 @@ module.exports=async function(browser,root){
       const trackScripts=request=>{if(request.resourceType()==='script')enableScripts.push(request.url());};
       page.on('request',trackScripts);
       await page.evaluate(async()=>{window.app=threeTest.app;app.jedDelta=0;app.cometsShown=true;await app.loadComets();app.cancelRender();});
+      assert.deepEqual(await page.evaluate(()=>app.cometIds),['1P','2P','55P','67P']);
+      // Exercise all legacy trajectories explicitly, independently of starter policy.
+      await page.evaluate(async()=>{app.cometIds=app.cometCatalogue.map(e=>e.id);await app.loadComets();});
       await page.waitForFunction(()=>Object.keys(app.cometData).length===6);
+      await page.getByRole('button',{name:'Options',exact:true}).click();
+      await page.getByRole('button',{name:'Choose…',exact:true}).click();
+      await page.getByRole('button',{name:'Done',exact:true}).click();
+      await page.getByRole('button',{name:'Options',exact:true}).click();
       page.off('request',trackScripts);
       assert.deepEqual(enableScripts,[],'Enabling production history needs no additional code download');
       assert.equal(requests.filter(n=>n==='latest.json').length,1);

@@ -7,7 +7,9 @@ The authoritative wire contract and producer handoff are
 
 The production endpoint remains unchanged. Its reader now accepts schema 4 in
 addition to 2/3. The exact expanded candidate has 4,089 searchable entries and
-fourteen trajectories. Defaults are explicitly `1P, 2P, 55P, 9P, 10P, 67P`.
+fourteen trajectories. The producer contract retains `1P, 2P, 55P, 9P, 10P, 67P` as legacy default metadata.
+The app seeds new selections with `1P, 2P, 55P, 67P, c1000079` (29P), independently
+of that metadata; saved selections, including empty ones, take precedence.
 The PR121 selection journal, empty selection, missing IDs, Clear/Undo and
 cross-tab reconciliation remain authoritative. Stable opaque IDs and Unicode
 aliases are searchable. Assessment labels differ from coverage gaps; ordinary
@@ -30,7 +32,7 @@ node tests/run-comet-directory.cjs .context/producer webkit
 ```
 
 Each lane routes the assembled bytes into an isolated browser and exercises both
-Pixi and Three, six defaults, all published trajectories, Fit with paths hidden,
+Pixi and Three, five app defaults (four in the older catalogue), all published trajectories, Fit with paths hidden,
 corruption/retry and bundled rollback. Expanded checks cover 4,089 entries,
 fourteen renderer objects, assessment labels, paging, narrow/wide layout,
 paused seeks, discovery metadata, persistence of missing IDs and empty selection.
@@ -44,4 +46,4 @@ support-only overlap, end boundaries, Timeline and renderer switching.
 
 Deploy and verify the accepting application before any separately authorized
 producer activation. This PR neither activates hosted data nor establishes
-deployed-reader acceptance. Popular/currently-active default selection remains deferred.
+deployed-reader acceptance. The stable five-comet starter set is app-owned; date-dependent active selection remains deferred.

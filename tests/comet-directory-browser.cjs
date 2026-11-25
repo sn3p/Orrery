@@ -23,9 +23,61 @@ module.exports = async function(browser, root, directory) {
       await page.waitForFunction(()=>threeTest.app.catalogue?.firstDraw);
       await page.evaluate(async()=>{window.app=threeTest.app;app.jedDelta=0;app.cometsShown=true;await app.loadComets();});
       assert.equal(await page.evaluate(()=>app.cometSourceId),latest.index.sha256);
-      assert.deepEqual(await page.evaluate(()=>app.cometIds),expanded?index.objects.filter(e=>index.defaults.includes(e.id)).map(e=>e.id):['1P','2P','55P','9P','10P','67P']);
+      assert.deepEqual(await page.evaluate(()=>app.cometIds),expanded?['1P','2P','c1000079','55P','67P']:['1P','2P','55P','67P']);
       assert.equal(await page.evaluate(()=>app.cometCatalogue.length),expanded?4089:6);
       assert.equal(await page.evaluate(()=>app.renderer.comets.entries.length),expanded?14:6);
+      if(expanded) {
+        const starters=['1P','2P','c1000079','55P','67P'];
+        const checkColours=async()=>{
+          assert.deepEqual(await page.evaluate(()=>app.cometIds),starters);
+          assert.equal(await page.evaluate(()=>new Set(app.cometCatalogue.filter(e=>app.cometIds.includes(e.id)).map(e=>e.color)).size),5);
+          assert.equal(await page.evaluate(()=>{
+            app.renderFrame();
+            const entry=app.renderer.comets.entries.find(e=>e.comet.id==='c1000079');
+            if(!entry.body.visible || !entry.path.visible)throw Error('29P starter is not rendered');
+            if(app.rendererId==='three') {
+              if(entry.path.material.color.getHex()!==entry.body.material.color.getHex())throw Error('Path and marker colours differ');
+              return entry.body.material.color.getHex();
+            }
+            const stroke=entry.path.context.instructions.find(e=>e.action==='stroke').data.style.color;
+            const fill=entry.body.context.instructions.find(e=>e.action==='fill').data.style.color;
+            if(stroke!==fill)throw Error('Path and marker colours differ');
+            return fill;
+          }),0x7d9cff);
+        };
+        await checkColours();
+        // Same starter state survives renderer replacement and hide/show.
+        await page.evaluate(()=>app.switchRenderer(app.rendererId==='pixi'?'three':'pixi'));
+        await page.waitForFunction(()=>!app.switching);
+        await checkColours();
+        await page.evaluate(id=>app.switchRenderer(id),renderer);
+        await page.waitForFunction(id=>app.rendererId===id&&!app.switching,renderer);
+        await checkColours();
+        // Test both persisted formats: original arrays and the current journal snapshot.
+        for(const ids of [['1P','2P','55P','9P','10P','67P'],[],['9P','missing-id']]) {
+          for(const snapshot of [ids,{version:1,ids,clocks:{},replacement:''}]) {
+            await page.evaluate(value=>{localStorage.setItem('orrery.selectedComets',JSON.stringify(value));},snapshot);
+            await page.reload();await page.evaluate(()=>threeTest.ready);
+            await page.evaluate(async()=>{window.app=threeTest.app;app.jedDelta=0;app.cometsShown=true;await app.loadComets();app.renderFrame();});
+            assert.deepEqual(await page.evaluate(()=>app.rememberedCometIds),ids);
+            assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('orrery.selectedComets'))),snapshot,'Reading saved selections does not migrate them');
+            assert.deepEqual(await page.evaluate(()=>app.cometIds.slice().sort()),ids.filter(id=>id!=='missing-id').sort());
+          }
+        }
+        await page.evaluate(()=>localStorage.removeItem('orrery.selectedComets'));
+        await page.reload();await page.evaluate(()=>threeTest.ready);
+        await page.evaluate(async()=>{window.app=threeTest.app;app.jedDelta=0;app.cometsShown=true;await app.loadComets();});
+        await checkColours();
+        // The UI presents five selected rows with an accessible 29P choice.
+        await page.getByRole('button',{name:'Options',exact:true}).click();
+        await page.getByRole('button',{name:'Choose…',exact:true}).click();
+        await expect(page.getByRole('dialog',{name:'Choose comets'}).getByRole('checkbox')).toHaveCount(5);
+        const choice=page.getByRole('checkbox',{name:'Show 29P/Schwassmann-Wachmann 1',exact:true});
+        await expect(choice).toBeChecked();
+        assert.equal(await choice.evaluate(e=>getComputedStyle(e.cometSwatch).backgroundColor),'rgb(125, 156, 255)');
+        await page.keyboard.press('Escape');
+        await page.getByRole('button',{name:'Options',exact:true}).click();
+      }
       await page.evaluate(async()=>{
         const before=app.cometData;app.cometsShown=false;app.cometsShown=true;await app.loadComets();
         if(app.cometData!==before)throw Error('Hide/show discarded verified models');
