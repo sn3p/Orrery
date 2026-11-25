@@ -4,7 +4,7 @@ import { validDate } from "../js/asteroidOrbits.js";
 import { replaceShareUrl, shareDateValue } from "./shareUrl.js";
 import PlaybackClock from "../js/PlaybackClock.js";
 import Stats from "../js/Stats.js";
-import Acquisition, { openHostedSource, openCandidateSource } from "./comets/Acquisition.js";
+import Acquisition, { openHostedSource, openCandidateSource, COMET_WINDOW_BUCKET_DAYS } from "./comets/Acquisition.js";
 import { COMETS, firstDate, lastDate, HOSTED_DEFAULT_COMET_IDS, cataloguePresentation, validCometIds, validateCometData, hasUsableComets } from "./comets/model.js";
 import Hud from "./ui/Hud.js";
 import CatalogSource from "./catalog/CatalogSource.js";
@@ -349,7 +349,7 @@ export default class App {
     if (this.destroyed || this.cometAcquisition.closed) return;
     const revision = ++this.cometSelectionRevision;
     const acquisition = this.cometAcquisition;
-    if (!this.cometsShown) return acquisition.select([]);
+    if (!this.cometsShown) return acquisition.suspend();
     const generation = acquisition.generation;
     if (!acquisition.current) {
       this.cometDiscoveryState = 'loading';
@@ -942,7 +942,7 @@ export default class App {
     }
     if (committed && this.catalogue) this.hasCommittedReadouts = true;
     if (committed && this.cometsShown && this.cometAcquisition.current?.getObject) {
-      const key = `${this.cometAcquisition.generation}:${Math.floor(this.jed / 64)}`;
+      const key = `${this.cometAcquisition.generation}:${Math.floor(this.jed / COMET_WINDOW_BUCKET_DAYS)}`;
       if (this.cometWindowKey !== key) { this.cometWindowKey = key; void this.acquireComets(); }
     }
 

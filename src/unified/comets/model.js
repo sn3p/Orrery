@@ -15,7 +15,9 @@ export const DEFAULT_DISPLAY_WINDOW_DAYS = 10 * 365.25;
 export const DEFAULT_COMET_IDS = Object.freeze(COMETS.map(comet => comet.id));
 export function validCometIds(ids, catalogue) {
   return Array.isArray(ids) && new Set(ids).size === ids.length
-    && ids.every(id => catalogue ? catalogue.some(entry => entry.id === id) : typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(id) && !['__proto__', 'constructor', 'prototype'].includes(id));
+    && ids.every(id => typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(id)
+      && !Object.hasOwn(Object.prototype, id) && id !== 'prototype'
+      && (!catalogue || catalogue.some(entry => entry.id === id)));
 }
 export const lastDate = series => series.segments ? series.segments.at(-1)?.coverage.end
   : series.start + (series.states.length - 1) * series.step;

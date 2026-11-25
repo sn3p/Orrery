@@ -18,6 +18,19 @@ export const openHostedSource = async signal => {
   }
 };
 
+export const COMET_WINDOW_BUCKET_DAYS = 64;
+const sameWindow = (a, b) => a?.start === b?.start && a?.end === b?.end;
+function cometWindow(entry, jed) {
+  const half = (entry?.periodDays ?? DEFAULT_DISPLAY_WINDOW_DAYS) / 2 + COMET_WINDOW_BUCKET_DAYS;
+  const center = Math.floor(jed / COMET_WINDOW_BUCKET_DAYS) * COMET_WINDOW_BUCKET_DAYS;
+  const coverage = entry?.coverage ?? [];
+  const first = coverage[0]?.start, last = coverage.at(-1)?.end;
+  if (entry?.trajectory?.kind === 'legacy') return { start: first, end: last };
+  const span = Number.isFinite(first) && Number.isFinite(last) ? Math.min(half * 2, last - first) : half * 2;
+  const start = Number.isFinite(first) ? Math.max(first, Math.min(center - half, last - span)) : center - half;
+  return { start, end: start + span };
+}
+
 // One generation owns one source and its verified cache. Selection is independent
 // of acquisition: completing a request never changes visibility or selection.
 export default class Acquisition {
@@ -44,30 +57,30 @@ export default class Acquisition {
     }
     return this.opening;
   }
-  select(ids, retry = false, context = {}) {
+  async select(ids, retry = false, context = {}) {
+    if (this.closed) return;
+    const intent = this.selection = { ids, context };
+    const generation = this.generation;
+    // Directory windows require a verified catalogue, including on a fresh call.
+    if (!this.current && ids.length) {
+      try { await this.source(); } catch {
+        if (!this.closed && this.selection === intent && generation === this.generation) {
+          for (const id of ids) this.states[id] = 'error';
+          this.changed();
+        }
+        return;
+      }
+      if (this.closed || this.selection !== intent || generation !== this.generation) return;
+    }
     const windowed = !!this.current?.getObject;
     if (windowed) {
-      const windows = Object.fromEntries(ids.map(id => {
-        const entry = context.catalogue?.find(e => e.id === id);
-        const half = (entry?.periodDays ?? DEFAULT_DISPLAY_WINDOW_DAYS) / 2 + 64;
-        const center = Math.floor(context.jed / 64) * 64;
-        const coverage = entry?.coverage ?? [];
-        const first = coverage[0]?.start, last = coverage.at(-1)?.end;
-        if (entry?.trajectory?.kind === 'legacy') return [id, { start: first, end: last }];
-        const span = Number.isFinite(first) && Number.isFinite(last) ? Math.min(half * 2, last - first) : half * 2;
-        const start = Number.isFinite(first) ? Math.max(first, Math.min(center - half, last - span)) : center - half;
-        return [id, { start, end: start + span }];
-      }));
-      for (const id of new Set([...Object.keys(this.data), ...this.requests.keys(), ...Object.keys(this.states)])) {
-        if (!windows[id] || JSON.stringify(windows[id]) !== JSON.stringify(this.windows?.[id])) {
-          this.requests.get(id)?.abort(); this.requests.delete(id);
-          const { [id]: removed, ...remaining } = this.data; this.data = remaining;
-          delete this.states[id];
-        }
+      this.windows = Object.fromEntries(ids.map(id => [id, cometWindow(
+        context.catalogue?.find(e => e.id === id) ?? this.current.getObject(id), context.jed)]));
+      for (const id of Object.keys(this.data)) if (!ids.includes(id)) {
+        const { [id]: removed, ...remaining } = this.data; this.data = remaining;
+        delete this.loadedWindows?.[id]; delete this.states[id];
       }
-      this.windows = windows;
     }
-    if (this.closed) return Promise.resolve();
     for (const [id, request] of this.requests) if (!ids.includes(id)) {
       this.requests.delete(id);
       request.abort();
@@ -79,12 +92,13 @@ export default class Acquisition {
       if (!ids.includes(id) && this.states[id] === 'error') delete this.states[id];
     }
     const work = ids.map(id => {
-      if (this.data[id] || this.requests.has(id) || (this.states[id] === 'error' && !retry)) return;
+      if (this.requests.has(id)) return this.requests.get(id).completion;
+      if ((this.states[id] === 'error' && !retry) || (this.data[id] && (!windowed || sameWindow(this.loadedWindows?.[id], this.windows[id])))) return;
       const request = new AbortController(), generation = this.generation;
       this.requests.set(id, request);
       this.states[id] = 'loading';
       const valid = () => !this.closed && generation === this.generation && this.requests.get(id) === request;
-      return (async () => {
+      request.completion = (async () => {
         try {
           const source = await this.source();
           if (!valid()) return;
@@ -92,12 +106,14 @@ export default class Acquisition {
           if (source.getObject) {
             const entry = source.getObject(id);
             const legacy = entry?.trajectory?.kind === 'legacy';
-            const window = legacy ? { start: entry.coverage[0].start, end: entry.coverage.at(-1).end } : this.windows[id];
+            const window = this.windows[id];
             const result = await source.loadWindow(id, { ...window, signal: request.signal });
             // Legacy paths retain their established grid-rounded presentation.
             // New segmented paths draw exactly the bounded window requested,
             // independent of which support blocks happen to be resident.
             comet = { series: { segments: result.segments, ...(!legacy && { displayWindow: window }) } };
+            this.loadedWindows ??= {};
+            if (valid()) this.loadedWindows[id] = window;
           } else if (source.loadSegment) {
             const entry = source.info.objects.find(object => object.id === id);
             // Reader validates the complete pair before exposing a selected object.
@@ -118,14 +134,35 @@ export default class Acquisition {
           // from a still-current read (including AbortError) needs recovery UI.
           if (valid()) this.states[id] = 'error';
         } finally {
-          if (valid()) { this.requests.delete(id); this.changed(); }
+          if (valid()) {
+            this.requests.delete(id); this.changed();
+            // Finish useful work before following the latest playback window.
+            // A failure remains explicitly retryable, even if playback advances.
+            if (windowed && this.selection && this.states[id] !== 'error'
+              && !sameWindow(this.loadedWindows?.[id], this.windows[id])) {
+              void this.select(this.selection.ids, false, this.selection.context);
+            }
+          }
         }
       })();
+      return request.completion;
     });
     this.changed();
     return Promise.all(work);
   }
+  suspend() {
+    this.selection = null;
+    for (const [id, request] of this.requests) {
+      request.abort();
+      if (this.data[id]) this.states[id] = 'ready'; else delete this.states[id];
+    }
+    this.requests.clear();
+    for (const id of Object.keys(this.states)) if (this.states[id] === 'error') delete this.states[id];
+    this.changed();
+  }
   replace(open = this.open) {
+    this.selection = null;
+    this.windows = this.loadedWindows = null;
     this.generation++;
     this.controller.abort();
     this.current?.close();

@@ -33,7 +33,8 @@ test('window acquisition cancels stale work, retries failures and releases desel
   const context={jed:100,catalogue:[{...entry,periodDays:10,coverage:[{start:0,end:100000,end_inclusive:true}]}]};
   await a.select([entry.id],false,context);assert.equal(a.states[entry.id],'ready');assert.equal(calls.length,1);
   await a.select([entry.id],false,context);assert.equal(calls.length,1);
-  fail=true;await a.select([entry.id],false,{...context,jed:200});assert.equal(a.states[entry.id],'error');assert.equal(a.data[entry.id],undefined);
+  fail=true;await a.select([entry.id],false,{...context,jed:200});assert.equal(a.states[entry.id],'error');assert(a.data[entry.id], 'Retain the verified model on replacement failure');
+  await a.select([entry.id],false,{...context,jed:300});assert.equal(calls.length,2,'Playback does not retry settled failures');
   fail=false;await a.select([entry.id],true,{...context,jed:200});assert.equal(a.states[entry.id],'ready');
   await a.select([],false,context);assert.deepEqual(a.data,{});
   let release;source.loadWindow=async()=>{await new Promise(r=>release=r);return {segments:[]};};
@@ -57,4 +58,41 @@ test('variable grid steps do not change explicit window drawing or Fit',async()=
   const a=new Acquisition(()=>{},async()=>source);await a.source();
   for(const jed of [0,3000,12000]) {await a.select([row.id],false,{jed,catalogue:[row]});const model=a.data[row.id];assert.deepEqual(pathStrips(model,jed,row.periodDays),pathStrips({segments,displayWindow:model.displayWindow},jed,row.periodDays));}
   a.close();
+});
+
+test('fresh selection, moving windows and hide preserve useful work without starving loads',async()=>{
+  const row={...entry,periodDays:10,coverage:[{start:0,end:10000,end_inclusive:true}]};
+  const context=jed=>({jed,catalogue:[row]});
+  const calls=[],releases=[];
+  let delayed=false;
+  const source={getObject:()=>row,close(){},loadWindow:async(id,options)=>{
+    calls.push(options);if(delayed)await new Promise(resolve=>releases.push(resolve));
+    return {segments:[{key:'block',coverage:row.coverage[0],series:{start:0,step:10000,states:[[0,0,0,1,0,0],[10000,0,0,1,0,0]]}}]};
+  }};
+  const a=new Acquisition(()=>{},async()=>source);
+  await a.select([row.id],false,context(100));assert.equal(a.states[row.id],'ready','Fresh source loads with date context');
+  const model=a.data[row.id];a.suspend();await a.select([row.id],false,context(100));
+  assert.equal(a.data[row.id],model);assert.equal(calls.length,1,'Hide/show reuses loaded model');
+  delayed=true;const pending=a.select([row.id],false,context(200));
+  while(!releases.length)await new Promise(r=>setImmediate(r));
+  for(const jed of [300,400,500])void a.select([row.id],false,context(jed));
+  assert.equal(a.data[row.id],model);assert.equal(calls.length,2);assert(!calls[1].signal.aborted);
+  releases.shift()();await pending;
+  while(!releases.length)await new Promise(r=>setImmediate(r));
+  assert.equal(calls.length,3,'Follow only the latest requested window');
+  assert.equal(a.data[row.id].displayWindow.start,calls[1].start);
+  releases.shift()();while(a.requests.size)await new Promise(r=>setImmediate(r));
+  assert.equal(a.data[row.id].displayWindow.start,calls[2].start);
+  await a.select([],false,context(500));assert.deepEqual(a.data,{});a.close();
+});
+test('application IDs reject inherited object keys even when a catalogue lists them',()=>{
+  for(const id of [...Object.getOwnPropertyNames(Object.prototype),'prototype']) {
+    assert(!validCometIds([id]));assert(!validCometIds([id],[{id}]));
+  }
+});
+test('comet queue cancellation retains comet diagnostics',async()=>{
+  const {CometDownloadQueue}=await import('../src/unified/comets/source/cometSourceCore.js');
+  const queue=new CometDownloadQueue(0), controller=new AbortController();
+  const pending=queue.run(controller.signal,()=>{});controller.abort();
+  await assert.rejects(pending,error=>error.name==='AbortError'&&/comet/i.test(error.message));
 });

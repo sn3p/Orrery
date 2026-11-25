@@ -15,7 +15,7 @@ covered rows stay blank. Unpublished trajectories cannot be selected for display
 
 Schema-4 acquisition requests a bounded period-based window (ten years where no
 presentation period is known), with a 64-day margin and date buckets to avoid
-per-frame fetch churn. New segmented trajectories draw and Fit the explicit requested window, so sampling steps and resident support blocks cannot shift or truncate it. Legacy trajectories retain the established full-data, grid-rounded presentation. Acquisition releases old/deselected app data and renderer paths.
+per-frame fetch churn. New segmented trajectories draw and Fit the explicit requested window, so sampling steps and resident support blocks cannot shift or truncate it. Legacy trajectories retain the established full-data, grid-rounded presentation. Acquisition retains the last verified window while a replacement loads, finishes in-flight work before following the latest playback window, and releases it on successful replacement or deliberate deselection. Hiding comets suspends requests while preserving selected models. Failed replacements remain explicitly retryable.
 Only published trajectories allocate renderer objects. Reader caches retain the
 producer's separate 16 MiB serialized-byte budgets; these are not heap limits.
 Discovery events and citations come unchanged from the authenticated legacy index.

@@ -439,6 +439,8 @@ export default class Options {
     }
     const selectedEntries = app.cometCatalogue.filter(entry => selectedIds.has(entry.id));
     const unavailable = selectedEntries.filter(entry => catalogueCoverage([entry]) && !catalogueHasCoverage(entry, app.jed)).length;
+    const unpublished = selectedEntries.filter(entry => !catalogueCoverage([entry])).length;
+    if (app.cometsShown && unpublished) status += ` ${unpublished} selected ${unpublished === 1 ? 'comet has' : 'comets have'} no published trajectory.`;
     if (app.cometsShown && unavailable) {
       status += unavailable === ids.length ? ' No trajectory for this date.'
         : ` ${unavailable} of ${ids.length} ${unavailable === 1 ? 'has' : 'have'} no trajectory for this date.`;
@@ -448,7 +450,7 @@ export default class Options {
         if (range) status += ` ${ids.length === 1 ? selectedEntries[0].name + ' covers' : 'Selected comets cover'} ${year(range[0])}–${year(range[1])}.`;
       }
     }
-    if (app.cometsShown && app.cometCatalogue.some(entry => entry.usesDefaultWindow && selectedIds.has(entry.id))) {
+    if (app.cometsShown && app.cometCatalogue.some(entry => entry.usesDefaultWindow && catalogueCoverage([entry]) && selectedIds.has(entry.id))) {
       status += ' Comets without a known display period use a 10-year trajectory window, limited to available data.';
     }
     if (!loading && !failed && app.cometDiscoveryState === 'ready') this.cometRetried = false;

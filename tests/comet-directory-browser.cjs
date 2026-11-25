@@ -26,6 +26,10 @@ module.exports = async function(browser, root, directory) {
       assert.deepEqual(await page.evaluate(()=>app.cometIds),expanded?index.objects.filter(e=>index.defaults.includes(e.id)).map(e=>e.id):['1P','2P','55P','9P','10P','67P']);
       assert.equal(await page.evaluate(()=>app.cometCatalogue.length),expanded?4089:6);
       assert.equal(await page.evaluate(()=>app.renderer.comets.entries.length),expanded?14:6);
+      await page.evaluate(async()=>{
+        const before=app.cometData;app.cometsShown=false;app.cometsShown=true;await app.loadComets();
+        if(app.cometData!==before)throw Error('Hide/show discarded verified models');
+      });
       const available=index.objects.filter(e=>expanded?e.trajectory:true);
       for(const entry of available) {
         const coverage=expanded?entry.coverage:entry.segments.map(s=>s.coverage);
@@ -61,6 +65,9 @@ module.exports = async function(browser, root, directory) {
         assert.equal(await page.locator('[data-comet-id]').count(),60);
         for(const width of [320,1280]) {await page.setViewportSize({width,height:800});assert(await page.locator('dialog[open]').evaluate(e=>e.scrollWidth<=e.clientWidth+1));}
         await page.keyboard.press('Escape');
+        await page.evaluate(async id=>{app.restoreCometSelection([id]);await app.loadComets();},pending.id);
+        await expect(page.locator('.orrery-options-panel [role=status]')).toContainText('1 selected comet has no published trajectory.');
+        await expect(page.locator('.orrery-options-panel [role=status]')).not.toContainText('No trajectory for this date');
         // Paused date seek must initiate acquisition without an explicit reload.
         await page.evaluate(()=>{app.cometIds=['1P'];app.jed=2444239.5;app.renderFrame();});
         await page.waitForFunction(()=>app.cometStates['1P']==='ready');
