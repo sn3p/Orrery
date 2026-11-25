@@ -16,6 +16,7 @@ const scenarios = ['', '/Orrery'].flatMap(prefix => ['pixi', 'three'].flatMap(in
 async function run({ browser, name, output = '.context/startup-switching', scenario }) {
   const root = path.resolve(process.env.ORRERY_DEFAULT_DIST || 'dist');
   const results = [];
+  const starters = await require('./comet-starters.cjs')();
   for (const { prefix, initial, stage, failure } of (scenario ? [scenario] : scenarios)) {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     const errors = [], requests = [];
@@ -51,7 +52,7 @@ async function run({ browser, name, output = '.context/startup-switching', scena
       await expect(selector).toHaveValue(initial);
       // Real comet controls stay usable independently of the held asteroids.
       await page.getByRole('checkbox', { name: 'Show comets', exact: true }).check();
-      await expect(page.locator('.orrery-comet-summary')).toContainText('6 selected');
+      await expect(page.locator('.orrery-comet-summary')).toContainText(`${starters.length} selected`);
       await expect(page.getByRole('button', { name: 'Fit selected comets' })).toBeEnabled();
       await page.getByRole('button', { name: 'Choose…', exact: true }).click();
       await page.getByRole('checkbox', { name: 'Show 2P/Encke', exact: true }).uncheck();
@@ -82,7 +83,7 @@ async function run({ browser, name, output = '.context/startup-switching', scena
       await page.getByRole('button', { name: 'Done', exact: true }).click();
       await expect(page.getByRole('checkbox', { name: 'Comet paths', exact: true })).not.toBeChecked();
       await page.getByRole('button', { name: 'Fit selected comets' }).click();
-      await expect(page.locator('.orrery-comet-label:not([hidden])')).toHaveCount(5);
+      await expect(page.locator('.orrery-comet-label:not([hidden])')).toHaveCount(starters.filter(id=>id!=='2P').length);
       release();
       await expect(page.locator('#orrery-count')).toHaveText('6');
       await selector.selectOption(initial);

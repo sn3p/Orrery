@@ -5,7 +5,7 @@ import { replaceShareUrl, shareDateValue } from "./shareUrl.js";
 import PlaybackClock from "../js/PlaybackClock.js";
 import Stats from "../js/Stats.js";
 import Acquisition, { openHostedSource, openCandidateSource, COMET_WINDOW_BUCKET_DAYS } from "./comets/Acquisition.js";
-import { COMETS, firstDate, lastDate, HOSTED_DEFAULT_COMET_IDS, cataloguePresentation, validCometIds, validateCometData, hasUsableComets } from "./comets/model.js";
+import { COMETS, firstDate, lastDate, STARTER_COMET_IDS, cataloguePresentation, validCometIds, validateCometData, hasUsableComets } from "./comets/model.js";
 import Hud from "./ui/Hud.js";
 import CatalogSource from "./catalog/CatalogSource.js";
 import CatalogLoader from "./catalog/CatalogLoader.js";
@@ -72,7 +72,7 @@ export default class App {
     this.cometCatalogue = [];
     this.cometSelection = new CometSelectionPreference(() => {
       this.cometSelectionNotice = '';
-      if (this.cometCatalogueSource) this.cometSelection.initialize((this.cometCatalogueSource.info.defaults ?? HOSTED_DEFAULT_COMET_IDS).filter(id => this.cometEditableIds.has(id)));
+      if (this.cometCatalogueSource) this.initializeCometSelection();
       void this.acquireComets();
     });
     this.cometEditableIds = null;
@@ -345,6 +345,9 @@ export default class App {
     this.cometError = this.cometIds.some(id => acquisition.states[id] === 'error');
     this.applyCometOptions();
   }
+  initializeCometSelection() {
+    this.cometSelection.initialize(STARTER_COMET_IDS.filter(id => this.cometEditableIds.has(id)));
+  }
   async acquireComets(retry = false) {
     if (this.destroyed || this.cometAcquisition.closed) return;
     const revision = ++this.cometSelectionRevision;
@@ -362,7 +365,7 @@ export default class App {
         this.cometCatalogueSource = source;
         this.cometCatalogue = cataloguePresentation(source.info.objects.map(entry => ({ ...entry, discovery: entry.discovery ?? source.legacy?.info.objects.find(e => e.id === entry.id)?.discovery })));
         this.cometEditableIds = new Set(this.cometCatalogue.map(entry => entry.id));
-        this.cometSelection.initialize((source.info.defaults ?? HOSTED_DEFAULT_COMET_IDS).filter(id => this.cometEditableIds.has(id)));
+        this.initializeCometSelection();
         this.cometSelectionNotice = this.cometSelection.missingNotice(this.cometCatalogue);
       }
       this.cometDiscoveryState = 'ready';

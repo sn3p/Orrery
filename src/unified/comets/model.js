@@ -9,8 +9,9 @@ export const COMETS = Object.freeze([
 // from Julian years to days. See docs/comets.md for source epochs/solutions.
 // This lookup never determines membership or computes positions.
 const ADDITIONAL_DISPLAY_PERIOD_DAYS = Object.freeze({ '9P': 2038, '10P': 1958, '67P': 2353 });
-const ADDITIONAL_COLORS = Object.freeze({ '9P': 0x8cdaa0, '10P': 0xef9fb2, '67P': 0xcbd079 });
-export const HOSTED_DEFAULT_COMET_IDS = Object.freeze(['1P', '2P', '55P', '9P', '10P', '67P']);
+const ADDITIONAL_COLORS = Object.freeze({ '9P': 0x8cdaa0, '10P': 0xef9fb2, '67P': 0xcbd079, 'c1000079': 0x7d9cff });
+// App-owned starter selection; the producer's defaults remain wire-contract metadata.
+export const STARTER_COMET_IDS = Object.freeze(['1P', '2P', '55P', '67P', 'c1000079']);
 export const DEFAULT_DISPLAY_WINDOW_DAYS = 10 * 365.25;
 export const DEFAULT_COMET_IDS = Object.freeze(COMETS.map(comet => comet.id));
 export function validCometIds(ids, catalogue) {
