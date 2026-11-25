@@ -138,6 +138,7 @@ export default class Options {
     this.cometRows = [];
     this.cometChoices = {};
     this.mountCometChooser();
+    this.mountCometInfo();
     const statusRow = document.createElement("li");
     statusRow.className = "orrery-comet-status";
     statusRow.append(this.panelCometFeedback.status, this.panelCometFeedback.retry);
@@ -149,6 +150,44 @@ export default class Options {
     this.cometRows.push(paths.domElement.closest("li"));
     this.updateComets();
   }
+
+  mountCometInfo() {
+    const dialog = this.cometInfo = document.getElementById("orrery-comet-info");
+    if (typeof dialog?.showModal !== "function") { this.cometInfo = null; return; }
+    const row = document.createElement("li");
+    row.className = "orrery-comet-info-row";
+    const trigger = this.cometInfoTrigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "orrery-glossary-trigger";
+    trigger.textContent = "About comets";
+    trigger.setAttribute("aria-haspopup", "dialog");
+    trigger.setAttribute("aria-controls", dialog.id);
+    row.append(trigger);
+    this.gui.__ul.append(row);
+    trigger.addEventListener("click", this.onOpenCometInfo);
+    dialog.addEventListener("close", this.onCometInfoClose);
+    dialog.addEventListener("click", this.onCometInfoBackdrop);
+  }
+
+  onOpenCometInfo = () => {
+    if (this.destroyed || !this.cometInfo || this.cometInfo.open) return;
+    this.hideTip();
+    this.cometInfoWasHeld = this.orrery.held;
+    this.orrery.hold(true);
+    this.cometInfo.showModal();
+    this.cometInfo.scrollTop = 0;
+    this.cometInfo.querySelector("h1").focus({ preventScroll: true });
+  };
+
+  onCometInfoBackdrop = event => {
+    if (event.target === this.cometInfo) this.cometInfo.close();
+  };
+
+  onCometInfoClose = () => {
+    if (this.cometInfo?.open) return;
+    if (!this.cometInfoWasHeld && !document.querySelector("dialog[open]")) this.orrery.hold(false);
+    if (!this.destroyed && !this.panel.hidden) this.cometInfoTrigger.focus();
+  };
 
   // The chooser edits the shared selection; closing it does not commit or cancel.
   mountCometChooser() {
@@ -216,7 +255,11 @@ export default class Options {
     const summary = document.createElement("div");
     summary.className = "orrery-comet-selection-summary";
     summary.append(this.cometDialogSummary, this.cometClear);
-    header.append(title, this.cometSearch, summary);
+    this.cometAssessmentLegend = document.createElement("p");
+    this.cometAssessmentLegend.className = "orrery-comet-assessment-legend";
+    this.cometAssessmentLegend.textContent = "— Trajectory not yet assessed";
+    this.cometAssessmentLegend.hidden = true;
+    header.append(title, this.cometSearch, summary, this.cometAssessmentLegend);
     const footer = document.createElement("footer");
     footer.append(this.chooserCometFeedback.status, this.chooserCometFeedback.retry, done);
     const body = this.cometChooserBody = document.createElement("div");
@@ -406,6 +449,7 @@ export default class Options {
       this.cometCatalogue = app.cometCatalogue;
       this.rebuildCometChoices();
     }
+    let hasUnassessed = false;
     for (const [id, checkbox] of Object.entries(this.cometChoices)) {
       const data = app.cometData?.[id], state = app.cometStates?.[id];
       const entry = checkbox.cometEntry;
@@ -415,12 +459,17 @@ export default class Options {
       const text = !coverage ? assessmentMessage(entry, app.jed) : !covered ? 'No trajectory for this date'
         : selected && state === 'error' ? 'Could not load trajectory'
         : selected && state === 'loading' ? 'Loading…' : '';
+      const unassessed = text === 'Trajectory not yet assessed';
+      hasUnassessed ||= unassessed;
+      checkbox.closest('label').classList.toggle('is-unassessed', unassessed);
+      checkbox.closest('label').title = unassessed ? `${entry.name}: ${text}` : '';
       checkbox.disabled = !coverage && !selected;
       if (checkbox.cometStatus.textContent !== text) checkbox.cometStatus.textContent = text;
       checkbox.cometStatus.classList.toggle('is-error', selected && covered && state === 'error');
       checkbox.cometStatus.classList.toggle('is-loading', selected && covered && state === 'loading');
       checkbox.cometSwatch.hidden = !selected || !hasCoverage(data, app.jed);
     }
+    this.cometAssessmentLegend.hidden = !hasUnassessed;
     let ready = 0, loading = 0, failed = 0, usable = 0;
     for (const id of ids) {
       const series = app.cometData?.[id];
@@ -759,6 +808,7 @@ export default class Options {
     // select invokes the full-screen native picker on iOS; keyboard users can
     // reach the first newly revealed control with Tab.
     if (!open) this.closeCometChooser(restoreFocus);
+    if (!open && this.cometInfo?.open) this.cometInfo.close();
     if (!open && this.glossary?.open) this.glossary.close();
     if (!open && restoreFocus && hadFocus) this.trigger.focus();
   }
@@ -776,7 +826,8 @@ export default class Options {
     if (this.activeTip?.tip.contains(event.target)) return;
     if (!this.activeTip?.button.contains(event.target)) this.hideTip();
     if (!this.panel.hidden && !this.element.contains(event.target)
-      && !this.glossary?.contains(event.target) && !this.cometDialog?.contains(event.target)) this.setOpen(false);
+      && !this.glossary?.contains(event.target) && !this.cometDialog?.contains(event.target)
+      && !this.cometInfo?.contains(event.target)) this.setOpen(false);
   };
 
   onKeyDown = event => {
@@ -818,6 +869,10 @@ export default class Options {
     this.glossaryTrigger?.removeEventListener("click", this.onOpenGlossary);
     this.glossary?.removeEventListener("close", this.onGlossaryClose);
     this.glossary?.removeEventListener("click", this.onGlossaryBackdrop);
+    if (this.cometInfo?.open) { this.cometInfo.close(); this.onCometInfoClose(); }
+    this.cometInfoTrigger?.removeEventListener("click", this.onOpenCometInfo);
+    this.cometInfo?.removeEventListener("close", this.onCometInfoClose);
+    this.cometInfo?.removeEventListener("click", this.onCometInfoBackdrop);
     this.closeCometChooser(false);
     this.cometDialog?.remove();
     this.unmountRenderer();

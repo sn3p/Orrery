@@ -21,6 +21,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
   for (const renderer of ['three','pixi']) {
     await require('./options-feedback.cjs')(browser, root, renderer);
     await require('./comet-chooser.cjs')(browser, root, renderer);
+    await require('./info-dialogs.cjs')(browser, root, renderer);
     const page = await browser.newPage({viewport:{width:1280,height:800},deviceScaleFactor:2});
     const errors=[];
     page.on('pageerror', e=>errors.push(e.message));

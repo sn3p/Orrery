@@ -825,7 +825,7 @@ dialog .orrery-dialog-title:focus { outline: none; }
 .orrery-comet-summary .orrery-glossary-close { margin-left: auto; }
 .orrery-comet-chooser { top: 12px; bottom: auto; margin: 0 auto; width: 400px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); box-sizing: border-box; }
 .orrery-comet-chooser input[type="search"] { box-sizing: border-box; width: 100%; min-width: 0; padding: 6px; border: 1px solid #555; background: #191919; color: inherit; font: inherit; }
-.orrery-comet-selection-summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 14px; }
+.orrery-comet-selection-summary { margin-top: 8px; display: flex; align-items: baseline; flex-wrap: wrap; gap: 14px; }
 .orrery-comet-selection-summary .orrery-glossary-trigger { width: auto; margin: 0; }
 .orrery-comet-list-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; padding: 8px 4px; color: #888; }
 .orrery-comet-list-heading button { width: auto; margin: 0 0 0 auto; }
@@ -841,3 +841,14 @@ dialog .orrery-dialog-title:focus { outline: none; }
 .orrery-comet-choice-list .is-loading::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 5px; border: 1px solid #555; border-top-color: currentColor; border-radius: 50%; animation: comet-spin 1s linear infinite; }
 @keyframes comet-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .orrery-comet-choice-list .is-loading::before { animation: none; } }
+
+/* Explain routine unassessed entries once, keeping their accessible description. */
+.orrery-comet-assessment-legend { color: #aaa; font-size: 11px; margin: 8px 0; }
+.orrery-comet-choice-list .is-unassessed { align-items: center; }
+.orrery-comet-choice-list .is-unassessed .orrery-comet-detail { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.orrery-comet-choice-list .is-unassessed small { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.orrery-comet-choice-list .is-unassessed::after { content: '—'; flex: none; color: #aaa; }
+
+.orrery-comet-info { width: 480px; }
+.orrery-options-panel .dg li.orrery-comet-info-row { height: auto; padding: 0 4px; }
+.orrery-comet-info-row .orrery-glossary-trigger { margin: 0 0 8px; }

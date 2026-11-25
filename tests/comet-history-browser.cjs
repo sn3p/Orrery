@@ -117,8 +117,8 @@ module.exports=async function(browser,root){
       await expect(page.locator('.orrery-options-panel [role=status]')).not.toContainText('Earlier coverage');
       // The test entry omits Intro; exercise the actual built About markup directly.
       await page.locator('#orrery-intro').evaluate(e=>e.showModal());
-      await expect(page.locator('#orrery-intro')).toContainText('Coverage varies by comet and loaded catalogue');
-      await expect(page.locator('#orrery-intro')).toContainText('start and end dates');
+      await expect(page.locator('#orrery-comet-info')).toContainText('Coverage varies by comet and date');
+      await expect(page.locator('#orrery-intro')).not.toContainText('start and end dates');
       await expect(page.locator('#orrery-intro')).not.toContainText('1835');
       await expect(page.locator('#orrery-intro')).not.toContainText('1865');
       for(const viewport of [{width:320,height:568},{width:1280,height:800}]) {

@@ -11,8 +11,9 @@ the current viewing direction with a small margin, keeping the Sun centered.
 **paths** toggles the comet trajectories.
 Selections survive renderer changes. Reload restores asteroid-only visibility
 while remembering comet selections. The footer count remains an asteroid count.
-The About Orrery panel explains the comet data source, date coverage and model
-limits, with a link to JPL Horizons. Loading, retry and unavailable-date messages
+Options → **About comets** explains catalogue membership versus trajectory
+availability, date coverage and model limits, with links to JPL Horizons and
+OrreryData. It remains available when comets are hidden. Loading, retry and unavailable-date messages
 remain beside the comet controls in Options.
 
 ## Scientific model and limits
