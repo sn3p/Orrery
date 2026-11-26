@@ -138,7 +138,7 @@ exports.gui = async page => page.evaluate(() => {
     controls.destroy(); controls.destroy();
     app.autoRender = true; app.requestRender(); app.destroy(); app.destroy();
     app.renderFrame(); app.render();
-    check(ownedDestroys === 1 && app.animationFrame === null && !document.querySelector('canvas, .dg.main'), 'Standalone then app teardown remains safe and leaves no resources');
+    check(ownedDestroys === 1 && app.animationFrame === null && !document.querySelector('canvas, .lil-root'), 'Standalone then app teardown remains safe and leaves no resources');
     return { standaloneLifetimes: 2, standaloneDestroys: destroys, appOwnedDestroys: ownedDestroys, listenersRemaining: 0 };
   } finally { window.addEventListener = add; window.removeEventListener = remove; }
 });

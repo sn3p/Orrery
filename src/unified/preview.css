@@ -44,18 +44,17 @@
 
 .orrery-planet-label[hidden] { display: none; }
 
-.orrery-options-panel .dg .property-name { color: var(--color-options-label) !important; }
 .orrery-options-hint { color: var(--color-options-help); }
-.orrery-options-panel .dg .c input,
-.orrery-options-panel .dg .c:hover input,
-.orrery-options-panel .dg .c input:focus,
-.orrery-options-panel .dg .c select { color: var(--color-options-value) !important; }
+.orrery-options-panel .lil-widget input,
+.orrery-options-panel .lil-widget input:hover,
+.orrery-options-panel .lil-widget select { color: var(--color-options-value); }
 
-.orrery-options-panel .dg .c input[type="checkbox"] {
-  width: 16px !important;
-  height: 16px !important;
-  margin: 5px 0 4px;
-  padding: 0 !important;
+.orrery-options-panel .lil-boolean input {
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
   accent-color: var(--color-accent-muted);
 }
 
@@ -218,17 +217,17 @@
   border-color: #365c41;
 }
 
-.orrery-options-panel .dg .property-name { color: #b5e8c1 !important; }
+.orrery-options-panel .lil-name { color: #b5e8c1; }
 /* The wall clock is driving the date; the slider value is not the rate. */
-.orrery-options-panel .dg li.orrery-options-inactive .property-name,
-.orrery-options-panel .dg li.orrery-options-inactive .c { opacity: .5; }
-.orrery-options-panel .dg .c select { border-color: #477b54; }
+.orrery-options-panel .orrery-options-inactive > .lil-name,
+.orrery-options-panel .orrery-options-inactive > .lil-widget { opacity: .5; }
+.orrery-options-panel .lil-option select { border-color: #477b54; }
 
 /* Only labels and checkboxes toggle boolean settings. */
-.orrery-options-panel .dg .cr.boolean,
-.orrery-options-panel .dg .cr.boolean * { cursor: default; }
-.orrery-options-panel .dg .cr.boolean .property-name,
-.orrery-options-panel .dg .cr.boolean input[type="checkbox"] { cursor: pointer; }
+.orrery-options-panel .lil-boolean,
+.orrery-options-panel .lil-boolean * { cursor: default; }
+.orrery-options-panel .lil-boolean .lil-name,
+.orrery-options-panel .lil-boolean input { cursor: pointer; }
 
 .orrery-fps {
   top: 8px;
@@ -351,23 +350,17 @@
   cursor: pointer;
 }
 
-.orrery-options-panel .dg .slider-fg {
-  background-color: #477b54 !important;
+.orrery-options-panel .lil-fill {
+  background-color: #477b54;
 }
-.orrery-options-panel .dg .slider:hover .slider-fg {
-  background-color: var(--color-accent-muted) !important;
+.orrery-options-panel .lil-slider:hover .lil-fill {
+  background-color: var(--color-accent-muted);
 }
-.orrery-options-panel .dg input:focus,
-.orrery-options-panel .dg select:focus-visible {
-  outline: 1px solid var(--color-accent) !important;
+.orrery-options-panel .lil-widget input:focus,
+.orrery-options-panel .lil-widget select:focus-visible {
+  outline: 1px solid var(--color-accent);
   outline-offset: 1px;
 }
-
-/* The renderer name needs more room than the short Speed/DPR labels. */
-.orrery-options-panel .orrery-renderer-settings .property-name,
-.orrery-options-panel .orrery-renderer-option .property-name { width: 28% !important; }
-.orrery-options-panel .orrery-renderer-settings .c,
-.orrery-options-panel .orrery-renderer-option .c { width: 72% !important; }
 
 .orrery-about {
   font: inherit;
@@ -650,15 +643,12 @@ dialog .orrery-dialog-title:focus { outline: none; }
 .orrery-comet-actions button[hidden] { display: none; }
 .orrery-options-hint a { color: var(--color-link); }
 
-.orrery-options-panel .dg li[hidden] { display: none !important; }
-
 /* Compact comet chooser, using the existing dialog visual language. */
-.orrery-options-panel .dg li.orrery-comet-summary {
+.orrery-options-panel .orrery-comet-summary {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  height: auto;
   padding: 4px 0 8px;
 }
 .orrery-comet-summary .orrery-glossary-trigger { width: auto; margin: 0; }
@@ -681,61 +671,53 @@ dialog .orrery-dialog-title:focus { outline: none; }
   outline-offset: 3px;
 }
 
-/* One inset and row rhythm, independent of dat.GUI's default list styling. */
+/* One inset and row rhythm for lil-gui rows and our own rows. */
 .orrery-options-panel { padding: 6px 10px 10px; }
-.orrery-options-panel .dg.main > ul > li:not(.folder) {
-  padding-inline: 0;
-  border-bottom: 0;
-  line-height: 18px;
-}
 /* Shared Options sections keep the existing panel width and type scale. */
-.orrery-options-panel .dg li.orrery-options-section {
+.orrery-options-panel .orrery-options-section {
   margin: 8px -10px 0;
-  border-top: 1px solid #365c41 !important;
-  border-bottom: 0 !important;
-  padding: 6px 10px 0 !important;
-  height: auto;
+  border-top: 1px solid #365c41;
+  padding: 6px 10px 0;
 }
-.orrery-options-panel .dg li.orrery-options-section:first-child { margin-top: 0; border-top: 0 !important; padding-top: 0 !important; }
-.orrery-options-panel .dg .orrery-options-section h2,
-.orrery-options-panel .dg .orrery-options-section .property-name {
+.orrery-options-panel .orrery-options-section:first-child { margin-top: 0; border-top: 0; padding-top: 0; }
+.orrery-options-panel .orrery-options-section h2,
+.orrery-options-panel .orrery-options-section > .lil-name {
   margin: 0;
-  color: #eee !important;
+  color: #eee;
   font-size: 12px;
   font-weight: 600;
   line-height: 28px;
 }
-.orrery-options-panel .dg .cr > div {
-  display: grid;
+.orrery-options-panel .lil-controller {
   grid-template-columns: 100px minmax(0, 1fr) 18px;
   align-items: center;
   gap: 0 6px;
-  width: 100%;
-  max-width: 100%;
   min-height: 28px;
 }
-.orrery-options-panel .dg .cr .property-name,
-.orrery-options-panel .dg .cr .c {
-  float: none;
-  width: auto !important;
-  min-width: 0;
+/* Live-speed help sits below the speed control. */
+.orrery-options-panel .lil-controller > .orrery-options-hint { grid-column: 1 / -1; }
+.orrery-options-panel .lil-name,
+.orrery-options-panel .lil-widget { min-width: 0; }
+.orrery-options-panel .lil-number .lil-widget { display: flex; align-items: center; gap: 6px; }
+.orrery-options-panel .lil-number .lil-slider { flex: 1; }
+.orrery-options-panel .lil-number input {
+  flex: 0 0 42px;
+  width: 42px;
   margin: 0;
 }
-.orrery-options-panel .dg .cr.boolean input { display: block; margin: 0; }
-.orrery-options-panel .dg .has-slider .c { display: flex; align-items: center; gap: 6px; }
-.orrery-options-panel .dg .has-slider .slider {
-  order: -1;
-  flex: 1;
-  width: auto !important;
-  margin: 0 !important;
+/* A renderer folder title reads as a section heading. */
+.orrery-options-panel .orrery-renderer-settings > .lil-title {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #eee;
+  font: 600 12px/28px var(--font-ui);
+  text-align: left;
+  cursor: pointer;
 }
-.orrery-options-panel .dg .has-slider input[type="text"] {
-  flex: 0 0 42px;
-  box-sizing: border-box;
-  width: 42px !important;
-  margin: 0 !important;
-}
-.orrery-options-panel .dg .c select {
+.orrery-options-panel .lil-option select {
   -webkit-appearance: none;
   appearance: none;
   padding: 0 22px 0 5px;
@@ -784,9 +766,8 @@ dialog .orrery-dialog-title:focus { outline: none; }
   transform: rotate(45deg);
 }
 .orrery-options-tip[hidden], .orrery-options-hint[hidden] { display: none; }
-.orrery-options-panel .dg li.orrery-comet-status { height: auto; }
 .orrery-comet-actions { padding: 6px 0 0 !important; }
-/* Match panel actions and dialog actions; never inherit a dat.GUI row height. */
+/* Panel actions and dialog actions share one button height. */
 .orrery-comet-actions button,
 .orrery-comet-chooser .orrery-glossary-close {
   box-sizing: border-box;
@@ -838,6 +819,6 @@ dialog .orrery-dialog-title:focus { outline: none; }
 .orrery-comet-choice-list .is-unassessed::after { content: '—'; flex: none; color: #aaa; }
 
 .orrery-comet-info { width: 480px; }
-.orrery-options-panel .dg li.orrery-about-row { height: auto; padding: 8px 0 0; }
+.orrery-options-panel .orrery-about-row { padding: 8px 0 0; }
 .orrery-about-row .orrery-glossary-trigger { width: auto; min-height: 24px; margin: 0; }
 .orrery-dialog-subtitle { font-size: inherit; margin: 16px 0 8px; }

@@ -106,7 +106,7 @@ The planner reads the real PR merge-base diff or push range, including both
 sides of renames and deleted paths. It never relies on a remembered label:
 
 - CSS/fonts/public HTML and unified HUD/options changes add `ui`.
-- Dat-gui CSS changes also select graphics/UI checks.
+- Options control CSS (`src/css/lil-gui.css`) also selects graphics/UI checks.
 - Public entry/routing changes and removed compatibility assets add UI/build/development and build integrations.
 - Catalogue implementation/profiles/data changes add `data,build` and build integrations.
 - Other existing JS/renderer changes add `graphics,ui,data`.

@@ -1,0 +1,178 @@
+/*
+Options panel and lil-gui base styles. lil-gui runs with injectStyles: false;
+preview.css adds the unified theme and row layout.
+*/
+
+.orrery-options {
+  position: fixed;
+  top: 5px;
+  right: 5px;
+}
+
+.orrery-options-trigger {
+  display: block;
+  margin-left: auto;
+  padding: 0 3px 4px;
+  border: 0;
+  background: black;
+  color: #999;
+  font: inherit;
+  line-height: 18px;
+  word-spacing: -0.3em;
+  cursor: pointer;
+}
+
+.orrery-options-indicator {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.orrery-options-trigger:hover {
+  color: #ccc;
+}
+
+.orrery-options-trigger:focus-visible {
+  outline: 1px solid #999;
+}
+
+.orrery-options-panel {
+  width: 300px;
+  max-width: calc(100vw - 10px);
+  max-height: calc(100dvh - 36px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid #333;
+  background: #111;
+}
+
+.orrery-options-hint {
+  clear: both;
+  margin: 0 0 8px;
+  color: #888;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.orrery-options-panel .lil-gui {
+  color: #eee;
+  font-family: var(--font-ui);
+  font-size: var(--font-ui-size);
+  line-height: 18px;
+}
+
+/* The native select shows the value; lil-gui's text overlay is not needed. */
+.orrery-options-panel .lil-display {
+  display: none;
+}
+
+/* lil-gui animates folders: it measures the rows, then clears its inline
+   height on transitionend. Rows stay laid out and the height must transition. */
+.orrery-options-panel .lil-gui.lil-closed:not(.lil-transition) > .lil-children {
+  display: none;
+}
+
+.orrery-options-panel .lil-gui.lil-transition > .lil-children {
+  overflow: hidden;
+  transition: height .2s;
+}
+
+.orrery-options-panel .lil-children > [hidden] {
+  display: none;
+}
+
+.orrery-options-panel .lil-controller {
+  display: grid;
+  overflow: hidden;
+}
+
+.orrery-options-panel .lil-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #bbb;
+  cursor: default;
+}
+
+.orrery-options-panel .lil-widget {
+  position: relative;
+}
+
+.orrery-options-panel .lil-slider {
+  height: 19px;
+  background: #303030;
+  cursor: ew-resize;
+}
+
+.orrery-options-panel .lil-slider:hover {
+  background: #3c3c3c;
+}
+
+.orrery-options-panel .lil-fill {
+  height: 100%;
+  max-width: 100%;
+  background-color: #555;
+}
+
+.orrery-options-panel .lil-slider:hover .lil-fill {
+  background-color: #777;
+}
+
+body.lil-dragging {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+body.lil-dragging * {
+  cursor: ew-resize !important;
+}
+
+body.lil-dragging.lil-vertical * {
+  cursor: ns-resize !important;
+}
+
+.orrery-options-panel .lil-widget input {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 19px;
+}
+
+.orrery-options-panel .lil-number input {
+  box-sizing: border-box;
+  height: 19px;
+  padding: 0 3px;
+  border: 0;
+  outline: none;
+  background: #303030;
+  color: #777;
+}
+
+.orrery-options-panel .lil-number input:hover {
+  background: #3c3c3c;
+  color: #999;
+}
+
+.orrery-options-panel .lil-number input:focus {
+  background: #494949;
+}
+
+.orrery-options-panel .lil-option select {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 19px;
+  margin: 5px 0 4px;
+  border: 1px solid #666;
+  border-radius: 0;
+  background: #151515;
+  color: #999;
+  color-scheme: dark;
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+
+.orrery-options-panel .lil-option select:focus-visible {
+  outline: 1px solid #999;
+  outline-offset: 1px;
+}

@@ -55,6 +55,9 @@ test('configured promotion, root catalogue pins and chronological loading', { ta
 });
 
 test('comet selection, scientific positions and independent populations', { tag: ['@core', '@ui', '@graphics', '@data'] }, async ({ check }) => {
+  // Both renderers' comet scenes plus Options, chooser and dialog checks take
+  // up to about three minutes on hosted runners, WebKit and Firefox the longest.
+  test.setTimeout(300_000);
   await check('comets-browser');
 });
 
