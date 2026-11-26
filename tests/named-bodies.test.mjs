@@ -124,6 +124,7 @@ test('catalogue profile carries the trusted named product through the real build
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { prepareCatalog } = await import('../scripts/catalog.cjs');
+  await fs.mkdir(path.resolve('.context'), { recursive: true });
   const directory = await fs.mkdtemp(path.resolve('.context/named-profile-'));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
   const config = path.join(directory, 'profile.json');
@@ -140,6 +141,7 @@ test('named selections require a fixed generation and the runtime transport limi
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const { prepareCatalog } = await import('../scripts/catalog.cjs');
+  await fs.mkdir(path.resolve('.context'), { recursive: true });
   const directory = await fs.mkdtemp(path.resolve('.context/named-validation-'));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
   const config = path.join(directory, 'profile.json');
