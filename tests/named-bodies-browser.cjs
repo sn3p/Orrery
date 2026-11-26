@@ -4,12 +4,12 @@ const path = require('node:path');
 const { fixture, ref } = require('./named-body-fixture.cjs');
 const { routeFiles } = require('./route-files.cjs');
 
-async function build(output) {
+async function build(output, selection = { mode: 'indexed', pairedLatest: 'https://named.test/paired/latest.json', startJed: 2378496.5, speed: 0 }) {
   const target = require('../webpack.next.config.js'), webpack = require('webpack');
   const config = { ...target, entry: './tests/named-bodies-entry.js', mode: 'production',
     output: { ...target.output, path: path.resolve(output) }, performance: { hints: false },
     plugins: target.plugins.map(plugin => plugin instanceof webpack.DefinePlugin
-      ? new webpack.DefinePlugin({ __CATALOG_SELECTION__: JSON.stringify(fixture().selection) }) : plugin) };
+      ? new webpack.DefinePlugin({ __CATALOG_SELECTION__: JSON.stringify(selection) }) : plugin) };
   await new Promise((resolve, reject) => {
     const compiler = webpack(config);
     compiler.run((error, stats) => compiler.close(closeError => {
@@ -21,12 +21,13 @@ async function settle(page, count = 13) {
   await page.waitForFunction(expected => {
     const app = namedTest.app;
     app.renderFrame();
-    return !app.pendingSession && app.activeSession && app.renderer.planets.length === expected;
+    return !app.catalogOpening && !app.pendingSession && app.activeSession && app.renderer.planets.length === expected;
   }, count);
 }
 async function run({ browser, output = '.context/named-bodies/browser', candidate }) {
   const root = path.resolve(output, 'site'); await build(root);
   const data = fixture(), empty = fixture('empty'), report = [];
+  data.files.set('https://named.test/paired/latest.json', Buffer.from(JSON.stringify({ paired_catalogue_version: 1, asteroids: data.pin, namedBodies: data.namedBodies })));
   for (const [url, body] of empty.files) data.files.set(url, body);
   const wrongMapping = structuredClone(data.mapping);
   wrongMapping.members[0].discovery_jd++;
@@ -65,6 +66,59 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
         assert(initial.position.every((value, i) => Math.abs(value - [500, 500, 400][i]) < 1e-9));
         assert.deepEqual(initial.target, [0, 0, 0]); assert.equal(initial.zoom, 1);
       }
+      assert.equal(requests.filter(url => url.endsWith('/paired/latest.json')).length, 1);
+      for (const conflicting of [{ pin: data.pin }, { latest: 'https://named.test/latest.json' }, { namedBodies: data.namedBodies }, { mode: 'whole' }]) {
+        const before = requests.length;
+        assert.equal(await page.evaluate(({ pin, ...options }) => app.loadCatalog(pin, { pairedLatest: 'https://named.test/paired/latest.json', ...options }), conflicting), false);
+        assert.equal(requests.length, before, 'Conflicting runtime selectors never retry as valid selections');
+      }
+      const pairedURL = 'https://named.test/paired/latest.json';
+      const discoveries = () => requests.filter(url => url === pairedURL).length;
+      let beforeRecovery = discoveries();
+      let missing = 1;
+      await page.route(data.pin.url, async route => {
+        if (missing-- > 0) await route.fulfill({ status: 404 }); else await route.fallback();
+      });
+      assert(await page.evaluate(pairedLatest => app.loadCatalog(null, { pairedLatest }), pairedURL));
+      await settle(page);
+      assert.equal(discoveries() - beforeRecovery, 2, 'Missing immutable resource reacquires exactly one whole pair');
+      assert.deepEqual(await page.evaluate(() => app.renderer.captureView()), initial);
+      await page.unroute(data.pin.url);
+      beforeRecovery = discoveries();
+      await page.route(data.pin.url, route => route.fulfill({ status: 404 }));
+      assert.equal(await page.evaluate(pairedLatest => app.loadCatalog(null, { pairedLatest }), pairedURL), false);
+      assert.deepEqual(await page.evaluate(() => app.renderer.captureView()), initial);
+      assert.equal(await page.evaluate(() => app.renderer.planets.length), 13);
+      assert.equal(discoveries() - beforeRecovery, 2, 'Exhausted recovery never loops');
+      await page.getByRole('button', { name: 'Retry catalogue' }).waitFor();
+      await page.unroute(data.pin.url);
+      await page.getByRole('button', { name: 'Retry catalogue' }).click();
+      await settle(page);
+      // A long-open paired scene can lose a not-yet-read immutable chunk.
+      beforeRecovery = discoveries();
+      await page.route('https://named.test/asteroids/chunks/**', route => route.fulfill({ status: 404 }));
+      await page.evaluate(() => { app.jed = 2451544.5; app.renderFrame(); });
+      await page.getByRole('button', { name: 'Retry catalogue' }).waitFor();
+      assert.equal(discoveries() - beforeRecovery, 1, 'Lazy chunk expiry reacquires one descriptor');
+      assert.deepEqual(await page.evaluate(() => app.renderer.captureView()), initial);
+      assert.equal(await page.evaluate(() => app.renderer.planets.length), 13);
+      await page.unroute('https://named.test/asteroids/chunks/**');
+      await page.getByRole('button', { name: 'Retry catalogue' }).click();
+      await settle(page);
+      await page.evaluate(() => { app.jed = 2378496.5; app.renderFrame(); });
+      // Superseding the descriptor itself must cancel the whole old acquisition.
+      let releaseDescriptor, descriptorRequested;
+      const descriptorGate = new Promise(resolve => { releaseDescriptor = resolve; });
+      const descriptorSeen = new Promise(resolve => { descriptorRequested = resolve; });
+      await page.route(pairedURL, async route => { descriptorRequested(); await descriptorGate; await route.fallback().catch(() => {}); });
+      await page.evaluate(pairedLatest => { window.staleDescriptor = app.loadCatalog(null, { pairedLatest }); }, pairedURL);
+      await descriptorSeen;
+      assert(await page.evaluate(({ pin, namedBodies }) => app.loadCatalog(pin, { namedBodies }), data));
+      releaseDescriptor();
+      assert.equal(await page.evaluate(() => window.staleDescriptor), false);
+      await page.unroute(pairedURL);
+      await settle(page);
+      assert.deepEqual(await page.evaluate(() => app.renderer.captureView()), initial);
       const requestCount = requests.length;
       assert.equal(await page.evaluate(({ namedBodies }) => app.loadCatalog(null, {
         latest: 'https://named.test/latest.json', namedBodies,

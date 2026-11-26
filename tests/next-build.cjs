@@ -45,7 +45,7 @@ async function compile(config) {
     assert(!fs.existsSync("dist/stale-root.txt"));
     const javascript = files("dist/assets").filter(name => name.endsWith(".js"))
       .map(name => fs.readFileSync(path.join("dist/assets", name), "utf8")).join("\n");
-    assert(javascript.includes(require("../catalog-profiles/latest.json").latest), "Default app selects the producer descriptor");
+    assert(javascript.includes(require("../catalog-profiles/latest.json").pairedLatest), "Default app selects the producer descriptor");
   }
 
   const promoted = fingerprint("dist");

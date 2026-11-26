@@ -15,23 +15,28 @@ is authoritative.
 
 ## Activation
 
-Producer PR22 did not publish named-body endpoints. Until a separately reviewed
-paired release is activated, the default shows the existing six planets using
-the generated producer definitions. This is a compatibility display subset, not
-another scientific source. It also works when catalogue loading is offline.
+The default profile uses `pairedLatest` at
+`https://sn3p.github.io/orrery-data/paired/latest.json`, published by producer PR23.
+Each new acquisition revalidates this bounded version-1 descriptor once, then
+loads its immutable asteroid pin and named-body reference together. All thirteen
+reference bodies activate after a successful draw; the camera, group fits,
+playback and display controls retain their existing behavior. While initial
+acquisition is unavailable, the six bundled baseline planets remain usable.
 
-A catalogue profile may include `namedBodies: {url, bytes, sha256}`: an explicit,
-trusted product-index reference. `url` is absolute HTTPS (HTTP allowed only on
-loopback), limited to128KiB. It requires a fixed asteroid `pin`; combining it
-with mutable `latest` is rejected at build time and runtime. Remote profiles use
-`{mode: "indexed", pin, namedBodies}` without a local bundle. Default unpaired
-`latest` remains supported. Automatic paired releases would require a separate
-producer contract linking both generations.
+A paired profile requires indexed mode and rejects `pin`, `latest`, `namedBodies`,
+`bundle`, `archive` and `retained` selectors. Explicit fixed `{mode: "indexed",
+pin, namedBodies}` and asteroid-only profiles remain supported. The root
+asteroid-only latest feed can advance independently and must never be combined
+with a named-body product. Pair retention is producer-owned (at most four pairs,
+minimum fourteen days after confirmed hosted supersession). On resource failure,
+the app retains its scene and reacquires one whole pair once, then exposes a
+Retry catalogue action. There is no polling or permanent offline-pin guarantee.
+
 The product index pins definitions and a mapping to **the exact asteroid index**.
 Asteroid preparation and named downloads run concurrently; the app verifies both
 before exposing a candidate scene. Missing, corrupt,
 stale or mismatched data fails the replacement; it never infers dwarf identities.
-No named-body latest endpoint, periodic polling or automatic activation is added.
+
 
 A successful draw commits the new catalogue and all thirteen reference bodies
 as one scene. Failed/skipped draws roll back both; stale loads are cancelled.

@@ -52,5 +52,5 @@ test("historical benchmark CLI keeps an explicit whole-file oracle when preview 
   assert.deepEqual(await fs.readFile(path.join(site, "data/catalog.json")), require("./historical-catalog.cjs").readCatalog());
   const scripts = (await fs.readdir(path.join(site, "assets"))).filter(name => name.endsWith(".js"));
   const code = (await Promise.all(scripts.map(name => fs.readFile(path.join(site, "assets", name), "utf8")))).join("\n");
-  assert(!code.includes(require("../catalog-profiles/latest.json").latest), "Historical CLI comparison cannot select the live producer");
+  assert(!code.includes(require("../catalog-profiles/latest.json").pairedLatest), "Historical CLI comparison cannot select the live producer");
 });
