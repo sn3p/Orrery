@@ -656,13 +656,12 @@ dialog .orrery-dialog-title:focus { outline: none; }
 .orrery-options-panel .dg li.orrery-comet-summary {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   height: auto;
   padding: 4px 0 8px;
 }
 .orrery-comet-summary .orrery-glossary-trigger { width: auto; margin: 0; }
-.orrery-options-panel .dg .cr > div > .orrery-glossary-trigger { grid-column: 2 / -1; }
 .orrery-comet-chooser { width: 380px; padding: 0; }
 .orrery-comet-choice-list { margin: 0; }
 .orrery-comet-choice-list label {
@@ -708,7 +707,7 @@ dialog .orrery-dialog-title:focus { outline: none; }
 }
 .orrery-options-panel .dg .cr > div {
   display: grid;
-  grid-template-columns: minmax(68px, max-content) minmax(0, 1fr) 18px;
+  grid-template-columns: 100px minmax(0, 1fr) 18px;
   align-items: center;
   gap: 0 6px;
   width: 100%;
@@ -722,7 +721,6 @@ dialog .orrery-dialog-title:focus { outline: none; }
   min-width: 0;
   margin: 0;
 }
-.orrery-options-panel .dg .cr.boolean > div { grid-template-columns: minmax(68px, max-content) max-content 18px; }
 .orrery-options-panel .dg .cr.boolean input { display: block; margin: 0; }
 .orrery-options-panel .dg .has-slider .c { display: flex; align-items: center; gap: 6px; }
 .orrery-options-panel .dg .has-slider .slider {
@@ -822,7 +820,7 @@ dialog .orrery-dialog-title:focus { outline: none; }
 #orrery-comet-history li { margin-bottom: 10px; }
 #orrery-comet-history a { color: var(--color-accent); }
 
-.orrery-comet-summary .orrery-glossary-close { margin-left: auto; }
+.orrery-comet-summary .orrery-glossary-close { margin-left: auto; height: 28px; min-height: 28px; box-sizing: border-box; }
 .orrery-comet-chooser { top: 12px; bottom: auto; margin: 0 auto; width: 400px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); box-sizing: border-box; }
 .orrery-comet-chooser input[type="search"] { box-sizing: border-box; width: 100%; min-width: 0; padding: 6px; border: 1px solid #555; background: #191919; color: inherit; font: inherit; }
 .orrery-comet-selection-summary { margin-top: 8px; display: flex; align-items: baseline; flex-wrap: wrap; gap: 14px; }
@@ -850,5 +848,6 @@ dialog .orrery-dialog-title:focus { outline: none; }
 .orrery-comet-choice-list .is-unassessed::after { content: '—'; flex: none; color: #aaa; }
 
 .orrery-comet-info { width: 480px; }
-.orrery-options-panel .dg li.orrery-comet-info-row { height: auto; padding: 0 4px; }
-.orrery-comet-info-row .orrery-glossary-trigger { margin: 0 0 8px; }
+.orrery-options-panel .dg li.orrery-about-row { height: auto; padding: 8px 0 0; }
+.orrery-about-row .orrery-glossary-trigger { width: auto; min-height: 24px; margin: 0; }
+.orrery-dialog-subtitle { font-size: inherit; margin: 16px 0 8px; }

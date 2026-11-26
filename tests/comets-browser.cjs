@@ -22,6 +22,8 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     await require('./options-feedback.cjs')(browser, root, renderer);
     await require('./comet-chooser.cjs')(browser, root, renderer);
     await require('./info-dialogs.cjs')(browser, root, renderer);
+    await require('./options-help.cjs')(browser, root, renderer);
+    await require('./asteroid-count.cjs')(browser, path.resolve('dist'), renderer);
     const page = await browser.newPage({viewport:{width:1280,height:800},deviceScaleFactor:2});
     const errors=[];
     page.on('pageerror', e=>errors.push(e.message));
@@ -516,8 +518,13 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.getByRole('button',{name:'Fit selected comets'}).click();
       await page.waitForFunction(count=>document.querySelectorAll('.orrery-comet-label:not([hidden])').length===count,starters.length);
       await page.getByRole('checkbox',{name:'Show asteroids',exact:true}).uncheck();
+      for (const id of ['orrery-count', 'orrery-count-unit', 'orrery-count-separator']) {
+        await expect(page.locator('#' + id)).toBeHidden();
+      }
+      await page.getByRole('checkbox',{name:'Show asteroids',exact:true}).check();
+      await expect(page.locator('#orrery-count')).toBeVisible();
       await expect(page.locator('#orrery-count-unit')).toBeVisible();
-      await expect(page.locator('#orrery-count')).toHaveText('0');
+      await expect(page.locator('#orrery-count-separator')).toBeVisible();
       await page.reload();
       await page.getByRole('button',{name:'Options',exact:true}).click();
       await expect(page.getByRole('checkbox',{name:'Show comets',exact:true})).not.toBeChecked();

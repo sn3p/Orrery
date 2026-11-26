@@ -74,8 +74,8 @@ export const POPULATION_PRESET_HINTS = {
   "belt-inner": "Orbits smaller than 2.5 AU, up to the first Kirkwood gap. The densest zone.",
   "belt-middle": "Orbits between 2.5 and 2.82 AU, between two Kirkwood gaps.",
   "belt-outer": "Orbits from 2.82 AU to the belt edge near 3.3 AU, plus Cybeles and the few strays out to Jupiter.",
-  hildas: "Orbits near 4 AU in a 3:2 resonance with Jupiter. A triangle locked to the planet.",
-  trojans: "Share Jupiter’s orbit (L4/L5). Thin at 1980; swarms read after the 2000s.",
+  hildas: "Orbits from 3.7 to 4.2 AU, near Jupiter’s 3:2 resonance. This filter does not verify resonance.",
+  trojans: "Orbits from 4.8 to 5.4 AU with eccentricity below 0.3, approximating Jupiter’s Trojan swarms. Thin at 1980; swarms read after the 2000s.",
   distant: "Beyond Jupiter, grouped by orbit shape in this app, not official MPC types.",
   "without-belt": "Hide the main-belt doughnut. Near Earth, Hungarias, Hildas, Trojans and distant remain.",
 };

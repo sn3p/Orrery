@@ -75,7 +75,8 @@ module.exports=async function(browser,root){
       await page.evaluate(async()=>{const before=app.cometData;const ids=app.cometIds.join('|');await app.switchRenderer(app.rendererId==='pixi'?'three':'pixi');
         if(app.cometData!==before||app.cometIds.join('|')!==ids)throw Error('Renderer switch lost candidate state');});
       await page.getByRole('button',{name:'Options',exact:true}).click();
-      await expect(page.getByRole('checkbox',{name:'Show comets',exact:true})).toHaveAccessibleDescription('Comet paths are calculated from JPL orbit models. Historical positions are approximate, with uncertainty varying by comet and date.');
+      await expect(page.getByRole('button',{name:'About comets',exact:true})).toBeVisible();
+      assert.match(await page.locator('#orrery-comet-info').textContent(), /Accuracy varies by comet and date/);
       await page.evaluate(()=>{app.cometIds=['2P','55P'];app.jed=2378496.5;app.cancelRender();app.renderFrame();});
       await expect(page.locator('.orrery-options-panel [role=status]').filter({hasText:'No trajectory for this date'})).toContainText('Selected comets cover 1865–2099.');
       await expect(page.locator('.orrery-options-panel [role=status]')).toContainText('Selected comets cover 1865–2099.');

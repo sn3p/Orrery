@@ -255,10 +255,10 @@ async function graphics(browser, base, output, name) {
       assert(await options.evaluate(el => el === document.activeElement));
       await require('./options.cjs').tabIntoOptions(target, forward);
       assert(await target.getByRole("combobox", { name: "Renderer", exact: true }).evaluate(el => el === document.activeElement));
-      // This 2× context exposes DPR after the renderer and its help button.
-      await require('./options.cjs').tabThroughHelp(target, 'Renderer', forward);
+      // This 2× context exposes pixel density immediately after the renderer.
+      await target.keyboard.press(forward);
       assert(await target.getByRole("combobox", { name: "Rendering pixel ratio", exact: true }).evaluate(el => el === document.activeElement),
-        'Tab reaches the DPR choice after Renderer help');
+        'Tab reaches pixel density immediately after Renderer');
       await require('./options.cjs').tabThroughHelp(target, 'Rendering pixel ratio', forward);
       assert(await speed.evaluate(el => el === document.activeElement));
       for (const selector of ['.orrery-identity', '.orrery-date', '#orrery-count', '.orrery-options-panel']) {

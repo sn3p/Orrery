@@ -15,6 +15,7 @@ export default class Hud {
     this.fps = document.getElementById("orrery-fps");
     this.count = document.getElementById("orrery-count");
     this.countUnit = document.getElementById("orrery-count-unit");
+    this.countSeparator = document.getElementById("orrery-count-separator");
     this.swatches = document.getElementById("orrery-swatches");
     this.legendKey = "";
     this.readouts = this.date.closest(".orrery-readouts");
@@ -47,6 +48,14 @@ export default class Hud {
       this.count.setAttribute("aria-label", `${countFormat.format(count)} asteroids`);
       this.lastCount = count;
     }
+  }
+
+  setAsteroidVisibility(shown, showUnit) {
+    for (const element of [this.count, this.countSeparator]) {
+      if (element && element.hidden === shown) element.hidden = !shown;
+    }
+    const unitHidden = !shown || !showUnit;
+    if (this.countUnit && this.countUnit.hidden !== unitHidden) this.countUnit.hidden = unitHidden;
   }
 
   // The date is a button whose text changes on nearly every frame of playback.

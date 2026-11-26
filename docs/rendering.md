@@ -47,11 +47,12 @@ in `population.js` decides whether All paints the belt zones (true) or leaves
 the belt gray and paints the zones only on the belt presets (false, the
 current setting). Neither choice changes the discovery prefix or
 downloads extra data. Reload returns to All.
-One-line help sits under the control; **About these groups** opens a glossary
-whose titles repeat the legend dots,
+**About asteroids** at the end of the section opens an overview with the current
+group’s description, model/count limitations and a group list with legend dots,
 as does the **minor-planet groups** shortcut in the introduction card. The
 bottom-left count is what the group menu shows at the committed date, colored
-or gray, not a live MPC census. While groups are colored, swatches beside that
+or gray, not a live MPC census. The count and its separator hide when asteroids
+are switched off; a real zero remains visible when they are on. While groups are colored, swatches beside that
 count name the hues; when all three belt zones are painted they share one
 Main belt entry with three dots, light inner to dark outer. Cuts are by
 orbit shape in this app, not official MPC `Orbit_type`. Choosing a group frames it,
@@ -202,3 +203,9 @@ The full catalogue's shader error stayed below 0.14 pixels at 20× zoom across
 seven tested dates, including ±50,000 days. Extreme zoom/dates, other GPUs,
 actual Safari/iOS and larger unique catalogues remain unverified. The bundled
 catalogue is unchanged; these measurements do not establish a new data limit.
+
+Options keeps control-specific tooltips on pixel density, speed and real time.
+**About asteroids** and **About comets** are the last rows of their sections and
+remain available when the corresponding objects are hidden. The asteroid group
+descriptions use approximate orbital selections, not verified resonances or
+official MPC types. The comet footer count remains undecided and is not added.

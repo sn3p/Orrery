@@ -126,7 +126,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
       await page.keyboard.press("Tab");
       if (await renderer.count()) {
         assert(await renderer.evaluate(input => input === document.activeElement), "Renderer input is keyboard reachable");
-        await require("./options.cjs").tabThroughHelp(page, "Renderer");
+        await page.keyboard.press("Tab");
       }
       const pixelRatio = page.getByRole("combobox", { name: "Rendering pixel ratio" });
       if (await pixelRatio.count() && await pixelRatio.isVisible()) {

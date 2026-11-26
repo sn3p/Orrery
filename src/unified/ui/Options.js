@@ -52,13 +52,12 @@ export default class Options {
     placeholder.textContent = "Choose renderer";
     placeholder.disabled = true;
     this.rendererSelect.prepend(placeholder);
-    this.addHint(this.renderer, "Change renderer; time and options persist.", this.rendererSelect);
     this.renderer.onChange(id => { if (id) void this.orrery.switchRenderer(id); });
 
-    this.pixelRatio = this.gui.add(this.orrery, "pixelRatio", { "1×": "1", "2×": "2" }).name("DPR");
+    this.pixelRatio = this.gui.add(this.orrery, "pixelRatio", { "1×": "1", "2×": "2" }).name("pixel density");
     this.pixelRatioSelect = this.pixelRatio.domElement.querySelector("select");
     this.pixelRatioSelect.setAttribute("aria-label", "Rendering pixel ratio");
-    this.pixelRatioSelect.title = "Pixel density: 2× is sharper but uses more GPU.";
+    this.pixelRatioSelect.title = "2× is sharper but uses more GPU.";
     this.addHint(this.pixelRatio, this.pixelRatioSelect.title, this.pixelRatioSelect);
     this.updatePixelRatio();
     this.addSection("Rendering", this.renderer);
@@ -104,16 +103,12 @@ export default class Options {
     this.population = this.gui.add(this.orrery, "populationPreset", POPULATION_PRESET_OPTIONS).name("groups");
     this.populationSelect = this.population.domElement.querySelector("select");
     this.populationSelect.setAttribute("aria-label", "Minor-planet groups");
-    this.setPopulationHint(this.orrery.populationPreset ?? DEFAULT_POPULATION_PRESET);
-    this.population.onChange(value => this.setPopulationHint(value));
-    this.mountGlossary();
 
     this.colorize = this.gui.add(this.orrery, "colorizeGroups").name("colors");
     this.colorizeInput = this.colorize.domElement.querySelector("input");
     this.colorizeInput.setAttribute("aria-label", "Group colors");
-    this.colorizeInput.title = "Color the shown groups by orbit. The belt stays gray on All; the belt presets paint its zones.";
-    this.addHint(this.colorize, this.colorizeInput.title, this.colorizeInput);
     this.confineCheckbox(this.colorize);
+    this.mountGlossary();
 
     this.mountComets();
 
@@ -132,13 +127,11 @@ export default class Options {
     input.setAttribute("aria-label", "Show comets");
     this.confineCheckbox(toggle);
     this.makeSectionToggle(toggle, "Comets");
-    this.addHint(toggle, "Comet paths are calculated from JPL orbit models. Historical positions are approximate, with uncertainty varying by comet and date.", input);
     this.panelCometFeedback = this.createCometFeedback();
 
     this.cometRows = [];
     this.cometChoices = {};
     this.mountCometChooser();
-    this.mountCometInfo();
     const statusRow = document.createElement("li");
     statusRow.className = "orrery-comet-status";
     statusRow.append(this.panelCometFeedback.status, this.panelCometFeedback.retry);
@@ -148,22 +141,14 @@ export default class Options {
     paths.domElement.querySelector("input").setAttribute("aria-label", "Comet paths");
     this.confineCheckbox(paths);
     this.cometRows.push(paths.domElement.closest("li"));
+    this.mountCometInfo();
     this.updateComets();
   }
 
   mountCometInfo() {
     const dialog = this.cometInfo = document.getElementById("orrery-comet-info");
     if (typeof dialog?.showModal !== "function") { this.cometInfo = null; return; }
-    const row = document.createElement("li");
-    row.className = "orrery-comet-info-row";
-    const trigger = this.cometInfoTrigger = document.createElement("button");
-    trigger.type = "button";
-    trigger.className = "orrery-glossary-trigger";
-    trigger.textContent = "About comets";
-    trigger.setAttribute("aria-haspopup", "dialog");
-    trigger.setAttribute("aria-controls", dialog.id);
-    row.append(trigger);
-    this.gui.__ul.append(row);
+    const trigger = this.cometInfoTrigger = this.addAboutLink("About comets", dialog);
     trigger.addEventListener("click", this.onOpenCometInfo);
     dialog.addEventListener("close", this.onCometInfoClose);
     dialog.addEventListener("click", this.onCometInfoBackdrop);
@@ -171,7 +156,11 @@ export default class Options {
 
   onOpenCometInfo = () => {
     if (this.destroyed || !this.cometInfo || this.cometInfo.open) return;
+    // Native close events are queued. Finish the previous session before a
+    // same-task reopen captures its hold as though it belonged to the caller.
+    this.onCometInfoClose();
     this.hideTip();
+    this.cometInfoHolding = true;
     this.cometInfoWasHeld = this.orrery.held;
     this.orrery.hold(true);
     this.cometInfo.showModal();
@@ -184,7 +173,8 @@ export default class Options {
   };
 
   onCometInfoClose = () => {
-    if (this.cometInfo?.open) return;
+    if (this.cometInfo?.open || !this.cometInfoHolding) return;
+    this.cometInfoHolding = false;
     if (!this.cometInfoWasHeld && !document.querySelector("dialog[open]")) this.orrery.hold(false);
     if (!this.destroyed && !this.panel.hidden) this.cometInfoTrigger.focus();
   };
@@ -722,14 +712,26 @@ export default class Options {
     tip.style.setProperty("--tip-notch", `${Math.max(4, Math.min(r.top + r.height / 2 - y - 4, box.height - 12))}px`);
   };
 
-  setPopulationHint(preset) {
-    const text = populationHint(preset);
-    if (!this.populationHint) {
-      this.populationHint = this.addHint(this.population, text, this.populationSelect);
-      return;
-    }
-    this.populationHint.textContent = text;
-    this.placeTip();
+  addAboutLink(label, dialog) {
+    const row = document.createElement("li");
+    row.className = "orrery-about-row";
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "orrery-glossary-trigger";
+    trigger.textContent = label;
+    trigger.setAttribute("aria-haspopup", "dialog");
+    trigger.setAttribute("aria-controls", dialog.id);
+    row.append(trigger);
+    this.gui.__ul.append(row);
+    return trigger;
+  }
+
+  updateGlossarySelection() {
+    const preset = this.orrery.populationPreset ?? DEFAULT_POPULATION_PRESET;
+    const label = Object.entries(POPULATION_PRESET_OPTIONS).find(([, value]) => value === preset)?.[0] ?? "All";
+    const heading = document.createElement("strong");
+    heading.textContent = this.orrery.asteroidsShown ? `Showing: ${label}.` : `Asteroids hidden. Selected: ${label}.`;
+    this.glossary.querySelector("#orrery-glossary-selection")?.replaceChildren(heading, ` ${populationHint(preset)}`);
   }
 
   mountGlossary() {
@@ -739,13 +741,7 @@ export default class Options {
       this.glossary = null;
       return;
     }
-    const trigger = this.glossaryTrigger = document.createElement("button");
-    trigger.type = "button";
-    trigger.className = "orrery-glossary-trigger";
-    trigger.textContent = "About these groups";
-    trigger.setAttribute("aria-haspopup", "dialog");
-    trigger.setAttribute("aria-controls", this.glossary.id);
-    this.population.domElement.closest("li").querySelector(":scope > div").appendChild(trigger);
+    const trigger = this.glossaryTrigger = this.addAboutLink("About asteroids", this.glossary);
     this.paintGlossaryTitles();
     trigger.addEventListener("click", this.onOpenGlossary);
     this.glossary.addEventListener("close", this.onGlossaryClose);
@@ -776,6 +772,7 @@ export default class Options {
   openGlossary({ restoreFocus } = {}) {
     if (this.destroyed || !this.glossary || this.glossary.open) return false;
     this.glossaryRestoreFocus = restoreFocus ?? this.glossaryTrigger;
+    this.updateGlossarySelection();
     // With group colors off the scene is gray, so the title dots would mislead.
     // The dialog is modal, so the option cannot change while it is open.
     this.hideTip();
@@ -869,7 +866,8 @@ export default class Options {
     this.glossaryTrigger?.removeEventListener("click", this.onOpenGlossary);
     this.glossary?.removeEventListener("close", this.onGlossaryClose);
     this.glossary?.removeEventListener("click", this.onGlossaryBackdrop);
-    if (this.cometInfo?.open) { this.cometInfo.close(); this.onCometInfoClose(); }
+    if (this.cometInfo?.open) this.cometInfo.close();
+    this.onCometInfoClose();
     this.cometInfoTrigger?.removeEventListener("click", this.onOpenCometInfo);
     this.cometInfo?.removeEventListener("close", this.onCometInfoClose);
     this.cometInfo?.removeEventListener("click", this.onCometInfoBackdrop);

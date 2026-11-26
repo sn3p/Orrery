@@ -43,7 +43,22 @@ module.exports = async (browser, root, renderer) => {
         await page.keyboard.press('Enter');await expect(modal).toBeHidden();
       }
     }
-    await page.evaluate(()=>{app.gui.controls.open();});
+    await page.evaluate(async()=>{
+      const controls=app.gui.controls;
+      controls.open();
+      for (let i=0;i<3;i++) { controls.onOpenCometInfo();controls.cometInfo.close(); }
+      await new Promise(resolve=>setTimeout(resolve,100));
+    });
+    await expect.poll(()=>page.evaluate(()=>app.held)).toBe(false);
+    // Disposing after close() but before its event must release the hold too.
+    await trigger.click();
+    await page.evaluate(()=>{
+      const controls=app.gui.controls;
+      controls.cometInfo.close();controls.destroy();
+    });
+    await expect.poll(()=>page.evaluate(()=>app.held)).toBe(false);
+    await page.reload();await page.evaluate(()=>threeTest.ready);
+    await page.evaluate(()=>{window.app=threeTest.app;app.gui.controls.open();});
     await trigger.click();
     await page.evaluate(()=>app.gui.controls.destroy());
     await expect(dialog).toBeHidden();

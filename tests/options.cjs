@@ -84,7 +84,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     await info.focus();
     const tooltip = page.locator("#" + await info.getAttribute("aria-describedby"));
     await expect(tooltip).toBeVisible();
-    await expect(tooltip).toHaveText("Pixel density: 2× is sharper but uses more GPU.");
+    await expect(tooltip).toHaveText("2× is sharper but uses more GPU.");
     const box = await tooltip.boundingBox(), viewport = page.viewportSize();
     assert(box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width + 1
       && box.y + box.height <= viewport.height + 1, "Help stays inside the viewport");
@@ -154,13 +154,13 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert(await panel.evaluate(el => el.querySelector("select[aria-label='Renderer']") === document.activeElement
       || (!el.querySelector("select[aria-label='Renderer']") && el.querySelector("input") === document.activeElement)),
     "Tab reaches the first revealed control");
-    await expect(renderer).toHaveAccessibleDescription("Change renderer; time and options persist.");
+    await expect(renderer).not.toHaveAttribute("aria-describedby", /.+/);
     await expect(speed).toHaveAccessibleDescription("Time scale: 1 = 60 days/s. 0 pauses; negative reverses.");
     await expect(labels).toHaveAccessibleDescription("Show labels for Earth, all planets, or none.");
     await expect(orbits).toHaveAccessibleDescription("Show or hide planetary orbit lines.");
     assert.equal(await labels.getAttribute("title"), null);
     assert.equal(await orbits.getAttribute("title"), null);
-    await expect(groups).toHaveAccessibleDescription("Numbered minor planets with known discovery dates. Most are in the main belt.");
+    await expect(groups).not.toHaveAttribute("aria-describedby", /.+/);
     assert.deepEqual(await labels.locator("option").allTextContents(), ["Off", "Earth only", "All planets"]);
     assert.equal(await labels.inputValue(), "earth");
     assert(await orbits.isChecked(), "Planet orbits start visible");
@@ -168,7 +168,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       ["All", "Near Earth", "Hungarias", "Main belt", "Inner belt", "Middle belt", "Outer belt", "Hildas",
         "Jupiter Trojans", "Distant", "Without the belt"]);
     assert.equal(await groups.inputValue(), "all", "Group filter starts at All");
-    assert.equal(await page.getByRole("button", { name: "About these groups" }).count(), 1);
+    assert.equal(await page.getByRole("button", { name: "About asteroids" }).count(), 1);
     assert.equal(await page.evaluate(() => localStorage.getItem("orrery.populationPreset")), null,
       "The All default does not invent a saved population preference");
     assert.deepEqual(await orbits.evaluate(element => {
@@ -178,7 +178,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert.equal(await page.evaluate(() => localStorage.getItem("orrery.planetOrbits")), null,
       "The visible default does not invent a saved orbit preference");
     const dprHelp = await page.locator("#" + await dpr.getAttribute("aria-describedby")).textContent();
-    assert.equal(dprHelp, "Pixel density: 2× is sharper but uses more GPU.");
+    assert.equal(dprHelp, "2× is sharper but uses more GPU.");
     assert.deepEqual(await panel.getByRole("heading").allTextContents(),
       ["Rendering", "Playback", "Planets", "Asteroids", "Comets"], "Settings use the reviewed section order");
     assert.equal(await panel.evaluate(el => el.getBoundingClientRect().width), 300,
@@ -213,8 +213,12 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     const wasRealTime = await realTime.isChecked();
     const realRow = realTime.locator('xpath=ancestor::li[1]');
     const realRowBox = await realRow.boundingBox();
-    await realRow.click({ position: { x: realRowBox.width - 2, y: realRowBox.height / 2 } });
-    assert.equal(await realTime.isChecked(), wasRealTime, "Blank space at the row edge never toggles the checkbox");
+    const checkboxBox = await realTime.boundingBox(), infoBox = await realInfo.boundingBox();
+    await realRow.click({ position: {
+      x: (checkboxBox.x + checkboxBox.width + infoBox.x) / 2 - realRowBox.x,
+      y: realRowBox.height / 2,
+    } });
+    assert.equal(await realTime.isChecked(), wasRealTime, "Blank space between checkbox and help never toggles the checkbox");
     await realInfo.hover();
     await expect(realTip).toBeVisible();
     await page.mouse.move(640, 400);
@@ -295,13 +299,14 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     await dpr.selectOption("1");
     await groups.selectOption("nea");
     assert.equal(await groups.inputValue(), "nea");
-    await expect(groups).toHaveAccessibleDescription("Perihelion closer than 1.3 AU. Sparse at 1980; this numbered catalog is a sample.");
+    await expect(groups).not.toHaveAttribute("aria-describedby", /.+/);
     assert.equal(await page.evaluate(() => localStorage.getItem("orrery.populationPreset")), null,
       "Changing groups does not persist the preset");
     const glossary = page.locator("#orrery-glossary");
-    const glossaryTrigger = page.getByRole("button", { name: "About these groups" });
+    const glossaryTrigger = page.getByRole("button", { name: "About asteroids" });
     await glossaryTrigger.click();
-    assert(await glossary.evaluate(el => el.open), "Glossary opens from the groups control");
+    assert(await glossary.evaluate(el => el.open), "Asteroid information opens from its section link");
+    await expect(glossary.locator("#orrery-glossary-selection")).toContainText("Showing: Near Earth. Perihelion closer than 1.3 AU.");
     assert.deepEqual(await glossary.locator("dt[data-preset]").evaluateAll(titles => titles.map(title =>
       [title.dataset.preset, title.querySelectorAll(".orrery-swatch").length, title.textContent.trim()])),
     [["nea", 1, "Near Earth"], ["hungarias", 1, "Hungarias"], ["belt", 3, "Main belt"], ["hildas", 1, "Hildas"],
@@ -322,7 +327,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     assert(await glossary.evaluate(el => !el.open), "Escape closes the glossary");
     assert(await panel.isVisible(), "Glossary Escape leaves Options open");
     assert(await glossaryTrigger.evaluate(el => el === document.activeElement),
-      "Closing the glossary returns focus to About these groups");
+      "Closing the glossary returns focus to About asteroids");
     await page.waitForFunction(() => document.querySelector("#orrery-fps").textContent === "0 FPS");
     // Choosing a group eases the camera to its frame for half a second; the
     // FPS readout counts playback frames, not that motion. Let it settle.

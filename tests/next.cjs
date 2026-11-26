@@ -100,10 +100,10 @@ async function run({ browser, name, application = "unified", output: artifactDir
           await require("./options.cjs").tabIntoOptions(page, forward);
           assert(await page.getByRole("combobox", { name: "Renderer", exact: true }).evaluate(el => el === document.activeElement),
             "Tab reaches Renderer first");
-          await require("./options.cjs").tabThroughHelp(page, "Renderer", forward);
+          await page.keyboard.press(forward);
           const pixelRatio = page.getByRole("combobox", { name: "Rendering pixel ratio" });
           if (await pixelRatio.isVisible()) {
-            assert(await pixelRatio.evaluate(el => el === document.activeElement), "Tab reaches pixel ratio after Renderer help");
+            assert(await pixelRatio.evaluate(el => el === document.activeElement), "Tab reaches pixel density immediately after Renderer");
             await require("./options.cjs").tabThroughHelp(page, "Rendering pixel ratio", forward);
           }
           assert(await input.evaluate(el => el === document.activeElement), "Tab reaches speed after rendering settings and help");

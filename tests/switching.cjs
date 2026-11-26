@@ -213,15 +213,8 @@ async function reviewRegressions(browser, base, output, name) {
       assert(await trigger.evaluate(el => el === document.activeElement),
         'Pending switch keeps focus on the disclosure');
       await require('./options.cjs').tabIntoOptions(page, forward);
-      const rendererHelp = page.getByRole('button', { name: 'About Renderer', exact: true });
-      assert(await rendererHelp.evaluate(el => el === document.activeElement && !el.disabled),
-        'Pending switch skips the disabled renderer choice and reaches its available help');
-      const tip = page.locator('#' + await rendererHelp.getAttribute('aria-describedby'));
-      assert(await tip.isVisible(), 'Renderer help remains readable during a pending switch');
-      await page.keyboard.press(forward);
-      assert(await tip.isHidden(), 'Leaving renderer help dismisses its tooltip');
       assert(await page.getByRole('combobox', { name: 'Rendering pixel ratio' }).evaluate(el => el === document.activeElement && !el.disabled),
-        'Tab continues from renderer help to the enabled pixel ratio control');
+        'Pending switch skips the disabled renderer choice and reaches pixel density');
       await page.evaluate(() => rejectSwitch());
       await page.waitForFunction(() => !app.switching && !!app.switchError);
       await visibleStatus('failure');

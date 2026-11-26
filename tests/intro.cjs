@@ -165,7 +165,7 @@ async function run({ browser, name, output = '.context/intro' }) {
         await about.click();
         const beforeGlossary = await holds(page, dialog, 'Groups shortcut');
         await activate(dialog, dialog.getByRole('button', { name: 'minor-planet groups', exact: true }));
-        const glossary = page.getByRole('dialog', { name: 'Minor-planet groups' });
+        const glossary = page.getByRole('dialog', { name: 'Asteroids' });
         await glossary.waitFor();
         assert.equal(await page.evaluate(() => document.activeElement?.id), 'orrery-glossary-title',
           'Groups shortcut focuses the glossary title');
