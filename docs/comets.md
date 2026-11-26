@@ -35,7 +35,7 @@ not an observing ephemeris or meteor-shower prediction tool.
 
 Known comets show approximately one orbital period centered near the displayed date.
 Entries without an app display period use a fixed **10-Julian-year window**
-(3652.5 days), identified in Options when selected. This presentation fallback is
+(3652.5 days), explained in About comets. This presentation fallback is
 not an estimate of their orbital period: it may show part of a long orbit or
 several short ones. Scientific date coverage remains independent of this window.
 Near either data boundary, the entire window shifts into the available interval

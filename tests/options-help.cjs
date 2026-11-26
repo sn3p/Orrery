@@ -23,6 +23,7 @@ module.exports = async (browser, root, renderer) => {
     await expect(page.getByRole('combobox',{name:'Rendering pixel ratio'})).toBeFocused();
     assert.deepEqual(await panel.locator('.orrery-options-info').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label'))),
       ['About Rendering pixel ratio','About Playback speed','About Real time']);
+    assert.equal(await panel.locator('.orrery-options-info svg[aria-hidden="true"]').count(),3);
     const label=panel.locator('.cr').filter({has:page.getByRole('combobox',{name:'Rendering pixel ratio'})}).locator('.property-name');
     await expect(label).toHaveText('pixel density');
     const asteroid=page.getByRole('button',{name:'About asteroids',exact:true});
@@ -54,10 +55,13 @@ module.exports = async (browser, root, renderer) => {
       await require('./options-geometry.cjs')(panel);
       const real=page.getByRole('checkbox',{name:'Real time',exact:true});
       const info=page.getByRole('button',{name:'About Real time',exact:true});
+      const icon=info.locator('svg');
+      assert.deepEqual(await icon.evaluate(e=>{const r=e.getBoundingClientRect();return [r.width,r.height];}),[14,14]);
       const before=await real.isChecked();
       await info.tap();
       const tip=page.locator('#'+await info.getAttribute('aria-describedby'));
       await expect(tip).toBeVisible();
+      await expect(info).toHaveCSS('color','rgb(181, 232, 193)');
       assert.equal(await real.isChecked(),before,'Touching help does not toggle its checkbox');
       assert(await tip.evaluate(e=>{const r=e.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight;}));
       await page.keyboard.press('Escape');await expect(tip).toBeHidden();await expect(panel).toBeVisible();

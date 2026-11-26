@@ -17,6 +17,8 @@ module.exports = async (browser, root, renderer) => {
     assert.equal(await page.evaluate(()=>app.held),true);
     await expect(dialog).toContainText('Being listed in the catalogue does not mean a trajectory is available');
     await expect(dialog).toContainText('Coverage varies by comet and date');
+    await expect(dialog).toContainText('up to ten years of available trajectory data');
+    await expect(dialog).toContainText('not an estimate of the orbital period');
     await expect(dialog.getByRole('link',{name:'JPL Horizons'})).toHaveAttribute('href','https://ssd.jpl.nasa.gov/horizons/');
     await page.keyboard.press(browser.browserType().name()==='webkit' ? 'Alt+Tab' : 'Tab');
     await expect(dialog.getByRole('link',{name:'JPL Horizons'})).toBeFocused();

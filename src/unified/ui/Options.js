@@ -489,9 +489,6 @@ export default class Options {
         if (range) status += ` ${ids.length === 1 ? selectedEntries[0].name + ' covers' : 'Selected comets cover'} ${year(range[0])}–${year(range[1])}.`;
       }
     }
-    if (app.cometsShown && app.cometCatalogue.some(entry => entry.usesDefaultWindow && catalogueCoverage([entry]) && selectedIds.has(entry.id))) {
-      status += ' Comets without a known display period use a 10-year trajectory window, limited to available data.';
-    }
     if (!loading && !failed && app.cometDiscoveryState === 'ready') this.cometRetried = false;
     if (this.cometRetried && (failed || app.cometDiscoveryState === 'error')) status += ' Reload the page if it keeps failing.';
     status = status.trim();
@@ -636,10 +633,7 @@ export default class Options {
     button.className = "orrery-options-info";
     button.setAttribute("aria-label", `About ${input.getAttribute("aria-label") || controller.property}`);
     button.setAttribute("aria-describedby", tip.id);
-    const icon = document.createElement("span");
-    icon.textContent = "i";
-    icon.setAttribute("aria-hidden", "true");
-    button.append(icon);
+    button.innerHTML = '<svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="6.25" fill="none" stroke="currentColor"/><circle cx="7" cy="4.4" r=".95" fill="currentColor"/><path d="M7 6.6v3.9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
     controller.domElement.closest("li").querySelector(":scope > div").append(button);
     document.body.append(tip);
     input.setAttribute("aria-describedby", tip.id);

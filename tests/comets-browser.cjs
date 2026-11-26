@@ -399,7 +399,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.getByRole('button',{name:'Choose…',exact:true}).click();
       assert.deepEqual(await page.locator('.orrery-comet-detail > span').allTextContents(),product.objects.map(e=>e.name));
       assert.equal(await page.locator('.orrery-comet-choice-list b').count(),0,'Names are literal text');
-      await expect(page.getByRole('dialog',{name:'Choose comets'}).getByRole('status').filter({hasText:'10-year trajectory window'})).toBeVisible();
+      await expect(page.getByRole('dialog',{name:'Choose comets'}).getByRole('status').filter({hasText:'10-year trajectory window'})).toHaveCount(0);
       await page.evaluate(()=>{
         const series=app.cometData['123P'];
         for(const date of [series.start,series.start+16000,series.start+(series.states.length-1)*series.step]){

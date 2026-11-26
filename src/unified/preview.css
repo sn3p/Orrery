@@ -750,23 +750,13 @@ dialog .orrery-dialog-title:focus { outline: none; }
   padding: 0;
   border: 0;
   background: none;
-  color: #777;
+  color: #707070;
   font: inherit;
   cursor: help;
 }
-.orrery-options-info span {
-  display: grid;
-  place-items: center;
-  width: 13px;
-  height: 13px;
-  box-sizing: border-box;
-  border: 1px solid #555;
-  border-radius: 50%;
-  font-size: 9px;
-  line-height: 1;
-}
-.orrery-options-info:hover span,
-.orrery-options-info.is-open span { color: #b5e8c1; border-color: var(--color-accent-muted); }
+.orrery-options-info svg { display: block; }
+.orrery-options-info:hover,
+.orrery-options-info.is-open { color: #b5e8c1; }
 .orrery-options-info:focus-visible { outline: 1px solid var(--color-accent); }
 .orrery-options-tip {
   position: fixed;
