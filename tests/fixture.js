@@ -1,6 +1,6 @@
 // Separate entry point: exercise the production classes without shipping test globals.
 import Orrery from "./unified-app";
-import planets from "../src/js/planets";
+import planets from "./fixtures/legacy-planets.js";
 import catalogURL from "./fixtures/historical100k/catalog.json.gz";
 import "../src/css/main.css";
 

@@ -63,6 +63,8 @@ that is never deployed.
 
 - [Rendering and options](docs/rendering.md): playback clock, GPU asteroid
   rendering, resolution, benchmarks and measurements.
+- [Named planets and dwarfs](docs/named-bodies.md): producer-owned science, exact
+  catalogue pairing and inactive rollout.
 - [Catalogue loading](docs/catalog-loading.md): chunked delivery, buffering and
   configured sources.
 - [Architecture](docs/architecture.md): application/renderer ownership, state

@@ -36,10 +36,11 @@ export function planetLabelColor(color) {
 }
 
 export default class PlanetLabel {
-  constructor(container, name, color) {
+  constructor(container, name, color, classification) {
     const element = container.ownerDocument.createElement("span");
     element.className = "orrery-planet-label";
-    element.textContent = name;
+    element.textContent = classification === "dwarf-planet" ? `${name} · dwarf` : name;
+    if (classification) element.dataset.classification = classification;
     element.dataset.planet = name;
     const cssColor = planetLabelColor(color);
     if (cssColor) element.style.color = cssColor;
@@ -55,9 +56,10 @@ export default class PlanetLabel {
       && width > 0 && height > 0 && x >= 0 && x <= width && y >= 0 && y <= height;
     this.element.hidden = !shown;
     if (!shown) return;
+    const flipDistance = Math.max(FLIP_DISTANCE, (this.element.offsetWidth || 0) + EDGE_GUTTER + 7);
     this.element.style.left = `${x}px`;
     this.element.style.top = `${Math.min(height - EDGE_GUTTER, Math.max(EDGE_GUTTER, y))}px`;
-    this.element.dataset.side = x > width - FLIP_DISTANCE ? "left" : "right";
+    this.element.dataset.side = x > width - flipDistance ? "left" : "right";
   }
 
   hide() {
@@ -85,7 +87,7 @@ export class PlanetLabels {
     }
     for (const planet of wanted) {
       if (!this.labels.has(planet)) {
-        this.labels.set(planet, new PlanetLabel(this.container, planet.options.name, planet.options.color));
+        this.labels.set(planet, new PlanetLabel(this.container, planet.options.name, planet.options.color, planet.options.classification));
       }
     }
   }

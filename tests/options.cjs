@@ -156,8 +156,8 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     "Tab reaches the first revealed control");
     await expect(renderer).not.toHaveAttribute("aria-describedby", /.+/);
     await expect(speed).toHaveAccessibleDescription("Time scale: 1 = 60 days/s. 0 pauses; negative reverses.");
-    await expect(labels).toHaveAccessibleDescription("Show labels for Earth, all planets, or none.");
-    await expect(orbits).toHaveAccessibleDescription("Show or hide planetary orbit lines.");
+    await expect(labels).toHaveAccessibleDescription("Show labels for Earth, all planets (including dwarf planets), or none.");
+    await expect(orbits).toHaveAccessibleDescription("Show or hide planetary orbit lines, including dwarf planets.");
     assert.equal(await labels.getAttribute("title"), null);
     assert.equal(await orbits.getAttribute("title"), null);
     await expect(groups).not.toHaveAttribute("aria-describedby", /.+/);

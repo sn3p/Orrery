@@ -89,12 +89,12 @@ export default class Options {
       { Off: "off", "Earth only": "earth", "All planets": "all" }).name("labels");
     this.planetLabelsSelect = this.planetLabels.domElement.querySelector("select");
     this.planetLabelsSelect.setAttribute("aria-label", "Planet labels");
-    this.describeControl(this.planetLabels, this.planetLabelsSelect, "Show labels for Earth, all planets, or none.");
+    this.describeControl(this.planetLabels, this.planetLabelsSelect, "Show labels for Earth, all planets (including dwarf planets), or none.");
 
     this.planetOrbits = this.gui.add(this.orrery, "planetOrbits").name("orbits");
     this.planetOrbitsInput = this.planetOrbits.domElement.querySelector("input");
     this.planetOrbitsInput.setAttribute("aria-label", "Planet orbits");
-    this.describeControl(this.planetOrbits, this.planetOrbitsInput, "Show or hide planetary orbit lines.");
+    this.describeControl(this.planetOrbits, this.planetOrbitsInput, "Show or hide planetary orbit lines, including dwarf planets.");
     this.confineCheckbox(this.planetOrbits);
 
     this.asteroids = this.gui.add(this.orrery, "asteroidsShown").name("asteroids");

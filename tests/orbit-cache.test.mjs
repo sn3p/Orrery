@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { Texture } from "pixi.js";
 import Orbit from "../src/unified/pixi/Orbit.js";
 import Planet from "../src/unified/pixi/Planet.js";
-import planets from "../src/js/planets.js";
+import planets from "./fixtures/legacy-planets.js";
 import reference from "./cpu-reference.cjs";
 
 const base = { a: 1, e: 0.2, i: 23, W: 45, wbar: 0, w: 12, M: 17, n: 1, P: 500, epoch: 2451545 };

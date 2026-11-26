@@ -190,11 +190,16 @@ async function prepareCatalog(configPath, { publicDefaults = false } = {}) {
   if (config.startJed !== undefined && !validDate(config.startJed)) throw new Error("Invalid catalogue startJed.");
   if (config.speed !== undefined && !Number.isFinite(config.speed)) throw new Error("Invalid catalogue speed.");
   const playback = {};
+  if (config.namedBodies !== undefined) {
+    const { validatePin } = await import('../src/unified/catalog/contract.js');
+    validatePin(config.namedBodies);
+    playback.namedBodies = config.namedBodies;
+  }
   if (config.startJed !== undefined || !publicDefaults) playback.startJed = config.startJed ?? 2444270.5;
   if (config.speed !== undefined || !publicDefaults) playback.speed = config.speed ?? 1.5;
   if (Object.hasOwn(config, "latest")) {
-    if (config.mode !== "indexed" || Object.keys(config).some(key => !["mode", "latest", "startJed", "speed"].includes(key))) {
-      throw new Error("Latest catalogue selection accepts indexed mode, latest URL and optional date/speed only.");
+    if (config.mode !== "indexed" || Object.keys(config).some(key => !["mode", "latest", "startJed", "speed", "namedBodies"].includes(key))) {
+      throw new Error("Latest catalogue selection accepts indexed mode, latest URL, optional namedBodies pin and date/speed only.");
     }
     const { validateLatestURL } = await import("../src/unified/catalog/contract.js");
     const runtime = { mode: "indexed", latest: validateLatestURL(config.latest).href, ...playback };

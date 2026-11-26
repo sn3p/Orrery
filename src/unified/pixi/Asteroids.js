@@ -26,7 +26,7 @@ varying vec4 vColor;
 ${orbitGLSL}
 ${populationGLSL}
 vec3 classRestColor(float id) {
-  return uClassColors[int(id + 0.5)];
+  return uClassColors[int(min(id, ${CLASS_COUNT - 1}.0) + 0.5)];
 }
 void main() {
   float age = uMarkerTime - aDiscovery;
@@ -178,7 +178,7 @@ export default class Asteroids extends Mesh {
 
   copyClasses(start, end) {
     const values = this.geometry.getBuffer("aClass").data;
-    for (let i = start; i < end; i++) values[i] = this.classes[i];
+    for (let i = start; i < end; i++) values[i] = this.catalogue?.suppressedRows?.has(i) ? CLASS_COUNT : this.classes[i];
   }
 
   setPopulationPreset(preset) {

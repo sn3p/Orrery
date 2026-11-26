@@ -8,6 +8,7 @@ import Acquisition, { openHostedSource, openCandidateSource, COMET_WINDOW_BUCKET
 import { COMETS, firstDate, lastDate, STARTER_COMET_IDS, cataloguePresentation, validCometIds, validateCometData, hasUsableComets } from "./comets/model.js";
 import Hud from "./ui/Hud.js";
 import CatalogSource from "./catalog/CatalogSource.js";
+import { loadNamedBodies } from "./named/source/NamedBodySource.js";
 import CatalogLoader from "./catalog/CatalogLoader.js";
 import { allocateCatalogue, appendCatalogue, prepareCatalogue } from "./catalog/prepareCatalogue.js";
 import { DEFAULT_RENDERER, rendererName, selectRenderer, renderers } from "./renderers.js";
@@ -571,7 +572,7 @@ export default class App {
 
   // A candidate owns a separate data generation. The previous complete scene
   // remains usable until the candidate has a complete requested CPU prefix.
-  async loadCatalog(pin, { mode = "indexed", latest } = {}) {
+  async loadCatalog(pin, { mode = "indexed", latest, namedBodies } = {}) {
     if (this.destroyed) return false;
     const version = ++this.loadVersion;
     this.loadController?.abort();
@@ -587,20 +588,24 @@ export default class App {
     this.demandCatalog();
     this.resetClock();
     this.updateCatalogStatus();
-    let candidate;
+    let candidate, source;
     try {
       await this.init();
       if (this.destroyed || version !== this.loadVersion) return false;
       if (latest !== undefined && mode !== "indexed") throw new Error("Whole-file mode unavailable in browser distribution.");
-      const source = latest !== undefined
+      source = latest !== undefined
         ? await CatalogSource.openLatest(latest, { signal: opening.signal })
         : await CatalogSource.open(pin, { mode, signal: opening.signal });
       if (this.destroyed || version !== this.loadVersion) { source.close(); return false; }
-      const session = candidate = { version, model: null, loader: null };
+      const pair = namedBodies ? await loadNamedBodies(source, namedBodies, namedBodies.url, { signal: opening.signal }) : null;
+      if (this.destroyed || version !== this.loadVersion) { source.close(); return false; }
+      const session = candidate = { version, model: null, loader: null, namedBodies: pair };
       const loader = session.loader = new CatalogLoader({
         activate: count => {
           const start = performance.now();
           session.model = allocateCatalogue(count);
+          session.model.namedBodies = pair;
+          session.model.suppressedRows = new Set(pair?.mapping.members.filter(member => member.status === 'present').map(member => member.ordinal));
           session.model.sourceId = source.sourceId;
           session.model.catalogId = source.info.catalog_id;
           performance.measure("catalog:allocate", { start });
@@ -620,8 +625,9 @@ export default class App {
       this.onCatalogChange();
       return source;
     } catch (error) {
+      source?.close();
       if (this.destroyed || version !== this.loadVersion || opening.signal.aborted) return false;
-      candidate?.loader.dispose();
+      candidate?.loader?.dispose();
       this.pendingSession = null;
       this.catalogLoader = this.activeSession?.loader ?? null;
       this.renderer?.discardStagedCatalogue();

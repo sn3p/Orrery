@@ -1,7 +1,7 @@
 // The real async bootstrap sequence, with instrumentation only in this bundle.
 import Orrery from "./unified-app";
 import Asteroids from "../src/unified/pixi/Asteroids";
-import planets from "../src/js/planets";
+import planets from "./fixtures/legacy-planets.js";
 import catalogURL from "./fixtures/historical100k/catalog.json.gz";
 import "../src/css/main.css";
 

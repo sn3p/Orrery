@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import Sun from "./Sun.js";
 import Planet from "./Planet.js";
+import ReferenceBodies from "../named/ReferenceBodies.js";
 import Orbit from "./Orbit.js";
 import Asteroids from "./Asteroids.js";
 import { DEFAULT_PLANET_LABEL_MODE, isPlanetLabelMode, PlanetLabels } from "../PlanetLabel.js";
@@ -26,10 +27,10 @@ function preparePlanets(data, jed) {
   const batch = [];
   try {
     for (const item of data) {
-      const planet = new Planet(item.ephemeris, { name: item.name, size: item.size, color: item.color });
+      const planet = new Planet(item.ephemeris, { ...item });
       const entry = { planet };
       batch.push(entry);
-      entry.orbit = Orbit.createOrbit(item.ephemeris, jed);
+      entry.orbit = item.namedBody ? planet.orbit.drawOrbit(jed) : Orbit.createOrbit(item.ephemeris, jed);
       planet.render(jed);
     }
     return batch;
@@ -45,6 +46,20 @@ export default class ThreeRenderer {
     this.asteroids = this.stagedAsteroids = this.catalogueTransition = null;
     this.planets = [];
     this.planetOrbits = [];
+    this.referenceBodies = new ReferenceBodies({
+      prepare: (data, jed) => preparePlanets(data, jed),
+      attach: batch => {
+        for (const { planet, orbit } of batch) this.scene.add(orbit, planet.body);
+        this.planets = batch.map(entry => entry.planet);
+        this.planetOrbits = batch.map(entry => entry.orbit);
+        for (const orbit of this.planetOrbits) orbit.visible = this.planetOrbitsVisible;
+        this.planetLabels.setMode(this.planets, this.planetLabelMode);
+      },
+      detach: batch => {
+        for (const { planet, orbit } of batch) { orbit.removeFromParent(); planet.body.removeFromParent(); }
+      },
+      dispose: disposePlanets,
+    });
     this.planetLabelMode = DEFAULT_PLANET_LABEL_MODE;
     this.planetOrbitsVisible = DEFAULT_PLANET_ORBITS_VISIBLE;
     this.populationPreset = DEFAULT_POPULATION_PRESET;
@@ -243,14 +258,7 @@ export default class ThreeRenderer {
 
   addPlanets(data, { jed }) {
     if (this.destroyed) return;
-    const batch = preparePlanets(data, jed);
-    for (const { planet, orbit } of batch) {
-      orbit.visible = this.planetOrbitsVisible;
-      this.planets.push(planet);
-      this.planetOrbits.push(orbit);
-      this.scene.add(orbit, planet.body);
-    }
-    this.planetLabels.setMode(this.planets, this.planetLabelMode);
+    this.referenceBodies.add(data, jed);
     this.requestRender();
   }
 
@@ -263,6 +271,7 @@ export default class ThreeRenderer {
   }
 
   installAsteroids(cloud, preservePrevious = false) {
+    this.referenceBodies.select(cloud.catalogue?.namedBodies?.definitions, this.lastJed ?? cloud.epoch);
     const previous = this.asteroids;
     this.scene.add(cloud);
     this.asteroids = cloud;
@@ -270,7 +279,7 @@ export default class ThreeRenderer {
     if (preservePrevious) {
       this.catalogueTransition = { previous, visible: previous?.visible };
       if (previous) previous.visible = false;
-    } else previous?.destroy();
+    } else { previous?.destroy(); this.referenceBodies.commit(); }
   }
 
   syncCatalogue(model, frame, { required, activate }) {
@@ -305,10 +314,12 @@ export default class ThreeRenderer {
     this.stagedAsteroids = null;
   }
   commitCatalogue() {
+    this.referenceBodies.commit();
     this.catalogueTransition?.previous?.destroy();
     this.catalogueTransition = null;
   }
   rollbackCatalogue({ retain = false } = {}) {
+    this.referenceBodies.rollback();
     if (!this.catalogueTransition) return;
     if (retain) {
       this.asteroids.removeFromParent();
@@ -472,6 +483,7 @@ export default class ThreeRenderer {
     this.canvas?.removeEventListener("webglcontextrestored", this.onContextRestored);
     this.controls?.removeEventListener("change", this.onControlsChange);
     this.controls?.dispose();
+    this.referenceBodies.destroy();
     this.planetLabels.destroy();
     this.comets?.destroy();
     this.releaseSceneResources();
