@@ -42,7 +42,7 @@ export default class Asteroids extends THREE.Points {
     }
     const geometry = new THREE.BufferGeometry();
     // Static attributes reference retained CPU data read-only. Only phase,
-    // discovery packing and arrival timestamps are adapter-owned.
+    // discovery packing, arrival timestamps and masked render classes are adapter-owned.
     const arrivals = new Float32Array(model.dates.length).fill(-1);
     for (const [name, array, size] of [["position", model.p, 3], ["basisQ", model.q, 3],
       ["elements", model.elements, 2], ["meanAnomaly", new Float32Array(model.dates.length), 1],
