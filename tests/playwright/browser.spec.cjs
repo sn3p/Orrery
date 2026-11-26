@@ -54,12 +54,20 @@ test('configured promotion, root catalogue pins and chronological loading', { ta
   await check('promotion', { method: 'configured' });
 });
 
-test('comet selection, scientific positions and independent populations', { tag: ['@core', '@ui', '@graphics', '@data'] }, async ({ check }) => {
-  // Both renderers' comet scenes plus Options, chooser and dialog checks take
-  // up to about three minutes on hosted runners, WebKit and Firefox the longest.
-  test.setTimeout(300_000);
-  await check('comets-browser');
+// Keep the same acceptance scenarios, with independent per-renderer budgets
+// and cleanup. The former monolith opened 52 contexts and timed out on WebKit.
+const cometTags = ['@core', '@ui', '@graphics', '@data'];
+test('comet selection persistence, races and history', { tag: cometTags }, async ({ check }) => {
+  await check('comets-browser', { part: 'selection' });
 });
+for (const renderer of ['three', 'pixi']) {
+  test(`comet controls, scientific positions and populations (${renderer})`, { tag: cometTags }, async ({ check }) => {
+    await check('comets-browser', { part: 'controls', rendererIds: [renderer] });
+  });
+  test(`comet acquisition, replacement and public startup (${renderer})`, { tag: cometTags }, async ({ check }) => {
+    await check('comets-browser', { part: 'lifecycle', rendererIds: [renderer] });
+  });
+}
 
 test('named planets and dwarfs: paired data, both renderers, controls and recovery', { tag: ['@core', '@data', '@graphics', '@ui'] }, async ({ check }) => {
   await check('named-bodies-browser');
