@@ -200,8 +200,7 @@ module.exports = async (browser, url, output, name, application = "unified") => 
     assert(await orbits.isChecked());
     await labels.selectOption("all"); await settle(page);
     await orbits.uncheck(); await settle(page);
-    assert.equal(await page.locator(".orrery-planet-label").count(), 6,
-      "Blocked storage does not prevent changing the label mode for this session");
+    await require('./named-body-labels.cjs')(page);
     assert.equal(await orbits.isChecked(), false,
       "Blocked storage does not prevent changing orbit visibility for this session");
     await choose("1"); await checkBuffer(page, 1);

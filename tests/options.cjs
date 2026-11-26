@@ -289,12 +289,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       return { draws: after.draws - before.draws, elements: after.elements - before.elements };
     };
     await labels.selectOption("all");
-    assert.equal(await page.locator(".orrery-planet-label").count(), 6);
-    assert.deepEqual(await page.locator(".orrery-planet-label").evaluateAll(elements => Object.fromEntries(
-      elements.map(element => [element.dataset.planet, getComputedStyle(element).color]))), {
-      Mercury: "rgb(236, 205, 158)", Venus: "rgb(236, 205, 158)", Earth: "rgb(152, 192, 255)",
-      Mars: "rgb(255, 188, 131)", Jupiter: "rgb(197, 195, 189)", Saturn: "rgb(236, 205, 158)",
-    });
+    await require('./named-body-labels.cjs')(page);
     await labels.selectOption("earth");
     const firstHiddenFrame = await renderWork(() => orbits.uncheck());
     const visibleFrame = await renderWork(() => orbits.check());
