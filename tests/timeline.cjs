@@ -167,10 +167,10 @@ async function run({ browser, name, output = '.context/timeline' }) {
         assert.equal(await date.textContent(), today);
 
         const speedInput = page.getByRole('textbox', { name: 'Playback speed' });
-        const speedRow = speedInput.locator('xpath=ancestor::li[1]');
+        const speedRow = page.locator('.lil-controller').filter({ has: speedInput });
         const speedHint = () => speedRow.locator('.orrery-options-hint');
         await page.getByRole('button', { name: 'Options', exact: true }).click();
-        assert.equal(await speedRow.evaluate(el => getComputedStyle(el.querySelector('.c')).opacity), '0.5',
+        assert.equal(await speedRow.evaluate(el => getComputedStyle(el.querySelector('.lil-widget')).opacity), '0.5',
           'Speed dims while the wall clock drives the date');
         assert(await speedHint().isVisible());
         await expect(speedInput).toHaveAccessibleDescription('Real time: one second per second. 0 pauses; negative reverses.');
@@ -181,7 +181,7 @@ async function run({ browser, name, output = '.context/timeline' }) {
         await page.getByRole('button', { name: '1980-01-01', exact: true }).click();
         await page.waitForFunction(() => document.querySelector('#orrery-date').textContent === '1980-01-01');
         await page.getByRole('button', { name: 'Options', exact: true }).click();
-        assert.equal(await speedRow.evaluate(el => getComputedStyle(el.querySelector('.c')).opacity), '1',
+        assert.equal(await speedRow.evaluate(el => getComputedStyle(el.querySelector('.lil-widget')).opacity), '1',
           'Speed is fully applicable again after leaving the present');
         assert(await speedHint().isHidden(), 'Persistent speed help disappears outside live mode');
         assert.equal(await speedHint().textContent(), '');

@@ -91,7 +91,7 @@ async function state(browser, base, output, name) {
       'Completed switching does not reopen the native renderer picker');
     for (const viewport of [{ width: 1280, height: 800 }, { width: 320, height: 568 }, { width: 568, height: 200 }]) {
       await page.setViewportSize(viewport);
-      assert(await selector.evaluate(el => { const label = el.closest('li').querySelector('.property-name'); return label.scrollWidth <= label.clientWidth; }), 'Renderer label is not clipped');
+      assert(await selector.evaluate(el => { const label = el.closest('.lil-controller').querySelector('.lil-name'); return label.scrollWidth <= label.clientWidth; }), 'Renderer label is not clipped');
       const box = await page.locator('.orrery-options-panel').boundingBox();
       assert(box.x >= 0 && box.x + box.width <= viewport.width && box.y + box.height <= viewport.height);
       await page.screenshot({ path: path.join(output, `${name}-switch-options-${viewport.width}.png`) });
@@ -528,7 +528,18 @@ async function options(browser, base, output, name) {
     assert.equal(await page.evaluate(() => app.rendererOptions.fixture.strength), 7);
     assert.equal(await page.evaluate(() => app.renderer.fixtureStrength), 7);
     assert.equal(await page.getByRole('textbox', { name: 'Playback speed' }).inputValue(), '0');
-    assert(await strength.evaluate(el => { const label = el.closest('li').querySelector('.property-name'); return label.scrollWidth <= label.clientWidth; }), 'Renderer-specific label fits');
+    assert(await strength.evaluate(el => { const label = el.closest('.lil-controller').querySelector('.lil-name'); return label.scrollWidth <= label.clientWidth; }), 'Renderer-specific label fits');
+    // Collapsing and reopening the renderer folder restores its rows above Playback.
+    const folderTitle = page.locator('.orrery-renderer-settings > .lil-title');
+    await folderTitle.click();
+    await page.waitForFunction(() => !document.querySelector('[aria-label="Fixture strength"]').getClientRects().length, null, { timeout: 5000 });
+    await folderTitle.click();
+    await page.waitForFunction(() => {
+      const rows = document.querySelector('.orrery-renderer-settings > .lil-children').getBoundingClientRect();
+      const playback = [...document.querySelectorAll('.orrery-options-section')].find(row => row.textContent === 'Playback');
+      return !document.querySelector('.orrery-renderer-settings.lil-transition') && rows.height > 0
+        && rows.bottom <= playback.getBoundingClientRect().top + 0.5;
+    }, null, { timeout: 5000 });
     assert(await page.evaluate(() => {
       const before = fixture.changes;
       for (const bad of [{ strength: NaN }, { strength: -1 }, { unsupported: 1 }]) {

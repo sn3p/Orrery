@@ -24,13 +24,13 @@ module.exports = async (browser, root, renderer) => {
     assert.deepEqual(await panel.locator('.orrery-options-info').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label'))),
       ['About Rendering pixel ratio','About Playback speed','About Real time']);
     assert.equal(await panel.locator('.orrery-options-info svg[aria-hidden="true"]').count(),3);
-    const label=panel.locator('.cr').filter({has:page.getByRole('combobox',{name:'Rendering pixel ratio'})}).locator('.property-name');
+    const label=panel.locator('.lil-controller').filter({has:page.getByRole('combobox',{name:'Rendering pixel ratio'})}).locator('.lil-name');
     await expect(label).toHaveText('pixel density');
     const asteroid=page.getByRole('button',{name:'About asteroids',exact:true});
     const comet=page.getByRole('button',{name:'About comets',exact:true});
     await expect(asteroid).toBeVisible();await expect(comet).toBeVisible();
-    assert(await asteroid.evaluate(e=>e.closest('li').nextElementSibling.querySelector('[aria-label="Show comets"]')));
-    assert(await comet.evaluate(e=>!e.closest('li').nextElementSibling));
+    assert(await asteroid.evaluate(e=>e.closest('.orrery-about-row').nextElementSibling.querySelector('[aria-label="Show comets"]')));
+    assert(await comet.evaluate(e=>!e.closest('.orrery-about-row').nextElementSibling));
     const groups=page.getByRole('combobox',{name:'Minor-planet groups'});
     const choices=await groups.locator('option').evaluateAll(nodes=>nodes.map(n=>({value:n.value,label:n.textContent})));
     const dialog=page.getByRole('dialog',{name:'Asteroids',exact:true});

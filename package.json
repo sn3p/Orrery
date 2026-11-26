@@ -29,7 +29,7 @@
     "test:pr": "npm run build && npm run test:node:fast && ORRERY_TEST_MODE=pr ORRERY_TEST_GROUPS=core playwright test"
   },
   "dependencies": {
-    "dat.gui": "^0.7.9",
+    "lil-gui": "^0.21.0",
     "pixi.js": "^8.20.1",
     "three": "0.186.0"
   },

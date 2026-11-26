@@ -35,7 +35,7 @@ module.exports = async page => {
         release(); await pending; await settle();
         check(app.destroyed && !app.initialized && app.animationFrame === null, 'Disposed initialization stays inert');
         check(pixi.renderer === null && pixi.stage === null, 'Late Pixi resources were actually destroyed');
-        check(!document.querySelector('canvas') && !document.querySelector('.dg.main'), 'Late init attaches no canvas or GUI');
+        check(!document.querySelector('canvas') && !document.querySelector('.lil-root'), 'Late init attaches no canvas or GUI');
         check(registrations.length === 0, 'Late init registers no Orrery listeners');
         await app.init();
         check(app.app === pixi && pixi.renderer === null, 'Repeated init cannot revive disposal');
@@ -49,9 +49,9 @@ module.exports = async page => {
     // A cancelled instance must not poison the next real initialization.
     const next = new Orrery({ autoRender: false });
     await next.init();
-    check(document.querySelectorAll('canvas').length === 1 && document.querySelectorAll('.dg.main').length === 1, 'Independent fresh instance initializes once');
+    check(document.querySelectorAll('canvas').length === 1 && document.querySelectorAll('.lil-root').length === 1, 'Independent fresh instance initializes once');
     next.render(); next.destroy(); await settle();
-    check(!document.querySelector('canvas') && !document.querySelector('.dg.main'), 'Fresh instance also cleans up');
+    check(!document.querySelector('canvas') && !document.querySelector('.lil-root'), 'Fresh instance also cleans up');
     return { beforeInit: true, races: results, freshInstance: true };
   });
   assert.equal(result.races.length, 2);
