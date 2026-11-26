@@ -192,12 +192,20 @@ async function run({ browser, name, application = "unified", output: artifactDir
     await page.unroute("**/*.woff2");
     await page.route(catalogRequest, route => route.fulfill({ status: 503, body: "Unavailable" }));
     await page.reload();
-    const errorMessage = "Could not load the asteroid catalogue. Reload to try again.";
-    await page.waitForFunction(message => document.querySelector("#orrery-status").textContent === message, errorMessage);
+    const errorMessage = "Could not load the asteroid catalogue.";
+    await page.waitForFunction(message => document.querySelector("#orrery-status .orrery-status-label")?.textContent === message, errorMessage);
+    const retry = page.getByRole("button", { name: "Retry catalogue", exact: true });
+    await retry.waitFor({ state: "visible" });
+    assert(await retry.isEnabled(), "Catalogue transport failure offers retry");
     report.push({ width: 360, state: "catalog-error", ui: await checkTypography(page),
       status: await checkStatusContrast(page, errorMessage) });
     await capture(page, { path: path.join(output, "error-360.png") });
     assert.deepEqual(errors, [], "No JavaScript errors during catalogue failure");
+    await page.unroute(catalogRequest);
+    await retry.click();
+    await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);
+    assert.equal(await retry.count(), 0, "Successful retry removes the failure action");
+    assert.deepEqual(errors, [], "No JavaScript errors during catalogue retry");
     fs.writeFileSync(path.join(output, "results.json"), JSON.stringify(report, null, 2) + "\n");
     console.log("UI checks passed: production font/license delivery, desktop/mobile typography, keyboard and slider playback, reload, delayed loading and font fallback.");
   } finally {

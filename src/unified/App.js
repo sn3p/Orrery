@@ -574,7 +574,8 @@ export default class App {
 
   // A candidate owns a separate data generation. The previous complete scene
   // remains usable until the candidate has a complete requested CPU prefix.
-  async loadCatalog(pin, { mode = "indexed", latest, namedBodies, pairedLatest, pairRecovery = false } = {}) {
+  async loadCatalog(pin, options = {}) {
+    let { mode = "indexed", latest, namedBodies, pairedLatest, pairRecovery = false } = options;
     if (this.destroyed) return false;
     const version = ++this.loadVersion;
     this.catalogRequest = null;
@@ -596,7 +597,7 @@ export default class App {
       await this.init();
       if (this.destroyed || version !== this.loadVersion) return false;
       if (latest !== undefined && mode !== "indexed") throw new Error("Whole-file mode unavailable in browser distribution.");
-      validatePairedSelection({ mode, pin: pin ?? undefined, latest, namedBodies, pairedLatest });
+      validatePairedSelection({ ...options, pin: pin ?? options.pin });
       validateNamedSelection({ latest, namedBodies });
       this.catalogRequest = pairedLatest ? { pairedLatest, recovered: pairRecovery } : null;
       if (pairedLatest) {

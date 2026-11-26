@@ -67,7 +67,7 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
         assert.deepEqual(initial.target, [0, 0, 0]); assert.equal(initial.zoom, 1);
       }
       assert.equal(requests.filter(url => url.endsWith('/paired/latest.json')).length, 1);
-      for (const conflicting of [{ pin: data.pin }, { latest: 'https://named.test/latest.json' }, { namedBodies: data.namedBodies }, { mode: 'whole' }]) {
+      for (const conflicting of [{ pin: data.pin }, { latest: 'https://named.test/latest.json' }, { namedBodies: data.namedBodies }, { mode: 'whole' }, { bundle: 'x' }, { archive: {} }, { retained: [] }]) {
         const before = requests.length;
         assert.equal(await page.evaluate(({ pin, ...options }) => app.loadCatalog(pin, { pairedLatest: 'https://named.test/paired/latest.json', ...options }), conflicting), false);
         assert.equal(requests.length, before, 'Conflicting runtime selectors never retry as valid selections');
