@@ -53,15 +53,29 @@ export function validateNamedMapping(v,source){
   }
  });return freeze(v);
 }
-export function namedPosition(body,jd){
- need(number(jd),'date');const bounded=Math.min(end,Math.max(start,jd)),t=(bounded-epoch)/36525;
+// Consumer adaptation: share the producer's propagation/basis between markers
+// and tracks. Coefficients, conventions and extrapolation policy are unchanged.
+export function namedShapeDate(jd) {
+ need(number(jd),'date');
+ return Math.min(end,Math.max(start,jd));
+}
+export function namedEllipse(body,jd) {
+ const bounded=namedShapeDate(jd),t=(bounded-epoch)/36525;
  let [a,e,i,O,w,M]=body.elements.map((x,k)=>x+body.rates[k]*t);
  M+=body.rates[5]*((jd-bounded)/36525);need([a,e,i,O,w,M].every(number),'propagation overflow');
- [i,O,w,M]=[i,O,w,((M%360)+360)%360].map(x=>x*Math.PI/180);let E=M;
+ [i,O,w]=[i,O,w].map(x=>x*Math.PI/180);
+ const cw=Math.cos(w),sw=Math.sin(w),cO=Math.cos(O),sO=Math.sin(O),ci=Math.cos(i),si=Math.sin(i),b=a*Math.sqrt(1-e*e);
+ const p=[cw*cO-sw*sO*ci,cw*sO+sw*cO*ci,sw*si].map(x=>x*a);
+ const q=[-sw*cO-cw*sO*ci,-sw*sO+cw*cO*ci,cw*si].map(x=>x*b);
+ return {p,q,center:p.map(x=>-e*x),normal:[sO*si,-cO*si,ci],e,M,
+   status:jd>=start&&jd<=end?'validated-interval':'approximate-extrapolation'};
+}
+export function namedPosition(body,jd){
+ const {p,q,e,M:mean,status}=namedEllipse(body,jd);
+ const M=((mean%360)+360)%360*Math.PI/180;let E=M;
  for(let k=0;k<32;k++){const d=(E-e*Math.sin(E)-M)/(1-e*Math.cos(E));E-=d;if(Math.abs(d)<1e-13)break;}
  need(Math.abs(E-e*Math.sin(E)-M)<1e-11,'Kepler convergence');
- const x=a*(Math.cos(E)-e),y=a*Math.sqrt(1-e*e)*Math.sin(E),cw=Math.cos(w),sw=Math.sin(w),cO=Math.cos(O),sO=Math.sin(O),ci=Math.cos(i),si=Math.sin(i);
- return {position:[(cw*cO-sw*sO*ci)*x+(-sw*cO-cw*sO*ci)*y,(cw*sO+sw*cO*ci)*x+(-sw*sO+cw*cO*ci)*y,sw*si*x+cw*si*y],status:jd>=start&&jd<=end?'validated-interval':'approximate-extrapolation'};
+ return {position:p.map((x,k)=>x*(Math.cos(E)-e)+q[k]*Math.sin(E)),status};
 }
 function reference(ref,prefix){fields(ref,'url sha256 bytes');need(typeof ref.url==='string'&&hash(ref.sha256)&&Number.isSafeInteger(ref.bytes)&&ref.bytes>0&&ref.bytes<=128*1024,'reference');if(prefix)need(ref.url===prefix+ref.sha256+'.json','reference path');}
 export async function loadNamedBodies(source,ref,url,{signal}={}){

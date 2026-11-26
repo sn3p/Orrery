@@ -1,4 +1,4 @@
-import { namedPosition } from './source/NamedBodySource.js';
+import { namedPosition, namedEllipse, namedShapeDate } from './source/NamedBodySource.js';
 import { PIXELS_PER_AU } from '../../js/constants.js';
 
 // Presentation only. Scientific identity, classification and motion belong to OrreryData.
@@ -16,23 +16,19 @@ export const presentBodies = definitions => definitions.bodies.map(body => ({
   size: style[body.id][0], color: style[body.id][1],
 }));
 
-// Sample the instantaneous ellipse, not a future trajectory. All five shape /
-// orientation elements use exactly the producer's boundary-freeze policy.
-export function orbitShapeDate(jd) {
-  if (!Number.isFinite(jd)) throw new RangeError('Invalid named-body date.');
-  return Math.min(2488069.5, Math.max(2378496.5, jd));
+// Render-space adaptation only; the source module owns the ellipse and dates.
+export const orbitShapeDate = namedShapeDate;
+export function namedOrbitFrame(body, jd) {
+  const { p, q, center, normal } = namedEllipse(body, jd);
+  return { p: p.map(x => x * PIXELS_PER_AU), q: q.map(x => x * PIXELS_PER_AU),
+    center: center.map(x => x * PIXELS_PER_AU), normal };
 }
 export function namedOrbitPoints(body, jd, parts = 360) {
-  const date = orbitShapeDate(jd), t = (date - 2451545) / 36525;
-  const [a, e, inc, node, peri] = body.elements.map((value, k) => value + body.rates[k] * t);
-  const [i, O, w] = [inc, node, peri].map(value => value * Math.PI / 180);
-  const cw = Math.cos(w), sw = Math.sin(w), co = Math.cos(O), so = Math.sin(O), ci = Math.cos(i), si = Math.sin(i);
-  const p = [cw * co - sw * so * ci, cw * so + sw * co * ci, sw * si];
-  const q = [-sw * co - cw * so * ci, -sw * so + cw * co * ci, cw * si];
+  const { p, q, center } = namedOrbitFrame(body, jd);
   const points = new Float64Array((parts + 1) * 3);
   for (let j = 0; j < parts; j++) {
-    const E = 2 * Math.PI * j / parts, x = a * (Math.cos(E) - e), y = a * Math.sqrt(1 - e * e) * Math.sin(E);
-    for (let k = 0; k < 3; k++) points[3 * j + k] = (p[k] * x + q[k] * y) * PIXELS_PER_AU;
+    const E = 2 * Math.PI * j / parts;
+    for (let k = 0; k < 3; k++) points[3 * j + k] = center[k] + p[k] * Math.cos(E) + q[k] * Math.sin(E);
   }
   points.set(points.subarray(0, 3), parts * 3);
   return points;
@@ -40,8 +36,6 @@ export function namedOrbitPoints(body, jd, parts = 360) {
 export class NamedOrbit {
   constructor(body) { this.body = body; }
   position(jd) {
-    const { position, status } = namedPosition(this.body, jd);
-    this.status = status;
-    return position.map(value => value * PIXELS_PER_AU);
+    return namedPosition(this.body, jd).position.map(value => value * PIXELS_PER_AU);
   }
 }

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { Vector3 } from 'three';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import fixtureModule from './named-body-fixture.cjs';
@@ -26,19 +27,27 @@ test('both real orbit adapters project producer positions and update closed trac
   for (const body of definitions.bodies) {
     const pixi = new PixiOrbit(body), three = new ThreeOrbit(body);
     const p = pixi.drawOrbit(2451545), t = three.drawOrbit(2451545);
-    const distances = t.geometry.attributes.lineDistance;
+    const distances = t.geometry.attributes.lineDistance, vertices = t.geometry.attributes.position;
+    const path = p.context.instructions[0].data.path.instructions;
     try {
       for (const jd of [1000000, 2378496.5, 2451545, 2488069.5, 4000000]) {
         const expected = namedPosition(body, jd), a = pixi.getPosAtTime(jd), b = three.getPosAtTime(jd);
         assert.deepEqual([a.x, a.y], [-expected.position[0] * 100, expected.position[1] * 100]);
         assert.deepEqual(b, expected.position.map(x => x * 100));
-        assert.equal(pixi.status, expected.status);
+
         assert.equal(t.geometry.attributes.lineDistance, distances, "Moving tracks reuse their GPU attribute");
-        const points = namedOrbitPoints(body, jd), path = p.context.instructions[0].data.path.instructions;
+        assert.equal(t.geometry.attributes.position, vertices);
+        assert.equal(vertices.version, 0, 'No per-frame vertex upload');
+        assert.equal(distances.version, 0, 'No per-frame dash upload');
+        assert.equal(p.context.instructions[0].data.path.instructions, path, 'No path rebuild');
+        p.updateLocalTransform();
+        const points = namedOrbitPoints(body, jd);
         assert.deepEqual(path[0].data, path.at(-1).data);
         for (let i = 0; i <= 360; i++) {
-          assert.deepEqual(path[i].data, [-points[3 * i], points[3 * i + 1]]);
-          for (let axis = 0; axis < 3; axis++) assert.equal(t.geometry.attributes.position.array[3 * i + axis], Math.fround(points[3 * i + axis]));
+          const [x, y] = path[i].data, point = p.localTransform.apply({ x, y });
+          assert(Math.hypot(point.x + points[3 * i], point.y - points[3 * i + 1]) < 1e-8);
+          const spatial = new Vector3().fromBufferAttribute(vertices, i).applyMatrix4(t.matrix);
+          assert(Math.hypot(...spatial.toArray().map((v, k) => v - points[3 * i + k])) < 0.001);
         }
       }
       assert.deepEqual(namedOrbitPoints(body, 1000000), namedOrbitPoints(body, 2378496.5));

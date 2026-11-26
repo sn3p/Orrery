@@ -4,7 +4,7 @@ OrreryData owns the scientific definitions of all eight planets and Ceres,
 Pluto, Haumea, Makemake and Eris. Orrery owns marker sizes and colours, keyed by
 stable ID. `src/js/planets.js` contains no hand-authored orbital data.
 
-The reader, transport, contract and bundled definitions are copied from
+The reader is adapted from, and the transport, contract and bundled definitions are copied from
 [OrreryData 1466f2c](https://github.com/sn3p/orrery-data/tree/1466f2c2c0c0e95f72e9a7fca86eba386c0227d9),
 `consumer/{NamedBodySource,transport,contract}.js` and
 `research/named-bodies/definitions.json` (MIT). The bundled JSON is byte-identical;
@@ -58,7 +58,11 @@ residuals rather than continuous error guarantees. The timeline remains unrestri
 Outside that interval shape/orientation freeze at the nearest boundary while mean
 anomaly continues at its fitted rate. The position result exposes
 `approximate-extrapolation`; About explains the policy. Orbit lines sample the
-instantaneous date-dependent ellipse with the same boundary freeze. Pixi projects
+instantaneous date-dependent ellipse with the same boundary freeze. The adapted
+reader shares one ellipse/date calculation between markers and tracks; the app
+model only converts units. Tracks keep their initial geometry and use an exact
+affine transform as the ellipse changes, avoiding per-frame path/vertex uploads.
+Dash spacing follows that small deformation. Pixi projects
 negative X / positive Y; Three uses XYZ; both use100world units/AU.
 
 The existing UTC calendar's Julian number is used as approximate TDB; Orrery does

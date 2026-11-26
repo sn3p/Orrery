@@ -1,8 +1,13 @@
 import * as THREE from 'three';
-import { NamedOrbit as Model, namedOrbitPoints, orbitShapeDate } from '../named/model.js';
+import { NamedOrbit as Model, namedOrbitPoints, namedOrbitFrame, orbitShapeDate } from '../named/model.js';
+
+function frameMatrix(body, jed, target) {
+  const { p, q, normal: n, center: c } = namedOrbitFrame(body, jed);
+  return target.set(p[0], q[0], n[0], c[0], p[1], q[1], n[1], c[1],
+    p[2], q[2], n[2], c[2], 0, 0, 0, 1);
+}
 
 export default class NamedOrbit extends Model {
-  matches(body) { return body === this.body; }
   getPosAtTime(jed, target) {
     const position = this.position(jed);
     this.updateTrack(jed);
@@ -10,29 +15,23 @@ export default class NamedOrbit extends Model {
   }
   drawOrbit(jed) {
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(361 * 3), 3));
-    geometry.setAttribute('lineDistance', new THREE.BufferAttribute(new Float32Array(361), 1));
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(namedOrbitPoints(this.body, jed)), 3));
+    geometry.computeBoundingSphere();
     this.track = new THREE.Line(geometry, new THREE.LineDashedMaterial({ color: 0x333333, linewidth: 1, dashSize: 5, gapSize: 3 }));
-    this.updateTrack(jed);
+    this.track.computeLineDistances();
+    this.track.matrixAutoUpdate = false;
+    // An affine basis can include shear; Three's generic transformed sphere is
+    // not conservative for shear. Thirteen lines can use ordinary GPU clipping.
+    this.track.frustumCulled = false;
+    this.baseInverse = frameMatrix(this.body, jed, new THREE.Matrix4()).invert();
+    this.trackDate = orbitShapeDate(jed);
     return this.track;
   }
   updateTrack(jed) {
     const date = orbitShapeDate(jed);
     if (!this.track || date === this.trackDate) return;
-    const geometry = this.track.geometry, attribute = geometry.attributes.position;
-    attribute.array.set(namedOrbitPoints(this.body, jed));
-    attribute.needsUpdate = true;
-    geometry.computeBoundingSphere();
-    // Keep the attribute identity: replacing it each frame leaks old GPU buffers.
-    const distances = geometry.attributes.lineDistance;
-    distances.array[0] = 0;
-    for (let j = 1; j < distances.count; j++) {
-      const k = 3 * j;
-      distances.array[j] = distances.array[j - 1] + Math.hypot(
-        attribute.array[k] - attribute.array[k - 3], attribute.array[k + 1] - attribute.array[k - 2],
-        attribute.array[k + 2] - attribute.array[k - 1]);
-    }
-    distances.needsUpdate = true;
+    frameMatrix(this.body, jed, this.track.matrix).multiply(this.baseInverse);
+    this.track.matrixWorldNeedsUpdate = true;
     this.trackDate = date;
   }
 }
