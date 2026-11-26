@@ -58,7 +58,7 @@ async function paused(page) {
     assert(resumed.elapsed > stopped.elapsed);
     await pause(page);
   }
-  const slider = page.locator('.dg .slider'), box = await slider.boundingBox();
+  const slider = page.locator('.lil-slider'), box = await slider.boundingBox();
   await slider.click({ position: { x: box.width * 0.7, y: box.height / 2 } });
   await page.waitForFunction(() => fixture.app.jedDelta > 0 && fixture.app.animationFrame !== null);
   await pause(page);

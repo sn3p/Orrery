@@ -107,7 +107,7 @@ module.exports = async (browser, url, name) => {
         Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 1.5 });
         release(); await pending;
         if (app.app.renderer.resolution !== 1 || app.circleTexture.source.resolution !== 1
-          || app.nativePixelRatio !== 1.5 || app.gui.controls.pixelRatioSelect.closest('li').style.display !== 'none') {
+          || app.nativePixelRatio !== 1.5 || app.gui.controls.pixelRatioSelect.closest('.lil-controller').style.display !== 'none') {
           throw new Error('Async init used stale resolution or availability');
         }
         if (app.circleTexture.width !== 10) throw new Error('Changed logical circle size');

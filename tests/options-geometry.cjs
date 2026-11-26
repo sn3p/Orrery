@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 
-// Measure the rendered dat.GUI output: selector intent alone missed cascade conflicts.
+// Measure the rendered Options rows: selector intent alone missed cascade conflicts.
 module.exports = async panel => {
   const layout = await panel.evaluate(panel => {
     const rect = el => { const r = el.getBoundingClientRect(); return { x: r.x, right: r.right, height: r.height, width: r.width, centerY: r.y + r.height / 2 }; };
@@ -15,15 +15,15 @@ module.exports = async panel => {
       })),
       fit: panel.querySelector('.orrery-comet-summary .orrery-glossary-close')?.getClientRects().length
         ? rect(panel.querySelector('.orrery-comet-summary .orrery-glossary-close')) : null,
-      rows: [...panel.querySelectorAll('.cr')].filter(visible).map(row => ({
-        label: rect(row.querySelector('.property-name')),
-        slider: row.querySelector('.slider') && rect(row.querySelector('.slider')),
-        control: rect(row.querySelector('.slider') || row.querySelector('select, input')),
+      rows: [...panel.querySelectorAll('.lil-controller')].filter(visible).map(row => ({
+        label: rect(row.querySelector('.lil-name')),
+        slider: row.querySelector('.lil-slider') && rect(row.querySelector('.lil-slider')),
+        control: rect(row.querySelector('.lil-slider') || row.querySelector('select, input')),
         info: row.querySelector('.orrery-options-info') && rect(row.querySelector('.orrery-options-info')),
         select: row.querySelector('select') && rect(row.querySelector('select')),
       })),
       sections: [...panel.querySelectorAll('.orrery-options-section')].map(row => ({
-        box: rect(row), label: rect(row.querySelector('h2, .property-name')),
+        box: rect(row), label: rect(row.querySelector('h2, .lil-name')),
         bottomBorder: getComputedStyle(row).borderBottomWidth,
       })),
       actions: [...panel.querySelectorAll('.orrery-comet-actions button')].filter(visible).map(rect),
@@ -56,11 +56,11 @@ module.exports = async panel => {
     close(section.label.x, first.label.x, 'Heading and control labels share an inset');
     close(section.box.x, layout.panelClient.x, 'Section separator reaches the client area edge');
     close(section.box.right, layout.panelClient.right, 'Section separator reaches the opposite client area edge');
-    assert.equal(section.bottomBorder, '0px', 'No dat.GUI rule underneath a heading');
+    assert.equal(section.bottomBorder, '0px', 'No row rule underneath a heading');
   }
   for (const action of layout.actions) {
     close(action.x, first.label.x, 'Action uses the content inset');
-    assert.equal(action.height, 28, 'Action does not inherit dat.GUI row line-height');
+    assert.equal(action.height, 28, 'Action does not inherit the row line-height');
   }
   for (const summary of layout.summaries) close(summary.x, first.label.x, 'Summary uses the content inset');
   assert(!layout.overflow, 'Aligned controls do not cause horizontal overflow');
