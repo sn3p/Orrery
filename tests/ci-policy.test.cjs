@@ -247,7 +247,7 @@ test('native selection retains core in Chromium, smoke in other engines and two 
   const discoverJobs = (groups, runMode, jobs) => Promise.all(jobs.map(async job =>
     parse((await promisify(execFile)(...list(groups, runMode, [`--project=${job.project}`, `--shard=${job.shard}`]))).stdout)));
   const core = discover('core');
-  assert.equal(core.length, 44);
+  assert.equal(core.length, 45);
   assert(core.some(row => row.project === 'chromium' && row.title.startsWith('comet selection')));
   for (const browser of ['firefox', 'webkit']) {
     const cases = core.filter(row => row.project === browser);
@@ -261,7 +261,7 @@ test('native selection retains core in Chromium, smoke in other engines and two 
     assert(ui.some(row => row.project === browser && row.title === 'pixel ratio and display transitions'));
     assert(ui.some(row => row.project === browser && row.title.startsWith('preview footer')));
   }
-  const full = discover('full'); assert.equal(full.length, 166);
+  const full = discover('full'); assert.equal(full.length, 169);
   assert(full.some(row => row.title.includes('configured promotion')));
   assert(full.some(row => row.title.includes('benchmark CLI provenance')));
   // Follow actual workflow outputs through native discovery and its shards.

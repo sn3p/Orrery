@@ -57,3 +57,7 @@ test('configured promotion, root catalogue pins and chronological loading', { ta
 test('comet selection, scientific positions and independent populations', { tag: ['@core', '@ui', '@graphics', '@data'] }, async ({ check }) => {
   await check('comets-browser');
 });
+
+test('named planets and dwarfs: paired data, both renderers, controls and recovery', { tag: ['@core', '@data', '@graphics', '@ui'] }, async ({ check }) => {
+  await check('named-bodies-browser');
+});
