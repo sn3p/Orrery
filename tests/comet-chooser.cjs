@@ -32,10 +32,10 @@ module.exports = async (browser, root, renderer) => {
     assert(await page.evaluate(()=>halleyRow===document.querySelector('[data-comet-id="1P"]')));
     assert.equal(await page.evaluate(async()=>{
       let writes=0;const observer=new MutationObserver(changes=>{writes+=changes.length;});
-      observer.observe(halleyRow.cometStatus,{childList:true,characterData:true,subtree:true});
+      observer.observe(halleyRow.closest("label"),{attributes:true,childList:true,characterData:true,subtree:true});
       app.gui.controls.cometFeedbackCache=null;app.gui.controls.updateComets();
       await Promise.resolve();observer.disconnect();return writes;
-    }),0,'Unchanged status text does not mutate accessible DOM');
+    }),0,'Unchanged row feedback does not mutate DOM');
     await dialog.getByRole('searchbox').fill('');
     await dialog.getByRole('button',{name:/Browse catalogue/}).click();
     await expect(dialog.locator('label')).toHaveCount(30);
@@ -116,6 +116,19 @@ module.exports = async (browser, root, renderer) => {
     await expect(unassessed).toBeDisabled();
     await expect(unassessed).toHaveAccessibleDescription('Trajectory not yet assessed');
     await expect(dialog.locator('.orrery-comet-assessment-legend')).toBeVisible();
+    // Scoped unsupported assessments become unassessed only outside that scope.
+    for (const [state,insideScope,unassessedRow] of [
+      ['under_assessment',false,false],['unsupported',true,false],['unsupported',false,true],['not_yet_assessed',false,true]
+    ]) {
+      await page.evaluate(({state,insideScope})=>{
+        const e=app.cometCatalogue.find(e=>e.id==='111P');
+        e.assessment={state,scope:insideScope?[{start:app.jed-1,end:app.jed+1,end_inclusive:true}]:[]};
+        app.gui.controls.cometFeedbackCache=null;app.gui.controls.updateComets();
+      },{state,insideScope});
+      assert.equal(await unassessed.evaluate(e=>e.closest('label').classList.contains('is-unassessed')),unassessedRow);
+      assert.equal(await unassessed.evaluate(e=>!!e.closest('label').title),unassessedRow);
+      await expect(dialog.locator('.orrery-comet-assessment-legend')).toBeVisible({visible:unassessedRow});
+    }
     for (const width of [320,390,1280]) {
       await page.setViewportSize({width,height:520});
       const layout = await dialog.evaluate(el=>{

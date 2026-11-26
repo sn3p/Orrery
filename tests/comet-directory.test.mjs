@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import Acquisition from '../src/unified/comets/Acquisition.js';
 import {searchComets} from '../src/unified/comets/search.js';
 import {cataloguePresentation,validCometIds,pathStrips,positionAt} from '../src/unified/comets/model.js';
-import {assessmentMessage,catalogueCoverage,catalogueHasCoverage,CometFeedbackCache} from '../src/unified/comets/feedback.js';
+import {assessmentState,assessmentMessage,catalogueCoverage,catalogueHasCoverage,CometFeedbackCache} from '../src/unified/comets/feedback.js';
 const coverage=[{start:100,end:102,end_inclusive:false},{start:102,end:103,end_inclusive:true},{start:110,end:112,end_inclusive:true}];
 const entry={id:'c1000076',designation:'1995 O1',name:'Example',aliases:['Étoile','星'],coverage,assessment:{state:'available',scope:[]},trajectory:{}};
 test('opaque identity, Unicode aliases, punctuation and missing selections',()=>{
@@ -16,6 +16,8 @@ test('opaque identity, Unicode aliases, punctuation and missing selections',()=>
 test('coverage gaps and scoped assessments stay distinct and invalidate feedback',()=>{
   assert.deepEqual(catalogueCoverage([entry]),[100,112]);assert(catalogueHasCoverage(entry,102));assert(!catalogueHasCoverage(entry,105));
   const unsupported={...entry,coverage:[],assessment:{state:'unsupported',scope:[coverage[0]]}};
+  assert.equal(assessmentState(unsupported,101),'unsupported');
+  assert.equal(assessmentState(unsupported,103),'not_yet_assessed');
   assert.equal(assessmentMessage(unsupported,101),'No trajectory available');assert.equal(assessmentMessage(unsupported,103),'Trajectory not yet assessed');
   const app={cometData:{},cometCatalogue:[unsupported],jed:101,cometIds:[],cometStates:{}};
   const cache=new CometFeedbackCache();assert(cache.changed(app));assert(!cache.changed(app));app.jed=103;assert(cache.changed(app));

@@ -45,26 +45,52 @@ module.exports = async (browser, root, renderer) => {
         await page.keyboard.press('Enter');await expect(modal).toBeHidden();
       }
     }
-    await page.evaluate(async()=>{
-      const controls=app.gui.controls;
-      controls.open();
-      for (let i=0;i<3;i++) { controls.onOpenCometInfo();controls.cometInfo.close(); }
-      await new Promise(resolve=>setTimeout(resolve,100));
-    });
-    await expect.poll(()=>page.evaluate(()=>app.held)).toBe(false);
-    // Disposing after close() but before its event must release the hold too.
-    await trigger.click();
+    // Both section dialogs share hold/focus semantics, including native queued
+    // close events and disposal before those events can be delivered.
+    for (const kind of ['Asteroids','Comets']) {
+      const about=page.getByRole('button',{name:`About ${kind.toLowerCase()}`,exact:true});
+      const modal=page.getByRole('dialog',{name:kind,exact:true});
+      await page.evaluate(()=>app.gui.controls.open());
+      await page.evaluate(()=>app.hold(true));
+      await about.click();await modal.getByRole('button',{name:'Close',exact:true}).click();
+      await expect(about).toBeFocused();assert.equal(await page.evaluate(()=>app.held),true);
+      await page.evaluate(()=>app.hold(false));
+      await about.focus();await page.keyboard.press('Enter');
+      await page.evaluate(()=>app.gui.controls.setOpen(false));
+      await expect(page.getByRole('button',{name:'Options',exact:true})).toBeFocused();
+      await expect.poll(()=>page.evaluate(()=>app.held)).toBe(false);
+      await page.evaluate(async kind=>{
+        const c=app.gui.controls;c.open();
+        const trigger=kind==='Asteroids'?c.glossaryTrigger:c.cometInfoTrigger;
+        const modal=kind==='Asteroids'?c.glossary:c.cometInfo;
+        for(let i=0;i<3;i++){trigger.click();modal.close();}
+        await new Promise(resolve=>setTimeout(resolve,100));
+      },kind);
+      await expect.poll(()=>page.evaluate(()=>app.held)).toBe(false);
+      // A queued close must not steal focus from a different control.
+      await about.click();
+      await modal.evaluate(e=>e.close());
+      await page.getByRole('combobox',{name:'Renderer',exact:true}).focus();
+      await expect(page.getByRole('combobox',{name:'Renderer',exact:true})).toBeFocused();
+      for (const preheld of [false,true]) for (const closeFirst of [false,true]) {
+        await page.evaluate(preheld=>app.hold(preheld),preheld);
+        await about.click();
+        await modal.evaluate((e,closeFirst)=>{
+          if(closeFirst)e.close();app.gui.controls.destroy();
+        },closeFirst);
+        await expect(modal).toBeHidden();
+        assert.equal(await page.evaluate(()=>app.held),preheld,`${kind}: dispose preserves caller hold`);
+        await page.reload();await page.evaluate(()=>threeTest.ready);
+        await page.evaluate(()=>{window.app=threeTest.app;app.gui.controls.open();});
+      }
+    }
+    // The Intro shortcut intentionally opens Asteroids with Options hidden.
     await page.evaluate(()=>{
-      const controls=app.gui.controls;
-      controls.cometInfo.close();controls.destroy();
+      const c=app.gui.controls;c.setOpen(false);
+      c.openGlossary({restoreFocus:document.getElementById('orrery-about')});
     });
-    await expect.poll(()=>page.evaluate(()=>app.held)).toBe(false);
-    await page.reload();await page.evaluate(()=>threeTest.ready);
-    await page.evaluate(()=>{window.app=threeTest.app;app.gui.controls.open();});
-    await trigger.click();
-    await page.evaluate(()=>app.gui.controls.destroy());
-    await expect(dialog).toBeHidden();
-    await expect.poll(()=>page.evaluate(()=>app.held)).toBe(false);
+    await page.getByRole('dialog',{name:'Asteroids',exact:true}).getByRole('button',{name:'Close',exact:true}).click();
+    await expect(page.locator('#orrery-about')).toBeFocused();
     assert.deepEqual(errors,[]);
   } finally {await page.close();}
 };

@@ -135,7 +135,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
         return box.left>=0 && box.right<=r.viewport.width;
       }),'Long comet label stays within the right edge');
       await page.getByRole('checkbox',{name:'Show asteroids',exact:true}).uncheck();
-      await page.waitForFunction(()=>document.querySelector('#orrery-count').textContent==='0');
+      await expect(page.locator('#orrery-count')).toBeHidden();
       assert(await page.evaluate(()=>{
         const cloud=app.renderer.asteroids;
         return app.rendererId==='three' ? cloud.uniforms.classMask.value===0 && cloud.uniforms.colorMask.value===0 : cloud.uniforms.uClassMask===0 && cloud.uniforms.uColorMask===0;

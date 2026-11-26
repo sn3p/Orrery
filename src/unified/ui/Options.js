@@ -1,7 +1,8 @@
 import { fromJED } from '../../js/utils.js';
 import { searchComets } from '../comets/search.js';
 import { hasCoverage } from "../comets/model.js";
-import { assessmentMessage, CometFeedbackCache, catalogueHasCoverage, catalogueCoverage } from "../comets/feedback.js";
+import InfoDialog from "./InfoDialog.js";
+import { assessmentState, assessmentMessage, CometFeedbackCache, catalogueHasCoverage, catalogueCoverage } from "../comets/feedback.js";
 import * as dat from "dat.gui";
 import { DEFAULT_POPULATION_PRESET, POPULATION_PRESET_OPTIONS, legendGroups, populationHint } from "../catalog/population.js";
 
@@ -149,35 +150,8 @@ export default class Options {
     const dialog = this.cometInfo = document.getElementById("orrery-comet-info");
     if (typeof dialog?.showModal !== "function") { this.cometInfo = null; return; }
     const trigger = this.cometInfoTrigger = this.addAboutLink("About comets", dialog);
-    trigger.addEventListener("click", this.onOpenCometInfo);
-    dialog.addEventListener("close", this.onCometInfoClose);
-    dialog.addEventListener("click", this.onCometInfoBackdrop);
+    this.cometInfoSession = new InfoDialog(this, dialog, trigger);
   }
-
-  onOpenCometInfo = () => {
-    if (this.destroyed || !this.cometInfo || this.cometInfo.open) return;
-    // Native close events are queued. Finish the previous session before a
-    // same-task reopen captures its hold as though it belonged to the caller.
-    this.onCometInfoClose();
-    this.hideTip();
-    this.cometInfoHolding = true;
-    this.cometInfoWasHeld = this.orrery.held;
-    this.orrery.hold(true);
-    this.cometInfo.showModal();
-    this.cometInfo.scrollTop = 0;
-    this.cometInfo.querySelector("h1").focus({ preventScroll: true });
-  };
-
-  onCometInfoBackdrop = event => {
-    if (event.target === this.cometInfo) this.cometInfo.close();
-  };
-
-  onCometInfoClose = () => {
-    if (this.cometInfo?.open || !this.cometInfoHolding) return;
-    this.cometInfoHolding = false;
-    if (!this.cometInfoWasHeld && !document.querySelector("dialog[open]")) this.orrery.hold(false);
-    if (!this.destroyed && !this.panel.hidden) this.cometInfoTrigger.focus();
-  };
 
   // The chooser edits the shared selection; closing it does not commit or cancel.
   mountCometChooser() {
@@ -449,15 +423,19 @@ export default class Options {
       const text = !coverage ? assessmentMessage(entry, app.jed) : !covered ? 'No trajectory for this date'
         : selected && state === 'error' ? 'Could not load trajectory'
         : selected && state === 'loading' ? 'Loading…' : '';
-      const unassessed = text === 'Trajectory not yet assessed';
+      const unassessed = !coverage && assessmentState(entry, app.jed) === 'not_yet_assessed';
       hasUnassessed ||= unassessed;
-      checkbox.closest('label').classList.toggle('is-unassessed', unassessed);
-      checkbox.closest('label').title = unassessed ? `${entry.name}: ${text}` : '';
-      checkbox.disabled = !coverage && !selected;
+      const row = checkbox.closest('label');
+      if (row.classList.contains('is-unassessed') !== unassessed) row.classList.toggle('is-unassessed', unassessed);
+      const title = unassessed ? `${entry.name}: ${text}` : '';
+      if (row.title !== title) row.title = title;
+      const disabled = !coverage && !selected;
+      if (checkbox.disabled !== disabled) checkbox.disabled = disabled;
       if (checkbox.cometStatus.textContent !== text) checkbox.cometStatus.textContent = text;
       checkbox.cometStatus.classList.toggle('is-error', selected && covered && state === 'error');
       checkbox.cometStatus.classList.toggle('is-loading', selected && covered && state === 'loading');
-      checkbox.cometSwatch.hidden = !selected || !hasCoverage(data, app.jed);
+      const hideSwatch = !selected || !hasCoverage(data, app.jed);
+      if (checkbox.cometSwatch.hidden !== hideSwatch) checkbox.cometSwatch.hidden = hideSwatch;
     }
     this.cometAssessmentLegend.hidden = !hasUnassessed;
     let ready = 0, loading = 0, failed = 0, usable = 0;
@@ -737,10 +715,11 @@ export default class Options {
     }
     const trigger = this.glossaryTrigger = this.addAboutLink("About asteroids", this.glossary);
     this.paintGlossaryTitles();
-    trigger.addEventListener("click", this.onOpenGlossary);
-    this.glossary.addEventListener("close", this.onGlossaryClose);
-    this.glossary.addEventListener("click", this.onGlossaryBackdrop);
-    this.glossaryRestoreFocus = trigger;
+    this.glossarySession = new InfoDialog(this, this.glossary, trigger, () => {
+      this.updateGlossarySelection();
+      // With group colors off the scene is gray, so title dots would mislead.
+      this.glossary.classList.toggle("orrery-glossary-gray", this.orrery.colorizeGroups === false);
+    });
   }
 
   // Each group title carries the legend dots of its preset; the ramp shows
@@ -763,34 +742,12 @@ export default class Options {
     }
   }
 
-  openGlossary({ restoreFocus } = {}) {
-    if (this.destroyed || !this.glossary || this.glossary.open) return false;
-    this.glossaryRestoreFocus = restoreFocus ?? this.glossaryTrigger;
-    this.updateGlossarySelection();
-    // With group colors off the scene is gray, so the title dots would mislead.
-    // The dialog is modal, so the option cannot change while it is open.
-    this.hideTip();
-    this.glossary.classList.toggle("orrery-glossary-gray", this.orrery.colorizeGroups === false);
-    this.orrery.hold(true);
-    this.glossary.showModal();
-    this.glossary.scrollTop = 0;
-    this.glossaryTitle.focus({ preventScroll: true });
-    return true;
+  openGlossary(options) {
+    return this.glossarySession?.open(options) ?? false;
   }
 
-  onOpenGlossary = () => { this.openGlossary(); };
-
-  onGlossaryBackdrop = event => { if (event.target === this.glossary) this.glossary.close(); };
-
-  onGlossaryClose = () => {
-    this.orrery.hold(false);
-    const restore = this.glossaryRestoreFocus;
-    this.glossaryRestoreFocus = this.glossaryTrigger;
-    if (!this.destroyed) restore?.focus?.();
-  };
-
   setOpen(open, restoreFocus = true) {
-    const hadFocus = this.panel.contains(document.activeElement);
+    const hadFocus = [this.panel, this.glossary, this.cometInfo].some(element => element?.contains(document.activeElement));
     this.hideTip();
     this.panel.hidden = !open;
     this.indicator.textContent = open ? "[-]" : "[+]";
@@ -799,8 +756,10 @@ export default class Options {
     // select invokes the full-screen native picker on iOS; keyboard users can
     // reach the first newly revealed control with Tab.
     if (!open) this.closeCometChooser(restoreFocus);
-    if (!open && this.cometInfo?.open) this.cometInfo.close();
-    if (!open && this.glossary?.open) this.glossary.close();
+    if (!open) {
+      this.cometInfoSession?.close(false);
+      this.glossarySession?.close(false);
+    }
     if (!open && restoreFocus && hadFocus) this.trigger.focus();
   }
 
@@ -856,15 +815,8 @@ export default class Options {
     this.trigger.removeEventListener("click", this.onToggle);
     document.removeEventListener("pointerdown", this.onOutsidePointer, true);
     document.removeEventListener("keydown", this.onKeyDown);
-    if (this.glossary?.open) this.glossary.close();
-    this.glossaryTrigger?.removeEventListener("click", this.onOpenGlossary);
-    this.glossary?.removeEventListener("close", this.onGlossaryClose);
-    this.glossary?.removeEventListener("click", this.onGlossaryBackdrop);
-    if (this.cometInfo?.open) this.cometInfo.close();
-    this.onCometInfoClose();
-    this.cometInfoTrigger?.removeEventListener("click", this.onOpenCometInfo);
-    this.cometInfo?.removeEventListener("close", this.onCometInfoClose);
-    this.cometInfo?.removeEventListener("click", this.onCometInfoBackdrop);
+    this.glossarySession?.destroy();
+    this.cometInfoSession?.destroy();
     this.closeCometChooser(false);
     this.cometDialog?.remove();
     this.unmountRenderer();

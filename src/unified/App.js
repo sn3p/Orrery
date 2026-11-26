@@ -800,7 +800,7 @@ export default class App {
     if (this.destroyed) return;
     // A loaded empty catalogue is valid too. Retain the last committed readouts
     // while a replacement, renderer switch or graphics recovery is pending.
-    this.gui?.update(this.jed, this.stats.fps, this.asteroidsShown ? this.asteroidsVisible : 0, this.hasCommittedReadouts);
+    this.gui?.update(this.jed, this.stats.fps, this.asteroidsVisible, this.hasCommittedReadouts);
     this.gui?.setAsteroidVisibility?.(this.asteroidsShown, this.cometsShown);
     this.gui?.setLegend?.(this.populationPreset, this.colorizeGroups);
     if (this.gui?.swatches && !this.asteroidsShown) this.gui.swatches.hidden = true;
