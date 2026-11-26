@@ -20,7 +20,7 @@ const ready = app.init().then(() => {
   app.addPlanets(planets);
   const pin = selection.pin && { ...selection.pin, url: new URL(selection.pin.url, document.baseURI).href };
   const namedBodies = selection.namedBodies;
-  return app.loadCatalog(pin, { mode: selection.mode, latest: selection.latest, namedBodies });
+  return app.loadCatalog(pin, { mode: selection.mode, latest: selection.latest, pairedLatest: selection.pairedLatest, namedBodies });
 }).catch(() => { /* App owns initialization error feedback and cleanup. */ });
 
 // Unaccepted application edits reload the document; dispose pending work first.

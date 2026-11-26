@@ -1,3 +1,4 @@
+import { resolvePairedLatest, validatePairedSelection } from './named/source/PairedCatalogSource.js';
 import { CometSelectionPreference } from './CometSelectionPreference.js';
 import { formatIsoDay, toJED } from "../js/utils.js";
 import { validDate } from "../js/asteroidOrbits.js";
@@ -572,7 +573,7 @@ export default class App {
 
   // A candidate owns a separate data generation. The previous complete scene
   // remains usable until the candidate has a complete requested CPU prefix.
-  async loadCatalog(pin, { mode = "indexed", latest, namedBodies } = {}) {
+  async loadCatalog(pin, { mode = "indexed", latest, namedBodies, pairedLatest, pairRecovery = false } = {}) {
     if (this.destroyed) return false;
     const version = ++this.loadVersion;
     this.loadController?.abort();
@@ -588,18 +589,24 @@ export default class App {
     this.demandCatalog();
     this.resetClock();
     this.updateCatalogStatus();
-    let candidate, source;
+    let candidate, source, pairResolved = false;
     try {
       await this.init();
       if (this.destroyed || version !== this.loadVersion) return false;
       if (latest !== undefined && mode !== "indexed") throw new Error("Whole-file mode unavailable in browser distribution.");
+      validatePairedSelection({ mode, pin: pin ?? undefined, latest, namedBodies, pairedLatest });
       validateNamedSelection({ latest, namedBodies });
+      this.pairedSelection = pairedLatest ? { pairedLatest, pairRecovery } : null;
+      if (pairedLatest) {
+        ({ pin, namedBodies } = await resolvePairedLatest(pairedLatest, { signal: opening.signal }));
+        pairResolved = true;
+      }
       const prepareSource = async () => {
         source = latest !== undefined
           ? await CatalogSource.openLatest(latest, { signal: opening.signal })
           : await CatalogSource.open(pin, { mode, signal: opening.signal });
         if (opening.signal.aborted) { source.close(); throw opening.signal.reason; }
-        const session = candidate = { version, model: null, loader: null, namedBodies: null };
+        const session = candidate = { version, model: null, loader: null, namedBodies: null, pairedLatest, pairRecovery };
         const loader = session.loader = new CatalogLoader({
           activate: count => {
             const start = performance.now();
@@ -650,6 +657,7 @@ export default class App {
       this.catalogLoader = this.activeSession?.loader ?? null;
       this.renderer?.discardStagedCatalogue();
       this.catalogOpening = null;
+      if (pairResolved && !pairRecovery) return this.loadCatalog(null, { pairedLatest, pairRecovery: true });
       this.catalogFailure = error;
       this.onCatalogChange();
       return false;
@@ -667,6 +675,13 @@ export default class App {
       daysPerSecond: live ? 0 : this.jedDelta * 60 }) ?? !this.catalogOpening;
   }
   onCatalogChange() {
+    const session = this.pendingSession ?? this.activeSession;
+    if (!this.catalogOpening && session?.pairedLatest && !session.pairRecovery
+      && session.version === this.loadVersion && session.loader.errorKind === 'read') {
+      session.pairRecovery = true;
+      void this.loadCatalog(null, { pairedLatest: session.pairedLatest, pairRecovery: true });
+      return;
+    }
     if (this.catalogWaiting) this.resetClock();
     this.updateCatalogStatus();
     this.requestRender();
@@ -683,6 +698,16 @@ export default class App {
         : "Could not load more asteroids. Reload to try again."));
     if (failure) {
       this.setStatus(failure, true);
+      if (this.pairedSelection && !this.catalogOpening) {
+        const status = document.getElementById('orrery-status');
+        if (status && !status.querySelector('[data-catalog-retry]')) {
+          const retry = document.createElement('button');
+          retry.type = 'button'; retry.dataset.catalogRetry = '';
+          retry.textContent = 'Retry catalogue';
+          retry.onclick = () => { void this.loadCatalog(null, { pairedLatest: this.pairedSelection.pairedLatest }); };
+          status.append(' ', retry);
+        }
+      }
       return;
     }
     if (this.catalogOpening && this.hasCommittedReadouts && targetDay) {

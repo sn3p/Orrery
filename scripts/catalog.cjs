@@ -190,6 +190,14 @@ async function prepareCatalog(configPath, { publicDefaults = false } = {}) {
   if (config.startJed !== undefined && !validDate(config.startJed)) throw new Error("Invalid catalogue startJed.");
   if (config.speed !== undefined && !Number.isFinite(config.speed)) throw new Error("Invalid catalogue speed.");
   const playback = {};
+  const { validatePairedSelection, validatePairedURL } = await import('../src/unified/named/source/PairedCatalogSource.js');
+  validatePairedSelection(config);
+  if (Object.hasOwn(config, 'pairedLatest')) {
+    if (Object.keys(config).some(key => !['mode', 'pairedLatest', 'startJed', 'speed'].includes(key))) throw new Error('Invalid paired selection fields.');
+    if (config.startJed !== undefined || !publicDefaults) playback.startJed = config.startJed ?? 2444270.5;
+    if (config.speed !== undefined || !publicDefaults) playback.speed = config.speed ?? 1.5;
+    return { staged: [], runtime: { mode: 'indexed', pairedLatest: validatePairedURL(config.pairedLatest), ...playback } };
+  }
   if (config.namedBodies !== undefined) {
     const { validateNamedSelection } = await import('../src/unified/named/source/NamedBodySource.js');
     validateNamedSelection(config);
