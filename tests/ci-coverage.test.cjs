@@ -12,9 +12,11 @@ function discover(groups, mode, previous) {
     env: { ...process.env, BROWSERS: 'chromium,firefox,webkit', ORRERY_TEST_GROUPS: groups, ORRERY_TEST_MODE: mode,
       ORRERY_PREVIOUS_COVERAGE: previous ? JSON.stringify(previous) : '' } }));
   const rows = [];
-  function visit(suite) {
-    for (const spec of suite.specs || []) for (const item of spec.tests) rows.push({ id: `${item.projectName}:${spec.id}`, project: item.projectName, title: spec.title, tags: spec.tags.map(tag => `@${tag}`) });
-    for (const child of suite.suites || []) visit(child);
+  // spec.id belongs to the first project of a merged spec and changes with the
+  // selected projects; key each case by project, location and title path.
+  function visit(suite, parents = []) {
+    for (const spec of suite.specs || []) for (const item of spec.tests) rows.push({ id: `${item.projectName}:${spec.file}:${spec.line}:${spec.column} ${[...parents, spec.title].join(' / ')}`, project: item.projectName, title: spec.title, tags: spec.tags.map(tag => `@${tag}`) });
+    for (const child of suite.suites || []) visit(child, [...parents, child.title]);
   }
   visit(report); return rows;
 }
