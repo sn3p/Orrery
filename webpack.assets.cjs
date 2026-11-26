@@ -36,6 +36,7 @@ module.exports = {
       },
       {
         test: /\.json$/,
+        exclude: path.resolve(__dirname, "src/unified/named/definitions.json"),
         type: "asset/resource",
         generator: {
           filename: "data/[name][ext]",

@@ -46,8 +46,10 @@ independent orbital calculations and the original GPU/pixel assertions.
 ## Retained data and graphics commitment
 
 Three references canonical `p`, `q` and `elements` arrays read-only. Its own
-Float32 phase, discovery and arrival arrays add 12 bytes per row to the shared model's
-61 bytes per row (60 canonical bytes plus a 1-byte group class). Nominal asteroid
+Float32 phase, discovery and arrival arrays plus a masked Uint8 render-class
+array add 13 bytes per row to the shared model's 61 bytes per row (60 canonical
+bytes plus a 1-byte group class): 74 retained CPU bytes per row. The separate
+render class hides promoted named bodies without changing canonical classes. Nominal asteroid
 GPU attributes use 45 bytes per row, including that class; this
 excludes driver overhead, scene bodies and render targets. Parsed source objects
 are not retained. Final disposal releases CPU references and GPU resources;

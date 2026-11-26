@@ -213,6 +213,17 @@ export function visibleFromTallies(tallies, preset) {
   return count;
 }
 
+// Raw discovery tallies retain catalogue history. Promoted named bodies do not
+// contribute to the displayed asteroid count (at most five ordinal checks).
+export function visibleCloudCount(tallies, preset, model, count) {
+  let visible = visibleFromTallies(tallies, preset);
+  const mask = populationMask(preset);
+  for (const ordinal of model?.suppressedRows ?? []) {
+    if (ordinal < count && (mask & (1 << model.classes[ordinal]))) visible--;
+  }
+  return visible;
+}
+
 export function resyncClassTallies(classes, count, preset, tallies = new Uint32Array(CLASS_COUNT)) {
   tallies.fill(0);
   countClassTallies(classes, 0, count, tallies);

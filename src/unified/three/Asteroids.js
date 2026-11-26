@@ -3,7 +3,7 @@ import { REFERENCE_JED, wrapPhase } from "../catalog/prepareCatalogue.js";
 import { DISCOVERY_SECONDS, validDate, MAX_PHASE_ADVANCE } from "../../js/asteroidOrbits.js";
 import { CLASS_COUNT, CLASS_REST_COLOR,
   DEFAULT_POPULATION_PRESET, advanceClassTallies, highlightMask,
-  isPopulationPreset, populationGLSL, populationMask, visibleFromTallies } from "../catalog/population.js";
+  isPopulationPreset, populationGLSL, populationMask, visibleCloudCount } from "../catalog/population.js";
 
 export { REFERENCE_JED } from "../catalog/prepareCatalogue.js";
 export const REBASE_DAYS = 4096;
@@ -42,12 +42,12 @@ export default class Asteroids extends THREE.Points {
     }
     const geometry = new THREE.BufferGeometry();
     // Static attributes reference retained CPU data read-only. Only phase,
-    // discovery packing and arrival timestamps are adapter-owned.
+    // discovery packing, arrival timestamps and masked render classes are adapter-owned.
     const arrivals = new Float32Array(model.dates.length).fill(-1);
     for (const [name, array, size] of [["position", model.p, 3], ["basisQ", model.q, 3],
       ["elements", model.elements, 2], ["meanAnomaly", new Float32Array(model.dates.length), 1],
       ["discovery", new Float32Array(model.dates.length), 1], ["arrival", arrivals, 1],
-      ["classId", model.classes, 1]]) {
+      ["classId", new Uint8Array(model.dates.length), 1]]) {
       geometry.setAttribute(name, new THREE.BufferAttribute(array, size));
     }
     geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), model.radius * 1.00001 + 1);
@@ -89,7 +89,7 @@ export default class Asteroids extends THREE.Points {
         ${orbitGLSL}
         ${populationGLSL}
         vec3 classRestColor(float id) {
-          return classColors[int(id + 0.5)];
+          return classColors[int(min(id, ${CLASS_COUNT - 1}.0) + 0.5)];
         }
       `).replace("#include <color_vertex>", `
         float highlighted = populationVisible(classId, colorMask);
@@ -122,7 +122,7 @@ export default class Asteroids extends THREE.Points {
     });
     material.onBeforeCompile = shader => compile(shader, uniforms);
     highlightMaterial.onBeforeCompile = shader => compile(shader, highlightUniforms);
-    const programKey = () => "asteroid-orbits-r186-v9";
+    const programKey = () => "asteroid-orbits-r186-v10";
     material.customProgramCacheKey = programKey;
     highlightMaterial.customProgramCacheKey = programKey;
     super(geometry, material);
@@ -161,6 +161,7 @@ export default class Asteroids extends THREE.Points {
     if (end <= start) return;
     const attributes = this.geometry.attributes;
     for (let i = start; i < end; i++) {
+      attributes.classId.array[i] = model.suppressedRows?.has(i) ? CLASS_COUNT : model.classes[i];
       attributes.meanAnomaly.array[i] = wrapPhase(this.phases[i * 2] + this.phases[i * 2 + 1] * (this.epoch - REFERENCE_JED));
       attributes.discovery.array[i] = this.discoveryDates[i] - REFERENCE_JED;
       // Preserve source rebasing for ordinary orbits, bounding unusually fast
@@ -179,7 +180,7 @@ export default class Asteroids extends THREE.Points {
     if (!isPopulationPreset(preset) || preset === this.populationPreset) return;
     this.populationPreset = preset;
     this.applyMasks();
-    this.visibleCount = visibleFromTallies(this.classTallies, preset);
+    this.visibleCount = visibleCloudCount(this.classTallies, preset, this.catalogue, this.tallyCount);
   }
 
   setColorize(colorize) {
@@ -207,7 +208,7 @@ export default class Asteroids extends THREE.Points {
   syncTallies(count) {
     const next = advanceClassTallies(this.classes, this.tallyCount, count, this.populationPreset, this.classTallies);
     this.tallyCount = next.tallyCount;
-    this.visibleCount = next.visibleCount;
+    this.visibleCount = visibleCloudCount(this.classTallies, this.populationPreset, this.catalogue, count);
   }
 
   captureFrame(jed, elapsed = this.elapsed, { baseline = false } = {}) {

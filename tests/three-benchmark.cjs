@@ -20,8 +20,9 @@ async function run({ browser, name, output = path.resolve('.context/pr4/benchmar
       assert.equal(result.population, mode.startsWith('empty') ? 0 : mode === 'historical' ? 100000 : 6);
       assert.equal(result.canonicalBytes, result.population * 60);
       // The shared model adds a 1-byte group class to its 60 canonical bytes;
-      // Three owns Float32 phase, discovery and arrival arrays (12 bytes).
-      assert.equal(result.catalogCpuBytes, result.population * 73);
+      // Three owns Float32 phase, discovery and arrival arrays (12 bytes),
+      // plus a separate 1-byte render class that masks promoted named bodies.
+      assert.equal(result.catalogCpuBytes, result.population * 74);
       // p 12 + q 12 + elements 8 + phase, discovery and arrival 12 + class 1.
       assert.equal(result.nominalGpuBytes, result.population * 45);
       assert.equal(result.restoredDataRequests, 0); assert.deepEqual(result.errors, []);

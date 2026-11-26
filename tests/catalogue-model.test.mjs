@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import ThreeAsteroids from '../src/unified/three/Asteroids.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { prepareCatalogue, allocateCatalogue, appendCatalogue } from '../src/unified/catalog/prepareCatalogue.js';
@@ -31,4 +32,27 @@ test('a failed later batch cannot partially modify retained numeric data', () =>
   const expected = prepareCatalogue(rows);
   assert.deepEqual(model, expected);
   assert(!Object.values(model).includes(rows), 'No source object graph retained');
+});
+
+
+test('Three retains a separate masked class without mutating canonical classes or duplicating other static arrays', () => {
+  for (const suppressed of [false, true]) {
+    const model = prepareCatalogue(rows);
+    if (suppressed) model.suppressedRows = new Set([1]);
+    const original = model.classes.slice();
+    const cloud = new ThreeAsteroids(model, { jed: 2451544.5 });
+    try {
+      const attributes = cloud.geometry.attributes;
+      assert.equal(attributes.position.array, model.p);
+      assert.equal(attributes.basisQ.array, model.q);
+      assert.equal(attributes.elements.array, model.elements);
+      assert.notEqual(attributes.classId.array.buffer, model.classes.buffer);
+      assert.equal(attributes.classId.array[1], suppressed ? 9 : original[1]);
+      assert.deepEqual(model.classes, original);
+      const arrays = Object.values(attributes).map(attribute => attribute.array);
+      const retained = new Set([...Object.values(model).filter(ArrayBuffer.isView), ...arrays].map(array => array.buffer));
+      assert.equal([...retained].reduce((bytes, buffer) => bytes + buffer.byteLength, 0), rows.length * 74);
+      assert.equal(arrays.reduce((bytes, array) => bytes + array.byteLength, 0), rows.length * 45);
+    } finally { cloud.destroy(); }
+  }
 });

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import Orbit from "../src/unified/pixi/Orbit.js";
-import planets from "../src/js/planets.js";
+import planets from "./fixtures/legacy-planets.js";
 import reference from "./cpu-reference.cjs";
 
 const base = { a: 1, e: 0, i: 0, W: 25, w: 10, wbar: 0, M: 0, n: 1, epoch: 2451545 };

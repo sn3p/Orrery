@@ -10,15 +10,21 @@ async function routeFiles(page, root) {
   await routeAppFiles(page, root);
 }
 
-async function run({browser, name, output = '.context/comet-browser'}) {
+async function run({browser, name, output = '.context/comet-browser', part = 'all', rendererIds = ['three', 'pixi']}) {
+  assert(['all', 'selection', 'controls', 'lifecycle'].includes(part), 'Unknown comet test part');
+  assert(rendererIds.length && rendererIds.every(id => ['three', 'pixi'].includes(id)), 'Unknown renderer');
+  const controls = part === 'all' || part === 'controls' ? rendererIds : [];
+  const lifecycle = part === 'all' || part === 'lifecycle' ? rendererIds : [];
   const root = path.resolve(output, 'site');
   const starters = await require('./comet-starters.cjs')();
   if (process.env.ORRERY_PREBUILT_FIXTURES) require('./fixture-builds.cjs').copyPrepared('three',root);
   else await require('./three-build.cjs').build(root);
-  await require('./comet-selection-races.cjs')(browser, root);
-  await require('./comet-storage-fallback.cjs')(browser, root);
-  await require('./comet-history-browser.cjs')(browser, root);
-  for (const renderer of ['three','pixi']) {
+  if (part === 'all' || part === 'selection') {
+    await require('./comet-selection-races.cjs')(browser, root);
+    await require('./comet-storage-fallback.cjs')(browser, root);
+    await require('./comet-history-browser.cjs')(browser, root);
+  }
+  for (const renderer of controls) {
     await require('./options-feedback.cjs')(browser, root, renderer);
     await require('./comet-chooser.cjs')(browser, root, renderer);
     await require('./info-dialogs.cjs')(browser, root, renderer);
@@ -226,7 +232,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       assert.deepEqual(errors,[]);
     } finally { await page.close(); }
   }
-  for (const renderer of ['three','pixi']) {
+  for (const renderer of lifecycle) {
     const page=await browser.newPage();
     await routeFiles(page,root);
     let catalogRoute, vectorRoute, notifyVector;
@@ -251,7 +257,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     } finally { await page.close(); }
   }
   // Partial object acquisition and generation replacement through the real app.
-  for (const renderer of ['three', 'pixi']) {
+  for (const renderer of lifecycle) {
     const page = await browser.newPage({viewport:{width:390,height:844}});
     await routeFiles(page, root);
     const fixture = JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/comets-v2/latest.json')));
@@ -370,7 +376,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     } finally { await page.close(); }
   }
   // Catalogue growth, reordering, removal and literal metadata through the real app.
-  for (const renderer of ['three', 'pixi']) {
+  for (const renderer of lifecycle) {
     const page = await browser.newPage({viewport:{width:320,height:568}});
     await routeFiles(page,root);
     let product = require('./comet-catalogue-fixture.cjs').product(['67P','123P','1P']);
@@ -457,7 +463,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     } finally {await page.close();}
   }
   // Automatic selection is bounded; entries beyond the initial subset stay usable.
-  for (const renderer of ['three','pixi']) {
+  for (const renderer of lifecycle) {
     const page=await browser.newPage();
     await routeFiles(page,root);
     const ids=['1P','2P','55P','9P','10P','67P','123P','124P'];
@@ -499,7 +505,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
     } finally {await page.close();}
   }
   // Public entry and indexed catalogue, independent of the instrumented fixture.
-  for (const renderer of ['three','pixi']) {
+  for (const renderer of lifecycle) {
     const page=await browser.newPage({viewport:{width:800,height:600}});
     await routeFiles(page,path.resolve('dist'));
     await require('./default-catalog-route.cjs').routeDefaultCatalog(page);
@@ -531,7 +537,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await expect(page.getByRole('checkbox',{name:'Show asteroids',exact:true})).toBeChecked();
     } finally { await page.close(); }
   }
-  console.log(`${name}: comet controls, lazy data, both renderers, dates, switching and responsive layout passed`);
+  console.log(`${name}: comet ${part} (${rendererIds.join(", ")}) passed`);
 }
 module.exports={run,routeFiles};
 if(require.main===module) require('./standalone.cjs').run(run);

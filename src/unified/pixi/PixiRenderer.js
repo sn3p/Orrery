@@ -5,6 +5,7 @@ import { PIXELS_PER_AU } from "../../js/constants.js";
 import { Application, ParticleContainer, ParticleShader, FillGradient, Graphics, Texture } from "pixi.js";
 import Controls from "./Controls.js";
 import Planet from "./Planet.js";
+import ReferenceBodies from "../named/ReferenceBodies.js";
 import Asteroids from "./Asteroids.js";
 import { DEFAULT_PLANET_LABEL_MODE, isPlanetLabelMode, PlanetLabels } from "../PlanetLabel.js";
 import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "../PlanetOrbitPreference.js";
@@ -20,7 +21,7 @@ function preparePlanets(data, jed, texture) {
   const batch = [];
   try {
     for (const item of data) {
-      const planet = new Planet(item.ephemeris, texture, { name: item.name, size: item.size, color: item.color });
+      const planet = new Planet(item.ephemeris, texture, { ...item });
       const entry = { planet };
       batch.push(entry);
       entry.orbit = planet.orbit.drawOrbit(jed);
@@ -40,6 +41,26 @@ export default class PixiRenderer {
     this.reportGraphicsState = reportGraphicsState;
     this.planets = [];
     this.planetOrbits = [];
+    this.referenceBodies = new ReferenceBodies({
+      prepare: (data, jed) => preparePlanets(data, jed, this.circleTexture),
+      attach: batch => {
+        for (const { planet, orbit } of batch) {
+          if (orbit.parent !== this.stage) this.stage.addChild(orbit);
+          if (!this.planetContainer.particleChildren.includes(planet.body)) this.planetContainer.addParticle(planet.body);
+        }
+        this.planets = batch.map(entry => entry.planet);
+        this.planetOrbits = batch.map(entry => entry.orbit);
+        for (const orbit of this.planetOrbits) orbit.visible = this.planetOrbitsVisible;
+        this.planetLabels.setMode(this.planets, this.planetLabelMode);
+      },
+      detach: batch => {
+        for (const { planet, orbit } of batch) {
+          orbit.removeFromParent();
+          this.planetContainer?.removeParticle(planet.body);
+        }
+      },
+      dispose: disposePlanets,
+    });
     this.planetLabelMode = DEFAULT_PLANET_LABEL_MODE;
     this.planetOrbitsVisible = DEFAULT_PLANET_ORBITS_VISIBLE;
     this.populationPreset = DEFAULT_POPULATION_PRESET;
@@ -172,7 +193,7 @@ export default class PixiRenderer {
   refreshCircleTexture() {
     const previous = this.circleTexture;
     this.circleTexture = this.createCircleTexture();
-    for (const planet of this.planets) planet.body.texture = this.circleTexture;
+    this.referenceBodies.forEach(({ planet }) => { planet.body.texture = this.circleTexture; });
     this.planetContainer.texture = this.circleTexture;
     this.planetContainer.shader.resources.uTexture = this.circleTexture.source;
     this.planetContainer.update();
@@ -274,15 +295,7 @@ export default class PixiRenderer {
 
   addPlanets(data, { jed }) {
     if (this.destroyed) return;
-    const batch = preparePlanets(data, jed, this.circleTexture);
-    for (const { planet, orbit } of batch) {
-      orbit.visible = this.planetOrbitsVisible;
-      this.stage.addChild(orbit);
-      this.planetOrbits.push(orbit);
-      this.planets.push(planet);
-      this.planetContainer.addParticle(planet.body);
-    }
-    this.planetLabels.setMode(this.planets, this.planetLabelMode);
+    this.referenceBodies.add(data, jed);
     this.requestRender();
   }
 
@@ -299,6 +312,7 @@ export default class PixiRenderer {
   }
 
   installAsteroids(next, preservePrevious = false) {
+    this.referenceBodies.select(next.catalogue?.namedBodies?.definitions, this.lastJed ?? next.epoch);
     const previous = this.asteroids;
     this.stage.addChildAt(next, previous ? this.stage.getChildIndex(previous) : 2);
     next.mountHighlight();
@@ -310,7 +324,7 @@ export default class PixiRenderer {
         previous.visible = false;
         previous.syncHighlight();
       }
-    } else previous?.destroy();
+    } else { previous?.destroy(); this.referenceBodies.commit(); }
   }
 
   syncCatalogue(model, frame, { required, activate }) {
@@ -351,11 +365,13 @@ export default class PixiRenderer {
   }
 
   commitCatalogue() {
+    this.referenceBodies.commit();
     this.catalogueTransition?.previous?.destroy();
     this.catalogueTransition = null;
   }
 
   rollbackCatalogue({ retain = false } = {}) {
+    this.referenceBodies.rollback();
     if (!this.catalogueTransition) return;
     if (retain) {
       this.asteroids.highlight.removeFromParent();
@@ -506,6 +522,7 @@ export default class PixiRenderer {
     this.canvas?.removeEventListener("webglcontextlost", this.onContextLost);
     this.canvas?.removeEventListener("webglcontextrestored", this.onContextRestored);
     this.controls?.destroy();
+    this.referenceBodies.destroy();
     this.planetLabels.destroy();
     this.comets?.destroy();
     this.asteroids?.destroy();

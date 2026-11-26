@@ -1,5 +1,6 @@
 import { Color, Particle, Graphics } from "pixi.js";
 import Orbit from "./Orbit.js";
+import NamedOrbit from "./NamedOrbit.js";
 
 export default class Planet {
   static defaultOptions = {
@@ -11,7 +12,7 @@ export default class Planet {
     this.options = Object.assign({}, Planet.defaultOptions, options);
 
     // Planet orbit
-    this.orbit = new Orbit(ephemeris);
+    this.orbit = options.namedBody ? new NamedOrbit(options.namedBody) : new Orbit(ephemeris);
 
     // Planet body
     const particle = new Particle(texture);

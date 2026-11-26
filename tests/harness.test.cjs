@@ -209,14 +209,16 @@ async function discover(...args) {
 
 test('native discovery preserves coverage and each browser shard partitions it exactly once', async () => {
   const all = await discover();
-  const required = ['historical fixture assets', 'preview entry', 'preview footer loading', 'atomic date seeks', 'first-visit introduction', 'main playback and date controls', 'promoted root', 'configured promotion', 'default indexed catalogue', 'development texture lifecycle', 'raw App lifecycle', 'comet selection, scientific positions and independent populations',
+  const required = ['historical fixture assets', 'preview entry', 'preview footer loading', 'atomic date seeks', 'first-visit introduction', 'main playback and date controls', 'promoted root', 'configured promotion', 'default indexed catalogue', 'development texture lifecycle', 'raw App lifecycle', 'comet selection persistence, races and history',
+    ...['three', 'pixi'].flatMap(renderer => [`comet controls, scientific positions and populations (${renderer})`,
+      `comet acquisition, replacement and public startup (${renderer})`]), 'named planets and dwarfs',
     ...['unified'].flatMap(app => ['GPU numerics', 'rendering, readouts', 'options controls',
       'pixel ratio and display transitions', 'texture recovery', 'benchmark frames'].map(title => `${app} / ${title}`))];
   const catalogue = ['catalogue loading, demand, transport', 'catalogue replacement, recovery', 'catalogue frame commits'];
   const catalogueChromium = ['catalogue benchmark completion', 'catalogue configured preview development'];
   for (const browser of ['chromium', 'firefox', 'webkit']) {
     const cases = all.filter(row => row.project === browser);
-    assert.equal(cases.length, 51);
+    assert.equal(cases.length, 56);
     assert.equal(cases.filter(row => row.title.includes('Three ')).length, 5);
     assert.equal(cases.filter(row => row.title.includes('Renderer switching ')).length, 22);
     for (const title of [...required, ...catalogue]) assert.equal(cases.filter(row => row.title.includes(title)).length, 1, `${browser}: ${title}`);

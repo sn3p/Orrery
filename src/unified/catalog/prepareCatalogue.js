@@ -84,6 +84,12 @@ export function prepareCatalogue(data, epoch = REFERENCE_JED, rowOffset = 0) {
 // leave a partially committed prefix. The source holds its processing slot.
 export function appendCatalogue(model, records, start) {
   if (start !== model.count || start + records.length > model.dates.length) throw new Error("Noncontiguous catalogue commitment.");
+  for (const member of model.namedBodies?.mapping.members ?? []) {
+    if (member.status === 'present' && member.ordinal >= start && member.ordinal < start + records.length
+      && records[member.ordinal - start].disc !== member.discovery_jd) {
+      throw new Error('Named-body mapping discovery date differs from its catalogue row.');
+    }
+  }
   const packed = prepareCatalogue(records, model.epoch, start);
   for (const [key, stride] of Object.entries({ p: 3, q: 3, elements: 2, phases: 2, dates: 1, rows: 1, classes: 1 })) {
     model[key].set(packed[key], start * stride);
