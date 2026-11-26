@@ -1,3 +1,4 @@
+import { request, readResponse, CatalogueRequestError } from './request.js';
 import { validatePin, validateIndex, validateRecords, verifyBytes, parseJSON, freeze,
   countThrough, requireValue, validateLatest, validateLatestURL } from "./contract.js";
 
@@ -67,11 +68,11 @@ class FileSlots {
 
 export async function fetchVerified(ref, url, signal) {
   check(signal);
-  const response = await fetch(url, { signal });
+  const response = await request(url, { signal });
   if (!response.ok || !response.body) {
     await response.body?.cancel().catch(() => {});
-    throw new Error(!response.ok ? `Catalogue request failed (${response.status}): ${ref.url}`
-      : `Catalogue response has no body: ${ref.url}`);
+    throw new CatalogueRequestError(!response.ok ? `Catalogue request failed (${response.status}): ${ref.url}`
+      : `Catalogue response has no body: ${ref.url}`, { status: response.status });
   }
   // Content-Length can describe compressed HTTP bytes. Enforce the trusted
   // decoded length while streaming, before allocating/parsing an oversized body.
@@ -81,7 +82,7 @@ export async function fetchVerified(ref, url, signal) {
   try {
     while (true) {
       check(signal);
-      const { value, done } = await reader.read();
+      const { value, done } = await readResponse(reader, signal);
       if (done) break;
       requireValue(offset + value.length <= bytes.length, `byte length for ${ref.url}`);
       bytes.set(value, offset);
@@ -109,7 +110,7 @@ export default class CatalogSource {
     try {
       while (true) {
         check(signal);
-        const { value, done } = await reader.read();
+        const { value, done } = await readResponse(reader, signal);
         if (done) break;
         requireValue(length + value.length <= bytes.length, "latest descriptor size");
         bytes.set(value, length); length += value.length;

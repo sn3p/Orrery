@@ -43,10 +43,10 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     let offline = false, blocked, release, chunkArrived;
     const requests = [];
+    page.on('request', request => { if (/^https:\/\/(named|empty)\.test\//.test(request.url())) requests.push(request.url()); });
     await routeFiles(page, root);
     await page.route(/^https:\/\/(named|empty)\.test\//, async route => {
       const url = route.request().url();
-      requests.push(url);
       if (url.includes("/asteroids/") && url.includes("chunk")) chunkArrived?.();
       if (url.includes('/held/') && /\/(index|wrong-date)\.json$/.test(url)) {
         blocked?.();
@@ -71,6 +71,7 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
         const before = requests.length;
         assert.equal(await page.evaluate(({ pin, ...options }) => app.loadCatalog(pin, { pairedLatest: 'https://named.test/paired/latest.json', ...options }), conflicting), false);
         assert.equal(requests.length, before, 'Conflicting runtime selectors never retry as valid selections');
+        assert.equal(await page.getByRole('button', { name: 'Retry catalogue' }).count(), 0);
       }
       const pairedURL = 'https://named.test/paired/latest.json';
       const discoveries = () => requests.filter(url => url === pairedURL).length;
@@ -91,12 +92,45 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
       assert.equal(await page.evaluate(() => app.renderer.planets.length), 13);
       assert.equal(discoveries() - beforeRecovery, 2, 'Exhausted recovery never loops');
       await page.getByRole('button', { name: 'Retry catalogue' }).waitFor();
+      assert(!(await page.locator('#orrery-status').textContent()).includes('Reload to try again'));
+      await page.evaluate(() => { app.switchMessage = 'Switching renderer…'; app.renderStatus(); });
+      assert.equal(await page.getByRole('button', { name: 'Retry catalogue' }).count(), 0);
+      await page.evaluate(() => { app.switchMessage = ''; app.renderStatus(); });
+      await page.getByRole('button', { name: 'Retry catalogue' }).waitFor();
+      await page.evaluate(() => { window.oldRetry = document.querySelector('[data-catalog-retry]'); });
+      assert.equal(await page.evaluate(({pin}) => app.loadCatalog(pin, {pairedLatest:'https://named.test/paired/latest.json'}),data),false);
+      const beforeStaleClick = requests.length;
+      await page.evaluate(() => oldRetry.click());
+      assert.equal(requests.length,beforeStaleClick,'Detached retry never loads an obsolete selection');
+      assert.equal(await page.getByRole('button', { name: 'Retry catalogue' }).count(), 0);
+      assert.equal(await page.evaluate(pairedLatest => app.loadCatalog(null,{pairedLatest}),pairedURL),false);
       await page.unroute(data.pin.url);
       await page.getByRole('button', { name: 'Retry catalogue' }).click();
+      await settle(page);
+      // Invalid pairs are deterministic failures, never transport recovery.
+      for (const mismatch of [false, true]) {
+        const before = discoveries();
+        if (mismatch) await page.route(pairedURL, route => route.fulfill({json:{paired_catalogue_version:1,asteroids:empty.pin,namedBodies:data.namedBodies}}));
+        else await page.route(data.pin.url, route => route.fulfill({body:'{}',contentType:'application/json'}));
+        assert.equal(await page.evaluate(pairedLatest => app.loadCatalog(null,{pairedLatest}),pairedURL),false);
+        assert.equal(discoveries()-before,1);
+        assert.equal(await page.getByRole('button',{name:'Retry catalogue'}).count(),0);
+        await page.unroute(mismatch ? pairedURL : data.pin.url);
+      }
+      assert(await page.evaluate(pairedLatest => app.loadCatalog(null,{pairedLatest}),pairedURL));
       await settle(page);
       // A long-open paired scene can lose a not-yet-read immutable chunk.
       beforeRecovery = discoveries();
       await page.route('https://named.test/asteroids/chunks/**', route => route.fulfill({ status: 404 }));
+      await page.evaluate(() => {
+        app.catalogLoader.demand(app.jed,{playing:true,hidden:false,daysPerSecond:1});
+      });
+      await page.waitForFunction(() => app.catalogLoader.errorKind === 'read');
+      assert.equal(await page.evaluate(() => app.catalogLoader.buffering),false);
+      assert.equal(await page.evaluate(() => app.catalogLoader.playing),true,'Lookahead failure preserves playback');
+      assert.equal(discoveries(),beforeRecovery,'Speculative failure never reacquires a pair');
+      assert.equal(await page.evaluate(() => app.activeSession.request.recovered),false);
+      assert.equal(await page.getByRole('button',{name:'Retry catalogue'}).count(),0);
       await page.evaluate(() => { app.jed = 2451544.5; app.renderFrame(); });
       await page.getByRole('button', { name: 'Retry catalogue' }).waitFor();
       assert.equal(discoveries() - beforeRecovery, 1, 'Lazy chunk expiry reacquires one descriptor');
@@ -106,6 +140,10 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
       await page.getByRole('button', { name: 'Retry catalogue' }).click();
       await settle(page);
       await page.evaluate(() => { app.jed = 2378496.5; app.renderFrame(); });
+      await page.evaluate(() => { app.catalogLoader.errorKind='commit'; app.catalogLoader.error=new Error('Cannot prepare'); app.updateCatalogStatus(); });
+      assert.equal(await page.getByRole('button',{name:'Retry catalogue'}).count(),0);
+      assert((await page.locator('#orrery-status').textContent()).includes('cannot be prepared'));
+      await page.evaluate(() => { app.catalogLoader.error=null; app.catalogLoader.errorKind=null; app.updateCatalogStatus(); });
       // Superseding the descriptor itself must cancel the whole old acquisition.
       let releaseDescriptor, descriptorRequested;
       const descriptorGate = new Promise(resolve => { releaseDescriptor = resolve; });

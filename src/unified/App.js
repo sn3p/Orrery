@@ -1,3 +1,4 @@
+import { isRequestFailure, isMissingResource } from './catalog/request.js';
 import { resolvePairedLatest, validatePairedSelection } from './named/source/PairedCatalogSource.js';
 import { CometSelectionPreference } from './CometSelectionPreference.js';
 import { formatIsoDay, toJED } from "../js/utils.js";
@@ -576,6 +577,7 @@ export default class App {
   async loadCatalog(pin, { mode = "indexed", latest, namedBodies, pairedLatest, pairRecovery = false } = {}) {
     if (this.destroyed) return false;
     const version = ++this.loadVersion;
+    this.catalogRequest = null;
     this.loadController?.abort();
     this.catalogOpening?.abort();
     if (this.pendingSession && this.pendingSession !== this.activeSession) this.pendingSession.loader.dispose();
@@ -596,7 +598,7 @@ export default class App {
       if (latest !== undefined && mode !== "indexed") throw new Error("Whole-file mode unavailable in browser distribution.");
       validatePairedSelection({ mode, pin: pin ?? undefined, latest, namedBodies, pairedLatest });
       validateNamedSelection({ latest, namedBodies });
-      this.pairedSelection = pairedLatest ? { pairedLatest, pairRecovery } : null;
+      this.catalogRequest = pairedLatest ? { pairedLatest, recovered: pairRecovery } : null;
       if (pairedLatest) {
         ({ pin, namedBodies } = await resolvePairedLatest(pairedLatest, { signal: opening.signal }));
         pairResolved = true;
@@ -606,7 +608,7 @@ export default class App {
           ? await CatalogSource.openLatest(latest, { signal: opening.signal })
           : await CatalogSource.open(pin, { mode, signal: opening.signal });
         if (opening.signal.aborted) { source.close(); throw opening.signal.reason; }
-        const session = candidate = { version, model: null, loader: null, namedBodies: null, pairedLatest, pairRecovery };
+        const session = candidate = { version, model: null, loader: null, namedBodies: null, request: this.catalogRequest };
         const loader = session.loader = new CatalogLoader({
           activate: count => {
             const start = performance.now();
@@ -657,7 +659,7 @@ export default class App {
       this.catalogLoader = this.activeSession?.loader ?? null;
       this.renderer?.discardStagedCatalogue();
       this.catalogOpening = null;
-      if (pairResolved && !pairRecovery) return this.loadCatalog(null, { pairedLatest, pairRecovery: true });
+      if (pairResolved && !pairRecovery && isMissingResource(error)) return this.loadCatalog(null, { pairedLatest, pairRecovery: true });
       this.catalogFailure = error;
       this.onCatalogChange();
       return false;
@@ -676,10 +678,10 @@ export default class App {
   }
   onCatalogChange() {
     const session = this.pendingSession ?? this.activeSession;
-    if (!this.catalogOpening && session?.pairedLatest && !session.pairRecovery
-      && session.version === this.loadVersion && session.loader.errorKind === 'read') {
-      session.pairRecovery = true;
-      void this.loadCatalog(null, { pairedLatest: session.pairedLatest, pairRecovery: true });
+    if (!this.catalogOpening && session?.request && !session.request.recovered
+      && session.version === this.loadVersion && session.loader.buffering
+      && session.loader.errorKind === 'read' && isMissingResource(session.loader.error)) {
+      void this.loadCatalog(null, { pairedLatest: session.request.pairedLatest, pairRecovery: true });
       return;
     }
     if (this.catalogWaiting) this.resetClock();
@@ -691,23 +693,20 @@ export default class App {
     const target = this.requestedJed ?? this.pendingSeek?.target;
     const targetDay = Number.isFinite(target) ? formatIsoDay(target) : "";
     const hasTargetContext = this.hasCommittedReadouts && targetDay;
-    const failure = (this.catalogFailure && "Could not load the asteroid catalogue. Reload to try again.")
+    const session = this.pendingSession ?? this.activeSession;
+    const retryCatalogue = !this.catalogOpening && this.catalogRequest
+      && (this.catalogFailure ? isRequestFailure(this.catalogFailure)
+        : session?.request === this.catalogRequest && loader?.errorKind === 'read'
+          && loader.buffering && isRequestFailure(loader.error))
+      ? this.catalogRequest.pairedLatest : null;
+    const advice = this.catalogRequest ? '' : ' Reload to try again.';
+    const failure = (this.catalogFailure && `Could not load the asteroid catalogue.${advice}`)
       || (loader?.errorKind === "commit" && "This asteroid catalogue cannot be prepared for this renderer.")
       || (loader?.error && loader.buffering && (hasTargetContext
-        ? `Could not load asteroids for ${targetDay}. Reload to try again.`
-        : "Could not load more asteroids. Reload to try again."));
+        ? `Could not load asteroids for ${targetDay}.${advice}`
+        : `Could not load more asteroids.${advice}`));
     if (failure) {
-      this.setStatus(failure, true);
-      if (this.pairedSelection && !this.catalogOpening) {
-        const status = document.getElementById('orrery-status');
-        if (status && !status.querySelector('[data-catalog-retry]')) {
-          const retry = document.createElement('button');
-          retry.type = 'button'; retry.dataset.catalogRetry = '';
-          retry.textContent = 'Retry catalogue';
-          retry.onclick = () => { void this.loadCatalog(null, { pairedLatest: this.pairedSelection.pairedLatest }); };
-          status.append(' ', retry);
-        }
-      }
+      this.setStatus(failure, true, { retryCatalogue });
       return;
     }
     if (this.catalogOpening && this.hasCommittedReadouts && targetDay) {
@@ -727,7 +726,6 @@ export default class App {
       return;
     }
     const required = loader.source.countThrough(target);
-    const session = this.pendingSession ?? this.activeSession;
     const packed = this.renderer?.catalogueProgress?.(session?.model) ?? 0;
     const buffering = loader.committedCount < required;
     const preparing = !buffering && !loader.sceneComplete(target);
@@ -768,12 +766,13 @@ export default class App {
     this.gui = new Hud(this);
   }
 
-  setStatus(message, error = false, { busy = false, detail = "", announcement = message } = {}) {
+  setStatus(message, error = false, { busy = false, detail = "", announcement = message, retryCatalogue = null } = {}) {
     this.statusMessage = message;
     this.statusError = error;
     this.statusBusy = busy;
     this.statusDetail = detail;
     this.statusAnnouncement = announcement;
+    this.statusCatalogRetry = retryCatalogue;
     this.renderStatus();
   }
   renderStatus() {
@@ -790,7 +789,8 @@ export default class App {
       const detail = usingCatalogStatus ? this.statusDetail : "";
       const busy = usingCatalogStatus ? this.statusBusy : !!this.switchMessage || /^Restoring /.test(message);
       const announcement = usingCatalogStatus ? this.statusAnnouncement : message;
-      const signature = JSON.stringify([message, busy, announcement, !!detail]);
+      const retryCatalogue = usingCatalogStatus ? this.statusCatalogRetry : null;
+      const signature = JSON.stringify([message, busy, announcement, !!detail, retryCatalogue]);
       const changed = status.dataset.signature !== signature;
       if (changed) {
         status.replaceChildren();
@@ -825,6 +825,18 @@ export default class App {
         status.dataset.signature = signature;
       } else if (detail) {
         status.querySelector(".orrery-status-detail").textContent = detail;
+      }
+      if (changed && retryCatalogue && !this.destroyed) {
+        const retry = document.createElement('button');
+        retry.type = 'button'; retry.dataset.catalogRetry = '';
+        retry.textContent = 'Retry catalogue';
+        retry.onclick = () => {
+          if (!this.destroyed && this.statusCatalogRetry === retryCatalogue
+            && this.catalogRequest?.pairedLatest === retryCatalogue) {
+            void this.loadCatalog(null, { pairedLatest: retryCatalogue });
+          }
+        };
+        status.append(' ', retry);
       }
       status.removeAttribute("aria-label");
       if (changed && this.switchError && !this.renderer && !this.destroyed) {

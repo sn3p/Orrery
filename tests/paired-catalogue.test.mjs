@@ -36,3 +36,24 @@ test('build and runtime reject conflicting paired selectors', async t => {
   await fs.writeFile(dir + '/profile.json', JSON.stringify(base));
   assert.deepEqual((await prepareCatalog(dir + '/profile.json', { publicDefaults: true })).runtime, base);
 });
+
+test('transport errors distinguish missing resources from bad data and cancellation', async t => {
+  const { request, CatalogueRequestError, isRequestFailure, isMissingResource } = await import('../src/unified/catalog/request.js');
+  const { fetchVerified } = await import('../src/unified/catalog/CatalogSource.js');
+  const { fetchVerified: fetchNamed } = await import('../src/unified/named/source/transport.js');
+  const original = globalThis.fetch; t.after(() => { globalThis.fetch = original; });
+  for (const read of [fetchVerified, fetchNamed]) {
+    for (const status of [404, 410, 503]) {
+      globalThis.fetch = async () => new Response('', { status });
+      await assert.rejects(read(data.pin, data.pin.url), error => isRequestFailure(error) && isMissingResource(error) === (status !== 503));
+    }
+    globalThis.fetch = async () => { throw new TypeError('offline'); };
+    await assert.rejects(read(data.pin, data.pin.url), error => isRequestFailure(error) && !isMissingResource(error));
+    globalThis.fetch = async () => new Response(new ReadableStream({ start(controller) { controller.error(new TypeError('connection interrupted')); } }));
+    await assert.rejects(read(data.pin, data.pin.url), error => isRequestFailure(error) && !isMissingResource(error));
+    globalThis.fetch = async () => new Response('{}');
+    await assert.rejects(read(data.pin, data.pin.url), error => !isRequestFailure(error));
+  }
+  globalThis.fetch = async () => { throw new DOMException('cancelled','AbortError'); };
+  await assert.rejects(request(data.pin.url), error => error.name === 'AbortError' && !(error instanceof CatalogueRequestError));
+});

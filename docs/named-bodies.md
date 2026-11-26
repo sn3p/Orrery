@@ -28,15 +28,17 @@ A paired profile requires indexed mode and rejects `pin`, `latest`, `namedBodies
 pin, namedBodies}` and asteroid-only profiles remain supported. The root
 asteroid-only latest feed can advance independently and must never be combined
 with a named-body product. Pair retention is producer-owned (at most four pairs,
-minimum fourteen days after confirmed hosted supersession). On resource failure,
+minimum fourteen days after confirmed hosted supersession). When a demanded
+resource returns HTTP 404 or 410,
 the app retains its scene and reacquires one whole pair once, then exposes a
-Retry catalogue action. There is no polling or permanent offline-pin guarantee.
+Retry catalogue action for transport failures. Invalid data and renderer
+preparation failures do not trigger a download retry. There is no polling or
+permanent offline-pin guarantee.
 
 The product index pins definitions and a mapping to **the exact asteroid index**.
 Asteroid preparation and named downloads run concurrently; the app verifies both
 before exposing a candidate scene. Missing, corrupt,
 stale or mismatched data fails the replacement; it never infers dwarf identities.
-
 
 A successful draw commits the new catalogue and all thirteen reference bodies
 as one scene. Failed/skipped draws roll back both; stale loads are cancelled.
