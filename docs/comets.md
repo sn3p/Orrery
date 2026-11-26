@@ -11,8 +11,9 @@ the current viewing direction with a small margin, keeping the Sun centered.
 **paths** toggles the comet trajectories.
 Selections survive renderer changes. Reload restores asteroid-only visibility
 while remembering comet selections. The footer count remains an asteroid count.
-The About Orrery panel explains the comet data source, date coverage and model
-limits, with a link to JPL Horizons. Loading, retry and unavailable-date messages
+Options → **About comets** explains catalogue membership versus trajectory
+availability, date coverage and model limits, with links to JPL Horizons and
+OrreryData. It remains available when comets are hidden. Loading, retry and unavailable-date messages
 remain beside the comet controls in Options.
 
 ## Scientific model and limits
@@ -34,7 +35,7 @@ not an observing ephemeris or meteor-shower prediction tool.
 
 Known comets show approximately one orbital period centered near the displayed date.
 Entries without an app display period use a fixed **10-Julian-year window**
-(3652.5 days), identified in Options when selected. This presentation fallback is
+(3652.5 days), explained in About comets. This presentation fallback is
 not an estimate of their orbital period: it may show part of a long orbit or
 several short ones. Scientific date coverage remains independent of this window.
 Near either data boundary, the entire window shifts into the available interval

@@ -39,8 +39,12 @@ export function catalogueHasCoverage(entry, jed) {
     : !!entry.coverage && jed >= entry.coverage[0] && jed <= entry.coverage[1];
 }
 
-export function assessmentMessage(entry, jed) {
+export function assessmentState(entry, jed) {
   let state = entry.assessment?.state;
   if (state === 'unsupported' && !entry.assessment.scope.some(c => jed >= c.start && (jed < c.end || jed === c.end && c.end_inclusive))) state = 'not_yet_assessed';
-  return { not_yet_assessed: 'Trajectory not yet assessed', under_assessment: 'Trajectory not yet available', unsupported: 'No trajectory available' }[state] ?? 'No trajectory available';
+  return state;
+}
+
+export function assessmentMessage(entry, jed) {
+  return { not_yet_assessed: 'Trajectory not yet assessed', under_assessment: 'Trajectory not yet available', unsupported: 'No trajectory available' }[assessmentState(entry, jed)] ?? 'No trajectory available';
 }

@@ -21,6 +21,9 @@ async function run({browser, name, output = '.context/comet-browser'}) {
   for (const renderer of ['three','pixi']) {
     await require('./options-feedback.cjs')(browser, root, renderer);
     await require('./comet-chooser.cjs')(browser, root, renderer);
+    await require('./info-dialogs.cjs')(browser, root, renderer);
+    await require('./options-help.cjs')(browser, root, renderer);
+    await require('./asteroid-count.cjs')(browser, path.resolve('dist'), renderer);
     const page = await browser.newPage({viewport:{width:1280,height:800},deviceScaleFactor:2});
     const errors=[];
     page.on('pageerror', e=>errors.push(e.message));
@@ -132,7 +135,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
         return box.left>=0 && box.right<=r.viewport.width;
       }),'Long comet label stays within the right edge');
       await page.getByRole('checkbox',{name:'Show asteroids',exact:true}).uncheck();
-      await page.waitForFunction(()=>document.querySelector('#orrery-count').textContent==='0');
+      await expect(page.locator('#orrery-count')).toBeHidden();
       assert(await page.evaluate(()=>{
         const cloud=app.renderer.asteroids;
         return app.rendererId==='three' ? cloud.uniforms.classMask.value===0 && cloud.uniforms.colorMask.value===0 : cloud.uniforms.uClassMask===0 && cloud.uniforms.uColorMask===0;
@@ -396,7 +399,7 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.getByRole('button',{name:'Choose…',exact:true}).click();
       assert.deepEqual(await page.locator('.orrery-comet-detail > span').allTextContents(),product.objects.map(e=>e.name));
       assert.equal(await page.locator('.orrery-comet-choice-list b').count(),0,'Names are literal text');
-      await expect(page.getByRole('dialog',{name:'Choose comets'}).getByRole('status').filter({hasText:'10-year trajectory window'})).toBeVisible();
+      await expect(page.getByRole('dialog',{name:'Choose comets'}).getByRole('status').filter({hasText:'10-year trajectory window'})).toHaveCount(0);
       await page.evaluate(()=>{
         const series=app.cometData['123P'];
         for(const date of [series.start,series.start+16000,series.start+(series.states.length-1)*series.step]){
@@ -515,8 +518,13 @@ async function run({browser, name, output = '.context/comet-browser'}) {
       await page.getByRole('button',{name:'Fit selected comets'}).click();
       await page.waitForFunction(count=>document.querySelectorAll('.orrery-comet-label:not([hidden])').length===count,starters.length);
       await page.getByRole('checkbox',{name:'Show asteroids',exact:true}).uncheck();
+      for (const id of ['orrery-count', 'orrery-count-unit', 'orrery-count-separator']) {
+        await expect(page.locator('#' + id)).toBeHidden();
+      }
+      await page.getByRole('checkbox',{name:'Show asteroids',exact:true}).check();
+      await expect(page.locator('#orrery-count')).toBeVisible();
       await expect(page.locator('#orrery-count-unit')).toBeVisible();
-      await expect(page.locator('#orrery-count')).toHaveText('0');
+      await expect(page.locator('#orrery-count-separator')).toBeVisible();
       await page.reload();
       await page.getByRole('button',{name:'Options',exact:true}).click();
       await expect(page.getByRole('checkbox',{name:'Show comets',exact:true})).not.toBeChecked();

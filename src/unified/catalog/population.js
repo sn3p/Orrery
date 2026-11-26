@@ -74,8 +74,8 @@ export const POPULATION_PRESET_HINTS = {
   "belt-inner": "Orbits smaller than 2.5 AU, up to the first Kirkwood gap. The densest zone.",
   "belt-middle": "Orbits between 2.5 and 2.82 AU, between two Kirkwood gaps.",
   "belt-outer": "Orbits from 2.82 AU to the belt edge near 3.3 AU, plus Cybeles and the few strays out to Jupiter.",
-  hildas: "Orbits near 4 AU in a 3:2 resonance with Jupiter. A triangle locked to the planet.",
-  trojans: "Share Jupiter’s orbit (L4/L5). Thin at 1980; swarms read after the 2000s.",
+  hildas: `Orbits from ${HILDA_A_MIN} to ${HILDA_A_MAX} AU, near Jupiter’s 3:2 resonance. This filter does not verify resonance.`,
+  trojans: `Orbits from ${TROJAN_A_MIN} to ${TROJAN_A_MAX} AU with eccentricity below ${TROJAN_E_MAX}, approximating Jupiter’s Trojan swarms. Thin at 1980; swarms read after the 2000s.`,
   distant: "Beyond Jupiter, grouped by orbit shape in this app, not official MPC types.",
   "without-belt": "Hide the main-belt doughnut. Near Earth, Hungarias, Hildas, Trojans and distant remain.",
 };
@@ -175,7 +175,7 @@ export function populationHint(preset) {
 
 // Inclination is in degrees. Leftovers join the nearest zone: Mars-crossers
 // are inner; Cybeles, the 4.2–4.8 AU stretch and eccentric orbits near
-// Jupiter's distance are outer. The hints and glossary say so.
+// Jupiter's distance are outer.
 export function classifyOrbit(a, e, i = 0) {
   const q = a * (1 - e);
   if (q < NEA_PERIHELION_AU) return CLASS_NEA;

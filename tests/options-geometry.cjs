@@ -9,10 +9,12 @@ module.exports = async panel => {
       // Client bounds exclude borders and any non-overlay scrollbar gutter.
       panelClient: { x: panel.getBoundingClientRect().x + panel.clientLeft,
         right: panel.getBoundingClientRect().x + panel.clientLeft + panel.clientWidth },
-      glossary: panel.querySelector('.cr .orrery-glossary-trigger') && {
-        link: rect(panel.querySelector('.cr .orrery-glossary-trigger')),
-        select: rect(panel.querySelector('select[aria-label="Minor-planet groups"]')),
-      },
+      about: [...panel.querySelectorAll('.orrery-about-row')].map(row => ({
+        link: rect(row.querySelector('button')),
+        padding: getComputedStyle(row).paddingTop,
+      })),
+      fit: panel.querySelector('.orrery-comet-summary .orrery-glossary-close')?.getClientRects().length
+        ? rect(panel.querySelector('.orrery-comet-summary .orrery-glossary-close')) : null,
       rows: [...panel.querySelectorAll('.cr')].filter(visible).map(row => ({
         label: rect(row.querySelector('.property-name')),
         slider: row.querySelector('.slider') && rect(row.querySelector('.slider')),
@@ -31,13 +33,23 @@ module.exports = async panel => {
   });
   const first = layout.rows[0];
   const close = (a, b, message) => assert(Math.abs(a - b) < 1, `${message}: ${a} vs ${b}`);
-  if (layout.glossary) close(layout.glossary.link.x, layout.glossary.select.x, 'Group help aligns with the groups select');
+  assert.equal(layout.about.length, 2, 'Both sections retain their About link');
+  for (const about of layout.about) {
+    close(about.link.x, first.label.x, 'About links share the left label inset');
+    assert.equal(about.padding, '8px', 'About rows share their top spacing');
+  }
+  if (layout.fit) assert.equal(layout.fit.height, 28, 'Fit uses the standard row height');
+  const infoColumn = layout.rows.find(row => row.info)?.info.x;
   for (const row of layout.rows) {
     assert(row.control.width >= 16 && row.control.height >= 16, 'Every control has a usable rendered area');
     if (row.slider) assert(row.slider.width >= 80, 'Speed track cannot collapse while its coordinates remain aligned');
     close(row.label.x, first.label.x, 'All labels share an inset');
     close(row.control.x, first.control.x, 'Checkboxes, slider and selects share a control column');
-    if (row.info) close(row.control.centerY, row.info.centerY, 'Help icon is vertically centered on its control');
+    close(row.label.width, 100, 'Labels use a 100px column');
+    if (row.info) {
+      close(row.control.centerY, row.info.centerY, 'Help icon is vertically centered on its control');
+      close(row.info.x, infoColumn, 'Help icons share the right column');
+    }
     if (row.select) close(row.select.right, first.select.right, 'Selects reserve the same help-icon column');
   }
   for (const section of layout.sections) {

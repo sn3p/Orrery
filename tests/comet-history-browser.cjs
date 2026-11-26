@@ -75,7 +75,8 @@ module.exports=async function(browser,root){
       await page.evaluate(async()=>{const before=app.cometData;const ids=app.cometIds.join('|');await app.switchRenderer(app.rendererId==='pixi'?'three':'pixi');
         if(app.cometData!==before||app.cometIds.join('|')!==ids)throw Error('Renderer switch lost candidate state');});
       await page.getByRole('button',{name:'Options',exact:true}).click();
-      await expect(page.getByRole('checkbox',{name:'Show comets',exact:true})).toHaveAccessibleDescription('Comet paths are calculated from JPL orbit models. Historical positions are approximate, with uncertainty varying by comet and date.');
+      await expect(page.getByRole('button',{name:'About comets',exact:true})).toBeVisible();
+      assert.match(await page.locator('#orrery-comet-info').textContent(), /Accuracy varies by comet and date/);
       await page.evaluate(()=>{app.cometIds=['2P','55P'];app.jed=2378496.5;app.cancelRender();app.renderFrame();});
       await expect(page.locator('.orrery-options-panel [role=status]').filter({hasText:'No trajectory for this date'})).toContainText('Selected comets cover 1865–2099.');
       await expect(page.locator('.orrery-options-panel [role=status]')).toContainText('Selected comets cover 1865–2099.');
@@ -117,8 +118,8 @@ module.exports=async function(browser,root){
       await expect(page.locator('.orrery-options-panel [role=status]')).not.toContainText('Earlier coverage');
       // The test entry omits Intro; exercise the actual built About markup directly.
       await page.locator('#orrery-intro').evaluate(e=>e.showModal());
-      await expect(page.locator('#orrery-intro')).toContainText('Coverage varies by comet and loaded catalogue');
-      await expect(page.locator('#orrery-intro')).toContainText('start and end dates');
+      await expect(page.locator('#orrery-comet-info')).toContainText('Coverage varies by comet and date');
+      await expect(page.locator('#orrery-intro')).not.toContainText('start and end dates');
       await expect(page.locator('#orrery-intro')).not.toContainText('1835');
       await expect(page.locator('#orrery-intro')).not.toContainText('1865');
       for(const viewport of [{width:320,height:568},{width:1280,height:800}]) {

@@ -1,7 +1,8 @@
 import { fromJED } from '../../js/utils.js';
 import { searchComets } from '../comets/search.js';
 import { hasCoverage } from "../comets/model.js";
-import { assessmentMessage, CometFeedbackCache, catalogueHasCoverage, catalogueCoverage } from "../comets/feedback.js";
+import InfoDialog from "./InfoDialog.js";
+import { assessmentState, assessmentMessage, CometFeedbackCache, catalogueHasCoverage, catalogueCoverage } from "../comets/feedback.js";
 import * as dat from "dat.gui";
 import { DEFAULT_POPULATION_PRESET, POPULATION_PRESET_OPTIONS, legendGroups, populationHint } from "../catalog/population.js";
 
@@ -16,6 +17,7 @@ export default class Options {
   constructor(orrery) {
     this.orrery = orrery;
     this.hints = new Set();
+    this.dialogHolds = new Set();
     this.hintId = 0;
 
     // Controls
@@ -52,13 +54,12 @@ export default class Options {
     placeholder.textContent = "Choose renderer";
     placeholder.disabled = true;
     this.rendererSelect.prepend(placeholder);
-    this.addHint(this.renderer, "Change renderer; time and options persist.", this.rendererSelect);
     this.renderer.onChange(id => { if (id) void this.orrery.switchRenderer(id); });
 
-    this.pixelRatio = this.gui.add(this.orrery, "pixelRatio", { "1×": "1", "2×": "2" }).name("DPR");
+    this.pixelRatio = this.gui.add(this.orrery, "pixelRatio", { "1×": "1", "2×": "2" }).name("pixel density");
     this.pixelRatioSelect = this.pixelRatio.domElement.querySelector("select");
     this.pixelRatioSelect.setAttribute("aria-label", "Rendering pixel ratio");
-    this.pixelRatioSelect.title = "Pixel density: 2× is sharper but uses more GPU.";
+    this.pixelRatioSelect.title = "2× is sharper but uses more GPU.";
     this.addHint(this.pixelRatio, this.pixelRatioSelect.title, this.pixelRatioSelect);
     this.updatePixelRatio();
     this.addSection("Rendering", this.renderer);
@@ -104,16 +105,12 @@ export default class Options {
     this.population = this.gui.add(this.orrery, "populationPreset", POPULATION_PRESET_OPTIONS).name("groups");
     this.populationSelect = this.population.domElement.querySelector("select");
     this.populationSelect.setAttribute("aria-label", "Minor-planet groups");
-    this.setPopulationHint(this.orrery.populationPreset ?? DEFAULT_POPULATION_PRESET);
-    this.population.onChange(value => this.setPopulationHint(value));
-    this.mountGlossary();
 
     this.colorize = this.gui.add(this.orrery, "colorizeGroups").name("colors");
     this.colorizeInput = this.colorize.domElement.querySelector("input");
     this.colorizeInput.setAttribute("aria-label", "Group colors");
-    this.colorizeInput.title = "Color the shown groups by orbit. The belt stays gray on All; the belt presets paint its zones.";
-    this.addHint(this.colorize, this.colorizeInput.title, this.colorizeInput);
     this.confineCheckbox(this.colorize);
+    this.mountGlossary();
 
     this.mountComets();
 
@@ -132,7 +129,6 @@ export default class Options {
     input.setAttribute("aria-label", "Show comets");
     this.confineCheckbox(toggle);
     this.makeSectionToggle(toggle, "Comets");
-    this.addHint(toggle, "Comet paths are calculated from JPL orbit models. Historical positions are approximate, with uncertainty varying by comet and date.", input);
     this.panelCometFeedback = this.createCometFeedback();
 
     this.cometRows = [];
@@ -147,7 +143,28 @@ export default class Options {
     paths.domElement.querySelector("input").setAttribute("aria-label", "Comet paths");
     this.confineCheckbox(paths);
     this.cometRows.push(paths.domElement.closest("li"));
+    this.mountCometInfo();
     this.updateComets();
+  }
+
+  // One hold spans overlapping Options dialogs and queued close/open handoffs.
+  // Only the first owner captures the caller's state; the last owner releases.
+  acquireDialogHold(dialog) {
+    if (!this.dialogHolds.size) this.dialogWasHeld = this.orrery.held;
+    this.dialogHolds.add(dialog);
+    this.orrery.hold(true);
+  }
+
+  releaseDialogHold(dialog) {
+    if (!this.dialogHolds.delete(dialog) || this.dialogHolds.size) return;
+    if (!this.dialogWasHeld && !document.querySelector("dialog[open]")) this.orrery.hold(false);
+  }
+
+  mountCometInfo() {
+    const dialog = this.cometInfo = document.getElementById("orrery-comet-info");
+    if (typeof dialog?.showModal !== "function") { this.cometInfo = null; return; }
+    const trigger = this.cometInfoTrigger = this.addAboutLink("About comets", dialog);
+    this.cometInfoSession = new InfoDialog(this, dialog, trigger);
   }
 
   // The chooser edits the shared selection; closing it does not commit or cancel.
@@ -216,7 +233,11 @@ export default class Options {
     const summary = document.createElement("div");
     summary.className = "orrery-comet-selection-summary";
     summary.append(this.cometDialogSummary, this.cometClear);
-    header.append(title, this.cometSearch, summary);
+    this.cometAssessmentLegend = document.createElement("p");
+    this.cometAssessmentLegend.className = "orrery-comet-assessment-legend";
+    this.cometAssessmentLegend.textContent = "— Trajectory not yet assessed";
+    this.cometAssessmentLegend.hidden = true;
+    header.append(title, this.cometSearch, summary, this.cometAssessmentLegend);
     const footer = document.createElement("footer");
     footer.append(this.chooserCometFeedback.status, this.chooserCometFeedback.retry, done);
     const body = this.cometChooserBody = document.createElement("div");
@@ -228,10 +249,9 @@ export default class Options {
       if (this.destroyed || dialog.open) return;
       this.finishCometChooser();
       this.cometClosingHandled = false;
-      this.cometWasHeld = this.orrery.held;
+      this.acquireDialogHold(dialog);
       this.cometRestoreFocus = true;
       this.hideTip();
-      this.orrery.hold(true);
       this.cometUndo = null;
       this.cometSearch.value = "";
       this.changeCometView("selected");
@@ -255,8 +275,7 @@ export default class Options {
     clearTimeout(this.cometSearchTimer);
     this.orrery.cometSelectionNotice = '';
     this.updateComets();
-    // Release only the hold this chooser introduced. Another open modal owns its hold.
-    if (!this.cometWasHeld && !document.querySelector("dialog[open]")) this.orrery.hold(false);
+    this.releaseDialogHold(dialog);
     const active = document.activeElement;
     const focusUnclaimed = active === document.body || active === this.cometChoose
       || active === this.trigger || dialog.contains(active);
@@ -268,9 +287,11 @@ export default class Options {
   }
 
   closeCometChooser(restoreFocus = true) {
-    if (!this.cometDialog?.open) return;
-    this.cometRestoreFocus = restoreFocus && this.cometDialog.contains(document.activeElement);
-    this.cometDialog.close();
+    if (!this.cometDialog) return;
+    if (this.cometDialog.open) {
+      this.cometRestoreFocus = restoreFocus && this.cometDialog.contains(document.activeElement);
+      this.cometDialog.close();
+    } else if (!restoreFocus) this.cometRestoreFocus = false;
     // Finish synchronously so a rapid reopen cannot inherit our previous hold.
     this.finishCometChooser();
   }
@@ -406,6 +427,7 @@ export default class Options {
       this.cometCatalogue = app.cometCatalogue;
       this.rebuildCometChoices();
     }
+    let hasUnassessed = false;
     for (const [id, checkbox] of Object.entries(this.cometChoices)) {
       const data = app.cometData?.[id], state = app.cometStates?.[id];
       const entry = checkbox.cometEntry;
@@ -415,12 +437,21 @@ export default class Options {
       const text = !coverage ? assessmentMessage(entry, app.jed) : !covered ? 'No trajectory for this date'
         : selected && state === 'error' ? 'Could not load trajectory'
         : selected && state === 'loading' ? 'Loading…' : '';
-      checkbox.disabled = !coverage && !selected;
+      const unassessed = !coverage && assessmentState(entry, app.jed) === 'not_yet_assessed';
+      hasUnassessed ||= unassessed;
+      const row = checkbox.closest('label');
+      if (row.classList.contains('is-unassessed') !== unassessed) row.classList.toggle('is-unassessed', unassessed);
+      const title = unassessed ? `${entry.name}: ${text}` : '';
+      if (row.title !== title) row.title = title;
+      const disabled = !coverage && !selected;
+      if (checkbox.disabled !== disabled) checkbox.disabled = disabled;
       if (checkbox.cometStatus.textContent !== text) checkbox.cometStatus.textContent = text;
       checkbox.cometStatus.classList.toggle('is-error', selected && covered && state === 'error');
       checkbox.cometStatus.classList.toggle('is-loading', selected && covered && state === 'loading');
-      checkbox.cometSwatch.hidden = !selected || !hasCoverage(data, app.jed);
+      const hideSwatch = !selected || !hasCoverage(data, app.jed);
+      if (checkbox.cometSwatch.hidden !== hideSwatch) checkbox.cometSwatch.hidden = hideSwatch;
     }
+    this.cometAssessmentLegend.hidden = !hasUnassessed;
     let ready = 0, loading = 0, failed = 0, usable = 0;
     for (const id of ids) {
       const series = app.cometData?.[id];
@@ -449,9 +480,6 @@ export default class Options {
         const year = jd => fromJED(jd).getUTCFullYear();
         if (range) status += ` ${ids.length === 1 ? selectedEntries[0].name + ' covers' : 'Selected comets cover'} ${year(range[0])}–${year(range[1])}.`;
       }
-    }
-    if (app.cometsShown && app.cometCatalogue.some(entry => entry.usesDefaultWindow && catalogueCoverage([entry]) && selectedIds.has(entry.id))) {
-      status += ' Comets without a known display period use a 10-year trajectory window, limited to available data.';
     }
     if (!loading && !failed && app.cometDiscoveryState === 'ready') this.cometRetried = false;
     if (this.cometRetried && (failed || app.cometDiscoveryState === 'error')) status += ' Reload the page if it keeps failing.';
@@ -597,10 +625,7 @@ export default class Options {
     button.className = "orrery-options-info";
     button.setAttribute("aria-label", `About ${input.getAttribute("aria-label") || controller.property}`);
     button.setAttribute("aria-describedby", tip.id);
-    const icon = document.createElement("span");
-    icon.textContent = "i";
-    icon.setAttribute("aria-hidden", "true");
-    button.append(icon);
+    button.innerHTML = '<svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="6.25" fill="none" stroke="currentColor"/><circle cx="7" cy="4.4" r=".95" fill="currentColor"/><path d="M7 6.6v3.9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
     controller.domElement.closest("li").querySelector(":scope > div").append(button);
     document.body.append(tip);
     input.setAttribute("aria-describedby", tip.id);
@@ -673,14 +698,26 @@ export default class Options {
     tip.style.setProperty("--tip-notch", `${Math.max(4, Math.min(r.top + r.height / 2 - y - 4, box.height - 12))}px`);
   };
 
-  setPopulationHint(preset) {
-    const text = populationHint(preset);
-    if (!this.populationHint) {
-      this.populationHint = this.addHint(this.population, text, this.populationSelect);
-      return;
-    }
-    this.populationHint.textContent = text;
-    this.placeTip();
+  addAboutLink(label, dialog) {
+    const row = document.createElement("li");
+    row.className = "orrery-about-row";
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "orrery-glossary-trigger";
+    trigger.textContent = label;
+    trigger.setAttribute("aria-haspopup", "dialog");
+    trigger.setAttribute("aria-controls", dialog.id);
+    row.append(trigger);
+    this.gui.__ul.append(row);
+    return trigger;
+  }
+
+  updateGlossarySelection() {
+    const preset = this.orrery.populationPreset ?? DEFAULT_POPULATION_PRESET;
+    const label = Object.entries(POPULATION_PRESET_OPTIONS).find(([, value]) => value === preset)?.[0] ?? "All";
+    const heading = document.createElement("strong");
+    heading.textContent = this.orrery.asteroidsShown ? `Showing: ${label}.` : `Asteroids hidden. Selected: ${label}.`;
+    this.glossary.querySelector("#orrery-glossary-selection")?.replaceChildren(heading, ` ${populationHint(preset)}`);
   }
 
   mountGlossary() {
@@ -690,18 +727,13 @@ export default class Options {
       this.glossary = null;
       return;
     }
-    const trigger = this.glossaryTrigger = document.createElement("button");
-    trigger.type = "button";
-    trigger.className = "orrery-glossary-trigger";
-    trigger.textContent = "About these groups";
-    trigger.setAttribute("aria-haspopup", "dialog");
-    trigger.setAttribute("aria-controls", this.glossary.id);
-    this.population.domElement.closest("li").querySelector(":scope > div").appendChild(trigger);
+    const trigger = this.glossaryTrigger = this.addAboutLink("About asteroids", this.glossary);
     this.paintGlossaryTitles();
-    trigger.addEventListener("click", this.onOpenGlossary);
-    this.glossary.addEventListener("close", this.onGlossaryClose);
-    this.glossary.addEventListener("click", this.onGlossaryBackdrop);
-    this.glossaryRestoreFocus = trigger;
+    this.glossarySession = new InfoDialog(this, this.glossary, trigger, () => {
+      this.updateGlossarySelection();
+      // With group colors off the scene is gray, so title dots would mislead.
+      this.glossary.classList.toggle("orrery-glossary-gray", this.orrery.colorizeGroups === false);
+    });
   }
 
   // Each group title carries the legend dots of its preset; the ramp shows
@@ -724,33 +756,12 @@ export default class Options {
     }
   }
 
-  openGlossary({ restoreFocus } = {}) {
-    if (this.destroyed || !this.glossary || this.glossary.open) return false;
-    this.glossaryRestoreFocus = restoreFocus ?? this.glossaryTrigger;
-    // With group colors off the scene is gray, so the title dots would mislead.
-    // The dialog is modal, so the option cannot change while it is open.
-    this.hideTip();
-    this.glossary.classList.toggle("orrery-glossary-gray", this.orrery.colorizeGroups === false);
-    this.orrery.hold(true);
-    this.glossary.showModal();
-    this.glossary.scrollTop = 0;
-    this.glossaryTitle.focus({ preventScroll: true });
-    return true;
+  openGlossary(options) {
+    return this.glossarySession?.open(options) ?? false;
   }
 
-  onOpenGlossary = () => { this.openGlossary(); };
-
-  onGlossaryBackdrop = event => { if (event.target === this.glossary) this.glossary.close(); };
-
-  onGlossaryClose = () => {
-    this.orrery.hold(false);
-    const restore = this.glossaryRestoreFocus;
-    this.glossaryRestoreFocus = this.glossaryTrigger;
-    if (!this.destroyed) restore?.focus?.();
-  };
-
   setOpen(open, restoreFocus = true) {
-    const hadFocus = this.panel.contains(document.activeElement);
+    const hadFocus = [this.panel, this.glossary, this.cometInfo].some(element => element?.contains(document.activeElement));
     this.hideTip();
     this.panel.hidden = !open;
     this.indicator.textContent = open ? "[-]" : "[+]";
@@ -759,7 +770,10 @@ export default class Options {
     // select invokes the full-screen native picker on iOS; keyboard users can
     // reach the first newly revealed control with Tab.
     if (!open) this.closeCometChooser(restoreFocus);
-    if (!open && this.glossary?.open) this.glossary.close();
+    if (!open) {
+      this.cometInfoSession?.close(false);
+      this.glossarySession?.close(false);
+    }
     if (!open && restoreFocus && hadFocus) this.trigger.focus();
   }
 
@@ -776,7 +790,8 @@ export default class Options {
     if (this.activeTip?.tip.contains(event.target)) return;
     if (!this.activeTip?.button.contains(event.target)) this.hideTip();
     if (!this.panel.hidden && !this.element.contains(event.target)
-      && !this.glossary?.contains(event.target) && !this.cometDialog?.contains(event.target)) this.setOpen(false);
+      && !this.glossary?.contains(event.target) && !this.cometDialog?.contains(event.target)
+      && !this.cometInfo?.contains(event.target)) this.setOpen(false);
   };
 
   onKeyDown = event => {
@@ -814,10 +829,8 @@ export default class Options {
     this.trigger.removeEventListener("click", this.onToggle);
     document.removeEventListener("pointerdown", this.onOutsidePointer, true);
     document.removeEventListener("keydown", this.onKeyDown);
-    if (this.glossary?.open) this.glossary.close();
-    this.glossaryTrigger?.removeEventListener("click", this.onOpenGlossary);
-    this.glossary?.removeEventListener("close", this.onGlossaryClose);
-    this.glossary?.removeEventListener("click", this.onGlossaryBackdrop);
+    this.glossarySession?.destroy();
+    this.cometInfoSession?.destroy();
     this.closeCometChooser(false);
     this.cometDialog?.remove();
     this.unmountRenderer();

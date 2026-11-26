@@ -19,7 +19,7 @@
         </button>
         <button type="button" class="orrery-date" id="orrery-date" aria-haspopup="dialog" aria-controls="orrery-date-dialog" title="Jump to date (UTC)"></button>
         <span class="orrery-now orrery-realtime-mark" id="orrery-now" title="The date is the current time" hidden>(real time)</span>
-        <span class="orrery-separator" aria-hidden="true">/</span>
+        <span class="orrery-separator" id="orrery-count-separator" aria-hidden="true">/</span>
         <span class="orrery-count" id="orrery-count"></span>
         <span class="orrery-count" id="orrery-count-unit" hidden>asteroids</span>
         <span class="orrery-swatches" id="orrery-swatches" role="list" aria-label="Group colors" hidden></span>
@@ -52,35 +52,48 @@
     <dialog class="orrery-intro" id="orrery-intro" aria-labelledby="orrery-intro-title">
       <form method="dialog" class="orrery-intro-card">
         <h1 class="orrery-dialog-title" id="orrery-intro-title">Orrery</h1>
-        <p>The Solar System's minor planets, shown in the order they were discovered. Each dot is an asteroid on its orbit. New discoveries appear green, then settle to grey, or to their group's color: Near Earth teal, Jupiter Trojans gold, Distant violet; the belt shows its zones in rose on the Main belt preset. The date and running count are at the bottom left.</p>
-        <p>Use the <code>[⏸︎] / [⏵︎]</code> control or the <button type="button" class="orrery-intro-action" id="orrery-intro-date">date</button> at the bottom left to control the timeline. Open <button type="button" class="orrery-intro-action" id="orrery-intro-options" aria-label="Open options">[+] options</button> (top left) to change the speed, real time, planet labels, orbit lines, <button type="button" class="orrery-intro-action" id="orrery-intro-glossary" aria-haspopup="dialog" aria-controls="orrery-glossary">minor-planet groups</button> or resolution. Choose the <span class="orrery-intro-renderers" id="orrery-intro-renderers" role="group" aria-label="Renderer"><button type="button" class="orrery-intro-action orrery-intro-renderer" data-renderer="three" aria-pressed="false">3D</button> or <button type="button" class="orrery-intro-action orrery-intro-renderer" data-renderer="pixi" aria-pressed="false">2D</button></span> renderer. Negative speed rewinds. Scroll to zoom. On a touch screen, drag down or up in 2D to zoom in or out; in 3D, drag to orbit the camera.</p>
-        <p>Asteroid orbits are fixed ellipses from Minor Planet Center orbital elements, so positions are approximate. The discovery timeline includes only numbered minor planets with a known discovery date.</p>
-        <p>Options also offers individually selectable comets from the OrreryData catalogue. Their positions and paths use NASA/JPL Horizons orbit predictions, interpolated between samples. Coverage varies by comet and loaded catalogue. Some catalogues include earlier historical trajectories for selected comets. Options shows the loaded catalogue’s start and end dates and each selected comet’s availability. Uncertainty grows away from observations. Comet markers are enlarged for visibility; paths follow the calculated trajectories without forcing their ends to meet.</p>
+        <p>Explore the Solar System in <span class="orrery-intro-renderers" id="orrery-intro-renderers" role="group" aria-label="Renderer"><button type="button" class="orrery-intro-action orrery-intro-renderer" data-renderer="three" aria-pressed="false">3D</button> or <button type="button" class="orrery-intro-action orrery-intro-renderer" data-renderer="pixi" aria-pressed="false">2D</button></span>. Numbered minor planets appear as their discovery dates are reached; new discoveries glow green. Choose comets separately in Options.</p>
+        <p>Pause playback or select the <button type="button" class="orrery-intro-action" id="orrery-intro-date">date</button> to jump in time. Scroll to zoom; on touch screens, drag vertically to zoom in 2D or drag to orbit in 3D.</p>
+        <p>Open <button type="button" class="orrery-intro-action" id="orrery-intro-options" aria-label="Open options">[+] options</button> to choose objects, <button type="button" class="orrery-intro-action" id="orrery-intro-glossary" aria-haspopup="dialog" aria-controls="orrery-glossary">minor-planet groups</button> and paths. Set a negative speed to rewind. The count includes only minor planets with known discovery dates in the selected groups.</p>
+        <p>Positions are modelled, not live observations. Asteroids follow approximate fixed orbits; comets follow JPL Horizons predictions.</p>
         <p class="orrery-intro-links">Code: <a href="https://github.com/sn3p/Orrery" target="_blank" rel="noopener noreferrer">GitHub</a>. Asteroid data: <a href="https://minorplanetcenter.net/" target="_blank" rel="noopener noreferrer">Minor Planet Center</a> via <a href="https://github.com/sn3p/orrery-data" target="_blank" rel="noopener noreferrer">orrery-data</a>. Comet data: <a href="https://ssd.jpl.nasa.gov/horizons/" target="_blank" rel="noopener noreferrer">JPL Horizons</a> via <a href="https://github.com/sn3p/orrery-data" target="_blank" rel="noopener noreferrer">OrreryData</a>.</p>
         <button type="submit" class="orrery-intro-close" autofocus>Close</button>
       </form>
     </dialog>
     <dialog class="orrery-glossary" id="orrery-glossary" aria-labelledby="orrery-glossary-title">
       <form method="dialog" class="orrery-glossary-card">
-        <h1 class="orrery-dialog-title" id="orrery-glossary-title" tabindex="-1" autofocus>Minor-planet groups</h1>
-        <p>These presets name numbered objects with a known discovery date. The menu chooses which objects are shown: everything, one group alone, or everything but the belt. Group colors keeps that same set and paints it by orbit: Near Earth teal, Hungarias orange, Hildas blue, Jupiter Trojans gold, Distant violet. The belt stays gray on All; the Main belt preset and its zones paint it in rose, light inner to dark outer. Without group colors everything is gray. A new arrival is green, then settles to its group color or to gray. Asteroids are minor planets; they are not offered as a separate filter. Groups are by orbit shape in this app, not official MPC Orbit_type.</p>
+        <h1 class="orrery-dialog-title" id="orrery-glossary-title" tabindex="-1" autofocus>Asteroids</h1>
+        <p>Dots are numbered minor planets with known discovery dates, shown in discovery order. New discoveries glow green, then settle to gray or their group color.</p>
+        <p>Fixed ellipses from Minor Planet Center orbital elements give approximate positions. The count covers the selected groups at the current date, not a live census.</p>
+        <h2 class="orrery-dialog-subtitle">Minor-planet groups</h2>
+        <p id="orrery-glossary-selection"></p>
         <dl>
           <dt data-preset="nea">Near Earth</dt>
-          <dd>Perihelion closer than 1.3 AU. Sparse at the 1980 start; this numbered catalog is only a sample of known NEAs.</dd>
+          <dd>Orbits that come within 1.3 AU of the Sun.</dd>
           <dt data-preset="hungarias">Hungarias</dt>
-          <dd>Inside 2 AU on orbits tilted 16–34° with eccentricity at most 0.18. A thin ring at the belt’s inner edge; the tilt shows in 3D.</dd>
+          <dd>Small, tilted orbits near the inner edge of the main belt.</dd>
           <dt data-preset="belt">Main belt</dt>
-          <dd>The dense doughnut between Mars and Jupiter. Most of what the orrery shows. Three zones by orbit size: inner up to 2.5 AU, middle to 2.82 AU, outer to the edge near 3.3 AU. The cuts are Kirkwood gaps, empty lanes cleared by Jupiter. Cybeles and the few strays between the belt edge and Jupiter count as outer; Mars-crossers count as inner. Orbits are stretched, so the zones overlap on screen.</dd>
+          <dd>Mostly between Mars and Jupiter, split into inner, middle and outer zones by orbit size. The zones overlap in the view.</dd>
           <dt data-preset="hildas">Hildas</dt>
-          <dd>Near 4 AU, three orbits for every two of Jupiter. Together they trace a triangle that turns with the planet.</dd>
+          <dd>Orbits near 4 AU, in the region of Jupiter’s 3:2 resonance.</dd>
           <dt data-preset="trojans">Jupiter Trojans</dt>
-          <dd>Not the main-belt doughnut: two swarms that share Jupiter’s orbit, ahead and behind the planet (L4/L5). They read clearly after playback into the 2000s.</dd>
+          <dd>Objects near Jupiter’s orbit, associated with the swarms ahead of and behind the planet.</dd>
           <dt data-preset="distant">Distant</dt>
-          <dd>Beyond Jupiter: Centaurs between the giants and trans-Neptunian objects beyond Neptune.</dd>
+          <dd>Larger orbits beyond Jupiter, including Centaurs and trans-Neptunian objects.</dd>
         </dl>
-        <p>PHA and dwarf planets are not controls. A PHA is a near-Earth object that can pass close to Earth and is large enough to matter; this catalogue does not carry that flag. Dwarf planets overlap these groups and need names before they can be marked.</p>
-        <p>The count is what the group menu shows at the committed date, colored or gray. It is not a live MPC census.</p>
-        <p class="orrery-glossary-links">Data: <a href="https://minorplanetcenter.net/" target="_blank" rel="noopener noreferrer">Minor Planet Center</a>.</p>
+        <p>These are approximate groupings from orbital elements, not official classifications or verified resonances. Group colors changes appearance, not selection: the main belt stays gray on All; belt presets paint its zones from light inner to dark outer.</p>
+        <p>Potentially hazardous asteroids are not a separate group: this catalogue has no hazard flag. Dwarf planets overlap orbital groups.</p>
+        <p class="orrery-glossary-links">Data: <a href="https://minorplanetcenter.net/" target="_blank" rel="noopener noreferrer">Minor Planet Center</a> via <a href="https://github.com/sn3p/orrery-data" target="_blank" rel="noopener noreferrer">orrery-data</a>.</p>
+        <button type="submit" class="orrery-glossary-close">Close</button>
+      </form>
+    </dialog>
+    <dialog class="orrery-glossary orrery-comet-info" id="orrery-comet-info" aria-labelledby="orrery-comet-info-title">
+      <form method="dialog" class="orrery-glossary-card">
+        <h1 class="orrery-dialog-title" id="orrery-comet-info-title" tabindex="-1" autofocus>Comets</h1>
+        <p>Choose comets in Options to show their positions and paths. Colours identify individual comets; markers are enlarged for visibility.</p>
+        <p>Being listed in the catalogue does not mean a trajectory is available. Coverage varies by comet and date; the chooser explains unavailable entries.</p>
+        <p>Positions and paths use JPL Horizons predictions, interpolated between samples. Accuracy varies by comet and date. Paths show a limited time window, so their ends may not meet. When Orrery has no orbital period configured, it shows up to ten years of available trajectory data; this is not an estimate of the orbital period.</p>
+        <p class="orrery-glossary-links">Data: <a href="https://ssd.jpl.nasa.gov/horizons/" target="_blank" rel="noopener noreferrer">JPL Horizons</a> via <a href="https://github.com/sn3p/orrery-data" target="_blank" rel="noopener noreferrer">OrreryData</a>.</p>
         <button type="submit" class="orrery-glossary-close">Close</button>
       </form>
     </dialog>
