@@ -529,6 +529,17 @@ async function options(browser, base, output, name) {
     assert.equal(await page.evaluate(() => app.renderer.fixtureStrength), 7);
     assert.equal(await page.getByRole('textbox', { name: 'Playback speed' }).inputValue(), '0');
     assert(await strength.evaluate(el => { const label = el.closest('.lil-controller').querySelector('.lil-name'); return label.scrollWidth <= label.clientWidth; }), 'Renderer-specific label fits');
+    // Collapsing and reopening the renderer folder restores its rows above Playback.
+    const folderTitle = page.locator('.orrery-renderer-settings > .lil-title');
+    await folderTitle.click();
+    await page.waitForFunction(() => !document.querySelector('[aria-label="Fixture strength"]').getClientRects().length, null, { timeout: 5000 });
+    await folderTitle.click();
+    await page.waitForFunction(() => {
+      const rows = document.querySelector('.orrery-renderer-settings > .lil-children').getBoundingClientRect();
+      const playback = [...document.querySelectorAll('.orrery-options-section')].find(row => row.textContent === 'Playback');
+      return !document.querySelector('.orrery-renderer-settings.lil-transition') && rows.height > 0
+        && rows.bottom <= playback.getBoundingClientRect().top + 0.5;
+    }, null, { timeout: 5000 });
     assert(await page.evaluate(() => {
       const before = fixture.changes;
       for (const bad of [{ strength: NaN }, { strength: -1 }, { unsupported: 1 }]) {

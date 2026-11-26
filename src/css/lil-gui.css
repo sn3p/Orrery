@@ -68,8 +68,15 @@ preview.css adds the unified theme and row layout.
   display: none;
 }
 
-.orrery-options-panel .lil-gui.lil-closed > .lil-children {
+/* lil-gui animates folders: it measures the rows, then clears its inline
+   height on transitionend. Rows stay laid out and the height must transition. */
+.orrery-options-panel .lil-gui.lil-closed:not(.lil-transition) > .lil-children {
   display: none;
+}
+
+.orrery-options-panel .lil-gui.lil-transition > .lil-children {
+  overflow: hidden;
+  transition: height .2s;
 }
 
 .orrery-options-panel .lil-children > [hidden] {
