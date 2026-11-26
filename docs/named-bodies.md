@@ -22,9 +22,14 @@ another scientific source. It also works when catalogue loading is offline.
 
 A catalogue profile may include `namedBodies: {url, bytes, sha256}`: an explicit,
 trusted product-index reference. `url` is absolute HTTPS (HTTP allowed only on
-loopback). Both `latest` and pinned asteroid selection support this field.
+loopback), limited to128KiB. It requires a fixed asteroid `pin`; combining it
+with mutable `latest` is rejected at build time and runtime. Remote profiles use
+`{mode: "indexed", pin, namedBodies}` without a local bundle. Default unpaired
+`latest` remains supported. Automatic paired releases would require a separate
+producer contract linking both generations.
 The product index pins definitions and a mapping to **the exact asteroid index**.
-The app verifies both before preparing a candidate scene. Missing, corrupt,
+Asteroid preparation and named downloads run concurrently; the app verifies both
+before exposing a candidate scene. Missing, corrupt,
 stale or mismatched data fails the replacement; it never infers dwarf identities.
 No named-body latest endpoint, periodic polling or automatic activation is added.
 
@@ -35,7 +40,9 @@ the committed pair. Explicit unpaired catalogue replacement restores the baselin
 
 Dwarf ordinals suppress only anonymous GPU instances, including highlights.
 The original rows, discovery dates, classes, prefixes and raw discovery/group
-counts remain unchanged. Named reference markers contribute no extra discoveries.
+tallies remain unchanged. The displayed asteroid count excludes promoted rows
+within the selected population and current discovery prefix. Named reference
+markers contribute no extra discoveries.
 A mapped discovery date is also checked when its chunk arrives. Valid absence
 from an export still shows the named reference body.
 

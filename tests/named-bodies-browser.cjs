@@ -28,14 +28,26 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
   const root = path.resolve(output, 'site'); await build(root);
   const data = fixture(), empty = fixture('empty'), report = [];
   for (const [url, body] of empty.files) data.files.set(url, body);
+  const wrongMapping = structuredClone(data.mapping);
+  wrongMapping.members[0].discovery_jd++;
+  const mappingBytes = Buffer.from(JSON.stringify(wrongMapping));
+  const mappingRef = ref('', mappingBytes); mappingRef.url = `mapping-${mappingRef.sha256}.json`;
+  const wrongIndex = JSON.parse(data.files.get(data.namedBodies.url)); wrongIndex.mapping = mappingRef;
+  const wrongBytes = Buffer.from(JSON.stringify(wrongIndex));
+  const wrongDate = ref('https://named.test/held/wrong-date.json', wrongBytes);
+  data.files.set('https://named.test/bodies/wrong-date.json', wrongBytes);
+  data.files.set('https://named.test/bodies/' + mappingRef.url, mappingBytes);
   for (const renderer of ['pixi', 'three']) {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const errors = []; page.on('pageerror', e => errors.push(e.message));
-    let offline = false, blocked, release;
+    let offline = false, blocked, release, chunkArrived;
+    const requests = [];
     await routeFiles(page, root);
     await page.route(/^https:\/\/(named|empty)\.test\//, async route => {
       const url = route.request().url();
-      if (url.includes('/held/')) {
+      requests.push(url);
+      if (url.includes("/asteroids/") && url.includes("chunk")) chunkArrived?.();
+      if (url.includes('/held/') && /\/(index|wrong-date)\.json$/.test(url)) {
         blocked?.();
         await new Promise(resolve => { release = resolve; });
       }
@@ -53,6 +65,11 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
         assert(initial.position.every((value, i) => Math.abs(value - [500, 500, 400][i]) < 1e-9));
         assert.deepEqual(initial.target, [0, 0, 0]); assert.equal(initial.zoom, 1);
       }
+      const requestCount = requests.length;
+      assert.equal(await page.evaluate(({ namedBodies }) => app.loadCatalog(null, {
+        latest: 'https://named.test/latest.json', namedBodies,
+      }), data), false);
+      assert.equal(requests.length, requestCount, 'Unsafe latest pairing is rejected before network I/O');
       assert.equal(await page.evaluate(() => app.asteroidsDiscovered), 0);
       assert.equal(await page.evaluate(() => app.renderer.planets.filter(p => p.options.classification === 'dwarf-planet').length), 5);
       await page.evaluate(() => { app.planetLabels = 'all'; app.renderFrame(); });
@@ -78,13 +95,27 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
           ? cloud.geometry.getBuffer('aClass').data : cloud.geometry.attributes.classId.array),
           discovered: app.asteroidsDiscovered, visible: app.asteroidsVisible, suppressed: [...model.suppressedRows] };
       });
-      assert.deepEqual(masks.suppressed, [1]); assert.equal(masks.discovered, 6); assert.equal(masks.visible, 6);
+      assert.deepEqual(masks.suppressed, [1]); assert.equal(masks.discovered, 6); assert.equal(masks.visible, 5);
       assert.notEqual(masks.gpu[1], masks.classes[1]);
       for (const i of [0, 2, 3, 4, 5]) assert.equal(masks.gpu[i], masks.classes[i]);
+      // Both sides of discovery dates, including reverse seeks, keep raw history
+      // while the HUD count follows only unsuppressed selected cloud rows.
+      for (const jd of [2451544.4, 2451544.5, 2458847.5, 2451544.4, 4000000]) {
+        await page.evaluate(jd => { app.jed = jd; app.renderFrame(); }, jd);
+        await page.waitForFunction(jd => { app.renderFrame(); return app.jed === jd && !app.catalogWaiting; }, jd);
+        assert(await page.evaluate(() => app.asteroidsVisible === app.asteroidsDiscovered
+          - [...app.catalogue.suppressedRows].filter(i => i < app.asteroidsDiscovered).length));
+      }
       for (const preset of ['all', 'nea', 'hungarias', 'belt', 'belt-inner', 'belt-middle', 'belt-outer', 'hildas', 'trojans', 'distant', 'without-belt']) {
         await page.evaluate(preset => { app.populationPreset = preset; app.asteroidsShown = false; app.renderFrame(); }, preset);
         assert.equal(await page.evaluate(() => app.renderer.planets.length), 13);
         assert.equal(await page.evaluate(() => app.populationPreset), preset);
+        assert(await page.evaluate(() => {
+          const model = app.catalogue, mask = namedTest.populationMask(app.populationPreset);
+          const expected = [...model.classes].slice(0, app.asteroidsDiscovered)
+            .filter((c, i) => !model.suppressedRows.has(i) && (mask & (1 << c))).length;
+          return app.asteroidsVisible === expected;
+        }));
       }
       await page.evaluate(() => { app.asteroidsShown = true; app.populationPreset = 'all'; app.planetOrbits = false; app.renderFrame(); });
       assert(await page.evaluate(() => app.renderer.planetOrbits.every(o => !o.visible)));
@@ -122,11 +153,34 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
       await page.evaluate(({ pin, namedBodies }) => app.loadCatalog(pin, { namedBodies }), data); await settle(page);
       // Supersede a blocked pair request with a successful unpaired replacement.
       const held = new Promise(resolve => { blocked = resolve; });
+      const chunk = new Promise(resolve => { chunkArrived = resolve; });
       await page.evaluate(({ pin, namedBodies }) => { window.stale = app.loadCatalog(pin, { namedBodies: { ...namedBodies, url: namedBodies.url.replace('/bodies/', '/held/') } }); }, data);
       await held;
+      // The held named index must not block the asteroid chunks. The previous
+      // scene remains published while the private prefix is prepared.
+      let deadline;
+      await Promise.race([chunk, new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error('Named download blocked asteroid chunks')), 10000); })]).finally(() => clearTimeout(deadline));
+      chunkArrived = null;
+      assert.equal(await page.evaluate(() => app.pendingSession), null);
+      assert.equal(await page.evaluate(() => app.renderer.planets.length), 13);
       await page.evaluate(pin => app.loadCatalog(pin), data.pin); release();
       assert.equal(await page.evaluate(() => window.stale), false); await settle(page, 6);
       assert.equal(await page.evaluate(() => app.catalogue.namedBodies), null);
+      assert.equal(await page.evaluate(() => app.asteroidsVisible), 6, 'Unpaired replacement restores raw cloud count');
+      // Wrong mapped dates must also fail if CPU preparation finished before
+      // the named index arrived, rather than only during appendCatalogue.
+      const invalidHeld = new Promise(resolve => { blocked = resolve; });
+      await page.evaluate(({ pin, namedBodies }) => {
+        performance.clearMeasures('catalog:prepare-commit');
+        window.invalidDate = app.loadCatalog(pin, { namedBodies });
+      }, { pin: data.pin, namedBodies: wrongDate });
+      await invalidHeld;
+      await page.waitForFunction(() => performance.getEntriesByName('catalog:prepare-commit').length > 0);
+      release();
+      assert.equal(await page.evaluate(() => window.invalidDate), false);
+      assert.match(await page.evaluate(() => app.catalogFailure.message), /discovery date/);
+      assert.equal(await page.evaluate(() => app.renderer.planets.length), 6);
+      assert.equal(await page.evaluate(() => app.asteroidsVisible), 6);
       // A failed draw must restore the previous *pair*, not just the cloud.
       await page.evaluate(({ pin, namedBodies }) => app.loadCatalog(pin, { namedBodies }), data);
       await page.waitForFunction(() => app.pendingSession?.loader.readyToDraw(app.jed));
@@ -202,6 +256,8 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
             await page.waitForFunction(jd => { app.renderFrame(); return app.jed === jd && !app.catalogWaiting; }, date);
             assert.equal(await page.evaluate(() => app.renderer.planets.length), 13);
             assert(await page.evaluate(() => app.asteroidsDiscovered === app.activeSession.loader.source.countThrough(app.jed)));
+            assert(await page.evaluate(() => app.asteroidsVisible === app.asteroidsDiscovered
+              - [...app.catalogue.suppressedRows].filter(i => i < app.asteroidsDiscovered).length));
           }
         }
         report.push({ renderer, realCatalogue: pin.sha256, named: namedBodies.sha256 });

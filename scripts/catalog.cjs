@@ -191,19 +191,27 @@ async function prepareCatalog(configPath, { publicDefaults = false } = {}) {
   if (config.speed !== undefined && !Number.isFinite(config.speed)) throw new Error("Invalid catalogue speed.");
   const playback = {};
   if (config.namedBodies !== undefined) {
-    const { validatePin } = await import('../src/unified/catalog/contract.js');
-    validatePin(config.namedBodies);
+    const { validateNamedSelection } = await import('../src/unified/named/source/NamedBodySource.js');
+    validateNamedSelection(config);
     playback.namedBodies = config.namedBodies;
   }
   if (config.startJed !== undefined || !publicDefaults) playback.startJed = config.startJed ?? 2444270.5;
   if (config.speed !== undefined || !publicDefaults) playback.speed = config.speed ?? 1.5;
   if (Object.hasOwn(config, "latest")) {
     if (config.mode !== "indexed" || Object.keys(config).some(key => !["mode", "latest", "startJed", "speed", "namedBodies"].includes(key))) {
-      throw new Error("Latest catalogue selection accepts indexed mode, latest URL, optional namedBodies pin and date/speed only.");
+      throw new Error("Latest catalogue selection accepts indexed mode, latest URL and date/speed only.");
     }
     const { validateLatestURL } = await import("../src/unified/catalog/contract.js");
     const runtime = { mode: "indexed", latest: validateLatestURL(config.latest).href, ...playback };
     return { staged: [], runtime };
+  }
+  if (config.bundle === undefined && config.archive === undefined) {
+    if (config.mode !== 'indexed' || Object.keys(config).some(key => !['mode', 'pin', 'namedBodies', 'startJed', 'speed'].includes(key))) {
+      throw new Error('Remote catalogue selection requires indexed mode and one fixed pin.');
+    }
+    const { validatePin } = await import('../src/unified/catalog/contract.js');
+    validatePin(config.pin);
+    return { staged: [], runtime: { pin: config.pin, mode: config.mode, ...playback } };
   }
   if (config.retained !== undefined && !Array.isArray(config.retained)) throw new Error("retained must be an array of pinned bundles.");
   const inputs = [config, ...(config.retained || [])];
@@ -296,7 +304,7 @@ async function buildTrial(configPath, output = path.join(root, ".context/catalog
       }
       throw error;
     }
-    return { output, bundle: prepared.runtime?.pin ? path.join(output, "data", path.basename(prepared.staged[0].directory)) : null,
+    return { output, bundle: prepared.staged.length ? path.join(output, "data", path.basename(prepared.staged[0].directory)) : null,
       runtime: prepared.runtime, siteBytes, retained: prepared.staged.slice(prepared.runtime?.pin ? 1 : 0).map(item => item.pin.sha256) };
   } finally { if (!preserveRecovery) await fs.rm(lock, { force: true, recursive: true }); }
 }

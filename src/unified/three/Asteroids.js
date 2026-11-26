@@ -3,7 +3,7 @@ import { REFERENCE_JED, wrapPhase } from "../catalog/prepareCatalogue.js";
 import { DISCOVERY_SECONDS, validDate, MAX_PHASE_ADVANCE } from "../../js/asteroidOrbits.js";
 import { CLASS_COUNT, CLASS_REST_COLOR,
   DEFAULT_POPULATION_PRESET, advanceClassTallies, highlightMask,
-  isPopulationPreset, populationGLSL, populationMask, visibleFromTallies } from "../catalog/population.js";
+  isPopulationPreset, populationGLSL, populationMask, visibleCloudCount } from "../catalog/population.js";
 
 export { REFERENCE_JED } from "../catalog/prepareCatalogue.js";
 export const REBASE_DAYS = 4096;
@@ -180,7 +180,7 @@ export default class Asteroids extends THREE.Points {
     if (!isPopulationPreset(preset) || preset === this.populationPreset) return;
     this.populationPreset = preset;
     this.applyMasks();
-    this.visibleCount = visibleFromTallies(this.classTallies, preset);
+    this.visibleCount = visibleCloudCount(this.classTallies, preset, this.catalogue, this.tallyCount);
   }
 
   setColorize(colorize) {
@@ -208,7 +208,7 @@ export default class Asteroids extends THREE.Points {
   syncTallies(count) {
     const next = advanceClassTallies(this.classes, this.tallyCount, count, this.populationPreset, this.classTallies);
     this.tallyCount = next.tallyCount;
-    this.visibleCount = next.visibleCount;
+    this.visibleCount = visibleCloudCount(this.classTallies, this.populationPreset, this.catalogue, count);
   }
 
   captureFrame(jed, elapsed = this.elapsed, { baseline = false } = {}) {

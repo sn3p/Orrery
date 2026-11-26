@@ -28,6 +28,6 @@ function fixture(kind = 'ties') {
   files.set(namedBodies.url, productBytes);
   return { files, definitions: JSON.parse(definitions), mapping: JSON.parse(mapping),
     pin: ref(host + '/asteroids/' + indexName, indexBytes), namedBodies,
-    selection: { mode: 'indexed', latest: host + '/asteroids/latest.json', namedBodies, startJed: 2378496.5, speed: 0 } };
+    selection: { mode: 'indexed', pin: ref(host + '/asteroids/' + indexName, indexBytes), namedBodies, startJed: 2378496.5, speed: 0 } };
 }
 module.exports = { fixture, ref };

@@ -1,10 +1,12 @@
 import test from 'node:test';
 import { Vector3 } from 'three';
+import { validateRecords } from '../src/unified/catalog/contract.js';
+import { visibleCloudCount, countClassTallies } from '../src/unified/catalog/population.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import fixtureModule from './named-body-fixture.cjs';
 import CatalogSource from '../src/unified/catalog/CatalogSource.js';
-import { loadNamedBodies, namedPosition, validateNamedDefinitions } from '../src/unified/named/source/NamedBodySource.js';
+import { loadNamedBodies, namedPosition, validateNamedDefinitions, validateNamedSelection } from '../src/unified/named/source/NamedBodySource.js';
 import { namedOrbitPoints, presentBodies } from '../src/unified/named/model.js';
 import { allocateCatalogue, appendCatalogue } from '../src/unified/catalog/prepareCatalogue.js';
 import reference from './cpu-reference.cjs';
@@ -81,16 +83,16 @@ test('verified pairing rejects wrong generations, corrupted bytes, closed source
   let source;
   try {
     source = await CatalogSource.open(data.pin);
-    const pair = await loadNamedBodies(source, data.namedBodies, data.namedBodies.url);
+    const pair = await loadNamedBodies(source, data.namedBodies);
     assert.equal(pair.definitions.bodies.length, 13); assert(Object.isFrozen(pair.mapping.members));
-    await assert.rejects(loadNamedBodies({ ...source, sourceId: 'f'.repeat(64) }, data.namedBodies, data.namedBodies.url), /generation/);
+    await assert.rejects(loadNamedBodies({ ...source, sourceId: 'f'.repeat(64) }, data.namedBodies), /generation/);
     changed = true;
-    await assert.rejects(loadNamedBodies(source, data.namedBodies, data.namedBodies.url), /length/);
+    await assert.rejects(loadNamedBodies(source, data.namedBodies), /length/);
     changed = false;
     const controller = new AbortController(); controller.abort();
-    await assert.rejects(loadNamedBodies(source, data.namedBodies, data.namedBodies.url, { signal: controller.signal }), { name: 'AbortError' });
+    await assert.rejects(loadNamedBodies(source, data.namedBodies, { signal: controller.signal }), { name: 'AbortError' });
     source.close();
-    await assert.rejects(loadNamedBodies(source, data.namedBodies, data.namedBodies.url), /closed/);
+    await assert.rejects(loadNamedBodies(source, data.namedBodies), /closed/);
   } finally { source?.close(); globalThis.fetch = original; }
 });
 
@@ -128,6 +130,69 @@ test('catalogue profile carries the trusted named product through the real build
   await fs.writeFile(config, JSON.stringify(data.selection));
   const result = await prepareCatalog(config, { publicDefaults: true });
   assert.deepEqual(result.runtime, data.selection);
+  assert.deepEqual(result.staged, []);
   await fs.writeFile(config, JSON.stringify({ ...data.selection, namedBodies: { ...data.namedBodies, sha256: 'wrong' } }));
   await assert.rejects(prepareCatalog(config), /Invalid/);
+});
+
+// Same policy at build and runtime; reject before any network request.
+test('named selections require a fixed generation and the runtime transport limits at build time', async t => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const { prepareCatalog } = await import('../scripts/catalog.cjs');
+  const directory = await fs.mkdtemp(path.resolve('.context/named-validation-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const config = path.join(directory, 'profile.json');
+  for (const change of [
+    { latest: 'https://named.test/latest.json' },
+    ...[{ url: 'http://public.test/index.json' }, { url: '/relative.json' },
+      { url: 'https://user:password@named.test/index.json' }, { bytes: 128 * 1024 + 1 },
+      { extra: true }].map(fields => ({ namedBodies: { ...data.namedBodies, ...fields } })),
+  ]) {
+    const selection = { ...data.selection, ...change };
+    assert.throws(() => validateNamedSelection(selection));
+    await fs.writeFile(config, JSON.stringify(selection));
+    await assert.rejects(prepareCatalog(config));
+  }
+  for (const url of ['https://named.test/index.json', 'http://localhost/index.json', 'http://127.0.0.1/index.json']) {
+    validateNamedSelection({ namedBodies: { ...data.namedBodies, url, bytes: 128 * 1024 } });
+  }
+  const latest = { mode: 'indexed', latest: 'https://named.test/latest.json' };
+  await fs.writeFile(config, JSON.stringify(latest));
+  assert.deepEqual((await prepareCatalog(config, { publicDefaults: true })).runtime, latest);
+  for (const extra of [{ retained: [] }, { mode: 'whole' }, { unrelated: true }]) {
+    await fs.writeFile(config, JSON.stringify({ ...data.selection, ...extra }));
+    await assert.rejects(prepareCatalog(config));
+  }
+});
+
+test('promoted rows leave raw tallies intact but are excluded from the selected visible prefix', () => {
+  const model = { classes: new Uint8Array([4, 5, 3, 5]), suppressedRows: new Set([1, 2]) };
+  for (const count of [0, 1, 2, 3, 4, 2, 0]) {
+    const tallies = countClassTallies(model.classes, 0, count), original = tallies.slice();
+    const rows = [...model.classes].slice(0, count).filter((_, i) => !model.suppressedRows.has(i));
+    assert.equal(visibleCloudCount(tallies, 'all', model, count), rows.length);
+    assert.equal(visibleCloudCount(tallies, 'belt-middle', model, count), rows.filter(c => c === 5).length);
+    assert.equal(visibleCloudCount(tallies, 'distant', model, count), rows.filter(c => c === 3).length);
+    assert.deepEqual(tallies, original);
+  }
+});
+
+test('catalogue source rejects out-of-order dates before sorting; equal-date rows keep their ordinals', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async url => new Response(data.files.get(url));
+  let source;
+  try {
+    source = await CatalogSource.open(data.pin);
+    const rows = JSON.parse(readFileSync(new URL('./fixtures/consumer-v1/ties/full/catalog.json', import.meta.url)));
+    const file = { start: 0, end: rows.length };
+    validateRecords(rows, file, source.info);
+    const unsorted = rows.slice().reverse();
+    assert.throws(() => validateRecords(unsorted, file, source.info), /discovery at ordinal/);
+    assert.equal(rows[1].disc, rows[2].disc);
+    const model = allocateCatalogue(rows.length); model.namedBodies = { mapping: data.mapping };
+    appendCatalogue(model, rows, 0);
+    assert.deepEqual([...model.rows], rows.map((_, i) => i));
+    assert.equal(model.dates[1], data.mapping.members[0].discovery_jd);
+  } finally { source?.close(); globalThis.fetch = original; }
 });

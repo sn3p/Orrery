@@ -78,18 +78,41 @@ export function namedPosition(body,jd){
  return {position:p.map((x,k)=>x*(Math.cos(E)-e)+q[k]*Math.sin(E)),status};
 }
 function reference(ref,prefix){fields(ref,'url sha256 bytes');need(typeof ref.url==='string'&&hash(ref.sha256)&&Number.isSafeInteger(ref.bytes)&&ref.bytes>0&&ref.bytes<=128*1024,'reference');if(prefix)need(ref.url===prefix+ref.sha256+'.json','reference path');}
-export async function loadNamedBodies(source,ref,url,{signal}={}){
+// Shared build/runtime contract for the one trusted, absolute product location.
+export function validateNamedReference(ref) {
+ reference(ref);
+ validatedURL(ref.url,product);
+ return ref;
+}
+export function validateNamedSelection({latest,namedBodies}) {
+ if(namedBodies!==undefined) {
+  validateNamedReference(namedBodies);
+  need(latest===undefined,'selection: named bodies require a fixed asteroid pin, not latest');
+ }
+}
+// These immutable downloads do not depend on asteroid discovery/index reads.
+export async function fetchNamedBodies(ref,{signal}={}) {
+ validateNamedReference(ref);
+ const base=new URL(ref.url);
+ const index=decodeJSON(await fetchVerified(ref,base.href,signal,product),product);
+ fields(index,'named_body_product_version definitions mapping');need(index.named_body_product_version===1,'product version');
+ reference(index.definitions,'definitions-');reference(index.mapping,'mapping-');
+ const [d,m]=await Promise.all([index.definitions,index.mapping].map(async r=>decodeJSON(await fetchVerified(r,new URL(r.url,base).href,signal,product),product)));
+ return freeze({definitions:validateNamedDefinitions(d),mapping:m});
+}
+export function pairNamedBodies(source,pair) {
+ need(!source.closed,'closed asteroid source');
+ validateNamedMapping(pair.mapping,source);
+ return pair;
+}
+export async function loadNamedBodies(source,ref,{signal}={}) {
  const controller=new AbortController();let unlink=()=>{};
- try{
-  need(!source.closed,'closed asteroid source');reference(ref);
-  unlink=linkCancellation(controller,[source.lifetime.signal,...(signal?[signal]:[])]);check(controller.signal,product);
-  const base=validatedURL(url,product);
-  need(new URL(ref.url,base).href===base.href,'reference URL mismatch');
-  const index=decodeJSON(await fetchVerified(ref,base.href,controller.signal,product),product);
-  fields(index,'named_body_product_version definitions mapping');need(index.named_body_product_version===1,'product version');
-  reference(index.definitions,'definitions-');reference(index.mapping,'mapping-');
-  const [d,m]=await Promise.all([index.definitions,index.mapping].map(async r=>decodeJSON(await fetchVerified(r,new URL(r.url,base).href,controller.signal,product),product)));
-  const result={definitions:validateNamedDefinitions(d),mapping:validateNamedMapping(m,source)};
-  check(controller.signal,product);need(!source.closed,'closed asteroid source');return freeze(result);
- }catch(error){controller.abort();throw error;}finally{unlink();}
+ try {
+  need(!source.closed,'closed asteroid source');
+  unlink=linkCancellation(controller,[source.lifetime.signal,...(signal?[signal]:[])]);
+  check(controller.signal,product);
+  const pair=await fetchNamedBodies(ref,{signal:controller.signal});
+  check(controller.signal,product);
+  return pairNamedBodies(source,pair);
+ } catch(error) { controller.abort();throw error; } finally { unlink(); }
 }

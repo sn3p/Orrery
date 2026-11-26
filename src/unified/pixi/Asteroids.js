@@ -1,7 +1,7 @@
 import { Bounds, Buffer, BufferUsage, Geometry, Mesh, Shader, UniformGroup } from "pixi.js";
 import { DISCOVERY_SECONDS, REBASE_DAYS, REFERENCE_JED, discoveryCount, orbitGLSL, prepareOrbits, validDate, wrap } from "../../js/asteroidOrbits.js";
 import { CLASS_COUNT, DEFAULT_POPULATION_PRESET, advanceClassTallies, classColorArray, classifyCatalogue,
-  highlightMask, isPopulationPreset, populationGLSL, populationMask, visibleFromTallies } from "../catalog/population.js";
+  highlightMask, isPopulationPreset, populationGLSL, populationMask, visibleCloudCount } from "../catalog/population.js";
 
 const vertex = pass => `
 precision highp float;
@@ -185,7 +185,7 @@ export default class Asteroids extends Mesh {
     if (!isPopulationPreset(preset) || preset === this.populationPreset) return;
     this.populationPreset = preset;
     this.applyMasks();
-    this.visibleCount = visibleFromTallies(this.classTallies, preset);
+    this.visibleCount = visibleCloudCount(this.classTallies, preset, this.catalogue, this.tallyCount);
   }
 
   setColorize(colorize) {
@@ -211,7 +211,7 @@ export default class Asteroids extends Mesh {
   syncTallies(count) {
     const next = advanceClassTallies(this.classes, this.tallyCount, count, this.populationPreset, this.classTallies);
     this.tallyCount = next.tallyCount;
-    this.visibleCount = next.visibleCount;
+    this.visibleCount = visibleCloudCount(this.classTallies, this.populationPreset, this.catalogue, count);
   }
 
   queueUpload(name, start, end) {

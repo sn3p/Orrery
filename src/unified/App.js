@@ -8,7 +8,7 @@ import Acquisition, { openHostedSource, openCandidateSource, COMET_WINDOW_BUCKET
 import { COMETS, firstDate, lastDate, STARTER_COMET_IDS, cataloguePresentation, validCometIds, validateCometData, hasUsableComets } from "./comets/model.js";
 import Hud from "./ui/Hud.js";
 import CatalogSource from "./catalog/CatalogSource.js";
-import { loadNamedBodies } from "./named/source/NamedBodySource.js";
+import { fetchNamedBodies, pairNamedBodies, validateNamedSelection } from "./named/source/NamedBodySource.js";
 import CatalogLoader from "./catalog/CatalogLoader.js";
 import { allocateCatalogue, appendCatalogue, prepareCatalogue } from "./catalog/prepareCatalogue.js";
 import { DEFAULT_RENDERER, rendererName, selectRenderer, renderers } from "./renderers.js";
@@ -593,41 +593,59 @@ export default class App {
       await this.init();
       if (this.destroyed || version !== this.loadVersion) return false;
       if (latest !== undefined && mode !== "indexed") throw new Error("Whole-file mode unavailable in browser distribution.");
-      source = latest !== undefined
-        ? await CatalogSource.openLatest(latest, { signal: opening.signal })
-        : await CatalogSource.open(pin, { mode, signal: opening.signal });
-      if (this.destroyed || version !== this.loadVersion) { source.close(); return false; }
-      const pair = namedBodies ? await loadNamedBodies(source, namedBodies, namedBodies.url, { signal: opening.signal }) : null;
-      if (this.destroyed || version !== this.loadVersion) { source.close(); return false; }
-      const session = candidate = { version, model: null, loader: null, namedBodies: pair };
-      const loader = session.loader = new CatalogLoader({
-        activate: count => {
-          const start = performance.now();
-          session.model = allocateCatalogue(count);
-          session.model.namedBodies = pair;
-          session.model.suppressedRows = new Set(pair?.mapping.members.filter(member => member.status === 'present').map(member => member.ordinal));
-          session.model.sourceId = source.sourceId;
-          session.model.catalogId = source.info.catalog_id;
-          performance.measure("catalog:allocate", { start });
-        },
-        commit: event => {
-          const start = performance.now();
-          appendCatalogue(session.model, event.records, event.start);
-          performance.measure("catalog:prepare-commit", { start });
-        },
-        changed: () => { if ((version === this.loadVersion || this.activeSession === session) && !this.destroyed) this.onCatalogChange(); },
-      });
+      validateNamedSelection({ latest, namedBodies });
+      const prepareSource = async () => {
+        source = latest !== undefined
+          ? await CatalogSource.openLatest(latest, { signal: opening.signal })
+          : await CatalogSource.open(pin, { mode, signal: opening.signal });
+        if (opening.signal.aborted) { source.close(); throw opening.signal.reason; }
+        const session = candidate = { version, model: null, loader: null, namedBodies: null };
+        const loader = session.loader = new CatalogLoader({
+          activate: count => {
+            const start = performance.now();
+            session.model = allocateCatalogue(count);
+            session.model.sourceId = source.sourceId;
+            session.model.catalogId = source.info.catalog_id;
+            performance.measure("catalog:allocate", { start });
+          },
+          commit: event => {
+            const start = performance.now();
+            appendCatalogue(session.model, event.records, event.start);
+            performance.measure("catalog:prepare-commit", { start });
+          },
+          changed: () => { if ((this.pendingSession === session || this.activeSession === session) && !this.destroyed) this.onCatalogChange(); },
+        });
+        loader.activate(source, this.requestedJed ?? this.jed);
+        return session;
+      };
+      // Prepare the private asteroid prefix while the independent named files
+      // download. Nothing becomes drawable until the complete pair is verified.
+      const [session, downloaded] = await Promise.all([prepareSource(),
+        namedBodies ? fetchNamedBodies(namedBodies, { signal: opening.signal }) : null]);
+      if (this.destroyed || version !== this.loadVersion || opening.signal.aborted) {
+        session.loader.dispose(); return false;
+      }
+      const pair = downloaded ? pairNamedBodies(source, downloaded) : null;
+      for (const member of pair?.mapping.members ?? []) {
+        if (member.status === 'present' && member.ordinal < session.model.count
+          && session.model.dates[member.ordinal] !== member.discovery_jd) {
+          throw new Error('Named-body mapping discovery date differs from its catalogue row.');
+        }
+      }
+      session.namedBodies = session.model.namedBodies = pair;
+      session.model.suppressedRows = new Set(pair?.mapping.members.filter(member => member.status === 'present').map(member => member.ordinal));
       this.pendingSession = session;
-      this.catalogLoader = loader;
+      this.catalogLoader = session.loader;
       this.catalogOpening = null;
-      loader.activate(source, this.requestedJed ?? this.jed);
       this.demandCatalog();
       this.onCatalogChange();
       return source;
     } catch (error) {
-      source?.close();
-      if (this.destroyed || version !== this.loadVersion || opening.signal.aborted) return false;
+      const cancelled = this.destroyed || version !== this.loadVersion || opening.signal.aborted;
+      opening.abort();
       candidate?.loader?.dispose();
+      source?.close();
+      if (cancelled) return false;
       this.pendingSession = null;
       this.catalogLoader = this.activeSession?.loader ?? null;
       this.renderer?.discardStagedCatalogue();
