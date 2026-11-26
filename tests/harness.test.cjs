@@ -197,13 +197,9 @@ async function discover(...args) {
   delete env.ORRERY_PREVIOUS_COVERAGE;
   const { stdout } = await execute(process.execPath, [cli, 'test', '--list', '--reporter=json', ...args], { env, maxBuffer: 4 * 1024 * 1024 });
   const rows = [];
-  // The JSON reporter merges one spec across projects and keeps the first
-  // project's id, so spec.id changes with --project. Location and title path
-  // identify a case independently of which projects were selected.
   function visit(suite, parents = []) {
     for (const spec of suite.specs || []) {
-      const title = [...parents, spec.title].join(' / ');
-      for (const item of spec.tests) rows.push({ id: `${spec.file}:${spec.line}:${spec.column} ${title}`, project: item.projectName, title });
+      for (const item of spec.tests) rows.push({ id: spec.id, project: item.projectName, title: [...parents, spec.title].join(' / ') });
     }
     for (const child of suite.suites || []) visit(child, [...parents, child.title]);
   }
