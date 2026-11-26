@@ -17,6 +17,7 @@ export default class Options {
   constructor(orrery) {
     this.orrery = orrery;
     this.hints = new Set();
+    this.dialogHolds = new Set();
     this.hintId = 0;
 
     // Controls
@@ -146,6 +147,19 @@ export default class Options {
     this.updateComets();
   }
 
+  // One hold spans overlapping Options dialogs and queued close/open handoffs.
+  // Only the first owner captures the caller's state; the last owner releases.
+  acquireDialogHold(dialog) {
+    if (!this.dialogHolds.size) this.dialogWasHeld = this.orrery.held;
+    this.dialogHolds.add(dialog);
+    this.orrery.hold(true);
+  }
+
+  releaseDialogHold(dialog) {
+    if (!this.dialogHolds.delete(dialog) || this.dialogHolds.size) return;
+    if (!this.dialogWasHeld && !document.querySelector("dialog[open]")) this.orrery.hold(false);
+  }
+
   mountCometInfo() {
     const dialog = this.cometInfo = document.getElementById("orrery-comet-info");
     if (typeof dialog?.showModal !== "function") { this.cometInfo = null; return; }
@@ -235,10 +249,9 @@ export default class Options {
       if (this.destroyed || dialog.open) return;
       this.finishCometChooser();
       this.cometClosingHandled = false;
-      this.cometWasHeld = this.orrery.held;
+      this.acquireDialogHold(dialog);
       this.cometRestoreFocus = true;
       this.hideTip();
-      this.orrery.hold(true);
       this.cometUndo = null;
       this.cometSearch.value = "";
       this.changeCometView("selected");
@@ -262,8 +275,7 @@ export default class Options {
     clearTimeout(this.cometSearchTimer);
     this.orrery.cometSelectionNotice = '';
     this.updateComets();
-    // Release only the hold this chooser introduced. Another open modal owns its hold.
-    if (!this.cometWasHeld && !document.querySelector("dialog[open]")) this.orrery.hold(false);
+    this.releaseDialogHold(dialog);
     const active = document.activeElement;
     const focusUnclaimed = active === document.body || active === this.cometChoose
       || active === this.trigger || dialog.contains(active);
@@ -275,9 +287,11 @@ export default class Options {
   }
 
   closeCometChooser(restoreFocus = true) {
-    if (!this.cometDialog?.open) return;
-    this.cometRestoreFocus = restoreFocus && this.cometDialog.contains(document.activeElement);
-    this.cometDialog.close();
+    if (!this.cometDialog) return;
+    if (this.cometDialog.open) {
+      this.cometRestoreFocus = restoreFocus && this.cometDialog.contains(document.activeElement);
+      this.cometDialog.close();
+    } else if (!restoreFocus) this.cometRestoreFocus = false;
     // Finish synchronously so a rapid reopen cannot inherit our previous hold.
     this.finishCometChooser();
   }

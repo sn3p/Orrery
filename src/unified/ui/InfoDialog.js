@@ -15,9 +15,8 @@ export default class InfoDialog {
     this.prepare();
     this.options.hideTip();
     this.restoreFocus = restoreFocus;
-    this.wasHeld = this.options.orrery.held;
     this.holding = true;
-    this.options.orrery.hold(true);
+    this.options.acquireDialogHold(this.dialog);
     this.dialog.showModal();
     this.dialog.scrollTop = 0;
     this.dialog.querySelector('h1').focus({ preventScroll: true });
@@ -31,7 +30,7 @@ export default class InfoDialog {
     if (this.dialog.open || !this.holding) return;
     this.holding = false;
     const { options, dialog } = this;
-    if (!this.wasHeld && !document.querySelector('dialog[open]')) options.orrery.hold(false);
+    options.releaseDialogHold(dialog);
     const restore = this.restoreFocus;
     this.restoreFocus = null;
     const active = document.activeElement;

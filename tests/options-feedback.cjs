@@ -62,6 +62,35 @@ module.exports = async (browser, root, renderer) => {
     assert.equal(await page.evaluate(() => app.held), true);
     await page.keyboard.press('Escape');
     await expect(page.locator('#orrery-glossary')).toBeHidden();
+    await expect.poll(() => page.evaluate(() => app.held)).toBe(false);
+
+    // Every pair shares the original hold, even if the first close event is
+    // still queued when the next card opens. Cover both directions and callers.
+    const handoffs = [
+      ['chooser','asteroids'], ['chooser','comets'], ['asteroids','chooser'],
+      ['comets','chooser'], ['asteroids','comets'], ['comets','asteroids']
+    ];
+    for (const held of [false,true]) for (const [first,second] of handoffs) for (const closeFirst of [false,true]) {
+      const during = await page.evaluate(async ({held,first,second,closeFirst}) => {
+        app.hold(held);
+        const dialogs = {chooser:controls.cometDialog,asteroids:controls.glossary,comets:controls.cometInfo};
+        const triggers = {chooser:controls.cometChoose,asteroids:controls.glossaryTrigger,comets:controls.cometInfoTrigger};
+        triggers[first].click();
+        const closed = new Promise(resolve=>dialogs[first].addEventListener('close',resolve,{once:true}));
+        if(closeFirst) dialogs[first].close();
+        triggers[second].click();
+        if(!closeFirst) dialogs[first].close();
+        await closed;
+        return {held:app.held,focus:dialogs[second].contains(document.activeElement)};
+      },{held,first,second,closeFirst});
+      assert.deepEqual(during,{held:true,focus:true},`${first} → ${second}: remaining dialog keeps hold/focus`);
+      await page.evaluate(()=>{window.handoffClosed=new Promise(resolve=>document.querySelector('dialog[open]').addEventListener('close',resolve,{once:true}));});
+      await page.keyboard.press('Escape');
+      await page.evaluate(()=>handoffClosed);
+      assert.equal(await page.evaluate(()=>app.held),held,'The final close preserves the original caller hold');
+      assert.equal(await page.evaluate(()=>app.jedDelta),0,'Handoffs preserve paused speed');
+    }
+    await page.evaluate(()=>app.hold(false));
 
     // Explicit suppression must not introduce an Options-button focus call.
     await choose.click();
@@ -112,6 +141,21 @@ module.exports = async (browser, root, renderer) => {
       app.cometsShown = false;
     });
     await expect(toggle).toBeFocused();
+    for (const held of [false,true]) for (const closeFirst of [false,true]) {
+      await page.evaluate(({held,closeFirst})=>{
+        app.hold(held);
+        app.cometsShown=true;
+        controls.cometChoose.click();
+        if(closeFirst) controls.cometDialog.close();
+        controls.openGlossary();
+        controls.destroy();
+      },{held,closeFirst});
+      assert.equal(await page.evaluate(()=>app.held),held,'Disposal releases only the internally acquired hold');
+      assert.equal(await page.locator('dialog[open]').count(),0);
+      await page.reload();await page.evaluate(()=>threeTest.ready);
+      await page.evaluate(()=>{window.app=threeTest.app;window.controls=app.gui.controls;app.jedDelta=0;app.cometsShown=true;controls.open();});
+      await expect(choose).toBeEnabled();
+    }
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 };
