@@ -184,3 +184,26 @@ test("Three projects every active label to CSS pixels and rejects clipped depth"
   ThreeRenderer.prototype.placePlanetLabels.call(receiver);
   assert.deepEqual(placements[1], [300, 125, { width: 400, height: 200, visible: false }]);
 });
+
+test("label widths are measured once and updated by resize notifications, not each frame", () => {
+  const { container } = fixture();
+  let notify, disconnected = 0, reads = 0;
+  container.ownerDocument.defaultView = { ResizeObserver: class {
+    constructor(callback) { notify = callback; }
+    observe() {}
+    disconnect() { disconnected++; }
+  } };
+  const label = new PlanetLabel(container, "Makemake", 0xffffff, 'dwarf-planet');
+  Object.defineProperty(label.element, 'offsetWidth', { get() { reads++; return 100; } });
+  for (let frame = 0; frame < 100; frame++) label.place(90, 30, { width: 200, height: 100 });
+  assert.equal(reads, 1);
+  assert.equal(label.element.dataset.side, 'left');
+  notify([{ contentRect: { width: 50 } }]);
+  assert.equal(label.element.dataset.side, 'right', 'Font/size changes also reposition a paused label');
+  label.place(90, 30, { width: 200, height: 100 });
+  assert.equal(label.element.dataset.side, 'right');
+  label.hide(); notify([{ contentRect: { width: 0 } }]);
+  label.place(90, 30, { width: 200, height: 100 });
+  assert.equal(label.width, 50); assert.equal(reads, 1);
+  label.destroy(); assert.equal(disconnected, 1);
+});

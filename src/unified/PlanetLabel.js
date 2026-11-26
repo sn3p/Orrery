@@ -48,6 +48,19 @@ export default class PlanetLabel {
     element.hidden = true;
     container.appendChild(element);
     this.element = element;
+    this.width = null;
+    const Observer = container.ownerDocument.defaultView?.ResizeObserver;
+    if (Observer) {
+      this.observer = new Observer(entries => {
+        // display:none reports zero; retain the last useful measurement.
+        const width = entries[0]?.contentRect.width;
+        if (width > 0) {
+          this.width = width;
+          if (!this.element.hidden) this.updateSide();
+        }
+      });
+      this.observer.observe(element);
+    }
   }
 
   place(x, y, { width, height, visible = true }) {
@@ -56,10 +69,18 @@ export default class PlanetLabel {
       && width > 0 && height > 0 && x >= 0 && x <= width && y >= 0 && y <= height;
     this.element.hidden = !shown;
     if (!shown) return;
-    const flipDistance = Math.max(FLIP_DISTANCE, (this.element.offsetWidth || 0) + EDGE_GUTTER + 7);
+    // Measure once on first display. Subsequent font/size changes arrive via
+    // ResizeObserver, outside the animation loop.
+    if (this.width === null) this.width = this.element.offsetWidth || 0;
     this.element.style.left = `${x}px`;
     this.element.style.top = `${Math.min(height - EDGE_GUTTER, Math.max(EDGE_GUTTER, y))}px`;
-    this.element.dataset.side = x > width - flipDistance ? "left" : "right";
+    this.x = x; this.viewportWidth = width;
+    this.updateSide();
+  }
+
+  updateSide() {
+    const flipDistance = Math.max(FLIP_DISTANCE, this.width + EDGE_GUTTER + 7);
+    this.element.dataset.side = this.x > this.viewportWidth - flipDistance ? "left" : "right";
   }
 
   hide() {
@@ -67,6 +88,7 @@ export default class PlanetLabel {
   }
 
   destroy() {
+    this.observer?.disconnect();
     this.element.remove();
   }
 }
