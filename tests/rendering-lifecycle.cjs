@@ -128,7 +128,7 @@ exports.disposal = async (page, url) => {
       app.setAsteroids([]); app.jed += 1; app.jedDelta = -1.5; app.requestRender(); app.render();
       restore.forEach(fn => fn());
       return { draws: probe.draws, updates: probe.updates, removed: removed.size, pending: app.animationFrame,
-        canvas: !!document.querySelector('canvas'), gui: !!document.querySelector('.dg.main'), cloudDestroyed: cloud.destroyed };
+        canvas: !!document.querySelector('canvas'), gui: !!document.querySelector('.lil-root'), cloudDestroyed: cloud.destroyed };
     });
     // This is evaluated in the page without adding production globals.
     assert.equal(before.pending, null); assert.equal(before.removed, 14);
@@ -215,7 +215,7 @@ exports.production = async (browser, url, output, name) => {
     await speed(-1.5);
     await page.waitForFunction(date => document.querySelector('#orrery-date').textContent < date, date);
     await speed(0); await idle();
-    const slider = page.locator('.dg .slider'), bounds = await slider.boundingBox();
+    const slider = page.locator('.lil-slider'), bounds = await slider.boundingBox();
     await slider.click({ position: { x: bounds.width * 0.7, y: bounds.height / 2 } });
     await page.waitForFunction(date => document.querySelector('#orrery-date').textContent > date, await page.locator('#orrery-date').textContent());
     await speed(0); await idle();
@@ -226,7 +226,7 @@ exports.production = async (browser, url, output, name) => {
       await idle();
       assert.deepEqual(await canvas.evaluate(el => [el.width, el.height]), [width * 2, 1688]);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
-      for (const selector of ['#orrery-date', '#orrery-count', '#orrery-fps', '.dg .slider', 'input[aria-label="Playback speed"]']) {
+      for (const selector of ['#orrery-date', '#orrery-count', '#orrery-fps', '.lil-slider', 'input[aria-label="Playback speed"]']) {
         const box = await page.locator(selector).boundingBox();
         assert(box.x >= 0 && box.y >= 0 && box.x + box.width <= width && box.y + box.height <= 844);
       }

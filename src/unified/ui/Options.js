@@ -3,7 +3,7 @@ import { searchComets } from '../comets/search.js';
 import { hasCoverage } from "../comets/model.js";
 import InfoDialog from "./InfoDialog.js";
 import { assessmentState, assessmentMessage, CometFeedbackCache, catalogueHasCoverage, catalogueCoverage } from "../comets/feedback.js";
-import * as dat from "dat.gui";
+import GUI from "lil-gui";
 import { DEFAULT_POPULATION_PRESET, POPULATION_PRESET_OPTIONS, legendGroups, populationHint } from "../catalog/population.js";
 
 const SPEED_HINT = "Time scale: 1 = 60 days/s. 0 pauses; negative reverses.";
@@ -41,23 +41,23 @@ export default class Options {
     this.trigger.setAttribute("aria-controls", this.panel.id);
     this.element.append(this.trigger, this.panel);
     document.body.appendChild(this.element);
-    this.gui = new dat.GUI({ hideable: false, autoPlace: false });
+    // Our stylesheet owns the panel; the trigger above already discloses it.
+    this.gui = new GUI({ autoPlace: false, injectStyles: false });
+    this.gui.$title.remove();
     this.panel.appendChild(this.gui.domElement);
+    // lil-gui keeps keydown inside each control; Escape must still close Options.
+    this.gui.domElement.addEventListener("keydown", this.onKeyDown, true);
     this.rendererState = { renderer: this.orrery.rendererId };
-    this.renderer = this.gui.add(this.rendererState, "renderer",
-      Object.fromEntries(Object.entries(orrery.rendererRegistry).map(([id, entry]) => [entry.label, id]))).name("renderer");
-    this.renderer.domElement.closest("li").classList.add("orrery-renderer-option");
-    this.rendererSelect = this.renderer.domElement.querySelector("select");
+    this.renderer = this.addChoice(this.rendererState, "renderer", { "Choose renderer": "",
+      ...Object.fromEntries(Object.entries(orrery.rendererRegistry).map(([id, entry]) => [entry.label, id])) }, "renderer");
+    this.renderer.domElement.classList.add("orrery-renderer-option");
+    this.rendererSelect = this.renderer.$select;
     this.rendererSelect.setAttribute("aria-label", "Renderer");
-    const placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent = "Choose renderer";
-    placeholder.disabled = true;
-    this.rendererSelect.prepend(placeholder);
+    this.rendererSelect.options[0].disabled = true;
     this.renderer.onChange(id => { if (id) void this.orrery.switchRenderer(id); });
 
-    this.pixelRatio = this.gui.add(this.orrery, "pixelRatio", { "1×": "1", "2×": "2" }).name("pixel density");
-    this.pixelRatioSelect = this.pixelRatio.domElement.querySelector("select");
+    this.pixelRatio = this.addChoice(this.orrery, "pixelRatio", { "1×": "1", "2×": "2" }, "pixel density");
+    this.pixelRatioSelect = this.pixelRatio.$select;
     this.pixelRatioSelect.setAttribute("aria-label", "Rendering pixel ratio");
     this.pixelRatioSelect.title = "2× is sharper but uses more GPU.";
     this.addHint(this.pixelRatio, this.pixelRatioSelect.title, this.pixelRatioSelect);
@@ -65,54 +65,67 @@ export default class Options {
     this.addSection("Rendering", this.renderer);
     this.playbackHeading = this.addSection("Playback", this.pixelRatio, true);
 
-    const speed = this.speed = this.gui.add(this.orrery, "jedDelta", -8, 8).name("speed");
-    const input = this.speedInput = speed.domElement.querySelector("input");
+    // An implicit step snaps only the slider, to hundredths, and keeps typed
+    // speeds exact. Arrow keys and dragging the box then move 0.1 at a time.
+    const speed = this.speed = this.gui.add(this.orrery, "jedDelta", -8, 8).step(0.01, false).name("speed");
+    const input = this.speedInput = speed.$input;
+    // lil-gui turns this into a number spinner on touch screens; keep one text box.
+    input.type = "text";
+    input.removeAttribute("step");
     input.setAttribute("aria-label", "Playback speed");
+    // lil-gui expects its own root to scroll; ours is the panel. A vertical
+    // wheel over the track scrolls an overflowing panel, not the speed.
+    speed.$widget.addEventListener("wheel", event => {
+      if (event.target === input || Math.abs(event.deltaX) >= Math.abs(event.deltaY)
+        || this.panel.scrollHeight <= this.panel.clientHeight) return;
+      event.stopPropagation();
+    }, true);
     this.speedHelp = this.addHint(speed, SPEED_HINT, input);
     this.speedHint = document.createElement("p");
     this.speedHint.className = "orrery-options-hint";
     this.speedHint.id = `${this.panel.id}-live-speed`;
-    speed.domElement.closest("li").append(this.speedHint);
-    this.speedRow = speed.domElement.closest("li");
+    speed.domElement.append(this.speedHint);
+    this.speedRow = speed.domElement;
     this.speedLive = null;
     this.setSpeedLive(this.orrery.holdAtPresent && this.orrery.followingPresent && this.orrery.jedDelta > 0);
 
     this.present = this.gui.add(this.orrery, "holdAtPresent").name("real time");
-    this.presentInput = this.present.domElement.querySelector("input");
+    this.presentInput = this.present.$input;
     this.presentInput.setAttribute("aria-label", "Real time");
     this.presentInput.title = "The date runs forward only until today, then stays on the current time. Remembered in this browser.";
     this.addHint(this.present, this.presentInput.title, this.presentInput);
     this.confineCheckbox(this.present);
     this.addSection("Planets", this.present, true);
 
-    this.planetLabels = this.gui.add(this.orrery, "planetLabels",
-      { Off: "off", "Earth only": "earth", "All planets": "all" }).name("labels");
-    this.planetLabelsSelect = this.planetLabels.domElement.querySelector("select");
+    this.planetLabels = this.addChoice(this.orrery, "planetLabels",
+      { Off: "off", "Earth only": "earth", "All planets": "all" }, "labels");
+    this.planetLabelsSelect = this.planetLabels.$select;
     this.planetLabelsSelect.setAttribute("aria-label", "Planet labels");
     this.describeControl(this.planetLabels, this.planetLabelsSelect, "Show labels for Earth, all planets, or none.");
 
     this.planetOrbits = this.gui.add(this.orrery, "planetOrbits").name("orbits");
-    this.planetOrbitsInput = this.planetOrbits.domElement.querySelector("input");
+    this.planetOrbitsInput = this.planetOrbits.$input;
     this.planetOrbitsInput.setAttribute("aria-label", "Planet orbits");
     this.describeControl(this.planetOrbits, this.planetOrbitsInput, "Show or hide planetary orbit lines.");
     this.confineCheckbox(this.planetOrbits);
 
     this.asteroids = this.gui.add(this.orrery, "asteroidsShown").name("asteroids");
-    this.asteroids.domElement.querySelector("input").setAttribute("aria-label", "Show asteroids");
+    this.asteroids.$input.setAttribute("aria-label", "Show asteroids");
     this.confineCheckbox(this.asteroids);
     this.makeSectionToggle(this.asteroids, "Asteroids");
 
-    this.population = this.gui.add(this.orrery, "populationPreset", POPULATION_PRESET_OPTIONS).name("groups");
-    this.populationSelect = this.population.domElement.querySelector("select");
+    this.population = this.addChoice(this.orrery, "populationPreset", POPULATION_PRESET_OPTIONS, "groups");
+    this.populationSelect = this.population.$select;
     this.populationSelect.setAttribute("aria-label", "Minor-planet groups");
 
     this.colorize = this.gui.add(this.orrery, "colorizeGroups").name("colors");
-    this.colorizeInput = this.colorize.domElement.querySelector("input");
+    this.colorizeInput = this.colorize.$input;
     this.colorizeInput.setAttribute("aria-label", "Group colors");
     this.confineCheckbox(this.colorize);
     this.mountGlossary();
 
     this.mountComets();
+    this.preferAriaLabels(this.gui);
 
     try { this.mountRenderer(); }
     catch (error) { this.destroy(); throw error; }
@@ -125,8 +138,7 @@ export default class Options {
 
   mountComets() {
     const toggle = this.cometToggle = this.gui.add(this.orrery, "cometsShown").name("comets");
-    const input = toggle.domElement.querySelector("input");
-    input.setAttribute("aria-label", "Show comets");
+    toggle.$input.setAttribute("aria-label", "Show comets");
     this.confineCheckbox(toggle);
     this.makeSectionToggle(toggle, "Comets");
     this.panelCometFeedback = this.createCometFeedback();
@@ -134,15 +146,15 @@ export default class Options {
     this.cometRows = [];
     this.cometChoices = {};
     this.mountCometChooser();
-    const statusRow = document.createElement("li");
+    const statusRow = document.createElement("div");
     statusRow.className = "orrery-comet-status";
     statusRow.append(this.panelCometFeedback.status, this.panelCometFeedback.retry);
-    this.gui.__ul.append(statusRow);
+    this.gui.$children.append(statusRow);
     this.cometRows.push(statusRow);
     const paths = this.gui.add(this.orrery, "cometPaths").name("paths");
-    paths.domElement.querySelector("input").setAttribute("aria-label", "Comet paths");
+    paths.$input.setAttribute("aria-label", "Comet paths");
     this.confineCheckbox(paths);
-    this.cometRows.push(paths.domElement.closest("li"));
+    this.cometRows.push(paths.domElement);
     this.mountCometInfo();
     this.updateComets();
   }
@@ -169,7 +181,7 @@ export default class Options {
 
   // The chooser edits the shared selection; closing it does not commit or cancel.
   mountCometChooser() {
-    const row = document.createElement("li");
+    const row = document.createElement("div");
     row.className = "orrery-comet-summary";
     this.cometSummary = document.createElement("span");
     const trigger = this.cometChoose = document.createElement("button");
@@ -184,7 +196,7 @@ export default class Options {
     this.cometFocus.setAttribute("aria-label", "Fit selected comets");
     this.cometFocus.onclick = () => this.orrery.focusComets();
     row.append(this.cometSummary, trigger, this.cometFocus);
-    this.gui.__ul.append(row);
+    this.gui.$children.append(row);
     this.cometRows.push(row);
 
     const dialog = this.cometDialog = document.createElement("dialog");
@@ -281,7 +293,7 @@ export default class Options {
       || active === this.trigger || dialog.contains(active);
     if (!this.destroyed && this.cometRestoreFocus && focusUnclaimed) {
       const restore = this.panel.hidden ? this.trigger : this.orrery.cometsShown ? this.cometChoose
-        : this.cometToggle.domElement.querySelector("input");
+        : this.cometToggle.$input;
       restore.focus();
     }
   }
@@ -501,7 +513,7 @@ export default class Options {
     if (!app.cometsShown && this.cometDialog.open) this.closeCometChooser();
     if (focusedRetry && !focusedRetry.getClientRects().length) {
       const candidates = this.cometDialog.open ? [this.cometDone] : this.panel.hidden ? [this.trigger]
-        : [this.cometFocus, this.cometChoose, this.cometToggle.domElement.querySelector("input"), this.trigger];
+        : [this.cometFocus, this.cometChoose, this.cometToggle.$input, this.trigger];
       candidates.find(element => !element.disabled && element.getClientRects().length)?.focus();
     }
   }
@@ -510,12 +522,10 @@ export default class Options {
     const focused = document.activeElement === this.rendererSelect;
     this.rendererState.renderer = this.orrery.renderer ? this.orrery.rendererId : "";
     this.renderer.updateDisplay();
-    // dat.gui skips focused selects; recovery still needs a truthful value.
-    this.rendererSelect.value = this.rendererState.renderer;
     this.speed?.updateDisplay();
     this.population?.updateDisplay();
     this.colorize?.updateDisplay();
-    this.rendererSelect.disabled = !!this.orrery.switching;
+    this.renderer.disable(!!this.orrery.switching);
     this.panel.setAttribute("aria-busy", String(!!this.orrery.switching));
     if (focused && this.rendererSelect.disabled) {
       this.trigger.focus();
@@ -540,7 +550,7 @@ export default class Options {
     }
     this.disposeRendererControls?.();
     this.disposeRendererControls = null;
-    if (this.rendererFolder) this.gui.removeFolder(this.rendererFolder);
+    this.rendererFolder?.destroy();
     this.rendererFolder = null;
     if (focused) this.trigger.focus();
   }
@@ -551,44 +561,58 @@ export default class Options {
     if (!entry.buildOptions) return;
     const folder = this.rendererFolder = this.gui.addFolder(entry.label);
     folder.domElement.classList.add("orrery-renderer-settings");
-    this.playbackHeading.before(folder.domElement.parentElement);
+    this.playbackHeading.before(folder.domElement);
     // Builders edit their own model; the setter validates before touching App
-    // or graphics. Their cleanup owns any listeners beyond dat.gui controls.
+    // or graphics. Their cleanup owns any listeners beyond lil-gui controls.
     this.disposeRendererControls = entry.buildOptions({ gui: folder,
       values: { ...this.orrery.rendererOptions[id] },
       setOptions: changes => this.orrery.setRendererOptions(id, changes),
       addHint: (controller, text, input) => this.addHint(controller, text, input) });
-    if (!folder.__controllers.length && !Object.keys(folder.__folders).length) this.unmountRenderer();
-    else folder.open();
+    if (!folder.controllers.length && !folder.folders.length) this.unmountRenderer();
+    else this.preferAriaLabels(folder);
+  }
+
+  // lil-gui names each control by its short visible label. aria-labelledby
+  // would override the fuller aria-label we give a control.
+  preferAriaLabels(gui) {
+    for (const controller of gui.controllersRecursive()) {
+      const control = controller.$input ?? controller.$select;
+      if (control?.hasAttribute("aria-label")) control.removeAttribute("aria-labelledby");
+    }
+  }
+
+  // lil-gui matches choices by position. Real option values keep select.value
+  // and form automation truthful.
+  addChoice(object, property, choices, name) {
+    const controller = this.gui.add(object, property, choices).name(name);
+    Object.values(choices).forEach((value, index) => { controller.$select.options[index].value = value; });
+    return controller;
   }
 
   addSection(title, controller, after = false) {
-    const row = document.createElement("li");
+    const row = document.createElement("div");
     row.className = "orrery-options-section";
     const heading = document.createElement("h2");
     heading.textContent = title;
     row.append(heading);
-    const anchor = controller.domElement.closest("li");
+    const anchor = controller.domElement;
     if (after) anchor.after(row); else anchor.before(row);
     return row;
   }
 
   makeSectionToggle(controller, title) {
-    const row = controller.domElement.closest("li");
-    row.classList.add("orrery-options-section");
-    const label = row.querySelector(".property-name");
-    label.textContent = title;
+    controller.domElement.classList.add("orrery-options-section");
+    const label = controller.name(title).$name;
     label.setAttribute("role", "heading");
     label.setAttribute("aria-level", "2");
   }
 
   confineCheckbox(controller) {
-    const row = controller.domElement.closest("li");
-    // dat.gui toggles a checkbox from a click anywhere on the row.
-    row.addEventListener("click", event => {
-      if (event.target.closest("input, .property-name, .orrery-options-info")) return;
-      event.stopImmediatePropagation();
-    }, true);
+    // A lil-gui checkbox row is a <label>: any click inside it toggles.
+    controller.domElement.addEventListener("click", event => {
+      if (event.target.closest("input, .lil-name, .orrery-options-info")) return;
+      event.preventDefault();
+    });
   }
 
   // While the wall clock drives the date, the slider value is not the rate.
@@ -609,7 +633,7 @@ export default class Options {
     description.id = `${this.panel.id}-description-${++this.hintId}`;
     description.hidden = true;
     description.textContent = text;
-    controller.domElement.closest("li").append(description);
+    controller.domElement.append(description);
     input.setAttribute("aria-describedby", description.id);
   }
 
@@ -626,7 +650,7 @@ export default class Options {
     button.setAttribute("aria-label", `About ${input.getAttribute("aria-label") || controller.property}`);
     button.setAttribute("aria-describedby", tip.id);
     button.innerHTML = '<svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="6.25" fill="none" stroke="currentColor"/><circle cx="7" cy="4.4" r=".95" fill="currentColor"/><path d="M7 6.6v3.9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
-    controller.domElement.closest("li").querySelector(":scope > div").append(button);
+    controller.domElement.append(button);
     document.body.append(tip);
     input.setAttribute("aria-describedby", tip.id);
     input.removeAttribute("title");
@@ -699,7 +723,7 @@ export default class Options {
   };
 
   addAboutLink(label, dialog) {
-    const row = document.createElement("li");
+    const row = document.createElement("div");
     row.className = "orrery-about-row";
     const trigger = document.createElement("button");
     trigger.type = "button";
@@ -708,7 +732,7 @@ export default class Options {
     trigger.setAttribute("aria-haspopup", "dialog");
     trigger.setAttribute("aria-controls", dialog.id);
     row.append(trigger);
-    this.gui.__ul.append(row);
+    this.gui.$children.append(row);
     return trigger;
   }
 
@@ -810,8 +834,7 @@ export default class Options {
 
   updatePixelRatio() {
     const available = window.devicePixelRatio >= 2;
-    this.pixelRatioSelect.value = this.orrery.pixelRatio;
-    this.pixelRatio.domElement.closest("li").style.display = available ? "" : "none";
+    this.pixelRatio.updateDisplay().show(available);
     if (!available && document.activeElement === this.pixelRatioSelect) {
       this.speedInput.focus();
     }

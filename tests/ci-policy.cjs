@@ -53,7 +53,7 @@ function plan(files, { full = false, draft = false } = {}) {
     } else if (/^src\/(?:js\/index|unified\/(?:index|renderers))(?:[./]|$)/.test(file)) {
       // Unknown entry-like files must not fall through to broad JS coverage.
       allGroups = true;
-    } else if (/^src\/css\/dat-gui\.css$/.test(file)) {
+    } else if (/^src\/css\/lil-gui\.css$/.test(file)) {
       selected.add('graphics'); selected.add('ui');
     } else if (/^(src\/css\/|src\/fonts\/|src\/index\.html$|src\/unified\/preview\.css$|src\/unified\/ui\/(?:Hud|Options|Intro)\.js$)/.test(file)) selected.add('ui');
     else if (/^(src\/unified\/catalog\/|catalog-profiles\/|data\/)/.test(file)) {

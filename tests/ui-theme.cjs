@@ -26,7 +26,7 @@ module.exports = async function checkTheme(page) {
       hud: colors('#orrery-count, #orrery-fps, .orrery-identity'),
       links: colors('#orrery-date, .orrery-about, .orrery-options-trigger'),
       optionMarker: colors('.orrery-options-indicator'),
-      labels: colors('.orrery-options-panel .property-name'),
+      labels: colors('.orrery-options-panel .lil-name'),
       help: colors('.orrery-options-hint'),
       values: colors('.orrery-options-panel input, .orrery-options-panel select'),
       panelBorder: getComputedStyle(document.querySelector('.orrery-options-panel')).borderColor,

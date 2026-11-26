@@ -279,7 +279,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
     await page.evaluate(() => {
       const { app } = fixture, cloud = app.asteroids;
       app.destroy(); app.destroy();
-      if (!cloud.destroyed || document.querySelector("canvas") || document.querySelector(".dg.main")) throw new Error("Application disposal leaked resources or UI");
+      if (!cloud.destroyed || document.querySelector("canvas") || document.querySelector(".lil-root")) throw new Error("Application disposal leaked resources or UI");
     });
     await page.close();
 

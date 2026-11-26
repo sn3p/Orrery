@@ -49,7 +49,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
   const checkSpacing = async () => {
     await require("./options-geometry.cjs")(panel);
     const priorSpeed = await speed.inputValue();
-    const track = panel.locator('.slider');
+    const track = panel.locator('.lil-slider');
     await track.scrollIntoViewIfNeeded();
     const trackBox = await track.boundingBox();
     assert(trackBox.width >= 80, 'Speed track has a usable drag target');
@@ -65,10 +65,10 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     await speed.press('Enter');
     const spacing = await panel.evaluate(el => {
       const label = document.createRange();
-      label.selectNodeContents(el.querySelector("input[aria-label='Playback speed']").closest("li").querySelector(".property-name"));
+      label.selectNodeContents(el.querySelector("input[aria-label='Playback speed']").closest(".lil-controller").querySelector(".lil-name"));
       const select = el.querySelector("select[aria-label='Rendering pixel ratio']");
       return {
-        gap: el.querySelector(".slider").getBoundingClientRect().left - label.getBoundingClientRect().right,
+        gap: el.querySelector(".lil-slider").getBoundingClientRect().left - label.getBoundingClientRect().right,
         appearance: getComputedStyle(select).appearance,
         background: getComputedStyle(select).backgroundImage,
         paddingRight: parseFloat(getComputedStyle(select).paddingRight),
@@ -139,7 +139,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       return {
         unified: !!document.querySelector(".orrery-footer"),
         textSize: parseFloat(getComputedStyle(el).fontSize),
-        labelSize: parseFloat(getComputedStyle(document.querySelector(".dg .property-name")).fontSize),
+        labelSize: parseFloat(getComputedStyle(document.querySelector(".lil-name")).fontSize),
         indicatorSize: parseFloat(getComputedStyle(indicator).fontSize),
         gap: word.getBoundingClientRect().left - indicator.getBoundingClientRect().right,
       };
@@ -211,7 +211,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     const realInfo = page.getByRole("button", { name: "About Real time", exact: true });
     const realTip = page.locator("#" + await realInfo.getAttribute("aria-describedby"));
     const wasRealTime = await realTime.isChecked();
-    const realRow = realTime.locator('xpath=ancestor::li[1]');
+    const realRow = panel.locator('.lil-controller').filter({ has: realTime });
     const realRowBox = await realRow.boundingBox();
     const checkboxBox = await realTime.boundingBox(), infoBox = await realInfo.boundingBox();
     await realRow.click({ position: {

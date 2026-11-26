@@ -15,8 +15,8 @@ async function checkTypography(page, { fontLoaded = true, waitForFont = true } =
       return { x, y, width, height };
     };
     const text = document.createRange();
-    text.selectNodeContents(document.querySelector("input[aria-label='Playback speed']").closest("li").querySelector(".property-name"));
-    const selectors = ["#orrery-date", "#orrery-fps", "#orrery-count", ".dg .property-name", "input[aria-label='Playback speed']"];
+    text.selectNodeContents(document.querySelector("input[aria-label='Playback speed']").closest(".lil-controller").querySelector(".lil-name"));
+    const selectors = ["#orrery-date", "#orrery-fps", "#orrery-count", ".lil-name", "input[aria-label='Playback speed']"];
     return {
       unified: !!document.querySelector(".orrery-footer"),
       readoutsHidden: !!document.querySelector(".orrery-readouts")?.hidden,
@@ -27,7 +27,7 @@ async function checkTypography(page, { fontLoaded = true, waitForFont = true } =
       }),
       boxes: selectors.map(bounds),
       input: bounds("input[aria-label='Playback speed']"),
-      slider: bounds(".dg .slider"),
+      slider: bounds(".lil-slider"),
       labelRight: text.getBoundingClientRect().right,
       width: innerWidth,
       height: innerHeight,
@@ -142,7 +142,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
       await setSpeed(page, -1);
       await page.waitForFunction(previous => document.querySelector("#orrery-date").textContent < previous, date);
       const reversed = await page.locator("#orrery-date").textContent();
-      const slider = page.locator(".dg .slider");
+      const slider = page.locator(".lil-slider");
       const box = await slider.boundingBox();
       await slider.click({ position: { x: box.width * 0.75, y: box.height / 2 } });
       await page.waitForFunction(previous => document.querySelector("#orrery-date").textContent > previous, reversed);
