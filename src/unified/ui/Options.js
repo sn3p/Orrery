@@ -7,6 +7,7 @@ import GUI from "lil-gui";
 import { DEFAULT_POPULATION_PRESET, POPULATION_PRESET_OPTIONS, legendGroups, populationHint } from "../catalog/population.js";
 
 const SPEED_HINT = "Time scale: 1 = 60 days/s. 0 pauses; negative reverses.";
+const SPEED_LIMIT = 8;
 
 export const SPEED_LIVE_HINT = "Real time: one second per second. 0 pauses; negative reverses.";
 
@@ -67,12 +68,20 @@ export default class Options {
 
     // An implicit step snaps only the slider, to hundredths, and keeps typed
     // speeds exact. Arrow keys and dragging the box then move 0.1 at a time.
-    const speed = this.speed = this.gui.add(this.orrery, "jedDelta", -8, 8).step(0.01, false).name("speed");
+    const speed = this.speed = this.gui.add(this.orrery, "jedDelta", -SPEED_LIMIT, SPEED_LIMIT)
+      .step(0.01, false).name("speed");
     const input = this.speedInput = speed.$input;
     // lil-gui turns this into a number spinner on touch screens; keep one text box.
     input.type = "text";
     input.removeAttribute("step");
     input.setAttribute("aria-label", "Playback speed");
+    // lil-gui applies every keystroke. Commit a typed speed once, on Enter or
+    // blur, so partial input such as "0" never pauses playback or pins the URL.
+    speed.$widget.addEventListener("input", event => event.stopPropagation(), true);
+    input.addEventListener("change", () => {
+      const value = parseFloat(input.value);
+      if (!Number.isNaN(value)) speed.setValue(Math.max(-SPEED_LIMIT, Math.min(SPEED_LIMIT, value)));
+    });
     // lil-gui expects its own root to scroll; ours is the panel. A vertical
     // wheel over the track scrolls an overflowing panel, not the speed.
     speed.$widget.addEventListener("wheel", event => {

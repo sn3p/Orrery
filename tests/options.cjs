@@ -63,6 +63,19 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     }
     await speed.fill(priorSpeed);
     await speed.press('Enter');
+    // A typed speed applies once, on Enter. Partial input such as "0" must not
+    // pause playback or pin the date in the share URL.
+    const fill = panel.locator('.lil-fill');
+    const typing = async () => ({ fill: await fill.evaluate(el => el.style.width), search: await page.evaluate(() => location.search) });
+    const beforeTyping = await typing();
+    await speed.fill('');
+    await speed.pressSequentially('0.25');
+    assert.deepEqual(await typing(), beforeTyping, 'Typing does not apply a partial speed');
+    await speed.press('Enter');
+    assert.equal(await speed.inputValue(), '0.25');
+    assert.notEqual((await typing()).fill, beforeTyping.fill, 'Enter applies the typed speed');
+    await speed.fill(priorSpeed);
+    await speed.press('Enter');
     const spacing = await panel.evaluate(el => {
       const label = document.createRange();
       label.selectNodeContents(el.querySelector("input[aria-label='Playback speed']").closest(".lil-controller").querySelector(".lil-name"));
