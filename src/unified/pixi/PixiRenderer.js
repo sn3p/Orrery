@@ -1,3 +1,4 @@
+import { isDwarfLabelMode } from '../DwarfPreferences.js';
 import { syncCometLayer } from '../comets/layer.js';
 import Comets from "./Comets.js";
 import { cometFitPoints, validateCometOptions } from "../comets/model.js";
@@ -8,7 +9,7 @@ import Planet from "./Planet.js";
 import ReferenceBodies from "../named/ReferenceBodies.js";
 import Asteroids from "./Asteroids.js";
 import { DEFAULT_PLANET_LABEL_MODE, isPlanetLabelMode, PlanetLabels } from "../PlanetLabel.js";
-import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "../PlanetOrbitPreference.js";
+import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility, applyOrbitVisibility } from "../PlanetOrbitPreference.js";
 import { DEFAULT_POPULATION_PRESET, isPopulationPreset } from "../catalog/population.js";
 import { VIEW_FIT_MS, easeOutCubic, lerp, pixiPresetTargetScale } from "../viewFit.js";
 import { SUN_GLOW_EXTENT, sunGlowStops } from "../sunGlow.js";
@@ -45,13 +46,14 @@ export default class PixiRenderer {
       prepare: (data, jed) => preparePlanets(data, jed, this.circleTexture),
       attach: batch => {
         for (const { planet, orbit } of batch) {
-          if (orbit.parent !== this.stage) this.stage.addChild(orbit);
+          // Screen-space strokes must stay behind the small body markers.
+          if (orbit.parent !== this.stage) this.stage.addChildAt(orbit, this.stage.getChildIndex(this.planetContainer));
           if (!this.planetContainer.particleChildren.includes(planet.body)) this.planetContainer.addParticle(planet.body);
         }
         this.planets = batch.map(entry => entry.planet);
         this.planetOrbits = batch.map(entry => entry.orbit);
-        for (const orbit of this.planetOrbits) orbit.visible = this.planetOrbitsVisible;
-        this.planetLabels.setMode(this.planets, this.planetLabelMode);
+        applyOrbitVisibility(this.planetOrbits, this.planets, this.planetOrbitsVisible, this.dwarfOrbitsVisible);
+        this.planetLabels.setMode(this.planets, this.planetLabelMode, this.dwarfLabelMode);
       },
       detach: batch => {
         for (const { planet, orbit } of batch) {
@@ -63,6 +65,8 @@ export default class PixiRenderer {
     });
     this.planetLabelMode = DEFAULT_PLANET_LABEL_MODE;
     this.planetOrbitsVisible = DEFAULT_PLANET_ORBITS_VISIBLE;
+    this.dwarfLabelMode = 'off';
+    this.dwarfOrbitsVisible = false;
     this.populationPreset = DEFAULT_POPULATION_PRESET;
     this.colorizeGroups = false;
     this.viewFit = null;
@@ -222,7 +226,11 @@ export default class PixiRenderer {
 
   setOptions({ shared } = {}) {
     const mode = shared?.planetLabels;
+    const dwarfMode = shared?.dwarfLabels;
+    const dwarfOrbits = shared?.dwarfOrbits;
     const orbits = shared?.planetOrbits;
+    if (dwarfMode !== undefined && !isDwarfLabelMode(dwarfMode)) throw new RangeError("Invalid dwarf label mode.");
+    if (dwarfOrbits !== undefined && !isPlanetOrbitVisibility(dwarfOrbits)) throw new RangeError("Invalid dwarf orbit visibility.");
     const population = shared?.populationPreset;
     const colorize = shared?.colorizeGroups;
     if (mode !== undefined && !isPlanetLabelMode(mode)) throw new RangeError("Invalid planet label mode.");
@@ -243,14 +251,16 @@ export default class PixiRenderer {
     const cometsChanged = syncCometLayer(this, shared,
       (data, catalogue) => new Comets(this.stage, this.container, data, catalogue));
     let changed = cometsChanged || shared?.asteroidsShown !== undefined;
-    if (mode !== undefined && mode !== this.planetLabelMode) {
-      this.planetLabelMode = mode;
-      this.planetLabels.setMode(this.planets, mode);
+    if ((mode !== undefined && mode !== this.planetLabelMode) || (dwarfMode !== undefined && dwarfMode !== this.dwarfLabelMode)) {
+      this.planetLabelMode = mode ?? this.planetLabelMode;
+      this.dwarfLabelMode = dwarfMode ?? this.dwarfLabelMode;
+      this.planetLabels.setMode(this.planets, this.planetLabelMode, this.dwarfLabelMode);
       changed = true;
     }
-    if (orbits !== undefined && orbits !== this.planetOrbitsVisible) {
-      this.planetOrbitsVisible = orbits;
-      for (const orbit of this.planetOrbits) orbit.visible = orbits;
+    if ((orbits !== undefined && orbits !== this.planetOrbitsVisible) || (dwarfOrbits !== undefined && dwarfOrbits !== this.dwarfOrbitsVisible)) {
+      this.planetOrbitsVisible = orbits ?? this.planetOrbitsVisible;
+      this.dwarfOrbitsVisible = dwarfOrbits ?? this.dwarfOrbitsVisible;
+      applyOrbitVisibility(this.planetOrbits, this.planets, this.planetOrbitsVisible, this.dwarfOrbitsVisible);
       changed = true;
     }
     if (population !== undefined && population !== this.populationPreset) {
@@ -455,6 +465,7 @@ export default class PixiRenderer {
         this.checkedProgram = program;
       }
     }
+    for (const orbit of this.planetOrbits) orbit.updateScreenOrbit?.(this.viewport);
     this.app.render();
     if (this.destroyed || this.contextLost || this.app.renderer.gl.isContextLost()) return null;
     if (this.asteroids?.geometry.instanceCount && this.drawnAsteroids !== this.asteroids) return null;

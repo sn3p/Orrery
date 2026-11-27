@@ -1,3 +1,4 @@
+import { request, requestLatest, readResponse, CatalogueRequestError } from './request.js';
 import { validatePin, validateIndex, validateRecords, verifyBytes, parseJSON, freeze,
   countThrough, requireValue, validateLatest, validateLatestURL } from "./contract.js";
 
@@ -67,12 +68,12 @@ class FileSlots {
 
 export async function fetchVerified(ref, url, signal) {
   check(signal);
-  const response = await fetch(url, { signal });
-  if (!response.ok || !response.body) {
+  const response = await request(url, { signal });
+  if (!response.ok) {
     await response.body?.cancel().catch(() => {});
-    throw new Error(!response.ok ? `Catalogue request failed (${response.status}): ${ref.url}`
-      : `Catalogue response has no body: ${ref.url}`);
+    throw new CatalogueRequestError(`Catalogue request failed (${response.status}): ${ref.url}`, { status: response.status });
   }
+  if (!response.body) throw new Error(`Catalogue response has no body: ${ref.url}`);
   // Content-Length can describe compressed HTTP bytes. Enforce the trusted
   // decoded length while streaming, before allocating/parsing an oversized body.
   const bytes = new Uint8Array(ref.bytes);
@@ -81,7 +82,7 @@ export async function fetchVerified(ref, url, signal) {
   try {
     while (true) {
       check(signal);
-      const { value, done } = await reader.read();
+      const { value, done } = await readResponse(reader, signal);
       if (done) break;
       requireValue(offset + value.length <= bytes.length, `byte length for ${ref.url}`);
       bytes.set(value, offset);
@@ -98,18 +99,14 @@ export default class CatalogSource {
   static async openLatest(url, { signal } = {}) {
     const location = validateLatestURL(url);
     // HTTPS origin is the trust boundary. Revalidate once per new session.
-    const response = await fetch(location.href, { signal, cache: "no-cache", redirect: "error" });
-    if (!response.ok || !response.body) {
-      await response.body?.cancel();
-      throw new Error(`Catalogue discovery failed (${response.status}).`);
-    }
+    const response = await requestLatest(location.href, signal);
     const reader = response.body.getReader();
     const bytes = new Uint8Array(4096);
     let length = 0;
     try {
       while (true) {
         check(signal);
-        const { value, done } = await reader.read();
+        const { value, done } = await readResponse(reader, signal);
         if (done) break;
         requireValue(length + value.length <= bytes.length, "latest descriptor size");
         bytes.set(value, length); length += value.length;

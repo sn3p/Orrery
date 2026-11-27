@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import OrbitTrack from './ScreenOrbit.js';
 import { NamedOrbit as Model, namedOrbitPoints, namedOrbitFrame, orbitShapeDate } from '../named/model.js';
 
 function frameMatrix(body, jed, target) {
@@ -14,15 +15,8 @@ export default class NamedOrbit extends Model {
     return target ? target.set(...position) : position;
   }
   drawOrbit(jed) {
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(namedOrbitPoints(this.body, jed)), 3));
-    geometry.computeBoundingSphere();
-    this.track = new THREE.Line(geometry, new THREE.LineDashedMaterial({ color: 0x333333, linewidth: 1, dashSize: 5, gapSize: 3 }));
-    this.track.computeLineDistances();
+    this.track = new OrbitTrack(namedOrbitPoints(this.body, jed));
     this.track.matrixAutoUpdate = false;
-    // An affine basis can include shear; Three's generic transformed sphere is
-    // not conservative for shear. Thirteen lines can use ordinary GPU clipping.
-    this.track.frustumCulled = false;
     this.baseInverse = frameMatrix(this.body, jed, new THREE.Matrix4()).invert();
     this.trackDate = orbitShapeDate(jed);
     return this.track;

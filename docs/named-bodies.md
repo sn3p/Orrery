@@ -4,7 +4,7 @@ OrreryData owns the scientific definitions of all eight planets and Ceres,
 Pluto, Haumea, Makemake and Eris. Orrery owns marker sizes and colours, keyed by
 stable ID. `src/js/planets.js` contains no hand-authored orbital data.
 
-The reader is adapted from, and the transport, contract and bundled definitions are copied from
+The reader and transport are adapted from, and the contract and bundled definitions are copied from
 [OrreryData 1466f2c](https://github.com/sn3p/orrery-data/tree/1466f2c2c0c0e95f72e9a7fca86eba386c0227d9),
 `consumer/{NamedBodySource,transport,contract}.js` and
 `research/named-bodies/definitions.json` (MIT). The bundled JSON is byte-identical;
@@ -15,23 +15,34 @@ is authoritative.
 
 ## Activation
 
-Producer PR22 did not publish named-body endpoints. Until a separately reviewed
-paired release is activated, the default shows the existing six planets using
-the generated producer definitions. This is a compatibility display subset, not
-another scientific source. It also works when catalogue loading is offline.
+The default profile uses `pairedLatest` at
+`https://sn3p.github.io/orrery-data/paired/latest.json`, published by producer PR23.
+Each new acquisition revalidates this bounded version-1 descriptor once, then
+loads its immutable asteroid pin and named-body reference together. All thirteen
+reference bodies activate after a successful draw; the camera, group fits,
+playback and display controls retain their existing behavior. While initial
+acquisition is unavailable, the six bundled baseline planets remain usable.
 
-A catalogue profile may include `namedBodies: {url, bytes, sha256}`: an explicit,
-trusted product-index reference. `url` is absolute HTTPS (HTTP allowed only on
-loopback), limited to128KiB. It requires a fixed asteroid `pin`; combining it
-with mutable `latest` is rejected at build time and runtime. Remote profiles use
-`{mode: "indexed", pin, namedBodies}` without a local bundle. Default unpaired
-`latest` remains supported. Automatic paired releases would require a separate
-producer contract linking both generations.
+A paired profile requires indexed mode and rejects `pin`, `latest`, `namedBodies`,
+`bundle`, `archive` and `retained` selectors. Explicit fixed `{mode: "indexed",
+pin, namedBodies}` and asteroid-only profiles remain supported. The root
+asteroid-only latest feed can advance independently and must never be combined
+with a named-body product. Pair retention is producer-owned (at most four pairs,
+minimum fourteen days after confirmed hosted supersession). When a demanded
+resource returns HTTP 404 or 410,
+the app retains its scene and reacquires one whole pair once, then exposes a
+Retry catalogue action for transport failures. Invalid data and renderer
+preparation failures do not trigger a download retry. Invalid paired data explains
+that a provider correction is needed; it does not ask users to reload and lose
+their scene. Latest-descriptor redirects are rejected without following them,
+and do not offer a transport retry. Paired and asteroid-only discovery use the
+same transport-error classification. There is no polling or
+permanent offline-pin guarantee.
+
 The product index pins definitions and a mapping to **the exact asteroid index**.
 Asteroid preparation and named downloads run concurrently; the app verifies both
 before exposing a candidate scene. Missing, corrupt,
 stale or mismatched data fails the replacement; it never infers dwarf identities.
-No named-body latest endpoint, periodic polling or automatic activation is added.
 
 A successful draw commits the new catalogue and all thirteen reference bodies
 as one scene. Failed/skipped draws roll back both; stale loads are cancelled.
@@ -48,8 +59,10 @@ from an export still shows the named reference body.
 
 ## Display and accuracy
 
-The existing Planets section controls labels and orbit lines for both classes.
-Dwarf labels append “· dwarf”. Earth remains the default label. All thirteen
+The Planets and Dwarf planets sections control labels and orbit lines separately.
+Earth remains the default planet label; dwarf labels start off and append a subtly muted “(dwarf)”
+when enabled. Each label preference is remembered independently. Planet orbit
+lines start on and dwarf orbit lines start off each visit. All thirteen
 bodies are independent of discovery date and asteroid filters; offscreen bodies
 stay clipped. Initial framing, zoom, saved renderer views and group fits are
 unchanged. No new Fit action or comet playback is involved.
@@ -67,9 +80,16 @@ anomaly continues at its fitted rate. The position result exposes
 `approximate-extrapolation`; About explains the policy. Orbit lines sample the
 instantaneous date-dependent ellipse with the same boundary freeze. The adapted
 reader shares one ellipse/date calculation between markers and tracks; the app
-model only converts units. Tracks keep their initial geometry and use an exact
-affine transform as the ellipse changes, avoiding per-frame path/vertex uploads.
-Dash spacing follows that small deformation. Pixi projects
+model only converts units. Tracks retain their scientific samples and use an exact
+affine transform as the ellipse changes. Both renderers project those samples into
+reusable stroke buffers when the view or shape changes. Dashes are five CSS pixels
+long with three-CSS-pixel gaps, independent of perspective, zoom and display
+resolution. Stroke width stays one backing-store pixel (half a CSS pixel at 2×)
+to preserve the lighter high-density appearance. Dash phase includes offscreen
+segments so panning across viewport edges does not restart the pattern. Projection
+remains bounded at camera/depth crossings. Updates overwrite the active buffer
+prefix and clear only the stale used tail; GPU uploads omit unused capacity
+after initial allocation. Hidden tracks skip projection. Pixi projects
 negative X / positive Y; Three uses XYZ; both use100world units/AU.
 
 The existing UTC calendar's Julian number is used as approximate TDB; Orrery does

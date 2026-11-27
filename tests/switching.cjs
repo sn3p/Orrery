@@ -340,8 +340,8 @@ async function lifecycle(browser, base) {
   const { page, errors } = await boot(browser, base, 'pixi', undefined, true);
   try {
     await page.getByRole('button', { name: 'Options', exact: true }).click();
-    const labels = page.getByRole('combobox', { name: 'Planet labels' });
-    const orbits = page.getByRole('checkbox', { name: 'Planet orbits' });
+    const labels = page.getByRole('combobox', { name: 'Planet labels', exact: true });
+    const orbits = page.getByRole('checkbox', { name: 'Planet orbits', exact: true });
     const groups = page.getByRole('combobox', { name: 'Minor-planet groups' });
     await labels.selectOption('all');
     await orbits.uncheck();

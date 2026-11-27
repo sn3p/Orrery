@@ -1,3 +1,4 @@
+import { request, requestLatest, readResponse, CatalogueRequestError } from '../../catalog/request.js';
 // Shared bounded transport and cancellation for pinned browser data products.
 import { requireValue, parseJSON, verifyBytes } from './contract.js';
 
@@ -21,7 +22,7 @@ async function readBounded(response, max, label, signal, product, exact = false)
   try {
     while (true) {
       check(signal, product);
-      const { value, done } = await reader.read();
+      const { value, done } = await readResponse(reader, signal);
       check(signal, product);
       if (done) break;
       requireValue(length + value.length <= bytes.length, label, product);
@@ -35,9 +36,9 @@ async function readBounded(response, max, label, signal, product, exact = false)
 export async function fetchVerified(ref, url, signal, product = 'catalogue') {
   try {
     check(signal, product);
-    const response = await fetch(url, { signal });
+    const response = await request(url, { signal });
     check(signal, product);
-    if (!response.ok) throw new Error(`${title(product)} request failed (${response.status}): ${ref.url}`);
+    if (!response.ok) throw new CatalogueRequestError(`${title(product)} request failed (${response.status}): ${ref.url}`, { status: response.status });
     // Content-Length can describe compressed HTTP bytes. Enforce the trusted
     // decoded length while streaming before allocating/parsing oversized bodies.
     const bytes = await readBounded(response, ref.bytes, `byte length for ${ref.url}`, signal, product, true);
@@ -55,9 +56,8 @@ export async function fetchLatest(url, signal, product = 'catalogue') {
   try {
     const location = validatedURL(url, product, 'latest URL');
     check(signal, product);
-    const response = await fetch(location.href, { signal, cache: 'no-cache', redirect: 'error' });
+    const response = await requestLatest(location.href, signal);
     check(signal, product);
-    if (!response.ok) throw new Error(`${title(product)} discovery failed (${response.status}).`);
     const bytes = await readBounded(response, 4096, 'latest descriptor size', signal, product);
     check(signal, product);
     return { location, latest: decodeJSON(bytes, product) };

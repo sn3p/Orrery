@@ -70,7 +70,7 @@ their motion unchanged. The choice lasts for the page visit and applies to both
 renderers; a reload shows the lines again. Planet-label choices are remembered
 in local storage and apply to both renderers; unavailable or invalid storage falls
 back to the Earth-only label default. The same controls cover named dwarf planets;
-labels distinguish them with “· dwarf”. [Named-body data](named-bodies.md) documents
+labels distinguish them with a subtly muted “(dwarf)”. [Named-body data](named-bodies.md) documents
 the paired activation gate and date-dependent orbit model. Reference bodies do not
 follow discovery visibility or group filtering and do not change camera fits.
 

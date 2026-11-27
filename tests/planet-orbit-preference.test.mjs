@@ -46,3 +46,18 @@ test("Pixi accepts orbit visibility changes before asynchronous scene initializa
   assert.equal(renderer.planetOrbitsVisible, false);
   renderer.destroy();
 });
+
+
+test("both renderers keep planet and dwarf tracks independent", () => {
+  for (const Renderer of [PixiRenderer, ThreeRenderer]) {
+    const receiver = { planets: [{options:{classification:'planet'}},{options:{classification:'dwarf-planet'}}],
+      planetOrbits:[{visible:true},{visible:false}], planetOrbitsVisible:true, dwarfOrbitsVisible:false,
+      requestRender(){} };
+    for (const [planetOrbits,dwarfOrbits] of [[true,true],[false,true],[false,false],[true,false]]) {
+      Renderer.prototype.setOptions.call(receiver,{shared:{planetOrbits,dwarfOrbits}});
+      assert.deepEqual(receiver.planetOrbits.map(o=>o.visible),[planetOrbits,dwarfOrbits]);
+    }
+    assert.throws(()=>Renderer.prototype.setOptions.call(receiver,{shared:{planetOrbits:false,dwarfOrbits:'yes'}}));
+    assert.deepEqual(receiver.planetOrbits.map(o=>o.visible),[true,false]);
+  }
+});

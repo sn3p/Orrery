@@ -110,13 +110,24 @@ export default class Options {
       { Off: "off", "Earth only": "earth", "All planets": "all" }, "labels");
     this.planetLabelsSelect = this.planetLabels.$select;
     this.planetLabelsSelect.setAttribute("aria-label", "Planet labels");
-    this.describeControl(this.planetLabels, this.planetLabelsSelect, "Show labels for Earth, all planets (including dwarf planets), or none.");
+    this.describeControl(this.planetLabels, this.planetLabelsSelect, "Show labels for Earth, all eight planets, or none.");
 
     this.planetOrbits = this.gui.add(this.orrery, "planetOrbits").name("orbits");
     this.planetOrbitsInput = this.planetOrbits.$input;
     this.planetOrbitsInput.setAttribute("aria-label", "Planet orbits");
-    this.describeControl(this.planetOrbits, this.planetOrbitsInput, "Show or hide planetary orbit lines, including dwarf planets.");
+    this.describeControl(this.planetOrbits, this.planetOrbitsInput, "Show or hide orbit lines for the eight planets.");
     this.confineCheckbox(this.planetOrbits);
+
+    this.addSection("Dwarf planets", this.planetOrbits, true);
+    this.dwarfLabels = this.addChoice(this.orrery, "dwarfLabels", { Off: "off", "All dwarf planets": "all" }, "labels");
+    this.dwarfLabelsSelect = this.dwarfLabels.$select;
+    this.dwarfLabelsSelect.setAttribute("aria-label", "Dwarf planet labels");
+    this.describeControl(this.dwarfLabels, this.dwarfLabelsSelect, "Show or hide labels for the five dwarf planets. Remembered in this browser.");
+    this.dwarfOrbits = this.gui.add(this.orrery, "dwarfOrbits").name("orbits");
+    this.dwarfOrbitsInput = this.dwarfOrbits.$input;
+    this.dwarfOrbitsInput.setAttribute("aria-label", "Dwarf planet orbits");
+    this.describeControl(this.dwarfOrbits, this.dwarfOrbitsInput, "Show or hide orbit lines for the five dwarf planets. Starts off on each visit.");
+    this.confineCheckbox(this.dwarfOrbits);
 
     this.asteroids = this.gui.add(this.orrery, "asteroidsShown").name("asteroids");
     this.asteroids.$input.setAttribute("aria-label", "Show asteroids");

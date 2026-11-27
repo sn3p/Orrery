@@ -1,4 +1,4 @@
-import { Graphics } from "pixi.js";
+import OrbitTrack from "./ScreenOrbit.js";
 import { PIXELS_PER_AU, J2000, DEG_TO_RAD } from "../../js/constants.js";
 
 const TAU = 2 * Math.PI;
@@ -137,7 +137,7 @@ export default class Orbit {
     const period = this.getPeriodInDays();
     const delta = period / parts;
 
-    // Sample before creating Graphics, so even a later overflowing sample
+    // Sample before creating the mesh, so even a later overflowing sample
     // cannot leave a partially allocated track behind.
     const positions = new Float64Array((parts + 1) * 2);
     positions[0] = position.x; positions[1] = position.y;
@@ -157,20 +157,9 @@ export default class Orbit {
     // Reuse the first point exactly to include the closing segment.
     positions[parts * 2] = positions[0]; positions[parts * 2 + 1] = positions[1];
 
-    const line = new Graphics();
-    for (let i = 0; i <= parts; i++) {
-      const x = positions[i * 2], y = positions[i * 2 + 1];
-
-      if (i === 0) {
-        line.moveTo(x, y);
-      } else {
-        line.lineTo(x, y);
-      }
-    }
-
-    line.stroke({ width: 0.2, color: 0x555555 });
-
-    return line;
+    const points = new Float64Array((parts + 1) * 3);
+    for (let i = 0; i <= parts; i++) { points[i * 3] = positions[i * 2]; points[i * 3 + 1] = positions[i * 2 + 1]; }
+    return new OrbitTrack(points);
   }
 
   getPeriodInDays() {

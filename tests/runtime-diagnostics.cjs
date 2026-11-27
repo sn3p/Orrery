@@ -33,7 +33,7 @@ async function run({ browser, name, output = path.resolve('.context/promotion/ru
         if (m.type() === 'warning' && /destroyed while still bound/.test(m.text())) warnings.push(m.text());
       });
       const files = fixtureFiles(), latest = JSON.parse(files.get('latest.json'));
-      const info = JSON.parse(files.get(latest.index.url));
+      const info = JSON.parse(files.get(latest.asteroids.url.slice(producerBase.length)));
       let release;
       const hold = new Promise(resolve => { release = resolve; });
       await page.route(producerBase + '**', async route => {

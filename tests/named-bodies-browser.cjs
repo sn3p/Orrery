@@ -4,12 +4,12 @@ const path = require('node:path');
 const { fixture, ref } = require('./named-body-fixture.cjs');
 const { routeFiles } = require('./route-files.cjs');
 
-async function build(output) {
+async function build(output, selection = { mode: 'indexed', pairedLatest: 'https://named.test/paired/latest.json', startJed: 2378496.5, speed: 0 }) {
   const target = require('../webpack.next.config.js'), webpack = require('webpack');
   const config = { ...target, entry: './tests/named-bodies-entry.js', mode: 'production',
     output: { ...target.output, path: path.resolve(output) }, performance: { hints: false },
     plugins: target.plugins.map(plugin => plugin instanceof webpack.DefinePlugin
-      ? new webpack.DefinePlugin({ __CATALOG_SELECTION__: JSON.stringify(fixture().selection) }) : plugin) };
+      ? new webpack.DefinePlugin({ __CATALOG_SELECTION__: JSON.stringify(selection) }) : plugin) };
   await new Promise((resolve, reject) => {
     const compiler = webpack(config);
     compiler.run((error, stats) => compiler.close(closeError => {
@@ -21,12 +21,13 @@ async function settle(page, count = 13) {
   await page.waitForFunction(expected => {
     const app = namedTest.app;
     app.renderFrame();
-    return !app.pendingSession && app.activeSession && app.renderer.planets.length === expected;
+    return !app.catalogOpening && !app.pendingSession && app.activeSession && app.renderer.planets.length === expected;
   }, count);
 }
 async function run({ browser, output = '.context/named-bodies/browser', candidate }) {
   const root = path.resolve(output, 'site'); await build(root);
   const data = fixture(), empty = fixture('empty'), report = [];
+  data.files.set('https://named.test/paired/latest.json', Buffer.from(JSON.stringify({ paired_catalogue_version: 1, asteroids: data.pin, namedBodies: data.namedBodies })));
   for (const [url, body] of empty.files) data.files.set(url, body);
   const wrongMapping = structuredClone(data.mapping);
   wrongMapping.members[0].discovery_jd++;
@@ -42,10 +43,10 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     let offline = false, blocked, release, chunkArrived;
     const requests = [];
+    page.on('request', request => { if (/^https:\/\/(named|empty)\.test\//.test(request.url())) requests.push(request.url()); });
     await routeFiles(page, root);
     await page.route(/^https:\/\/(named|empty)\.test\//, async route => {
       const url = route.request().url();
-      requests.push(url);
       if (url.includes("/asteroids/") && url.includes("chunk")) chunkArrived?.();
       if (url.includes('/held/') && /\/(index|wrong-date)\.json$/.test(url)) {
         blocked?.();
@@ -59,12 +60,215 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
       await page.goto(`https://orrery.test/?renderer=${renderer}`);
       await page.evaluate(async () => { await namedTest.ready; window.app = namedTest.app; app.autoRender = false; app.cancelRender(); });
       await settle(page);
-      const initial = await page.evaluate(() => app.renderer.captureView());
+      assert(await page.evaluate(() => app.rendererId !== 'pixi' || app.renderer.planetOrbits.every(o => app.renderer.stage.getChildIndex(o) < app.renderer.stage.getChildIndex(app.renderer.planetContainer))), 'Tracks render behind every named marker');
+      assert.deepEqual(await page.evaluate(() => ({ labels:app.dwarfLabels, orbits:app.dwarfOrbits,
+        visible:app.renderer.planetOrbits.filter(o=>o.visible).length })), {labels:'off',orbits:false,visible:8});
+      let initial = await page.evaluate(() => app.renderer.captureView());
       if (renderer === 'pixi') assert.deepEqual(initial, { scale: 1, x: 0, y: 0 });
       else {
         assert(initial.position.every((value, i) => Math.abs(value - [500, 500, 400][i]) < 1e-9));
         assert.deepEqual(initial.target, [0, 0, 0]); assert.equal(initial.zoom, 1);
       }
+      assert.equal(requests.filter(url => url.endsWith('/paired/latest.json')).length, 1);
+      for (const conflicting of [{ pin: data.pin }, { latest: 'https://named.test/latest.json' }, { namedBodies: data.namedBodies }, { mode: 'whole' }, { bundle: 'x' }, { archive: {} }, { retained: [] }]) {
+        const before = requests.length;
+        assert.equal(await page.evaluate(({ pin, ...options }) => app.loadCatalog(pin, { pairedLatest: 'https://named.test/paired/latest.json', ...options }), conflicting), false);
+        assert.equal(requests.length, before, 'Conflicting runtime selectors never retry as valid selections');
+        assert.equal(await page.getByRole('button', { name: 'Retry catalogue' }).count(), 0);
+      }
+      // Inspect the actual projected meshes and GPU upload ranges after native draws.
+      let partialUploads = 0;
+      for (const scale of [.15, 1, 4]) for (const ratio of [1, 2, 1]) {
+        const stroke = await page.evaluate(({ scale, ratio, initial }) => {
+          app.dwarfOrbits = true;
+          app.fixedResolution = ratio; app.resize({render:false});
+          const r=app.renderer;
+          if(app.rendererId==='pixi') r.restoreView({...initial,scale});
+          else {
+            r.restoreView(initial);
+            r.camera.position.set(500/scale, -300/scale, 200/scale);
+            r.camera.lookAt(0,0,0);
+          }
+          const gl = app.rendererId === 'pixi' ? r.app.renderer.gl : r.renderer.getContext();
+          const originalUpload = gl.bufferSubData, uploads = [];
+          gl.bufferSubData = function(target, offset, data, start, length) {
+            const orbit = r.planetOrbits.find(o => o.screenOrbit.vertices.buffer === data.buffer)?.screenOrbit;
+            if (orbit) uploads.push({ bytes: (length ?? data.length) * data.BYTES_PER_ELEMENT,
+              expected: (app.rendererId === 'pixi' ? orbit.updateSize : orbit.count * 4) * 4,
+              capacity: orbit.vertices.byteLength });
+            return originalUpload.apply(this, arguments);
+          };
+          try { app.renderFrame(); } finally { gl.bufferSubData = originalUpload; }
+          let segments=0,maxLengthError=0,maxWidthError=0,finite=true;
+          for(const track of r.planetOrbits){
+            const mesh=track.screenOrbit,a=mesh.vertices;
+            finite &&= a.every(Number.isFinite);
+            for(let i=0;i<mesh.count*4;i+=24){
+              const length=Math.hypot((a[i+8]-a[i])*innerWidth/2,(a[i+9]-a[i+1])*innerHeight/2);
+              const width=Math.hypot((a[i+4]-a[i])*innerWidth/2,(a[i+5]-a[i+1])*innerHeight/2);
+              maxLengthError=Math.max(maxLengthError,Math.abs(length-(a[i+11]-a[i+3])));
+              maxWidthError=Math.max(maxWidthError,Math.abs(width*ratio-1));segments++;
+            }
+          }
+          const revisions=r.planetOrbits.map(o=>o.screenOrbit.revision);
+          app.renderFrame();
+          return {segments,finite,maxLengthError,maxWidthError,uploads,idleStable:r.planetOrbits.every((o,i)=>o.screenOrbit.revision===revisions[i])};
+        }, {scale,ratio,initial});
+        assert(stroke.uploads.every(upload => upload.bytes === upload.expected), JSON.stringify(stroke.uploads));
+        partialUploads += stroke.uploads.filter(upload => upload.bytes < upload.capacity).length;
+        assert(stroke.segments>0 && stroke.finite && stroke.idleStable,JSON.stringify(stroke));
+        assert(stroke.maxLengthError<.001 && stroke.maxWidthError<.001,JSON.stringify(stroke));
+      }
+      assert(partialUploads > 0, 'Native orbit uploads exclude unused buffer capacity');
+      await page.evaluate(initial=>{app.renderer.restoreView(initial);app.fixedResolution=undefined;app.resize({render:false});app.dwarfOrbits=false;app.renderFrame();},initial);
+      const restored = await page.evaluate(() => app.renderer.captureView());
+      for (const key of Object.keys(initial)) assert([initial[key]].flat().every((v,i)=>Math.abs(v-[restored[key]].flat()[i])<1e-9));
+      initial = restored;
+      const pairedURL = 'https://named.test/paired/latest.json';
+      const discoveries = () => requests.filter(url => url === pairedURL).length;
+      let beforeRecovery = discoveries();
+      let missing = 1;
+      await page.route(data.pin.url, async route => {
+        if (missing-- > 0) await route.fulfill({ status: 404 }); else await route.fallback();
+      });
+      assert(await page.evaluate(pairedLatest => app.loadCatalog(null, { pairedLatest }), pairedURL));
+      await settle(page);
+      assert.equal(discoveries() - beforeRecovery, 2, 'Missing immutable resource reacquires exactly one whole pair');
+      assert.deepEqual(await page.evaluate(() => app.renderer.captureView()), initial);
+      await page.unroute(data.pin.url);
+      beforeRecovery = discoveries();
+      await page.route(data.pin.url, route => route.fulfill({ status: 404 }));
+      assert.equal(await page.evaluate(pairedLatest => app.loadCatalog(null, { pairedLatest }), pairedURL), false);
+      assert.deepEqual(await page.evaluate(() => app.renderer.captureView()), initial);
+      assert.equal(await page.evaluate(() => app.renderer.planets.length), 13);
+      assert.equal(discoveries() - beforeRecovery, 2, 'Exhausted recovery never loops');
+      await page.getByRole('button', { name: 'Retry catalogue' }).waitFor();
+      assert(!(await page.locator('#orrery-status').textContent()).includes('Reload to try again'));
+      await page.evaluate(() => { app.switchMessage = 'Switching renderer…'; app.renderStatus(); });
+      assert.equal(await page.getByRole('button', { name: 'Retry catalogue' }).count(), 0);
+      await page.evaluate(() => { app.switchMessage = ''; app.renderStatus(); });
+      await page.getByRole('button', { name: 'Retry catalogue' }).waitFor();
+      await page.evaluate(() => { window.oldRetry = document.querySelector('[data-catalog-retry]'); });
+      assert.equal(await page.evaluate(({pin}) => app.loadCatalog(pin, {pairedLatest:'https://named.test/paired/latest.json'}),data),false);
+      const beforeStaleClick = requests.length;
+      await page.evaluate(() => oldRetry.click());
+      assert.equal(requests.length,beforeStaleClick,'Detached retry never loads an obsolete selection');
+      assert.equal(await page.getByRole('button', { name: 'Retry catalogue' }).count(), 0);
+      assert.equal(await page.evaluate(pairedLatest => app.loadCatalog(null,{pairedLatest}),pairedURL),false);
+      await page.unroute(data.pin.url);
+      await page.getByRole('button', { name: 'Retry catalogue' }).click();
+      await settle(page);
+      // Invalid pairs are deterministic failures, never transport recovery.
+      for (const failure of ['integrity', 'pairing', 'schema', 'redirect']) {
+        const before = discoveries();
+        const syntheticRedirect = failure === 'redirect' && browser.browserType().name() === 'webkit';
+        if (syntheticRedirect) {
+          // WebKit interception cannot fulfill 3xx; exercise the browser's
+          // opaque-redirect response contract without starting an HTTP server.
+          await page.evaluate(pairedURL => {
+            window.savedFetch = window.fetch; window.redirectFetches = 0;
+            window.fetch = (url, options) => {
+              if (url !== pairedURL) return savedFetch(url, options);
+              redirectFetches++;
+              return Promise.resolve({ type: 'opaqueredirect', status: 0 });
+            };
+          }, pairedURL);
+        } else if (failure === 'pairing') await page.route(pairedURL, route => route.fulfill({json:{paired_catalogue_version:1,asteroids:empty.pin,namedBodies:data.namedBodies}}));
+        else if (failure === 'schema') await page.route(pairedURL, route => route.fulfill({json:{paired_catalogue_version:2}}));
+        else if (failure === 'redirect') await page.route(pairedURL, route => route.fulfill({status:302,headers:{location:'https://named.test/redirect-target.json'}}));
+        else await page.route(data.pin.url, route => route.fulfill({body:'{}',contentType:'application/json'}));
+        assert.equal(await page.evaluate(pairedLatest => app.loadCatalog(null,{pairedLatest}),pairedURL),false);
+        assert.equal(discoveries()-before,syntheticRedirect ? 0 : 1);
+        if (syntheticRedirect) {
+          assert.equal(await page.evaluate(() => redirectFetches), 1);
+          await page.evaluate(() => { window.fetch = savedFetch; delete window.savedFetch; });
+        }
+        assert.equal(await page.getByRole('button',{name:'Retry catalogue'}).count(),0);
+        assert.match(await page.locator('#orrery-status').textContent(), /published catalogue could not be validated.*data provider fixes it/);
+        assert.deepEqual(await page.evaluate(() => app.renderer.captureView()), initial);
+        if (failure === 'schema') {
+          for (const width of [320, 1280]) {
+            await page.setViewportSize({ width, height: 900 });
+            assert(await page.locator('#orrery-status').evaluate(el => {
+              const box = el.getBoundingClientRect();
+              return box.left >= 0 && box.right <= innerWidth && el.scrollWidth <= el.clientWidth + 1;
+            }), 'Validation guidance wraps within the viewport');
+          }
+        }
+        assert(!requests.some(url=>url.endsWith('/redirect-target.json')), 'Discovery redirects never follow a new location');
+        await page.unroute(failure === 'integrity' ? data.pin.url : pairedURL);
+      }
+      assert(await page.evaluate(pairedLatest => app.loadCatalog(null,{pairedLatest}),pairedURL));
+      await settle(page);
+      // Bodyless HTTP success must neither retry nor reacquire invalid data.
+      for (const url of [pairedURL, data.pin.url]) for (const status of [204, 205]) {
+        const before = discoveries();
+        await page.route(url, route => route.fulfill({ status }));
+        try {
+          assert.equal(await page.evaluate(pairedLatest => app.loadCatalog(null, { pairedLatest }), pairedURL), false);
+          assert.equal(discoveries() - before, 1);
+          assert.equal(await page.getByRole('button', { name: 'Retry catalogue' }).count(), 0);
+          assert.match(await page.locator('#orrery-status').textContent(), /data provider fixes it/);
+          assert.deepEqual(await page.evaluate(() => app.renderer.captureView()), initial);
+        } finally { await page.unroute(url); }
+      }
+      assert(await page.evaluate(pairedLatest => app.loadCatalog(null, { pairedLatest }), pairedURL));
+      await settle(page);
+      // Hold real descriptor acquisition after an active loader read failure.
+      const checkRecoveryStatus = async action => {
+        let resume, arrived;
+        const gate = new Promise(resolve => { resume = resolve; });
+        const seen = new Promise(resolve => { arrived = resolve; });
+        await page.route(pairedURL, async route => { arrived(); await gate; await route.fallback().catch(() => {}); });
+        try {
+          await action(); await seen;
+          assert(await page.evaluate(() => !!app.catalogOpening && app.activeSession.loader.errorKind === 'read'));
+          assert.match(await page.locator('#orrery-status').textContent(), /Buffering asteroids/);
+          assert.equal(await page.locator('#orrery-status .orrery-status-busy .orrery-status-spinner').count(), 1);
+          assert.equal(await page.locator('#orrery-status').ariaSnapshot(), '- status: Buffering asteroids for 2000-01-01.');
+          assert.doesNotMatch(await page.locator('#orrery-status').textContent(), /provider|Could not|Reload/);
+          assert.equal(await page.getByRole('button', { name: 'Retry catalogue' }).count(), 0);
+          assert.deepEqual(await page.evaluate(() => app.renderer.captureView()), initial);
+        } finally { resume(); await page.unroute(pairedURL); }
+      };
+      // A long-open paired scene can lose a not-yet-read immutable chunk.
+      beforeRecovery = discoveries();
+      await page.route('https://named.test/asteroids/chunks/**', route => route.fulfill({ status: 404 }));
+      await page.evaluate(() => {
+        app.catalogLoader.demand(app.jed,{playing:true,hidden:false,daysPerSecond:1});
+      });
+      await page.waitForFunction(() => app.catalogLoader.errorKind === 'read');
+      assert.equal(await page.evaluate(() => app.catalogLoader.buffering),false);
+      assert.equal(await page.evaluate(() => app.catalogLoader.playing),true,'Lookahead failure preserves playback');
+      assert.equal(discoveries(),beforeRecovery,'Speculative failure never reacquires a pair');
+      assert.equal(await page.evaluate(() => app.activeSession.request.recovered),false);
+      assert.equal(await page.getByRole('button',{name:'Retry catalogue'}).count(),0);
+      await checkRecoveryStatus(() => page.evaluate(() => { app.jed = 2451544.5; app.renderFrame(); }));
+      await page.getByRole('button', { name: 'Retry catalogue' }).waitFor();
+      assert.equal(discoveries() - beforeRecovery, 1, 'Lazy chunk expiry reacquires one descriptor');
+      assert.deepEqual(await page.evaluate(() => app.renderer.captureView()), initial);
+      assert.equal(await page.evaluate(() => app.renderer.planets.length), 13);
+      await page.unroute('https://named.test/asteroids/chunks/**');
+      await checkRecoveryStatus(() => page.getByRole('button', { name: 'Retry catalogue' }).click());
+      await settle(page);
+      await page.evaluate(() => { app.jed = 2378496.5; app.renderFrame(); });
+      await page.evaluate(() => { app.catalogLoader.errorKind='commit'; app.catalogLoader.error=new Error('Cannot prepare'); app.updateCatalogStatus(); });
+      assert.equal(await page.getByRole('button',{name:'Retry catalogue'}).count(),0);
+      assert((await page.locator('#orrery-status').textContent()).includes('cannot be prepared'));
+      await page.evaluate(() => { app.catalogLoader.error=null; app.catalogLoader.errorKind=null; app.updateCatalogStatus(); });
+      // Superseding the descriptor itself must cancel the whole old acquisition.
+      let releaseDescriptor, descriptorRequested;
+      const descriptorGate = new Promise(resolve => { releaseDescriptor = resolve; });
+      const descriptorSeen = new Promise(resolve => { descriptorRequested = resolve; });
+      await page.route(pairedURL, async route => { descriptorRequested(); await descriptorGate; await route.fallback().catch(() => {}); });
+      await page.evaluate(pairedLatest => { window.staleDescriptor = app.loadCatalog(null, { pairedLatest }); }, pairedURL);
+      await descriptorSeen;
+      assert(await page.evaluate(({ pin, namedBodies }) => app.loadCatalog(pin, { namedBodies }), data));
+      releaseDescriptor();
+      assert.equal(await page.evaluate(() => window.staleDescriptor), false);
+      await page.unroute(pairedURL);
+      await settle(page);
+      assert.deepEqual(await page.evaluate(() => app.renderer.captureView()), initial);
       const requestCount = requests.length;
       assert.equal(await page.evaluate(({ namedBodies }) => app.loadCatalog(null, {
         latest: 'https://named.test/latest.json', namedBodies,
@@ -72,9 +276,16 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
       assert.equal(requests.length, requestCount, 'Unsafe latest pairing is rejected before network I/O');
       assert.equal(await page.evaluate(() => app.asteroidsDiscovered), 0);
       assert.equal(await page.evaluate(() => app.renderer.planets.filter(p => p.options.classification === 'dwarf-planet').length), 5);
-      await page.evaluate(() => { app.planetLabels = 'all'; app.renderFrame(); });
+      await page.evaluate(() => { app.planetLabels = 'all'; app.dwarfLabels = 'all'; app.renderFrame(); });
       assert.equal(await page.locator('.orrery-planet-label[data-classification="dwarf-planet"]').count(), 5);
-      assert.equal(await page.locator('.orrery-planet-label[data-planet="Pluto"]').textContent(), 'Pluto · dwarf');
+      assert.equal(await page.locator('.orrery-planet-label[data-planet="Pluto"]').textContent(), 'Pluto (dwarf)');
+      assert(await page.locator('.orrery-planet-label[data-classification="dwarf-planet"]').evaluateAll(labels => labels.every(label => {
+        const kind=label.querySelector('.orrery-planet-label-kind');
+        return label.textContent===`${label.dataset.planet} (dwarf)` && kind?.textContent===' (dwarf)'
+          && getComputedStyle(kind).opacity==='0.75' && getComputedStyle(label).opacity==='0.5'
+          && getComputedStyle(kind).color===getComputedStyle(label).color;
+      })), 'Only the parenthetical is additionally muted, in the body color');
+      assert.equal(await page.locator('.orrery-planet-label[data-classification="planet"] .orrery-planet-label-kind').count(),0);
       assert(await page.locator('.orrery-planet-label[data-planet="Pluto"]').isHidden(), 'Outer bodies clip in the opening view');
       // Confirm both adapters use real producer positions through the actual App update.
       for (const date of [2378496.5, 2451545, 2488069.5, 1000000, 4000000]) {
@@ -117,7 +328,14 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
           return app.asteroidsVisible === expected;
         }));
       }
-      await page.evaluate(() => { app.asteroidsShown = true; app.populationPreset = 'all'; app.planetOrbits = false; app.renderFrame(); });
+      for (const [planetOrbits,dwarfOrbits] of [[true,true],[false,true],[false,false],[true,false]]) {
+        const view = await page.evaluate(() => app.renderer.captureView());
+        await page.evaluate(({planetOrbits,dwarfOrbits}) => { app.planetOrbits=planetOrbits; app.dwarfOrbits=dwarfOrbits; app.renderFrame(); },{planetOrbits,dwarfOrbits});
+        assert.equal(await page.evaluate(() => app.renderer.planetOrbits.filter(o=>o.visible).length),(planetOrbits?8:0)+(dwarfOrbits?5:0));
+        assert.equal(await page.evaluate(() => app.renderer.planets.length),13);
+        assert.deepEqual(await page.evaluate(() => app.renderer.captureView()),view);
+      }
+      await page.evaluate(() => { app.asteroidsShown = true; app.populationPreset = 'all'; app.planetOrbits = false; app.dwarfOrbits=false; app.renderFrame(); });
       assert(await page.evaluate(() => app.renderer.planetOrbits.every(o => !o.visible)));
       const beforeSwitch = await page.evaluate(() => app.renderer.captureView());
       const other = renderer === 'pixi' ? 'three' : 'pixi';
@@ -131,7 +349,7 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
         assert(a.every((value, i) => Math.abs(value - b[i]) < 1e-9), `Restored camera ${key}`);
       }
       // DPR replacement updates every retained body set, including the hidden baseline.
-      await page.evaluate(() => { app.pixelRatio = 2; app.renderFrame(); });
+      await page.evaluate(() => { app.pixelRatio = '2'; app.renderFrame(); });
       assert(await page.evaluate(() => app.rendererId !== 'pixi' || (() => {
         let valid = true;
         app.renderer.referenceBodies.forEach(({ planet }) => { valid &&= planet.body.texture === app.renderer.circleTexture; });
@@ -200,12 +418,15 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
         await page.setViewportSize({ width, height: width === 1280 ? 900 : 568 });
         await require('./options-geometry.cjs')(page.locator('.orrery-options-panel'));
         const labels = page.getByRole('combobox', { name: 'Planet labels', exact: true });
+        const dwarfs = page.getByRole('combobox', { name:'Dwarf planet labels', exact:true });
+        await dwarfs.selectOption('off');
         await labels.selectOption('off'); assert.equal(await page.locator('.orrery-planet-label').count(), 0);
         await labels.selectOption('earth'); assert.equal(await page.locator('.orrery-planet-label').count(), 1);
-        await labels.selectOption('all'); assert.equal(await page.locator('.orrery-planet-label').count(), 13);
+        await labels.selectOption('all'); assert.equal(await page.locator('.orrery-planet-label').count(), 8);
+        await dwarfs.selectOption('all'); assert.equal(await page.locator('.orrery-planet-label').count(),13);
         const orbits = page.getByRole('checkbox', { name: 'Planet orbits', exact: true });
         await orbits.focus(); await page.keyboard.press('Space');
-        assert(await page.evaluate(() => app.renderer.planetOrbits.every(o => o.visible === app.planetOrbits)));
+        assert(await page.evaluate(() => app.renderer.planetOrbits.every((o,i) => o.visible === (app.renderer.planets[i].options.classification === 'dwarf-planet' ? app.dwarfOrbits : app.planetOrbits))));
       }
       await page.keyboard.press('Escape');
       const edgeLabels = await page.evaluate(() => {
@@ -262,6 +483,21 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
         }
         report.push({ renderer, realCatalogue: pin.sha256, named: namedBodies.sha256 });
       }
+      // Labels persist independently; orbit visibility is per visit.
+      await page.evaluate(() => { app.planetLabels='off'; app.dwarfLabels='all'; app.planetOrbits=false; app.dwarfOrbits=true; app.renderFrame(); });
+      assert.equal(await page.locator('.orrery-planet-label').count(),5);
+      await page.reload();
+      await page.evaluate(async () => { await namedTest.ready; window.app=namedTest.app; app.autoRender=false; app.cancelRender(); });
+      await settle(page);
+      assert.deepEqual(await page.evaluate(() => ({planetLabels:app.planetLabels,dwarfLabels:app.dwarfLabels,planetOrbits:app.planetOrbits,dwarfOrbits:app.dwarfOrbits})),
+        {planetLabels:'off',dwarfLabels:'all',planetOrbits:true,dwarfOrbits:false});
+      assert.equal(await page.locator('.orrery-planet-label').count(),5);
+      await page.evaluate(() => { app.dwarfLabels='off'; });
+      await page.reload();
+      await page.evaluate(async () => { await namedTest.ready; window.app=namedTest.app; app.autoRender=false; app.cancelRender(); });
+      await settle(page);
+      assert.equal(await page.locator('.orrery-planet-label').count(),0);
+      assert.equal(await page.evaluate(() => app.renderer.planets.length),13);
       assert.deepEqual(errors, []);
       await page.evaluate(() => app.destroy());
       assert.equal(await page.locator('.orrery-planet-label').count(), 0);

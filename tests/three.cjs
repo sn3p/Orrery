@@ -66,8 +66,8 @@ async function entries(browser, base, output, name) {
         const options = page.getByRole('button', { name: 'Options', exact: true });
         assert.equal(await options.count(), 1);
         await options.click();
-        const labels = page.getByRole('combobox', { name: 'Planet labels' });
-        const orbits = page.getByRole('checkbox', { name: 'Planet orbits' });
+        const labels = page.getByRole('combobox', { name: 'Planet labels', exact: true });
+        const orbits = page.getByRole('checkbox', { name: 'Planet orbits', exact: true });
         assert.equal(await labels.inputValue(), 'earth');
         assert.deepEqual(await labels.locator('option').allTextContents(), ['Off', 'Earth only', 'All planets']);
         assert.equal(await page.evaluate(() => localStorage.getItem('orrery.planetLabels')), null,
@@ -103,8 +103,8 @@ async function entries(browser, base, output, name) {
                 && (planet.body.alpha ?? planet.body.material?.opacity ?? 1) > 0);
           }));
           await page.getByRole('button', { name: 'Options', exact: true }).click();
-          await page.getByRole('combobox', { name: 'Planet labels' }).selectOption('earth');
-          await page.getByRole('checkbox', { name: 'Planet orbits' }).check();
+          await page.getByRole('combobox', { name: 'Planet labels', exact: true }).selectOption('earth');
+          await page.getByRole('checkbox', { name: 'Planet orbits', exact: true }).check();
         }
         const visibleEarth = page.locator('.orrery-planet-label[data-planet="Earth"]:visible');
         await visibleEarth.waitFor();

@@ -38,6 +38,8 @@
   white-space: nowrap;
 }
 
+.orrery-planet-label-kind { opacity: .75; }
+
 .orrery-planet-label[data-side="left"] {
   transform: translate(calc(-100% - 7px), -50%);
 }

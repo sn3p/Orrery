@@ -1,4 +1,5 @@
-import { Graphics, Matrix } from 'pixi.js';
+import { Matrix } from 'pixi.js';
+import OrbitTrack from './ScreenOrbit.js';
 import { NamedOrbit as Model, namedOrbitPoints, namedOrbitFrame, orbitShapeDate } from '../named/model.js';
 
 function frameMatrix(body, jed, target) {
@@ -14,11 +15,9 @@ export default class NamedOrbit extends Model {
     return target;
   }
   drawOrbit(jed) {
-    this.track = new Graphics();
     const points = namedOrbitPoints(this.body, jed);
-    this.track.moveTo(-points[0], points[1]);
-    for (let i = 3; i < points.length; i += 3) this.track.lineTo(-points[i], points[i + 1]);
-    this.track.stroke({ width: 0.2, color: 0x555555 });
+    for (let i = 0; i < points.length; i += 3) { points[i] = -points[i]; points[i + 2] = 0; }
+    this.track = new OrbitTrack(points);
     this.baseInverse = frameMatrix(this.body, jed, new Matrix()).invert();
     this.frame = new Matrix();
     this.trackDate = orbitShapeDate(jed);

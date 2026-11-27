@@ -42,8 +42,8 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
   const panel = page.locator(".orrery-options-panel");
   const renderer = page.getByRole("combobox", { name: "Renderer", exact: true });
   const speed = page.getByRole("textbox", { name: "Playback speed" });
-  const labels = page.getByRole("combobox", { name: "Planet labels" });
-  const orbits = page.getByRole("checkbox", { name: "Planet orbits" });
+  const labels = page.getByRole("combobox", { name: "Planet labels", exact: true });
+  const orbits = page.getByRole("checkbox", { name: "Planet orbits", exact: true });
   const groups = page.getByRole("combobox", { name: "Minor-planet groups" });
   const dpr = page.getByRole("combobox", { name: "Rendering pixel ratio" });
   const checkSpacing = async () => {
@@ -169,8 +169,8 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     "Tab reaches the first revealed control");
     await expect(renderer).not.toHaveAttribute("aria-describedby", /.+/);
     await expect(speed).toHaveAccessibleDescription("Time scale: 1 = 60 days/s. 0 pauses; negative reverses.");
-    await expect(labels).toHaveAccessibleDescription("Show labels for Earth, all planets (including dwarf planets), or none.");
-    await expect(orbits).toHaveAccessibleDescription("Show or hide planetary orbit lines, including dwarf planets.");
+    await expect(labels).toHaveAccessibleDescription("Show labels for Earth, all eight planets, or none.");
+    await expect(orbits).toHaveAccessibleDescription("Show or hide orbit lines for the eight planets.");
     assert.equal(await labels.getAttribute("title"), null);
     assert.equal(await orbits.getAttribute("title"), null);
     await expect(groups).not.toHaveAttribute("aria-describedby", /.+/);
@@ -193,7 +193,7 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
     const dprHelp = await page.locator("#" + await dpr.getAttribute("aria-describedby")).textContent();
     assert.equal(dprHelp, "2× is sharper but uses more GPU.");
     assert.deepEqual(await panel.getByRole("heading").allTextContents(),
-      ["Rendering", "Playback", "Planets", "Asteroids", "Comets"], "Settings use the reviewed section order");
+      ["Rendering", "Playback", "Planets", "Dwarf planets", "Asteroids", "Comets"], "Settings use the reviewed section order");
     assert.equal(await panel.evaluate(el => el.getBoundingClientRect().width), 300,
       "The redesign retains the production panel width");
     const styles = await panel.evaluate(el => ({
@@ -289,12 +289,19 @@ exports.testOptions = async (browser, url, output, name, application = "unified"
       return { draws: after.draws - before.draws, elements: after.elements - before.elements };
     };
     await labels.selectOption("all");
-    assert.equal(await page.locator(".orrery-planet-label").count(), 6);
-    assert.deepEqual(await page.locator(".orrery-planet-label").evaluateAll(elements => Object.fromEntries(
-      elements.map(element => [element.dataset.planet, getComputedStyle(element).color]))), {
-      Mercury: "rgb(236, 205, 158)", Venus: "rgb(236, 205, 158)", Earth: "rgb(152, 192, 255)",
-      Mars: "rgb(255, 188, 131)", Jupiter: "rgb(197, 195, 189)", Saturn: "rgb(236, 205, 158)",
-    });
+    await require('./named-body-labels.cjs')(page);
+    const dwarfLabels = page.getByRole('combobox', { name: 'Dwarf planet labels', exact: true });
+    const dwarfOrbits = page.getByRole('checkbox', { name: 'Dwarf planet orbits', exact: true });
+    assert.equal(await dwarfLabels.inputValue(), 'off');
+    assert.equal(await dwarfOrbits.isChecked(), false);
+    await orbits.focus(); await page.keyboard.press('Tab'); await expect(dwarfLabels).toBeFocused();
+    // macOS WebKit's ordinary Tab skips native checkboxes; Option-Tab includes them.
+    await page.keyboard.press(name === 'webkit' && process.platform === 'darwin' ? 'Alt+Tab' : 'Tab');
+    await expect(dwarfOrbits).toBeFocused();
+    await dwarfOrbits.press('Space'); assert.equal(await dwarfOrbits.isChecked(), true);
+    await dwarfOrbits.press('Space'); assert.equal(await dwarfOrbits.isChecked(), false);
+    await dwarfLabels.selectOption('all'); await require('./named-body-labels.cjs')(page, { dwarfs: true });
+    await dwarfLabels.selectOption('off');
     await labels.selectOption("earth");
     const firstHiddenFrame = await renderWork(() => orbits.uncheck());
     const visibleFrame = await renderWork(() => orbits.check());

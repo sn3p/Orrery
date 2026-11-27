@@ -5,7 +5,7 @@ const { createHash } = require('node:crypto');
 // Exercise the compiled public latest URL without making deterministic browser
 // checks depend on the live producer. This is a test-only indexed fixture; it
 // does not replace the production selection or relax checksum validation.
-const latestURL = require('../catalog-profiles/latest.json').latest;
+const latestURL = require('../catalog-profiles/latest.json').pairedLatest;
 const producerBase = new URL('.', latestURL).href;
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
@@ -39,7 +39,21 @@ function fixtureFiles(empty = false) {
   const sha256 = digest(bytes);
   latest.index = { url: `index-${sha256}.json`, sha256, bytes: bytes.length };
   files.set(latest.index.url, bytes);
-  files.set('latest.json', Buffer.from(JSON.stringify(latest) + '\n'));
+  // All fixture dwarfs are explicitly absent: synthetic rows are not real IDs.
+  const named = require('./named-body-fixture.cjs').fixture('empty');
+  const mapping = { ...named.mapping, catalog_id: info.catalog_id,
+    asteroid_index_sha256: sha256, snapshot_version: info.snapshot_version, records: info.counts.discovery_export };
+  const add = (value, prefix) => {
+    const bytes = Buffer.from(JSON.stringify(value)), sha256 = digest(bytes);
+    const url = `${prefix}-${sha256}.json`; files.set(url, bytes);
+    return { url, sha256, bytes: bytes.length };
+  };
+  const product = add({ named_body_product_version: 1,
+    definitions: add(named.definitions, 'definitions'), mapping: add(mapping, 'mapping') }, 'named');
+  files.set('latest.json', Buffer.from(JSON.stringify({ paired_catalogue_version: 1,
+    asteroids: { ...latest.index, url: producerBase + latest.index.url },
+    namedBodies: { ...product, url: producerBase + product.url } })));
+
   return files;
 }
 
