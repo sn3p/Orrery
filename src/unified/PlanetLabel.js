@@ -1,3 +1,4 @@
+import { isDwarfLabelMode } from './DwarfPreferences.js';
 const EDGE_GUTTER = 8;
 const FLIP_DISTANCE = 48;
 export const PLANET_LABEL_STORAGE_KEY = "orrery.planetLabels";
@@ -99,9 +100,11 @@ export class PlanetLabels {
     this.labels = new Map();
   }
 
-  setMode(planets, mode) {
+  setMode(planets, mode, dwarfMode = "off") {
     if (!isPlanetLabelMode(mode)) throw new RangeError("Invalid planet label mode.");
-    const wanted = new Set(planets.filter(planet => planetLabelModeShows(mode, planet.options.name)));
+    if (!isDwarfLabelMode(dwarfMode)) throw new RangeError("Invalid dwarf label mode.");
+    const wanted = new Set(planets.filter(planet => planet.options.classification === 'dwarf-planet'
+      ? dwarfMode === 'all' : planetLabelModeShows(mode, planet.options.name)));
     for (const [planet, label] of this.labels) {
       if (wanted.has(planet)) continue;
       label.destroy();

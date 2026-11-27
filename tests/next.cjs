@@ -111,7 +111,7 @@ async function run({ browser, name, application = "unified", output: artifactDir
           assert(await page.getByRole("checkbox", { name: "Real time" }).evaluate(el => el === document.activeElement),
             "Tab reaches real time after speed help");
           await require("./options.cjs").tabThroughHelp(page, "Real time", forward);
-          assert(await page.getByRole("combobox", { name: "Planet labels" }).evaluate(el => el === document.activeElement),
+          assert(await page.getByRole("combobox", { name: "Planet labels", exact: true }).evaluate(el => el === document.activeElement),
             "Tab reaches planet labels after real time help");
           await input.fill("0"); await input.press("Enter");
           await page.waitForFunction(() => document.querySelector("#orrery-fps").textContent === "0 FPS");

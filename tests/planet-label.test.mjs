@@ -130,7 +130,7 @@ test("both renderers apply shared label modes without reacting to unrelated shar
     assert.deepEqual(calls, []);
     Renderer.prototype.setOptions.call(receiver, { shared: { planetLabels: "all" } });
     assert.equal(receiver.planetLabelMode, "all");
-    assert.deepEqual(calls, [[planets, "all"], "render"]);
+    assert.deepEqual(calls, [[planets, "all", "off"], "render"]);
     Renderer.prototype.setOptions.call(receiver, { shared: { planetLabels: "all" } });
     assert.equal(calls.length, 2, "Applying the active mode is inert");
     assert.throws(() => Renderer.prototype.setOptions.call(receiver,
@@ -206,4 +206,27 @@ test("label widths are measured once and updated by resize notifications, not ea
   label.place(90, 30, { width: 200, height: 100 });
   assert.equal(label.width, 50); assert.equal(reads, 1);
   label.destroy(); assert.equal(disconnected, 1);
+});
+
+
+test("planet and dwarf label selections are independent", () => {
+  const { container } = fixture(), labels = new PlanetLabels(container);
+  const planets = [{ options: { name: 'Earth', classification: 'planet' } },
+    { options: { name: 'Ceres', classification: 'dwarf-planet' } }];
+  labels.setMode(planets, 'all'); assert.deepEqual([...labels.labels.keys()], [planets[0]]);
+  labels.setMode(planets, 'off', 'all'); assert.deepEqual([...labels.labels.keys()], [planets[1]]);
+  labels.setMode(planets, 'all', 'all'); assert.equal(labels.labels.size, 2);
+  assert.throws(() => labels.setMode(planets, 'all', 'earth'), RangeError);
+  assert.equal(labels.labels.size, 2);
+});
+test("dwarf label preferences default off and persist independently", async () => {
+  const { loadDwarfLabelMode, saveDwarfLabelMode } = await import('../src/unified/DwarfPreferences.js');
+  const values = new Map([['orrery.planetLabels','all']]);
+  const scope = { localStorage: { getItem: k => values.get(k), setItem: (k,v) => values.set(k,v) } };
+  assert.equal(loadDwarfLabelMode(scope),'off');
+  assert(saveDwarfLabelMode('all',scope)); assert.equal(loadDwarfLabelMode(scope),'all');
+  assert.equal(values.get('orrery.planetLabels'),'all');
+  assert.equal(saveDwarfLabelMode('earth',scope),false);
+  const blocked = { get localStorage() { throw Error('blocked'); } };
+  assert.equal(loadDwarfLabelMode(blocked),'off'); assert.equal(saveDwarfLabelMode('all',blocked),false);
 });

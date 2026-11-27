@@ -1,3 +1,4 @@
+import { isDwarfLabelMode } from '../DwarfPreferences.js';
 import { syncCometLayer } from '../comets/layer.js';
 import Comets from "./Comets.js";
 import { cometFitPoints, validateCometOptions } from "../comets/model.js";
@@ -52,8 +53,8 @@ export default class ThreeRenderer {
         for (const { planet, orbit } of batch) this.scene.add(orbit, planet.body);
         this.planets = batch.map(entry => entry.planet);
         this.planetOrbits = batch.map(entry => entry.orbit);
-        for (const orbit of this.planetOrbits) orbit.visible = this.planetOrbitsVisible;
-        this.planetLabels.setMode(this.planets, this.planetLabelMode);
+        this.planetOrbits.forEach((orbit, index) => { orbit.visible = this.planets[index]?.options.classification === 'dwarf-planet' ? this.dwarfOrbitsVisible : this.planetOrbitsVisible; });
+        this.planetLabels.setMode(this.planets, this.planetLabelMode, this.dwarfLabelMode);
       },
       detach: batch => {
         for (const { planet, orbit } of batch) { orbit.removeFromParent(); planet.body.removeFromParent(); }
@@ -62,6 +63,8 @@ export default class ThreeRenderer {
     });
     this.planetLabelMode = DEFAULT_PLANET_LABEL_MODE;
     this.planetOrbitsVisible = DEFAULT_PLANET_ORBITS_VISIBLE;
+    this.dwarfLabelMode = 'off';
+    this.dwarfOrbitsVisible = false;
     this.populationPreset = DEFAULT_POPULATION_PRESET;
     this.colorizeGroups = false;
     this.viewFit = null;
@@ -168,7 +171,11 @@ export default class ThreeRenderer {
 
   setOptions({ shared } = {}) {
     const mode = shared?.planetLabels;
+    const dwarfMode = shared?.dwarfLabels;
+    const dwarfOrbits = shared?.dwarfOrbits;
     const orbits = shared?.planetOrbits;
+    if (dwarfMode !== undefined && !isDwarfLabelMode(dwarfMode)) throw new RangeError("Invalid dwarf label mode.");
+    if (dwarfOrbits !== undefined && !isPlanetOrbitVisibility(dwarfOrbits)) throw new RangeError("Invalid dwarf orbit visibility.");
     const population = shared?.populationPreset;
     const colorize = shared?.colorizeGroups;
     if (mode !== undefined && !isPlanetLabelMode(mode)) throw new RangeError("Invalid planet label mode.");
@@ -189,14 +196,16 @@ export default class ThreeRenderer {
     const cometsChanged = syncCometLayer(this, shared,
       (data, catalogue) => new Comets(this.scene, this.container, data, catalogue));
     let changed = cometsChanged || shared?.asteroidsShown !== undefined;
-    if (mode !== undefined && mode !== this.planetLabelMode) {
-      this.planetLabelMode = mode;
-      this.planetLabels.setMode(this.planets, mode);
+    if ((mode !== undefined && mode !== this.planetLabelMode) || (dwarfMode !== undefined && dwarfMode !== this.dwarfLabelMode)) {
+      this.planetLabelMode = mode ?? this.planetLabelMode;
+      this.dwarfLabelMode = dwarfMode ?? this.dwarfLabelMode;
+      this.planetLabels.setMode(this.planets, this.planetLabelMode, this.dwarfLabelMode ?? 'off');
       changed = true;
     }
-    if (orbits !== undefined && orbits !== this.planetOrbitsVisible) {
-      this.planetOrbitsVisible = orbits;
-      for (const orbit of this.planetOrbits) orbit.visible = orbits;
+    if ((orbits !== undefined && orbits !== this.planetOrbitsVisible) || (dwarfOrbits !== undefined && dwarfOrbits !== this.dwarfOrbitsVisible)) {
+      this.planetOrbitsVisible = orbits ?? this.planetOrbitsVisible;
+      this.dwarfOrbitsVisible = dwarfOrbits ?? this.dwarfOrbitsVisible;
+      this.planetOrbits.forEach((orbit, index) => { orbit.visible = this.planets[index]?.options.classification === 'dwarf-planet' ? this.dwarfOrbitsVisible : this.planetOrbitsVisible; });
       changed = true;
     }
     if (population !== undefined && population !== this.populationPreset) {

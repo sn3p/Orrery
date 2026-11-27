@@ -1,3 +1,4 @@
+import { isDwarfLabelMode, loadDwarfLabelMode, saveDwarfLabelMode } from './DwarfPreferences.js';
 import { isRequestFailure, isMissingResource } from './catalog/request.js';
 import { resolvePairedLatest, validatePairedSelection } from './named/source/PairedCatalogSource.js';
 import { CometSelectionPreference } from './CometSelectionPreference.js';
@@ -66,6 +67,10 @@ export default class App {
     this._pixelRatio = (window.devicePixelRatio || 1) >= 2 ? "2" : "1";
     this._planetLabels = options.planetLabels ?? loadPlanetLabelMode();
     if (!isPlanetLabelMode(this._planetLabels)) throw new Error("Invalid planet label mode.");
+    this._dwarfLabels = options.dwarfLabels ?? loadDwarfLabelMode();
+    if (!isDwarfLabelMode(this._dwarfLabels)) throw new Error("Invalid dwarf label mode.");
+    this._dwarfOrbits = options.dwarfOrbits ?? false;
+    if (!isPlanetOrbitVisibility(this._dwarfOrbits)) throw new Error("Invalid dwarf orbit visibility.");
     this._planetOrbits = options.planetOrbits ?? DEFAULT_PLANET_ORBITS_VISIBLE;
     try { localStorage.removeItem("orrery.planetOrbits"); } catch { /* Drop a retired preference. */ }
     if (!isPlanetOrbitVisibility(this._planetOrbits)) throw new Error("Invalid planet orbit visibility.");
@@ -272,6 +277,21 @@ export default class App {
     this.renderer?.setOptions?.(this.rendererSettings());
     this.requestRender();
   }
+  get dwarfLabels() { return this._dwarfLabels; }
+  set dwarfLabels(value) {
+    if (this.destroyed || !isDwarfLabelMode(value) || value === this._dwarfLabels) return;
+    this._dwarfLabels = value;
+    saveDwarfLabelMode(value);
+    this.renderer?.setOptions?.(this.rendererSettings());
+    this.requestRender();
+  }
+  get dwarfOrbits() { return this._dwarfOrbits; }
+  set dwarfOrbits(value) {
+    if (this.destroyed || !isPlanetOrbitVisibility(value) || value === this._dwarfOrbits) return;
+    this._dwarfOrbits = value;
+    this.renderer?.setOptions?.(this.rendererSettings());
+    this.requestRender();
+  }
   get populationPreset() { return this._populationPreset; }
   set populationPreset(value) {
     if (this.destroyed || !isPopulationPreset(value) || value === this._populationPreset) return;
@@ -410,7 +430,7 @@ export default class App {
   get viewport() { return { width: innerWidth, height: innerHeight, pixelRatio: this.effectivePixelRatio }; }
   rendererSettings(id = this.rendererId, renderer = this.rendererOptions[id]) {
     return { shared: { pixelRatio: this.pixelRatio, planetLabels: this.planetLabels,
-      planetOrbits: this.planetOrbits, populationPreset: this.populationPreset,
+      planetOrbits: this.planetOrbits, dwarfLabels: this.dwarfLabels, dwarfOrbits: this.dwarfOrbits, populationPreset: this.populationPreset,
       colorizeGroups: this.colorizeGroups, asteroidsShown: this.asteroidsShown,
       cometsShown: this.cometsShown, cometIds: this.cometIds, cometPaths: this.cometPaths,
       cometData: this.cometData, cometCatalogue: this.cometCatalogue }, renderer };

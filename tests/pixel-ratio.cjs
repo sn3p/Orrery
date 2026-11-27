@@ -22,8 +22,8 @@ module.exports = async (browser, url, output, name, application = "unified") => 
   page.on("pageerror", error => errors.push(error.message));
   page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
   const control = page.getByRole("combobox", { name: "Rendering pixel ratio" });
-  const labels = page.getByRole("combobox", { name: "Planet labels" });
-  const orbits = page.getByRole("checkbox", { name: "Planet orbits" });
+  const labels = page.getByRole("combobox", { name: "Planet labels", exact: true });
+  const orbits = page.getByRole("checkbox", { name: "Planet orbits", exact: true });
   const speed = page.getByRole("textbox", { name: "Playback speed" });
   const boot = async () => {
     await page.waitForFunction(() => Number(document.querySelector("#orrery-count").textContent.replaceAll("\u202f", "")) > 0);

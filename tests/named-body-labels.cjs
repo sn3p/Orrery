@@ -8,10 +8,11 @@ const colors = {
   Pluto: 'rgb(212, 182, 161)', Haumea: 'rgb(201, 200, 211)', Makemake: 'rgb(202, 165, 142)',
   Eris: 'rgb(211, 216, 224)',
 };
-module.exports = async page => {
+module.exports = async (page, { dwarfs = false } = {}) => {
+  const expected = dwarfs ? colors : Object.fromEntries(Object.entries(colors).slice(0, 8));
   const labels = page.locator('.orrery-planet-label');
-  assert.equal(await labels.count(), 13, 'All mode retains eight planet and five dwarf labels');
+  assert.equal(await labels.count(), dwarfs ? 13 : 8, 'Label groups retain their independent inventories');
   assert.deepEqual(await labels.evaluateAll(elements => Object.fromEntries(
-    elements.map(element => [element.dataset.planet, getComputedStyle(element).color]))), colors);
-  assert.equal(await page.locator('.orrery-planet-label[data-classification="dwarf-planet"]').count(), 5);
+    elements.map(element => [element.dataset.planet, getComputedStyle(element).color]))), expected);
+  assert.equal(await page.locator('.orrery-planet-label[data-classification="dwarf-planet"]').count(), dwarfs ? 5 : 0);
 };
