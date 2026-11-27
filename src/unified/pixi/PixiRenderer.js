@@ -46,7 +46,8 @@ export default class PixiRenderer {
       prepare: (data, jed) => preparePlanets(data, jed, this.circleTexture),
       attach: batch => {
         for (const { planet, orbit } of batch) {
-          if (orbit.parent !== this.stage) this.stage.addChild(orbit);
+          // Screen-space strokes must stay behind the small body markers.
+          if (orbit.parent !== this.stage) this.stage.addChildAt(orbit, this.stage.getChildIndex(this.planetContainer));
           if (!this.planetContainer.particleChildren.includes(planet.body)) this.planetContainer.addParticle(planet.body);
         }
         this.planets = batch.map(entry => entry.planet);
@@ -464,6 +465,7 @@ export default class PixiRenderer {
         this.checkedProgram = program;
       }
     }
+    for (const orbit of this.planetOrbits) orbit.updateScreenOrbit?.(this.viewport);
     this.app.render();
     if (this.destroyed || this.contextLost || this.app.renderer.gl.isContextLost()) return null;
     if (this.asteroids?.geometry.instanceCount && this.drawnAsteroids !== this.asteroids) return null;

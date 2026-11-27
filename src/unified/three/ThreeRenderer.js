@@ -414,6 +414,8 @@ export default class ThreeRenderer {
     this.drawnAsteroids = null;
     this.gpuError = gl.getError() === gl.NO_ERROR ? null : new Error("Unable to render the visualization.");
     this.comets?.resize(this.viewport, this.canvas.width);
+    this.camera.updateMatrixWorld();
+    for (const orbit of this.planetOrbits) orbit.updateScreenOrbit?.(this.camera, this.viewport);
     this.inFrame = true;
     try { this.renderer.render(this.scene, this.camera); }
     finally { this.inFrame = false; }

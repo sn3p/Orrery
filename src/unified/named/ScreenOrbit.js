@@ -1,0 +1,80 @@
+// Project immutable scientific samples into retained screen-space stroke buffers.
+// Homogeneous clipping bounds dash distances before Float32 upload, including
+// outer orbits which cross the camera or the near plane.
+export const ORBIT_DASH = 5;
+export const ORBIT_GAP = 3;
+export const ORBIT_WIDTH = 1;
+const PERIOD = ORBIT_DASH + ORBIT_GAP;
+const planes = [[1, 0, 0, 1], [-1, 0, 0, 1], [0, 1, 0, 1], [0, -1, 0, 1], [0, 0, 1, 1], [0, 0, -1, 1]];
+
+function transform(points, index, matrix, out) {
+  const x = points[index], y = points[index + 1], z = points[index + 2];
+  for (let k = 0; k < 4; k++) out[k] = matrix[k] * x + matrix[k + 4] * y + matrix[k + 8] * z + matrix[k + 12];
+}
+function vertex(data, cursor, x, y, z, distance) {
+  data[cursor] = x; data[cursor + 1] = y; data[cursor + 2] = z; data[cursor + 3] = distance;
+  return cursor + 4;
+}
+
+export class ScreenOrbit {
+  constructor(points) {
+    this.points = points;
+    this.vertices = new Float32Array((points.length / 3 - 1) * 6 * 4);
+    this.signature = new Float64Array(18).fill(NaN);
+    this.start = new Float64Array(4); this.end = new Float64Array(4);
+    this.count = 0; this.revision = 0;
+  }
+  update(matrix, width, height) {
+    if (!(width > 0 && height > 0)) return false;
+    let unchanged = this.signature[16] === width && this.signature[17] === height;
+    for (let i = 0; unchanged && i < 16; i++) unchanged = matrix[i] === this.signature[i];
+    if (unchanged) return false;
+    this.signature.set(matrix); this.signature[16] = width; this.signature[17] = height;
+    const data = this.vertices;
+    // Pixi draws the allocated capacity; unused triangles must stay degenerate.
+    data.fill(0);
+    let cursor = 0, phase = 0;
+    for (let i = 0; i < this.points.length - 3; i += 3) {
+      const a = this.start, b = this.end;
+      transform(this.points, i, matrix, a); transform(this.points, i + 3, matrix, b);
+      // Clip before dividing; never project w=0 or accumulate invisible distances.
+      let first = 0, last = 1;
+      for (const plane of planes) {
+        const da = plane[0] * a[0] + plane[1] * a[1] + plane[2] * a[2] + a[3];
+        const db = plane[0] * b[0] + plane[1] * b[1] + plane[2] * b[2] + b[3];
+        if (da < 0 && db < 0) { last = -1; break; }
+        if (da < 0) first = Math.max(first, da / (da - db));
+        if (db < 0) last = Math.min(last, da / (da - db));
+      }
+      if (last < first) { phase = 0; continue; }
+      const aw = a[3] + (b[3] - a[3]) * first, bw = a[3] + (b[3] - a[3]) * last;
+      if (!(aw > 0 && bw > 0)) { phase = 0; continue; }
+      const ax = (a[0] + (b[0] - a[0]) * first) / aw, ay = (a[1] + (b[1] - a[1]) * first) / aw;
+      const az = (a[2] + (b[2] - a[2]) * first) / aw;
+      const bx = (a[0] + (b[0] - a[0]) * last) / bw, by = (a[1] + (b[1] - a[1]) * last) / bw;
+      const bz = (a[2] + (b[2] - a[2]) * last) / bw;
+      const dx = (bx - ax) * width / 2, dy = (by - ay) * height / 2, length = Math.hypot(dx, dy);
+      if (!(length > 1e-8 && Number.isFinite(length))) continue;
+      // Extrude one CSS-pixel-wide quad. Linear screen-space interpolation keeps
+      // both dash length and gap independent of perspective and backing-buffer DPR.
+      const nx = -dy / length * ORBIT_WIDTH / width, ny = dx / length * ORBIT_WIDTH / height;
+      cursor = vertex(data, cursor, ax + nx, ay + ny, az, phase);
+      cursor = vertex(data, cursor, ax - nx, ay - ny, az, phase);
+      cursor = vertex(data, cursor, bx + nx, by + ny, bz, phase + length);
+      cursor = vertex(data, cursor, bx + nx, by + ny, bz, phase + length);
+      cursor = vertex(data, cursor, ax - nx, ay - ny, az, phase);
+      cursor = vertex(data, cursor, bx - nx, by - ny, bz, phase + length);
+      phase = (phase + length) % PERIOD;
+    }
+    this.count = cursor / 4; this.revision++;
+    return true;
+  }
+}
+
+export const orbitFragment = `
+precision highp float;
+varying float vDistance;
+void main() {
+  if (mod(vDistance, ${PERIOD}.0) > ${ORBIT_DASH}.0) discard;
+  gl_FragColor = vec4(vec3(0.2), 1.0);
+}`;

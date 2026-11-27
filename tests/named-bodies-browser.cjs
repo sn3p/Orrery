@@ -60,7 +60,10 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
       await page.goto(`https://orrery.test/?renderer=${renderer}`);
       await page.evaluate(async () => { await namedTest.ready; window.app = namedTest.app; app.autoRender = false; app.cancelRender(); });
       await settle(page);
-      const initial = await page.evaluate(() => app.renderer.captureView());
+      assert(await page.evaluate(() => app.rendererId !== 'pixi' || app.renderer.planetOrbits.every(o => app.renderer.stage.getChildIndex(o) < app.renderer.stage.getChildIndex(app.renderer.planetContainer))), 'Tracks render behind every named marker');
+      assert.deepEqual(await page.evaluate(() => ({ labels:app.dwarfLabels, orbits:app.dwarfOrbits,
+        visible:app.renderer.planetOrbits.filter(o=>o.visible).length })), {labels:'off',orbits:false,visible:8});
+      let initial = await page.evaluate(() => app.renderer.captureView());
       if (renderer === 'pixi') assert.deepEqual(initial, { scale: 1, x: 0, y: 0 });
       else {
         assert(initial.position.every((value, i) => Math.abs(value - [500, 500, 400][i]) < 1e-9));
@@ -73,6 +76,41 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
         assert.equal(requests.length, before, 'Conflicting runtime selectors never retry as valid selections');
         assert.equal(await page.getByRole('button', { name: 'Retry catalogue' }).count(), 0);
       }
+      // Inspect the actual projected meshes after native draws, without capturing images.
+      for (const scale of [.15, 1, 4]) for (const ratio of [1, 2]) {
+        const stroke = await page.evaluate(({ scale, ratio, initial }) => {
+          app.dwarfOrbits = true;
+          app.fixedResolution = ratio; app.resize({render:false});
+          const r=app.renderer;
+          if(app.rendererId==='pixi') r.restoreView({...initial,scale});
+          else {
+            r.restoreView(initial);
+            r.camera.position.set(500/scale, -300/scale, 200/scale);
+            r.camera.lookAt(0,0,0);
+          }
+          app.renderFrame();
+          let segments=0,maxLengthError=0,maxWidthError=0,finite=true;
+          for(const track of r.planetOrbits){
+            const mesh=track.screenOrbit,a=mesh.vertices;
+            finite &&= a.every(Number.isFinite);
+            for(let i=0;i<mesh.count*4;i+=24){
+              const length=Math.hypot((a[i+8]-a[i])*innerWidth/2,(a[i+9]-a[i+1])*innerHeight/2);
+              const width=Math.hypot((a[i+4]-a[i])*innerWidth/2,(a[i+5]-a[i+1])*innerHeight/2);
+              maxLengthError=Math.max(maxLengthError,Math.abs(length-(a[i+11]-a[i+3])));
+              maxWidthError=Math.max(maxWidthError,Math.abs(width-1));segments++;
+            }
+          }
+          const revisions=r.planetOrbits.map(o=>o.screenOrbit.revision);
+          app.renderFrame();
+          return {segments,finite,maxLengthError,maxWidthError,idleStable:r.planetOrbits.every((o,i)=>o.screenOrbit.revision===revisions[i])};
+        }, {scale,ratio,initial});
+        assert(stroke.segments>0 && stroke.finite && stroke.idleStable,JSON.stringify(stroke));
+        assert(stroke.maxLengthError<.001 && stroke.maxWidthError<.001,JSON.stringify(stroke));
+      }
+      await page.evaluate(initial=>{app.renderer.restoreView(initial);app.fixedResolution=undefined;app.resize({render:false});app.dwarfOrbits=false;app.renderFrame();},initial);
+      const restored = await page.evaluate(() => app.renderer.captureView());
+      for (const key of Object.keys(initial)) assert([initial[key]].flat().every((v,i)=>Math.abs(v-[restored[key]].flat()[i])<1e-9));
+      initial = restored;
       const pairedURL = 'https://named.test/paired/latest.json';
       const discoveries = () => requests.filter(url => url === pairedURL).length;
       let beforeRecovery = discoveries();
@@ -164,7 +202,7 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
       assert.equal(requests.length, requestCount, 'Unsafe latest pairing is rejected before network I/O');
       assert.equal(await page.evaluate(() => app.asteroidsDiscovered), 0);
       assert.equal(await page.evaluate(() => app.renderer.planets.filter(p => p.options.classification === 'dwarf-planet').length), 5);
-      await page.evaluate(() => { app.planetLabels = 'all'; app.renderFrame(); });
+      await page.evaluate(() => { app.planetLabels = 'all'; app.dwarfLabels = 'all'; app.renderFrame(); });
       assert.equal(await page.locator('.orrery-planet-label[data-classification="dwarf-planet"]').count(), 5);
       assert.equal(await page.locator('.orrery-planet-label[data-planet="Pluto"]').textContent(), 'Pluto · dwarf');
       assert(await page.locator('.orrery-planet-label[data-planet="Pluto"]').isHidden(), 'Outer bodies clip in the opening view');
@@ -209,7 +247,14 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
           return app.asteroidsVisible === expected;
         }));
       }
-      await page.evaluate(() => { app.asteroidsShown = true; app.populationPreset = 'all'; app.planetOrbits = false; app.renderFrame(); });
+      for (const [planetOrbits,dwarfOrbits] of [[true,true],[false,true],[false,false],[true,false]]) {
+        const view = await page.evaluate(() => app.renderer.captureView());
+        await page.evaluate(({planetOrbits,dwarfOrbits}) => { app.planetOrbits=planetOrbits; app.dwarfOrbits=dwarfOrbits; app.renderFrame(); },{planetOrbits,dwarfOrbits});
+        assert.equal(await page.evaluate(() => app.renderer.planetOrbits.filter(o=>o.visible).length),(planetOrbits?8:0)+(dwarfOrbits?5:0));
+        assert.equal(await page.evaluate(() => app.renderer.planets.length),13);
+        assert.deepEqual(await page.evaluate(() => app.renderer.captureView()),view);
+      }
+      await page.evaluate(() => { app.asteroidsShown = true; app.populationPreset = 'all'; app.planetOrbits = false; app.dwarfOrbits=false; app.renderFrame(); });
       assert(await page.evaluate(() => app.renderer.planetOrbits.every(o => !o.visible)));
       const beforeSwitch = await page.evaluate(() => app.renderer.captureView());
       const other = renderer === 'pixi' ? 'three' : 'pixi';
@@ -223,7 +268,7 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
         assert(a.every((value, i) => Math.abs(value - b[i]) < 1e-9), `Restored camera ${key}`);
       }
       // DPR replacement updates every retained body set, including the hidden baseline.
-      await page.evaluate(() => { app.pixelRatio = 2; app.renderFrame(); });
+      await page.evaluate(() => { app.pixelRatio = '2'; app.renderFrame(); });
       assert(await page.evaluate(() => app.rendererId !== 'pixi' || (() => {
         let valid = true;
         app.renderer.referenceBodies.forEach(({ planet }) => { valid &&= planet.body.texture === app.renderer.circleTexture; });
@@ -292,12 +337,15 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
         await page.setViewportSize({ width, height: width === 1280 ? 900 : 568 });
         await require('./options-geometry.cjs')(page.locator('.orrery-options-panel'));
         const labels = page.getByRole('combobox', { name: 'Planet labels', exact: true });
+        const dwarfs = page.getByRole('combobox', { name:'Dwarf planet labels', exact:true });
+        await dwarfs.selectOption('off');
         await labels.selectOption('off'); assert.equal(await page.locator('.orrery-planet-label').count(), 0);
         await labels.selectOption('earth'); assert.equal(await page.locator('.orrery-planet-label').count(), 1);
-        await labels.selectOption('all'); assert.equal(await page.locator('.orrery-planet-label').count(), 13);
+        await labels.selectOption('all'); assert.equal(await page.locator('.orrery-planet-label').count(), 8);
+        await dwarfs.selectOption('all'); assert.equal(await page.locator('.orrery-planet-label').count(),13);
         const orbits = page.getByRole('checkbox', { name: 'Planet orbits', exact: true });
         await orbits.focus(); await page.keyboard.press('Space');
-        assert(await page.evaluate(() => app.renderer.planetOrbits.every(o => o.visible === app.planetOrbits)));
+        assert(await page.evaluate(() => app.renderer.planetOrbits.every((o,i) => o.visible === (app.renderer.planets[i].options.classification === 'dwarf-planet' ? app.dwarfOrbits : app.planetOrbits))));
       }
       await page.keyboard.press('Escape');
       const edgeLabels = await page.evaluate(() => {
@@ -354,6 +402,21 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
         }
         report.push({ renderer, realCatalogue: pin.sha256, named: namedBodies.sha256 });
       }
+      // Labels persist independently; orbit visibility is per visit.
+      await page.evaluate(() => { app.planetLabels='off'; app.dwarfLabels='all'; app.planetOrbits=false; app.dwarfOrbits=true; app.renderFrame(); });
+      assert.equal(await page.locator('.orrery-planet-label').count(),5);
+      await page.reload();
+      await page.evaluate(async () => { await namedTest.ready; window.app=namedTest.app; app.autoRender=false; app.cancelRender(); });
+      await settle(page);
+      assert.deepEqual(await page.evaluate(() => ({planetLabels:app.planetLabels,dwarfLabels:app.dwarfLabels,planetOrbits:app.planetOrbits,dwarfOrbits:app.dwarfOrbits})),
+        {planetLabels:'off',dwarfLabels:'all',planetOrbits:true,dwarfOrbits:false});
+      assert.equal(await page.locator('.orrery-planet-label').count(),5);
+      await page.evaluate(() => { app.dwarfLabels='off'; });
+      await page.reload();
+      await page.evaluate(async () => { await namedTest.ready; window.app=namedTest.app; app.autoRender=false; app.cancelRender(); });
+      await settle(page);
+      assert.equal(await page.locator('.orrery-planet-label').count(),0);
+      assert.equal(await page.evaluate(() => app.renderer.planets.length),13);
       assert.deepEqual(errors, []);
       await page.evaluate(() => app.destroy());
       assert.equal(await page.locator('.orrery-planet-label').count(), 0);

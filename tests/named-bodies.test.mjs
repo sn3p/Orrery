@@ -30,7 +30,7 @@ test('both real orbit adapters project producer positions and update closed trac
     const pixi = new PixiOrbit(body), three = new ThreeOrbit(body);
     const p = pixi.drawOrbit(2451545), t = three.drawOrbit(2451545);
     const distances = t.geometry.attributes.lineDistance, vertices = t.geometry.attributes.position;
-    const path = p.context.instructions[0].data.path.instructions;
+    const path = p.sourcePoints, spatialPoints = t.sourcePoints;
     try {
       for (const jd of [1000000, 2378496.5, 2451545, 2488069.5, 4000000]) {
         const expected = namedPosition(body, jd), a = pixi.getPosAtTime(jd), b = three.getPosAtTime(jd);
@@ -39,16 +39,17 @@ test('both real orbit adapters project producer positions and update closed trac
 
         assert.equal(t.geometry.attributes.lineDistance, distances, "Moving tracks reuse their GPU attribute");
         assert.equal(t.geometry.attributes.position, vertices);
-        assert.equal(vertices.version, 0, 'No per-frame vertex upload');
-        assert.equal(distances.version, 0, 'No per-frame dash upload');
-        assert.equal(p.context.instructions[0].data.path.instructions, path, 'No path rebuild');
+        assert.equal(p.sourcePoints, path, 'Scientific path samples stay retained');
+        assert.equal(t.sourcePoints, spatialPoints, 'Scientific 3D path samples stay retained');
+        assert.equal(p.screenOrbit.revision, 0, 'No projection work before an actual draw');
+        assert.equal(t.screenOrbit.revision, 0, 'No projection work before an actual draw');
         p.updateLocalTransform();
         const points = namedOrbitPoints(body, jd);
-        assert.deepEqual(path[0].data, path.at(-1).data);
+        assert.deepEqual(path.slice(0,3), path.slice(-3));
         for (let i = 0; i <= 360; i++) {
-          const [x, y] = path[i].data, point = p.localTransform.apply({ x, y });
+          const x=path[3*i],y=path[3*i+1],point = p.localTransform.apply({ x, y });
           assert(Math.hypot(point.x + points[3 * i], point.y - points[3 * i + 1]) < 1e-8);
-          const spatial = new Vector3().fromBufferAttribute(vertices, i).applyMatrix4(t.matrix);
+          const spatial = new Vector3().fromArray(spatialPoints, i*3).applyMatrix4(t.matrix);
           assert(Math.hypot(...spatial.toArray().map((v, k) => v - points[3 * i + k])) < 0.001);
         }
       }

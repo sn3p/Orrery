@@ -9,17 +9,13 @@ const base = { a: 1, e: 0.1, i: 23, W: 45, wbar: 0, M: 17, n: 1, epoch: 2451545 
 function checkTrack(orbit, jed = 2451545) {
   const line = orbit.drawOrbit(jed);
   try {
-    const { path, style } = line.context.instructions[0].data;
-    const points = path.instructions;
-    assert.equal(points.length, 361);
-    assert.equal(points[0].action, "moveTo");
-    assert(points.slice(1).every(point => point.action === "lineTo"));
-    assert.deepEqual(points.at(-1).data, points[0].data, "Repeat the first point exactly");
-    assert.equal(style.width, 0.2); assert.equal(style.color, 0x555555);
+    const points = line.sourcePoints;
+    assert.equal(points.length, 361*3);
+    assert.deepEqual(points.slice(-3), points.slice(0,3), 'Repeat the first point exactly');
     const eph = orbit.ephemeris, period = eph.n ? 360 / eph.n : eph.P;
     for (let i = 0; i < 360; i++) {
       const { x, y } = reference(eph, jed + period / 360 * i);
-      assert(Math.hypot(points[i].data[0] - x, points[i].data[1] - y) < Math.max(1, eph.a * 100) * 1e-9,
+      assert(Math.hypot(points[i*3] - x, points[i*3+1] - y) < Math.max(1, eph.a * 100) * 1e-9,
         `Vertex ${i} starts at the requested date and follows the motion period`);
     }
   } finally { line.destroy(); }

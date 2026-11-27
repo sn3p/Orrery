@@ -1,3 +1,4 @@
+import OrbitTrack from './ScreenOrbit.js';
 // Ported from the preserved Orrery3D 93a3e1f source (MIT).
 import { PIXELS_PER_AU, J2000, DEG_TO_RAD } from "../../js/constants.js";
 import * as THREE from "three";
@@ -127,24 +128,9 @@ export default class Orbit {
   static createOrbit(eph, jed = J2000) {
     const geometry = Orbit.getOrbitGeometry(eph, jed);
 
-    // const material = new THREE.LineBasicMaterial({
-    //   color: 0x555555,
-    //   linewidth: 1
-    // });
-
-    const material = new THREE.LineDashedMaterial({
-      color: 0x333333,
-      linewidth: 1,
-      dashSize: 5,
-      gapSize: 3,
-    });
-
-    const line = new THREE.Line(geometry, material);
-
-    // Required for dotted lines
-    line.computeLineDistances();
-
-    return line;
+    const points = new Float64Array(geometry.attributes.position.array);
+    geometry.dispose();
+    return new OrbitTrack(points);
   }
 
   static getOrbitGeometry(eph, jed = J2000, baseResolution = 90) {

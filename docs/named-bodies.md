@@ -55,8 +55,10 @@ from an export still shows the named reference body.
 
 ## Display and accuracy
 
-The existing Planets section controls labels and orbit lines for both classes.
-Dwarf labels append “· dwarf”. Earth remains the default label. All thirteen
+The Planets and Dwarf planets sections control labels and orbit lines separately.
+Earth remains the default planet label; dwarf labels start off and append “· dwarf”
+when enabled. Each label preference is remembered independently. Planet orbit
+lines start on and dwarf orbit lines start off each visit. All thirteen
 bodies are independent of discovery date and asteroid filters; offscreen bodies
 stay clipped. Initial framing, zoom, saved renderer views and group fits are
 unchanged. No new Fit action or comet playback is involved.
@@ -74,9 +76,11 @@ anomaly continues at its fitted rate. The position result exposes
 `approximate-extrapolation`; About explains the policy. Orbit lines sample the
 instantaneous date-dependent ellipse with the same boundary freeze. The adapted
 reader shares one ellipse/date calculation between markers and tracks; the app
-model only converts units. Tracks keep their initial geometry and use an exact
-affine transform as the ellipse changes, avoiding per-frame path/vertex uploads.
-Dash spacing follows that small deformation. Pixi projects
+model only converts units. Tracks retain their scientific samples and use an exact
+affine transform as the ellipse changes. Both renderers project those samples into
+reusable stroke buffers when the view or shape changes. Dashes are five CSS pixels
+long with three-pixel gaps and one-pixel width, independent of perspective, zoom
+and display resolution. Hidden tracks skip projection. Pixi projects
 negative X / positive Y; Three uses XYZ; both use100world units/AU.
 
 The existing UTC calendar's Julian number is used as approximate TDB; Orrery does

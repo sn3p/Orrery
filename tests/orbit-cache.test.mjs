@@ -114,12 +114,12 @@ test("track samples reuse prepared ellipse terms while preserving independent po
   } finally { Math.sqrt = sqrt; }
   try {
     assert.equal(calls, 1, "Prepare the ellipse once for all track samples");
-    const points = line.context.instructions[0].data.path.instructions;
-    assert.equal(points.length, 361);
-    assert.deepEqual(points[0].data, points.at(-1).data);
+    const points = line.sourcePoints;
+    assert.equal(points.length, 361 * 3);
+    assert.deepEqual(points.slice(0,3), points.slice(-3));
     for (let i = 0; i < 360; i++) {
       const expected = reference(orbit.ephemeris, base.epoch + i);
-      assert(Math.hypot(points[i].data[0] - expected.x, points[i].data[1] - expected.y) < 1e-7);
+      assert(Math.hypot(points[i*3] - expected.x, points[i*3+1] - expected.y) < 1e-7);
     }
   } finally { line.destroy(); }
 });
