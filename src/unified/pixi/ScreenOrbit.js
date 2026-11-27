@@ -13,7 +13,7 @@ export default class OrbitTrack extends Mesh {
     this.sourcePoints = points; this.screenOrbit = projection; this.screenBuffer = buffer;
     this.screenMatrix = new Float64Array(16); this.screenTransform = new Matrix();
   }
-  updateScreenOrbit({ width, height }) {
+  updateScreenOrbit({ width, height, pixelRatio = 1 }) {
     if (!this.visible) return;
     // Hidden reference groups need neither a shader nor projected geometry.
     this.shader ||= Shader.from({ gl: {
@@ -26,7 +26,7 @@ export default class OrbitTrack extends Mesh {
     const { a, b, c, d, tx, ty } = this.getGlobalTransform(this.screenTransform), m = this.screenMatrix;
     m.fill(0); m[0] = 2 * a / width; m[1] = -2 * b / height; m[4] = 2 * c / width; m[5] = -2 * d / height;
     m[12] = 2 * tx / width - 1; m[13] = 1 - 2 * ty / height; m[15] = 1;
-    if (this.screenOrbit.update(m, width, height)) this.screenBuffer.update();
+    if (this.screenOrbit.update(m, width, height, pixelRatio)) this.screenBuffer.update();
   }
   destroy(options) {
     const geometry = this.geometry, shader = this.shader;

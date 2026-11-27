@@ -3,7 +3,7 @@
 // outer orbits which cross the camera or the near plane.
 export const ORBIT_DASH = 5;
 export const ORBIT_GAP = 3;
-export const ORBIT_WIDTH = 1;
+export const ORBIT_WIDTH = 1; // Backing-store pixels; dash/gap lengths remain CSS pixels.
 const PERIOD = ORBIT_DASH + ORBIT_GAP;
 const planes = [[1, 0, 0, 1], [-1, 0, 0, 1], [0, 1, 0, 1], [0, -1, 0, 1], [0, 0, 1, 1], [0, 0, -1, 1]];
 
@@ -20,16 +20,16 @@ export class ScreenOrbit {
   constructor(points) {
     this.points = points;
     this.vertices = new Float32Array((points.length / 3 - 1) * 6 * 4);
-    this.signature = new Float64Array(18).fill(NaN);
+    this.signature = new Float64Array(19).fill(NaN);
     this.start = new Float64Array(4); this.end = new Float64Array(4);
     this.count = 0; this.revision = 0;
   }
-  update(matrix, width, height) {
-    if (!(width > 0 && height > 0)) return false;
-    let unchanged = this.signature[16] === width && this.signature[17] === height;
+  update(matrix, width, height, pixelRatio = 1) {
+    if (!(width > 0 && height > 0 && pixelRatio > 0 && Number.isFinite(pixelRatio))) return false;
+    let unchanged = this.signature[16] === width && this.signature[17] === height && this.signature[18] === pixelRatio;
     for (let i = 0; unchanged && i < 16; i++) unchanged = matrix[i] === this.signature[i];
     if (unchanged) return false;
-    this.signature.set(matrix); this.signature[16] = width; this.signature[17] = height;
+    this.signature.set(matrix); this.signature[16] = width; this.signature[17] = height; this.signature[18] = pixelRatio;
     const data = this.vertices;
     // Pixi draws the allocated capacity; unused triangles must stay degenerate.
     data.fill(0);
@@ -55,9 +55,10 @@ export class ScreenOrbit {
       const bz = (a[2] + (b[2] - a[2]) * last) / bw;
       const dx = (bx - ax) * width / 2, dy = (by - ay) * height / 2, length = Math.hypot(dx, dy);
       if (!(length > 1e-8 && Number.isFinite(length))) continue;
-      // Extrude one CSS-pixel-wide quad. Linear screen-space interpolation keeps
+      // Extrude one backing-store-pixel-wide quad, retaining the lighter high-DPI stroke.
+      // Linear screen-space interpolation keeps
       // both dash length and gap independent of perspective and backing-buffer DPR.
-      const nx = -dy / length * ORBIT_WIDTH / width, ny = dx / length * ORBIT_WIDTH / height;
+      const nx = -dy / length * ORBIT_WIDTH / (width * pixelRatio), ny = dx / length * ORBIT_WIDTH / (height * pixelRatio);
       cursor = vertex(data, cursor, ax + nx, ay + ny, az, phase);
       cursor = vertex(data, cursor, ax - nx, ay - ny, az, phase);
       cursor = vertex(data, cursor, bx + nx, by + ny, bz, phase + length);

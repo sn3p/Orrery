@@ -18,13 +18,13 @@ export default class OrbitTrack extends THREE.Mesh {
     this.sourcePoints = points; this.screenOrbit = projection; this.screenBuffer = buffer;
     this.frustumCulled = false; this.projectionMatrix = new THREE.Matrix4();
   }
-  updateScreenOrbit(camera, { width, height }) {
+  updateScreenOrbit(camera, { width, height, pixelRatio = 1 }) {
     if (!this.visible) return;
     this.updateWorldMatrix(true, false);
     this.projectionMatrix.copy(camera.projectionMatrix).multiply(camera.matrixWorldInverse).multiply(this.matrixWorld);
     // The renderer passes CSS dimensions explicitly: ThreeRenderer sizes its
     // backing buffer directly, so WebGLRenderer.getSize is not the CSS size.
-    if (this.screenOrbit.update(this.projectionMatrix.elements, width, height)) {
+    if (this.screenOrbit.update(this.projectionMatrix.elements, width, height, pixelRatio)) {
       this.screenBuffer.needsUpdate = true;
       this.geometry.setDrawRange(0, this.screenOrbit.count);
     }

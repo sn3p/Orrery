@@ -77,7 +77,7 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
         assert.equal(await page.getByRole('button', { name: 'Retry catalogue' }).count(), 0);
       }
       // Inspect the actual projected meshes after native draws, without capturing images.
-      for (const scale of [.15, 1, 4]) for (const ratio of [1, 2]) {
+      for (const scale of [.15, 1, 4]) for (const ratio of [1, 2, 1]) {
         const stroke = await page.evaluate(({ scale, ratio, initial }) => {
           app.dwarfOrbits = true;
           app.fixedResolution = ratio; app.resize({render:false});
@@ -97,7 +97,7 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
               const length=Math.hypot((a[i+8]-a[i])*innerWidth/2,(a[i+9]-a[i+1])*innerHeight/2);
               const width=Math.hypot((a[i+4]-a[i])*innerWidth/2,(a[i+5]-a[i+1])*innerHeight/2);
               maxLengthError=Math.max(maxLengthError,Math.abs(length-(a[i+11]-a[i+3])));
-              maxWidthError=Math.max(maxWidthError,Math.abs(width-1));segments++;
+              maxWidthError=Math.max(maxWidthError,Math.abs(width*ratio-1));segments++;
             }
           }
           const revisions=r.planetOrbits.map(o=>o.screenOrbit.revision);
