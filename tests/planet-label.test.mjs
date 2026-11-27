@@ -13,6 +13,7 @@ function fixture() {
       assert.equal(tag, "span");
       const attributes = new Map(), element = {
         dataset: {}, style: {}, hidden: false, removed: 0,
+        appendChild(child) { this.children ??= []; this.children.push(child); this.textContent += child.textContent; },
         setAttribute(name, value) { attributes.set(name, value); },
         getAttribute(name) { return attributes.get(name); },
         remove() { this.removed++; },

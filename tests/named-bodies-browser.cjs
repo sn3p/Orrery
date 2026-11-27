@@ -204,7 +204,14 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
       assert.equal(await page.evaluate(() => app.renderer.planets.filter(p => p.options.classification === 'dwarf-planet').length), 5);
       await page.evaluate(() => { app.planetLabels = 'all'; app.dwarfLabels = 'all'; app.renderFrame(); });
       assert.equal(await page.locator('.orrery-planet-label[data-classification="dwarf-planet"]').count(), 5);
-      assert.equal(await page.locator('.orrery-planet-label[data-planet="Pluto"]').textContent(), 'Pluto · dwarf');
+      assert.equal(await page.locator('.orrery-planet-label[data-planet="Pluto"]').textContent(), 'Pluto (dwarf)');
+      assert(await page.locator('.orrery-planet-label[data-classification="dwarf-planet"]').evaluateAll(labels => labels.every(label => {
+        const kind=label.querySelector('.orrery-planet-label-kind');
+        return label.textContent===`${label.dataset.planet} (dwarf)` && kind?.textContent===' (dwarf)'
+          && getComputedStyle(kind).opacity==='0.75' && getComputedStyle(label).opacity==='0.5'
+          && getComputedStyle(kind).color===getComputedStyle(label).color;
+      })), 'Only the parenthetical is additionally muted, in the body color');
+      assert.equal(await page.locator('.orrery-planet-label[data-classification="planet"] .orrery-planet-label-kind').count(),0);
       assert(await page.locator('.orrery-planet-label[data-planet="Pluto"]').isHidden(), 'Outer bodies clip in the opening view');
       // Confirm both adapters use real producer positions through the actual App update.
       for (const date of [2378496.5, 2451545, 2488069.5, 1000000, 4000000]) {

@@ -40,7 +40,13 @@ export default class PlanetLabel {
   constructor(container, name, color, classification) {
     const element = container.ownerDocument.createElement("span");
     element.className = "orrery-planet-label";
-    element.textContent = classification === "dwarf-planet" ? `${name} · dwarf` : name;
+    element.textContent = name;
+    if (classification === "dwarf-planet") {
+      const kind = container.ownerDocument.createElement("span");
+      kind.className = "orrery-planet-label-kind";
+      kind.textContent = " (dwarf)";
+      element.appendChild(kind);
+    }
     if (classification) element.dataset.classification = classification;
     element.dataset.planet = name;
     const cssColor = planetLabelColor(color);

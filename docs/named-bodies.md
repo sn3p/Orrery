@@ -56,7 +56,7 @@ from an export still shows the named reference body.
 ## Display and accuracy
 
 The Planets and Dwarf planets sections control labels and orbit lines separately.
-Earth remains the default planet label; dwarf labels start off and append “· dwarf”
+Earth remains the default planet label; dwarf labels start off and append a subtly muted “(dwarf)”
 when enabled. Each label preference is remembered independently. Planet orbit
 lines start on and dwarf orbit lines start off each visit. All thirteen
 bodies are independent of discovery date and asteroid filters; offscreen bodies
