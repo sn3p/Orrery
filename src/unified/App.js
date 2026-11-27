@@ -725,7 +725,7 @@ export default class App {
       : ' Reload to try again.';
     const failure = (this.catalogFailure && `Could not load the asteroid catalogue.${advice}`)
       || (loader?.errorKind === "commit" && "This asteroid catalogue cannot be prepared for this renderer.")
-      || (loader?.error && loader.buffering && (hasTargetContext
+      || (!this.catalogOpening && loader?.error && loader.buffering && (hasTargetContext
         ? `Could not load asteroids for ${targetDay}.${advice}`
         : `Could not load more asteroids.${advice}`));
     if (failure) {

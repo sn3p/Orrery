@@ -200,6 +200,37 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
       }
       assert(await page.evaluate(pairedLatest => app.loadCatalog(null,{pairedLatest}),pairedURL));
       await settle(page);
+      // Bodyless HTTP success must neither retry nor reacquire invalid data.
+      for (const url of [pairedURL, data.pin.url]) for (const status of [204, 205]) {
+        const before = discoveries();
+        await page.route(url, route => route.fulfill({ status }));
+        try {
+          assert.equal(await page.evaluate(pairedLatest => app.loadCatalog(null, { pairedLatest }), pairedURL), false);
+          assert.equal(discoveries() - before, 1);
+          assert.equal(await page.getByRole('button', { name: 'Retry catalogue' }).count(), 0);
+          assert.match(await page.locator('#orrery-status').textContent(), /data provider fixes it/);
+          assert.deepEqual(await page.evaluate(() => app.renderer.captureView()), initial);
+        } finally { await page.unroute(url); }
+      }
+      assert(await page.evaluate(pairedLatest => app.loadCatalog(null, { pairedLatest }), pairedURL));
+      await settle(page);
+      // Hold real descriptor acquisition after an active loader read failure.
+      const checkRecoveryStatus = async action => {
+        let resume, arrived;
+        const gate = new Promise(resolve => { resume = resolve; });
+        const seen = new Promise(resolve => { arrived = resolve; });
+        await page.route(pairedURL, async route => { arrived(); await gate; await route.fallback().catch(() => {}); });
+        try {
+          await action(); await seen;
+          assert(await page.evaluate(() => !!app.catalogOpening && app.activeSession.loader.errorKind === 'read'));
+          assert.match(await page.locator('#orrery-status').textContent(), /Buffering asteroids/);
+          assert.equal(await page.locator('#orrery-status .orrery-status-busy .orrery-status-spinner').count(), 1);
+          assert.equal(await page.locator('#orrery-status').ariaSnapshot(), '- status: Buffering asteroids for 2000-01-01.');
+          assert.doesNotMatch(await page.locator('#orrery-status').textContent(), /provider|Could not|Reload/);
+          assert.equal(await page.getByRole('button', { name: 'Retry catalogue' }).count(), 0);
+          assert.deepEqual(await page.evaluate(() => app.renderer.captureView()), initial);
+        } finally { resume(); await page.unroute(pairedURL); }
+      };
       // A long-open paired scene can lose a not-yet-read immutable chunk.
       beforeRecovery = discoveries();
       await page.route('https://named.test/asteroids/chunks/**', route => route.fulfill({ status: 404 }));
@@ -212,13 +243,13 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
       assert.equal(discoveries(),beforeRecovery,'Speculative failure never reacquires a pair');
       assert.equal(await page.evaluate(() => app.activeSession.request.recovered),false);
       assert.equal(await page.getByRole('button',{name:'Retry catalogue'}).count(),0);
-      await page.evaluate(() => { app.jed = 2451544.5; app.renderFrame(); });
+      await checkRecoveryStatus(() => page.evaluate(() => { app.jed = 2451544.5; app.renderFrame(); }));
       await page.getByRole('button', { name: 'Retry catalogue' }).waitFor();
       assert.equal(discoveries() - beforeRecovery, 1, 'Lazy chunk expiry reacquires one descriptor');
       assert.deepEqual(await page.evaluate(() => app.renderer.captureView()), initial);
       assert.equal(await page.evaluate(() => app.renderer.planets.length), 13);
       await page.unroute('https://named.test/asteroids/chunks/**');
-      await page.getByRole('button', { name: 'Retry catalogue' }).click();
+      await checkRecoveryStatus(() => page.getByRole('button', { name: 'Retry catalogue' }).click());
       await settle(page);
       await page.evaluate(() => { app.jed = 2378496.5; app.renderFrame(); });
       await page.evaluate(() => { app.catalogLoader.errorKind='commit'; app.catalogLoader.error=new Error('Cannot prepare'); app.updateCatalogStatus(); });

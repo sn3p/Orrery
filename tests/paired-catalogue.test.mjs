@@ -103,3 +103,23 @@ test('paired and legacy latest share transport classification without following 
     }
   }
 });
+
+
+test('bodyless successful discovery and pinned responses are invalid data, not transport failures', async t => {
+  const { default: CatalogSource, fetchVerified } = await import('../src/unified/catalog/CatalogSource.js');
+  const { fetchVerified: fetchNamed } = await import('../src/unified/named/source/transport.js');
+  const { isRequestFailure } = await import('../src/unified/catalog/request.js');
+  const original = globalThis.fetch; t.after(() => { globalThis.fetch = original; });
+  for (const read of [() => resolvePairedLatest('https://named.test/latest.json'),
+    () => CatalogSource.openLatest('https://named.test/latest.json'),
+    () => fetchVerified(data.pin, data.pin.url), () => fetchNamed(data.namedBodies, data.namedBodies.url)]) {
+    for (const status of [200, 204, 205]) {
+      globalThis.fetch = async () => new Response(null, { status });
+      await assert.rejects(read, error => !isRequestFailure(error) && /body/.test(error.message));
+    }
+    for (const status of [404, 503]) {
+      globalThis.fetch = async () => new Response(null, { status });
+      await assert.rejects(read, error => isRequestFailure(error) && error.status === status);
+    }
+  }
+});

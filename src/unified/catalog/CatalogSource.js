@@ -69,11 +69,11 @@ class FileSlots {
 export async function fetchVerified(ref, url, signal) {
   check(signal);
   const response = await request(url, { signal });
-  if (!response.ok || !response.body) {
+  if (!response.ok) {
     await response.body?.cancel().catch(() => {});
-    throw new CatalogueRequestError(!response.ok ? `Catalogue request failed (${response.status}): ${ref.url}`
-      : `Catalogue response has no body: ${ref.url}`, { status: response.status });
+    throw new CatalogueRequestError(`Catalogue request failed (${response.status}): ${ref.url}`, { status: response.status });
   }
+  if (!response.body) throw new Error(`Catalogue response has no body: ${ref.url}`);
   // Content-Length can describe compressed HTTP bytes. Enforce the trusted
   // decoded length while streaming, before allocating/parsing an oversized body.
   const bytes = new Uint8Array(ref.bytes);

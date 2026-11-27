@@ -26,9 +26,10 @@ export async function requestLatest(url, signal) {
     await response.body?.cancel().catch(() => {});
     throw new Error('Catalogue discovery URL must not redirect.');
   }
-  if (!response.ok || !response.body) {
+  if (!response.ok) {
     await response.body?.cancel().catch(() => {});
     throw new CatalogueRequestError(`Catalogue discovery failed (${response.status}).`, { status: response.status });
   }
+  if (!response.body) throw new Error('Invalid catalogue descriptor (missing response body).');
   return response;
 }
