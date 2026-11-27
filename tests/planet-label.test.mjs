@@ -122,21 +122,37 @@ test("label preference defaults, validates and survives unavailable storage", ()
 
 test("both renderers apply shared label modes without reacting to unrelated shared options", () => {
   for (const Renderer of [PixiRenderer, ThreeRenderer]) {
-    const planets = [{ options: { name: "Earth" } }], calls = [], receiver = {
-      planetLabelMode: "earth", planets,
-      planetLabels: { setMode(...args) { calls.push(args); } },
-      requestRender() { calls.push("render"); },
-    };
-    Renderer.prototype.setOptions.call(receiver, { shared: { pixelRatio: "2" } });
-    assert.deepEqual(calls, []);
-    Renderer.prototype.setOptions.call(receiver, { shared: { planetLabels: "all" } });
-    assert.equal(receiver.planetLabelMode, "all");
-    assert.deepEqual(calls, [[planets, "all", "off"], "render"]);
-    Renderer.prototype.setOptions.call(receiver, { shared: { planetLabels: "all" } });
-    assert.equal(calls.length, 2, "Applying the active mode is inert");
-    assert.throws(() => Renderer.prototype.setOptions.call(receiver,
-      { shared: { planetLabels: "selected" } }), RangeError);
-    assert.equal(receiver.planetLabelMode, "all");
+    const { container } = fixture();
+    let renders = 0;
+    // Use the real constructor so this boundary includes initialized defaults.
+    const renderer = new Renderer({ container, invalidate() { renders++; },
+      reportGraphicsState() {}, getViewport() { return { width: 640, height: 480, pixelRatio: 1 }; } });
+    const earth = { options: { name: "Earth", classification: "planet" } };
+    const pluto = { options: { name: "Pluto", classification: "dwarf-planet" } };
+    renderer.planets = [earth, pluto];
+    try {
+      assert.equal(renderer.planetLabelMode, "earth");
+      assert.equal(renderer.dwarfLabelMode, "off");
+      renderer.setOptions({ shared: { pixelRatio: "2" } });
+      assert.equal(renders, 0);
+      renderer.setOptions({ shared: { planetLabels: "all" } });
+      assert.equal(renderer.planetLabelMode, "all");
+      assert.deepEqual([...renderer.planetLabels.labels.keys()], [earth]);
+      assert.equal(renders, 1);
+      renderer.setOptions({ shared: { planetLabels: "all" } });
+      assert.equal(renders, 1, "Applying the active mode is inert");
+      assert.throws(() => renderer.setOptions({ shared: { planetLabels: "selected" } }), RangeError);
+      assert.equal(renderer.planetLabelMode, "all");
+      renderer.setOptions({ shared: { dwarfLabels: "all" } });
+      assert.deepEqual([...renderer.planetLabels.labels.keys()], [earth, pluto]);
+      renderer.setOptions({ shared: { planetLabels: "off" } });
+      assert.equal(renderer.dwarfLabelMode, "all");
+      assert.deepEqual([...renderer.planetLabels.labels.keys()], [pluto]);
+      assert.throws(() => renderer.setOptions({ shared: { planetLabels: "all", dwarfLabels: "invalid" } }), RangeError);
+      assert.equal(renderer.planetLabelMode, "off", "Invalid combined settings preserve both selections");
+      assert.equal(renderer.dwarfLabelMode, "all");
+      assert.deepEqual([...renderer.planetLabels.labels.keys()], [pluto]);
+    } finally { renderer.destroy(); }
   }
 });
 
