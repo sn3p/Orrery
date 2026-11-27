@@ -146,14 +146,44 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
       await page.getByRole('button', { name: 'Retry catalogue' }).click();
       await settle(page);
       // Invalid pairs are deterministic failures, never transport recovery.
-      for (const mismatch of [false, true]) {
+      for (const failure of ['integrity', 'pairing', 'schema', 'redirect']) {
         const before = discoveries();
-        if (mismatch) await page.route(pairedURL, route => route.fulfill({json:{paired_catalogue_version:1,asteroids:empty.pin,namedBodies:data.namedBodies}}));
+        const syntheticRedirect = failure === 'redirect' && browser.browserType().name() === 'webkit';
+        if (syntheticRedirect) {
+          // WebKit interception cannot fulfill 3xx; exercise the browser's
+          // opaque-redirect response contract without starting an HTTP server.
+          await page.evaluate(pairedURL => {
+            window.savedFetch = window.fetch; window.redirectFetches = 0;
+            window.fetch = (url, options) => {
+              if (url !== pairedURL) return savedFetch(url, options);
+              redirectFetches++;
+              return Promise.resolve({ type: 'opaqueredirect', status: 0 });
+            };
+          }, pairedURL);
+        } else if (failure === 'pairing') await page.route(pairedURL, route => route.fulfill({json:{paired_catalogue_version:1,asteroids:empty.pin,namedBodies:data.namedBodies}}));
+        else if (failure === 'schema') await page.route(pairedURL, route => route.fulfill({json:{paired_catalogue_version:2}}));
+        else if (failure === 'redirect') await page.route(pairedURL, route => route.fulfill({status:302,headers:{location:'https://named.test/redirect-target.json'}}));
         else await page.route(data.pin.url, route => route.fulfill({body:'{}',contentType:'application/json'}));
         assert.equal(await page.evaluate(pairedLatest => app.loadCatalog(null,{pairedLatest}),pairedURL),false);
-        assert.equal(discoveries()-before,1);
+        assert.equal(discoveries()-before,syntheticRedirect ? 0 : 1);
+        if (syntheticRedirect) {
+          assert.equal(await page.evaluate(() => redirectFetches), 1);
+          await page.evaluate(() => { window.fetch = savedFetch; delete window.savedFetch; });
+        }
         assert.equal(await page.getByRole('button',{name:'Retry catalogue'}).count(),0);
-        await page.unroute(mismatch ? pairedURL : data.pin.url);
+        assert.match(await page.locator('#orrery-status').textContent(), /published catalogue could not be validated.*data provider fixes it/);
+        assert.deepEqual(await page.evaluate(() => app.renderer.captureView()), initial);
+        if (failure === 'schema') {
+          for (const width of [320, 1280]) {
+            await page.setViewportSize({ width, height: 900 });
+            assert(await page.locator('#orrery-status').evaluate(el => {
+              const box = el.getBoundingClientRect();
+              return box.left >= 0 && box.right <= innerWidth && el.scrollWidth <= el.clientWidth + 1;
+            }), 'Validation guidance wraps within the viewport');
+          }
+        }
+        assert(!requests.some(url=>url.endsWith('/redirect-target.json')), 'Discovery redirects never follow a new location');
+        await page.unroute(failure === 'integrity' ? data.pin.url : pairedURL);
       }
       assert(await page.evaluate(pairedLatest => app.loadCatalog(null,{pairedLatest}),pairedURL));
       await settle(page);

@@ -1,4 +1,4 @@
-import { request, readResponse, CatalogueRequestError } from './request.js';
+import { request, requestLatest, readResponse, CatalogueRequestError } from './request.js';
 import { validatePin, validateIndex, validateRecords, verifyBytes, parseJSON, freeze,
   countThrough, requireValue, validateLatest, validateLatestURL } from "./contract.js";
 
@@ -99,11 +99,7 @@ export default class CatalogSource {
   static async openLatest(url, { signal } = {}) {
     const location = validateLatestURL(url);
     // HTTPS origin is the trust boundary. Revalidate once per new session.
-    const response = await fetch(location.href, { signal, cache: "no-cache", redirect: "error" });
-    if (!response.ok || !response.body) {
-      await response.body?.cancel();
-      throw new Error(`Catalogue discovery failed (${response.status}).`);
-    }
+    const response = await requestLatest(location.href, signal);
     const reader = response.body.getReader();
     const bytes = new Uint8Array(4096);
     let length = 0;

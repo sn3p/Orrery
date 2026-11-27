@@ -4,7 +4,7 @@ OrreryData owns the scientific definitions of all eight planets and Ceres,
 Pluto, Haumea, Makemake and Eris. Orrery owns marker sizes and colours, keyed by
 stable ID. `src/js/planets.js` contains no hand-authored orbital data.
 
-The reader is adapted from, and the transport, contract and bundled definitions are copied from
+The reader and transport are adapted from, and the contract and bundled definitions are copied from
 [OrreryData 1466f2c](https://github.com/sn3p/orrery-data/tree/1466f2c2c0c0e95f72e9a7fca86eba386c0227d9),
 `consumer/{NamedBodySource,transport,contract}.js` and
 `research/named-bodies/definitions.json` (MIT). The bundled JSON is byte-identical;
@@ -32,7 +32,11 @@ minimum fourteen days after confirmed hosted supersession). When a demanded
 resource returns HTTP 404 or 410,
 the app retains its scene and reacquires one whole pair once, then exposes a
 Retry catalogue action for transport failures. Invalid data and renderer
-preparation failures do not trigger a download retry. There is no polling or
+preparation failures do not trigger a download retry. Invalid paired data explains
+that a provider correction is needed; it does not ask users to reload and lose
+their scene. Latest-descriptor redirects are rejected without following them,
+and do not offer a transport retry. Paired and asteroid-only discovery use the
+same transport-error classification. There is no polling or
 permanent offline-pin guarantee.
 
 The product index pins definitions and a mapping to **the exact asteroid index**.

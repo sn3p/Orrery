@@ -720,7 +720,9 @@ export default class App {
         : session?.request === this.catalogRequest && loader?.errorKind === 'read'
           && loader.buffering && isRequestFailure(loader.error))
       ? this.catalogRequest.pairedLatest : null;
-    const advice = this.catalogRequest ? '' : ' Reload to try again.';
+    const advice = retryCatalogue ? '' : this.catalogRequest
+      ? ' The published catalogue could not be validated. Please try again after the data provider fixes it.'
+      : ' Reload to try again.';
     const failure = (this.catalogFailure && `Could not load the asteroid catalogue.${advice}`)
       || (loader?.errorKind === "commit" && "This asteroid catalogue cannot be prepared for this renderer.")
       || (loader?.error && loader.buffering && (hasTargetContext

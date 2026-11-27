@@ -1,4 +1,4 @@
-import { request, readResponse, CatalogueRequestError } from '../../catalog/request.js';
+import { request, requestLatest, readResponse, CatalogueRequestError } from '../../catalog/request.js';
 // Shared bounded transport and cancellation for pinned browser data products.
 import { requireValue, parseJSON, verifyBytes } from './contract.js';
 
@@ -56,9 +56,8 @@ export async function fetchLatest(url, signal, product = 'catalogue') {
   try {
     const location = validatedURL(url, product, 'latest URL');
     check(signal, product);
-    const response = await request(location.href, { signal, cache: 'no-cache', redirect: 'error' });
+    const response = await requestLatest(location.href, signal);
     check(signal, product);
-    if (!response.ok) throw new CatalogueRequestError(`${title(product)} discovery failed (${response.status}).`, { status: response.status });
     const bytes = await readBounded(response, 4096, 'latest descriptor size', signal, product);
     check(signal, product);
     return { location, latest: decodeJSON(bytes, product) };
