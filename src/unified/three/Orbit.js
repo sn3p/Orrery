@@ -126,14 +126,10 @@ export default class Orbit {
   }
 
   static createOrbit(eph, jed = J2000) {
-    const geometry = Orbit.getOrbitGeometry(eph, jed);
-
-    const points = new Float64Array(geometry.attributes.position.array);
-    geometry.dispose();
-    return new OrbitTrack(points);
+    return new OrbitTrack(Orbit.getOrbitPoints(eph, jed));
   }
 
-  static getOrbitGeometry(eph, jed = J2000, baseResolution = 90) {
+  static getOrbitPoints(eph, jed = J2000, baseResolution = 90) {
     // Validate before allocating a track, including nonfinite elements that
     // would otherwise turn the segment count into NaN and skip every sample.
     const orbit = new Orbit(eph);
@@ -141,7 +137,7 @@ export default class Orbit {
     const parts = Orbit.getOrbitResolution(eph, baseResolution);
     const period = Orbit.getPeriodInDays(eph);
     const delta = period / parts;
-    const positions = new Float32Array((parts + 1) * 3);
+    const positions = new Float64Array((parts + 1) * 3);
     position.toArray(positions);
 
     for (let i = 1; i < parts; ++i) {
@@ -152,10 +148,7 @@ export default class Orbit {
     // Repeat the first vertex exactly so the dashed line includes its closing segment.
     positions.set(positions.subarray(0, 3), parts * 3);
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-
-    return geometry;
+    return positions;
   }
 
   static getOrbitResolution(eph, base = 90) {

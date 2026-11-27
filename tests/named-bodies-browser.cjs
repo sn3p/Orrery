@@ -76,7 +76,8 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
         assert.equal(requests.length, before, 'Conflicting runtime selectors never retry as valid selections');
         assert.equal(await page.getByRole('button', { name: 'Retry catalogue' }).count(), 0);
       }
-      // Inspect the actual projected meshes after native draws, without capturing images.
+      // Inspect the actual projected meshes and GPU upload ranges after native draws.
+      let partialUploads = 0;
       for (const scale of [.15, 1, 4]) for (const ratio of [1, 2, 1]) {
         const stroke = await page.evaluate(({ scale, ratio, initial }) => {
           app.dwarfOrbits = true;
@@ -88,7 +89,16 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
             r.camera.position.set(500/scale, -300/scale, 200/scale);
             r.camera.lookAt(0,0,0);
           }
-          app.renderFrame();
+          const gl = app.rendererId === 'pixi' ? r.app.renderer.gl : r.renderer.getContext();
+          const originalUpload = gl.bufferSubData, uploads = [];
+          gl.bufferSubData = function(target, offset, data, start, length) {
+            const orbit = r.planetOrbits.find(o => o.screenOrbit.vertices.buffer === data.buffer)?.screenOrbit;
+            if (orbit) uploads.push({ bytes: (length ?? data.length) * data.BYTES_PER_ELEMENT,
+              expected: (app.rendererId === 'pixi' ? orbit.updateSize : orbit.count * 4) * 4,
+              capacity: orbit.vertices.byteLength });
+            return originalUpload.apply(this, arguments);
+          };
+          try { app.renderFrame(); } finally { gl.bufferSubData = originalUpload; }
           let segments=0,maxLengthError=0,maxWidthError=0,finite=true;
           for(const track of r.planetOrbits){
             const mesh=track.screenOrbit,a=mesh.vertices;
@@ -102,11 +112,14 @@ async function run({ browser, output = '.context/named-bodies/browser', candidat
           }
           const revisions=r.planetOrbits.map(o=>o.screenOrbit.revision);
           app.renderFrame();
-          return {segments,finite,maxLengthError,maxWidthError,idleStable:r.planetOrbits.every((o,i)=>o.screenOrbit.revision===revisions[i])};
+          return {segments,finite,maxLengthError,maxWidthError,uploads,idleStable:r.planetOrbits.every((o,i)=>o.screenOrbit.revision===revisions[i])};
         }, {scale,ratio,initial});
+        assert(stroke.uploads.every(upload => upload.bytes === upload.expected), JSON.stringify(stroke.uploads));
+        partialUploads += stroke.uploads.filter(upload => upload.bytes < upload.capacity).length;
         assert(stroke.segments>0 && stroke.finite && stroke.idleStable,JSON.stringify(stroke));
         assert(stroke.maxLengthError<.001 && stroke.maxWidthError<.001,JSON.stringify(stroke));
       }
+      assert(partialUploads > 0, 'Native orbit uploads exclude unused buffer capacity');
       await page.evaluate(initial=>{app.renderer.restoreView(initial);app.fixedResolution=undefined;app.resize({render:false});app.dwarfOrbits=false;app.renderFrame();},initial);
       const restored = await page.evaluate(() => app.renderer.captureView());
       for (const key of Object.keys(initial)) assert([initial[key]].flat().every((v,i)=>Math.abs(v-[restored[key]].flat()[i])<1e-9));

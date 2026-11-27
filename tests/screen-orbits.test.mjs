@@ -78,3 +78,50 @@ test('hidden native Pixi tracks defer shader creation and projection', async () 
   assert.equal(track.shader, null);
  } finally { track.destroy(); }
 });
+
+
+test('panning keeps phase anchored through clipped starts and invisible segments', () => {
+ const width = 322, points = new Float64Array([-3,0,0, -2,0,0, -1.02,0,0, 0,0,0, .5,0,0]);
+ const orbit = new ScreenOrbit(points);
+ for (const pan of [-.1, 0, .04, .2, 0]) {
+  orbit.update(new Matrix4().makeTranslation(pan,0,0).elements,width,480);
+  const a = orbit.vertices;
+  let phase;
+  for(let i=0;i<orbit.count*4;i+=24) {
+   const start=(a[i]+a[i+4])/2,end=(a[i+8]+a[i+20])/2;
+   if(start<=pan && end>=pan) phase=(a[i+3]+(pan-start)/(end-start)*(a[i+11]-a[i+3]))%8;
+  }
+  assert(Math.abs(phase-(3*width/2)%8)<1e-4, `Pan ${pan}: ${phase}`);
+ }
+});
+
+test('projection clears only the stale used tail and bounds upload size', () => {
+ const orbit = new ScreenOrbit(new Float64Array([-3,0,0, -2,0,0, -.5,0,0, .5,0,0, 2,0,0, 3,0,0]));
+ const cleared=[];
+ orbit.vertices.fill = function(value,start,end) { cleared.push([start,end]); return Float32Array.prototype.fill.call(this,value,start,end); };
+ orbit.update(identity,322,480);
+ const previous=orbit.count*4;
+ assert(previous>0 && previous<orbit.vertices.length);
+ assert.equal(orbit.updateSize,previous);
+ orbit.update(new Matrix4().makeTranslation(3,0,0).elements,322,480);
+ assert(orbit.count*4<previous);
+ assert.deepEqual(cleared.at(-1),[orbit.count*4,previous]);
+ assert.equal(orbit.updateSize,previous);
+ assert(orbit.vertices.subarray(orbit.count*4).every(value=>value===0));
+ orbit.update(new Matrix4().makeTranslation(4,0,0).elements,322,480);
+ orbit.update(new Matrix4().makeTranslation(5,0,0).elements,322,480);
+ assert.equal(orbit.count,0); assert.equal(orbit.updateSize,0);
+});
+
+test('Three legacy tracks preserve double precision before projection', async () => {
+ const { default: Orbit } = await import('../src/unified/three/Orbit.js');
+ const eph={ a:68.123456789,e:.44,i:44,W:36,w:151,M:204,n:.00178,epoch:2451545 };
+ const track=Orbit.createOrbit(eph,2451545);
+ try {
+  assert(track.sourcePoints instanceof Float64Array);
+  const expected=Orbit.getPosAtTime(eph,2451545);
+  assert.deepEqual([...track.sourcePoints.slice(0,3)],expected);
+  assert(track.sourcePoints.some(value=>value!==Math.fround(value)));
+  assert.deepEqual(track.sourcePoints.slice(-3),track.sourcePoints.slice(0,3));
+ } finally { track.geometry.dispose(); track.material.dispose(); }
+});

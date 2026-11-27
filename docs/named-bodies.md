@@ -85,7 +85,11 @@ affine transform as the ellipse changes. Both renderers project those samples in
 reusable stroke buffers when the view or shape changes. Dashes are five CSS pixels
 long with three-CSS-pixel gaps, independent of perspective, zoom and display
 resolution. Stroke width stays one backing-store pixel (half a CSS pixel at 2×)
-to preserve the lighter high-density appearance. Hidden tracks skip projection. Pixi projects
+to preserve the lighter high-density appearance. Dash phase includes offscreen
+segments so panning across viewport edges does not restart the pattern. Projection
+remains bounded at camera/depth crossings. Updates overwrite the active buffer
+prefix and clear only the stale used tail; GPU uploads omit unused capacity
+after initial allocation. Hidden tracks skip projection. Pixi projects
 negative X / positive Y; Three uses XYZ; both use100world units/AU.
 
 The existing UTC calendar's Julian number is used as approximate TDB; Orrery does

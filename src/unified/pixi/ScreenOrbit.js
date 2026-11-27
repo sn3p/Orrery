@@ -26,7 +26,9 @@ export default class OrbitTrack extends Mesh {
     const { a, b, c, d, tx, ty } = this.getGlobalTransform(this.screenTransform), m = this.screenMatrix;
     m.fill(0); m[0] = 2 * a / width; m[1] = -2 * b / height; m[4] = 2 * c / width; m[5] = -2 * d / height;
     m[12] = 2 * tx / width - 1; m[13] = 1 - 2 * ty / height; m[15] = 1;
-    if (this.screenOrbit.update(m, width, height, pixelRatio)) this.screenBuffer.update();
+    if (this.screenOrbit.update(m, width, height, pixelRatio) && this.screenOrbit.updateSize) {
+      this.screenBuffer.update(this.screenOrbit.updateSize * Float32Array.BYTES_PER_ELEMENT);
+    }
   }
   destroy(options) {
     const geometry = this.geometry, shader = this.shader;

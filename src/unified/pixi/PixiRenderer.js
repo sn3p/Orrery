@@ -9,7 +9,7 @@ import Planet from "./Planet.js";
 import ReferenceBodies from "../named/ReferenceBodies.js";
 import Asteroids from "./Asteroids.js";
 import { DEFAULT_PLANET_LABEL_MODE, isPlanetLabelMode, PlanetLabels } from "../PlanetLabel.js";
-import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility } from "../PlanetOrbitPreference.js";
+import { DEFAULT_PLANET_ORBITS_VISIBLE, isPlanetOrbitVisibility, applyOrbitVisibility } from "../PlanetOrbitPreference.js";
 import { DEFAULT_POPULATION_PRESET, isPopulationPreset } from "../catalog/population.js";
 import { VIEW_FIT_MS, easeOutCubic, lerp, pixiPresetTargetScale } from "../viewFit.js";
 import { SUN_GLOW_EXTENT, sunGlowStops } from "../sunGlow.js";
@@ -52,7 +52,7 @@ export default class PixiRenderer {
         }
         this.planets = batch.map(entry => entry.planet);
         this.planetOrbits = batch.map(entry => entry.orbit);
-        this.planetOrbits.forEach((orbit, index) => { orbit.visible = this.planets[index]?.options.classification === 'dwarf-planet' ? this.dwarfOrbitsVisible : this.planetOrbitsVisible; });
+        applyOrbitVisibility(this.planetOrbits, this.planets, this.planetOrbitsVisible, this.dwarfOrbitsVisible);
         this.planetLabels.setMode(this.planets, this.planetLabelMode, this.dwarfLabelMode);
       },
       detach: batch => {
@@ -254,13 +254,13 @@ export default class PixiRenderer {
     if ((mode !== undefined && mode !== this.planetLabelMode) || (dwarfMode !== undefined && dwarfMode !== this.dwarfLabelMode)) {
       this.planetLabelMode = mode ?? this.planetLabelMode;
       this.dwarfLabelMode = dwarfMode ?? this.dwarfLabelMode;
-      this.planetLabels.setMode(this.planets, this.planetLabelMode, this.dwarfLabelMode ?? 'off');
+      this.planetLabels.setMode(this.planets, this.planetLabelMode, this.dwarfLabelMode);
       changed = true;
     }
     if ((orbits !== undefined && orbits !== this.planetOrbitsVisible) || (dwarfOrbits !== undefined && dwarfOrbits !== this.dwarfOrbitsVisible)) {
       this.planetOrbitsVisible = orbits ?? this.planetOrbitsVisible;
       this.dwarfOrbitsVisible = dwarfOrbits ?? this.dwarfOrbitsVisible;
-      this.planetOrbits.forEach((orbit, index) => { orbit.visible = this.planets[index]?.options.classification === 'dwarf-planet' ? this.dwarfOrbitsVisible : this.planetOrbitsVisible; });
+      applyOrbitVisibility(this.planetOrbits, this.planets, this.planetOrbitsVisible, this.dwarfOrbitsVisible);
       changed = true;
     }
     if (population !== undefined && population !== this.populationPreset) {

@@ -25,7 +25,11 @@ export default class OrbitTrack extends THREE.Mesh {
     // The renderer passes CSS dimensions explicitly: ThreeRenderer sizes its
     // backing buffer directly, so WebGLRenderer.getSize is not the CSS size.
     if (this.screenOrbit.update(this.projectionMatrix.elements, width, height, pixelRatio)) {
-      this.screenBuffer.needsUpdate = true;
+      this.screenBuffer.clearUpdateRanges();
+      if (this.screenOrbit.count) {
+        this.screenBuffer.addUpdateRange(0, this.screenOrbit.count * 4);
+        this.screenBuffer.needsUpdate = true;
+      }
       this.geometry.setDrawRange(0, this.screenOrbit.count);
     }
   }
